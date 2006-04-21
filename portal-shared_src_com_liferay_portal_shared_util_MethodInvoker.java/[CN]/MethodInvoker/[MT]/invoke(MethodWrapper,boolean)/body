@@ -1,0 +1,62 @@
+{
+  ClassLoader contextClassLoader=Thread.currentThread().getContextClassLoader();
+  String className=methodWrapper.getClassName();
+  String methodName=methodWrapper.getMethodName();
+  Object args[]=methodWrapper.getArgs();
+  List parameterTypes=new ArrayList();
+  for (int i=0; i < args.length; i++) {
+    Class argClass=args[i].getClass();
+    if (ClassUtil.isSubclass(argClass,PrimitiveWrapper.class)) {
+      parameterTypes.add(argClass.getField("TYPE").get(args[i]));
+      MethodKey methodKey=new MethodKey(argClass.getName(),"getValue",null);
+      Method method=MethodCache.get(methodKey);
+      args[i]=method.invoke(args[i],null);
+    }
+ else     if (args[i] instanceof NullWrapper) {
+      NullWrapper nullWrapper=(NullWrapper)args[i];
+      parameterTypes.add(contextClassLoader.loadClass(nullWrapper.getClassName()));
+      args[i]=null;
+    }
+ else {
+      parameterTypes.add(argClass);
+    }
+  }
+  Object objClass=contextClassLoader.loadClass(className);
+  if (newInstance) {
+    objClass=((Class)objClass).newInstance();
+  }
+  Method method=null;
+  try {
+    MethodKey methodKey=new MethodKey(methodWrapper.getClassName(),methodWrapper.getMethodName(),(Class[])parameterTypes.toArray(new Class[0]));
+    method=MethodCache.get(methodKey);
+  }
+ catch (  NoSuchMethodException nsme) {
+    Method[] methods=objClass.getClass().getMethods();
+    for (int i=0; i < methods.length; i++) {
+      Class[] methodParameterTypes=methods[i].getParameterTypes();
+      if (methods[i].getName().equals(methodName) && methodParameterTypes.length == parameterTypes.size()) {
+        boolean correctParams=true;
+        for (int j=0; j < parameterTypes.size(); j++) {
+          Class a=(Class)parameterTypes.get(j);
+          Class b=methodParameterTypes[j];
+          if (!ClassUtil.isSubclass(a,b)) {
+            correctParams=false;
+            break;
+          }
+        }
+        if (correctParams) {
+          method=methods[i];
+          break;
+        }
+      }
+    }
+    if (method == null) {
+      throw nsme;
+    }
+  }
+  Object returnObj=null;
+  if (method != null) {
+    returnObj=method.invoke(objClass,args);
+  }
+  return returnObj;
+}
