@@ -1,0 +1,44 @@
+{
+synchronized (IndexWriter.class) {
+    _log.debug("Indexing document " + companyId + " "+ portletId+ " "+ groupId+ " "+ repositoryId+ " "+ fileName);
+    String fileExt=fileName;
+    int fileExtPos=fileExt.indexOf(DLServiceImpl.VERSION);
+    if (fileExtPos != -1) {
+      fileExt=fileExt.substring(fileExt.lastIndexOf(StringPool.PERIOD,fileExtPos),fileExtPos);
+    }
+ else {
+      fileExt=fileExt.substring(fileExt.lastIndexOf(StringPool.PERIOD),fileExt.length());
+    }
+    InputStream is=null;
+    Session session=null;
+    try {
+      session=JCRFactoryUtil.createSession();
+      Node contentNode=DLLocalServiceUtil.getFileContentNode(session,companyId,repositoryId,fileName,0);
+      is=contentNode.getProperty(JCRConstants.JCR_DATA).getStream();
+    }
+ catch (    Exception e) {
+    }
+ finally {
+      if (session != null) {
+        session.logout();
+      }
+    }
+    if (is == null) {
+      _log.debug("Document " + companyId + " "+ portletId+ " "+ groupId+ " "+ repositoryId+ " "+ fileName+ " does not have any content");
+      return;
+    }
+    IndexWriter writer=LuceneUtil.getWriter(companyId);
+    Document doc=new Document();
+    doc.add(LuceneFields.getKeyword(LuceneFields.UID,LuceneFields.getUID(portletId,repositoryId,fileName)));
+    doc.add(LuceneFields.getKeyword(LuceneFields.COMPANY_ID,companyId));
+    doc.add(LuceneFields.getKeyword(LuceneFields.PORTLET_ID,portletId));
+    doc.add(LuceneFields.getKeyword(LuceneFields.GROUP_ID,groupId));
+    doc.add(LuceneFields.getFile(LuceneFields.CONTENT,is,fileExt));
+    doc.add(LuceneFields.getDate(LuceneFields.MODIFIED));
+    doc.add(LuceneFields.getKeyword("repositoryId",repositoryId));
+    doc.add(LuceneFields.getKeyword("path",fileName));
+    writer.addDocument(doc);
+    LuceneUtil.write(writer);
+    _log.debug("Document " + companyId + " "+ portletId+ " "+ groupId+ " "+ repositoryId+ " "+ fileName+ " indexed successfully");
+  }
+}
