@@ -1,0 +1,34 @@
+{
+  copyJars(srcFile);
+  copyTlds(srcFile);
+  File webXML=new File(srcFile + "/WEB-INF/web.xml");
+  String content=FileUtil.read(webXML);
+  int pos=content.indexOf("<web-app");
+  pos=content.indexOf(">",pos) + 1;
+  String extraContent=getExtraContent(srcFile,displayName);
+  String newContent=content.substring(0,pos) + extraContent + content.substring(pos,content.length());
+  newContent=StringUtil.replace(newContent,"com.liferay.portal.servlet.","com.liferay.portal.shared.servlet.");
+  newContent=WebXMLBuilder.organizeWebXML(newContent);
+  FileUtil.write(webXML,newContent,true);
+  System.out.println("  Modifying " + webXML);
+  if (!baseDir.equals(destDir)) {
+    String includes=StringPool.BLANK;
+    String excludes=StringPool.BLANK;
+    if (appServerType.equals("tomcat")) {
+      String[] libs=FileUtil.listFiles(tomcatLibDir);
+      for (int i=0; i < libs.length; i++) {
+        excludes+="**/WEB-INF/lib/" + libs[i] + ",";
+      }
+    }
+    if (!unpackWar || appServerType.equals("websphere")) {
+      WarTask.war(srcFile,deployDir,"WEB-INF/web.xml",webXML);
+    }
+ else {
+      CopyTask.copyDirectory(srcFile,deployDir,includes,excludes,true,false);
+      if (appServerType.equals("tomcat")) {
+        File deployWebXML=new File(deployDir + "/WEB-INF/web.xml");
+        deployWebXML.setLastModified(System.currentTimeMillis() + (Time.SECOND * 6));
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  List layouts=new ArrayList();
+  List groups=GroupLocalServiceUtil.search(companyId,null,null);
+  for (int i=0; i < groups.size(); i++) {
+    Group group=(Group)groups.get(i);
+    String ownerId=Layout.PRIVATE + group.getGroupId();
+    deleteOwnerContentSearches(ownerId);
+    layouts.addAll(LayoutLocalServiceUtil.getLayouts(ownerId));
+    ownerId=Layout.PUBLIC + group.getGroupId();
+    deleteOwnerContentSearches(ownerId);
+    layouts.addAll(LayoutLocalServiceUtil.getLayouts(ownerId));
+  }
+  for (int i=0; i < layouts.size(); i++) {
+    Layout layout=(Layout)layouts.get(i);
+    LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
+    List portletIds=layoutTypePortlet.getPortletIds();
+    for (int j=0; j < portletIds.size(); j++) {
+      String portletId=(String)portletIds.get(j);
+      String rootPortletId=Portlet.getRootPortletId(portletId);
+      if (rootPortletId.equals(PortletKeys.JOURNAL_CONTENT)) {
+        try {
+          PortletPreferencesPK prefsPK=new PortletPreferencesPK(portletId,layout.getLayoutId(),layout.getOwnerId());
+          PortletPreferences prefs=PortletPreferencesServiceUtil.getPreferences(layout.getCompanyId(),prefsPK);
+          String articleId=prefs.getValue("article-id",StringPool.BLANK);
+          if (Validator.isNotNull(articleId)) {
+            updateContentSearch(portletId,layout.getLayoutId(),layout.getOwnerId(),layout.getCompanyId(),articleId);
+          }
+        }
+ catch (        NoSuchPortletPreferencesException nsppe) {
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,149 @@
+{
+synchronized (MainServlet.class) {
+    _log.debug("Initialize");
+    super.init();
+    _log.debug("Process startup events");
+    try {
+      EventsProcessor.process(new String[]{StartupAction.class.getName()},true);
+    }
+ catch (    Exception e) {
+      e.printStackTrace();
+    }
+    _log.debug("Company id");
+    ServletContext ctx=getServletContext();
+    _companyId=ctx.getInitParameter("company_id");
+    ctx.setAttribute(WebKeys.COMPANY_ID,_companyId);
+    _log.debug("Paths");
+    String rootPath=GetterUtil.getString(ctx.getInitParameter("root_path"),StringPool.SLASH);
+    if (rootPath.equals(StringPool.SLASH)) {
+      rootPath=StringPool.BLANK;
+    }
+    ctx.setAttribute(WebKeys.ROOT_PATH,rootPath);
+    ctx.setAttribute(WebKeys.MAIN_PATH,rootPath + DEFAULT_MAIN_PATH);
+    ctx.setAttribute(WebKeys.CAPTCHA_PATH,rootPath + "/captcha");
+    String friendlyURLPrivatePath=rootPath + PropsUtil.get(PropsUtil.LAYOUT_FRIENDLY_URL_PRIVATE_SERVLET_MAPPING);
+    ctx.setAttribute(WebKeys.FRIENDLY_URL_PRIVATE_PATH,friendlyURLPrivatePath);
+    String friendlyURLPublicPath=rootPath + PropsUtil.get(PropsUtil.LAYOUT_FRIENDLY_URL_PUBLIC_SERVLET_MAPPING);
+    ctx.setAttribute(WebKeys.FRIENDLY_URL_PUBLIC_PATH,friendlyURLPublicPath);
+    ctx.setAttribute(WebKeys.IMAGE_PATH,rootPath + "/image");
+    _log.debug("Initialize portlets");
+    try {
+      String[] xmls=new String[]{Http.URLtoString(ctx.getResource("/WEB-INF/portlet.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/portlet-ext.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-portlet.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-portlet-ext.xml"))};
+      PortletServiceUtil.initEAR(xmls);
+    }
+ catch (    Exception e) {
+      e.printStackTrace();
+    }
+    _log.debug("Initialize display");
+    try {
+      String xml=Http.URLtoString(ctx.getResource("/WEB-INF/liferay-display.xml"));
+      PortletCategory portletCategory=(PortletCategory)WebAppPool.get(_companyId,WebKeys.PORTLET_CATEGORY);
+      if (portletCategory == null) {
+        portletCategory=new PortletCategory();
+      }
+      PortletCategory newPortletCategory=PortletServiceUtil.getEARDisplay(xml);
+      portletCategory.merge(newPortletCategory);
+      WebAppPool.put(_companyId,WebKeys.PORTLET_CATEGORY,portletCategory);
+    }
+ catch (    Exception e) {
+      e.printStackTrace();
+    }
+    _log.debug("Initialize layout templates");
+    try {
+      String[] xmls=new String[]{Http.URLtoString(ctx.getResource("/WEB-INF/liferay-layout-templates.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-layout-templates-ext.xml"))};
+      LayoutTemplateLocalUtil.init(ctx,xmls);
+    }
+ catch (    Exception e) {
+      e.printStackTrace();
+    }
+    _log.debug("Initialize look and feel");
+    try {
+      String[] xmls=new String[]{Http.URLtoString(ctx.getResource("/WEB-INF/liferay-look-and-feel.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-look-and-feel-ext.xml"))};
+      ThemeLocalUtil.init(ctx,xmls);
+    }
+ catch (    Exception e) {
+      e.printStackTrace();
+    }
+    _log.debug("Check company");
+    try {
+      CompanyLocalServiceUtil.checkCompany(_companyId);
+    }
+ catch (    Exception e) {
+      e.printStackTrace();
+    }
+    _log.debug("Check journal content search");
+    if (GetterUtil.get(PropsUtil.get(PropsUtil.JOURNAL_SYNC_CONTENT_SEARCH_ON_STARTUP),false)) {
+      try {
+        JournalContentSearchLocalServiceUtil.checkContentSearches(_companyId);
+      }
+ catch (      Exception e) {
+        e.printStackTrace();
+      }
+    }
+    _log.debug("Check web settings");
+    try {
+      String xml=Http.URLtoString(ctx.getResource("/WEB-INF/web.xml"));
+      _checkWebSettings(xml);
+    }
+ catch (    Exception e) {
+      e.printStackTrace();
+    }
+    _log.debug("Scheduler");
+    try {
+      Iterator itr=PortletServiceUtil.getPortlets(_companyId).iterator();
+      while (itr.hasNext()) {
+        Portlet portlet=(Portlet)itr.next();
+        String className=portlet.getSchedulerClass();
+        if (portlet.isActive() && className != null) {
+          Scheduler scheduler=(Scheduler)InstancePool.get(className);
+          scheduler.schedule();
+        }
+      }
+    }
+ catch (    ObjectAlreadyExistsException oaee) {
+    }
+catch (    Exception e) {
+      e.printStackTrace();
+    }
+    _log.debug("Message resources");
+    MultiMessageResources messageResources=(MultiMessageResources)ctx.getAttribute(Globals.MESSAGES_KEY);
+    messageResources.setServletContext(ctx);
+    WebAppPool.put(_companyId,Globals.MESSAGES_KEY,messageResources);
+    _log.debug("Current users");
+    WebAppPool.put(_companyId,WebKeys.CURRENT_USERS,new TreeMap());
+    _log.debug("HttpBridge");
+    TaskController.bridgeUserServicePath="/httpbridge/home";
+    TaskController.bridgeHttpServicePath="/httpbridge/http";
+    TaskController.bridgeGotoTag="(goto)";
+    TaskController.bridgeThenTag="(then)";
+    TaskController.bridgePostTag="(post)";
+    _log.debug("Last modified paths");
+    if (_lastModifiedPaths == null) {
+      _lastModifiedPaths=CollectionFactory.getHashSet();
+      for (int i=0; ; i++) {
+        String lastModifiedPath=PropsUtil.get(PropsUtil.LAST_MODIFIED_PATH + i);
+        if (lastModifiedPath == null) {
+          break;
+        }
+ else {
+          _lastModifiedPaths.add(lastModifiedPath);
+        }
+      }
+    }
+    try {
+      PortalClassLoaderUtil.setClassLoader(Thread.currentThread().getContextClassLoader());
+    }
+ catch (    Exception e) {
+      e.printStackTrace();
+    }
+    _log.debug("Process startup events");
+    try {
+      EventsProcessor.process(PropsUtil.getArray(PropsUtil.GLOBAL_STARTUP_EVENTS),true);
+      EventsProcessor.process(PropsUtil.getArray(PropsUtil.APPLICATION_STARTUP_EVENTS),new String[]{_companyId});
+    }
+ catch (    Exception e) {
+      e.printStackTrace();
+    }
+    PortalInstances.init(_companyId);
+  }
+}

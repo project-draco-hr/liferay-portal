@@ -1,0 +1,57 @@
+{
+  LayoutTypePortlet layoutType=(LayoutTypePortlet)layout.getLayoutType();
+  if ((windowState == null) || (Validator.isNull(windowState.toString())) || (windowState.equals(LiferayWindowState.EXCLUSIVE))) {
+    if (layoutType.hasStateMaxPortletId(portletId)) {
+      return WindowState.MAXIMIZED;
+    }
+ else     if (layoutType.hasStateMinPortletId(portletId)) {
+      return WindowState.MINIMIZED;
+    }
+ else {
+      return WindowState.NORMAL;
+    }
+  }
+ else {
+    boolean updateLayout=false;
+    if ((windowState.equals(WindowState.MAXIMIZED)) || (windowState.equals(LiferayWindowState.POP_UP))) {
+      if (layoutType.hasStateMax()) {
+        String curMaxPortletId=StringUtil.split(layoutType.getStateMax())[0];
+        CachePortlet.clearResponse(req.getSession(),layout.getPrimaryKey(),curMaxPortletId);
+        if (windowState.equals(LiferayWindowState.POP_UP)) {
+          String stateMaxPrevious=layoutType.getStateMaxPrevious();
+          if (stateMaxPrevious == null) {
+            layoutType.setStateMaxPrevious(curMaxPortletId);
+            updateLayout=true;
+          }
+        }
+      }
+ else {
+        if (windowState.equals(LiferayWindowState.POP_UP)) {
+          String stateMaxPrevious=layoutType.getStateMaxPrevious();
+          if (stateMaxPrevious == null) {
+            layoutType.setStateMaxPrevious(StringPool.BLANK);
+            updateLayout=true;
+          }
+        }
+      }
+      if (!layoutType.hasStateMaxPortletId(portletId)) {
+        layoutType.addStateMaxPortletId(portletId);
+        updateLayout=true;
+      }
+    }
+ else     if (windowState.equals(WindowState.MINIMIZED) && !layoutType.hasStateMinPortletId(portletId)) {
+      layoutType.addStateMinPortletId(portletId);
+      updateLayout=true;
+    }
+ else     if (windowState.equals(WindowState.NORMAL) && !layoutType.hasStateNormalPortletId(portletId)) {
+      layoutType.removeStatesPortletId(portletId);
+      updateLayout=true;
+    }
+    if (updateLayout) {
+      if ((user != null) && !layout.isShared()) {
+        LayoutServiceUtil.updateLayout(layout.getLayoutId(),layout.getOwnerId(),layout.getTypeSettings());
+      }
+    }
+    return windowState;
+  }
+}

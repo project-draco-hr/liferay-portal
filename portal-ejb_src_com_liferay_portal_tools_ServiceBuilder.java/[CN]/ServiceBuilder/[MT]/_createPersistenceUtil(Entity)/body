@@ -1,0 +1,126 @@
+{
+  XClass xClass=_getXClass(_outputPath + "/service/persistence/" + entity.getName()+ "Persistence.java");
+  List methods=xClass.getMethods();
+  StringBuffer sb=new StringBuffer();
+  sb.append("package " + _packagePath + ".service.persistence;");
+  sb.append("import " + _springUtilClassName + ";");
+  sb.append("import com.liferay.portal.model.ModelListener;");
+  sb.append("import com.liferay.portal.util.PropsUtil;");
+  sb.append("import com.liferay.util.GetterUtil;");
+  sb.append("import com.liferay.util.InstancePool;");
+  sb.append("import com.liferay.util.Validator;");
+  sb.append("import org.apache.commons.logging.Log;");
+  sb.append("import org.apache.commons.logging.LogFactory;");
+  sb.append("import org.springframework.context.ApplicationContext;");
+  sb.append("public class " + entity.getName() + "Util {");
+  sb.append("public static final String CLASS_NAME = " + entity.getName() + "Util.class.getName();");
+  sb.append("public static final String LISTENER = GetterUtil.getString(PropsUtil.get(\"value.object.listener." + _packagePath + ".model."+ entity.getName()+ "\"));");
+  for (int i=0; i < methods.size(); i++) {
+    XMethod xMethod=(XMethod)methods.get(i);
+    String methodName=xMethod.getName();
+    sb.append("public static " + xMethod.getReturnType().getType().getQualifiedName() + xMethod.getReturnType().getDimensionAsString()+ " "+ methodName+ "(");
+    List parameters=xMethod.getParameters();
+    String p0Name="";
+    if (parameters.size() > 0) {
+      p0Name=((XParameter)parameters.get(0)).getName();
+    }
+    for (int j=0; j < parameters.size(); j++) {
+      XParameter xParameter=(XParameter)parameters.get(j);
+      sb.append(xParameter.getType().getQualifiedName() + xParameter.getDimensionAsString() + " "+ xParameter.getName());
+      if ((j + 1) != parameters.size()) {
+        sb.append(", ");
+      }
+    }
+    sb.append(")");
+    List thrownExceptions=xMethod.getThrownExceptions();
+    if (thrownExceptions.size() > 0) {
+      sb.append(" throws ");
+      Iterator itr=thrownExceptions.iterator();
+      while (itr.hasNext()) {
+        XClass thrownException=(XClass)itr.next();
+        sb.append(thrownException.getQualifiedName());
+        if (itr.hasNext()) {
+          sb.append(", ");
+        }
+      }
+    }
+    sb.append(" {");
+    if (methodName.equals("remove") || methodName.equals("update")) {
+      sb.append("ModelListener listener = null;");
+      sb.append("if (Validator.isNotNull(LISTENER)) {");
+      sb.append("try {");
+      sb.append("listener = (ModelListener)Class.forName(LISTENER).newInstance();");
+      sb.append("}");
+      sb.append("catch (Exception e) {");
+      sb.append("_log.error(e);");
+      sb.append("}");
+      sb.append("}");
+      if (methodName.equals("update")) {
+        sb.append("boolean isNew = " + p0Name + ".isNew();");
+      }
+      sb.append("if (listener != null) {");
+      if (methodName.equals("remove")) {
+        sb.append("listener.onBeforeRemove(findByPrimaryKey(" + p0Name + "));");
+      }
+ else {
+        sb.append("if (isNew) {");
+        sb.append("listener.onBeforeCreate(" + p0Name + ");");
+        sb.append("}");
+        sb.append("else {");
+        sb.append("listener.onBeforeUpdate(" + p0Name + ");");
+        sb.append("}");
+      }
+      sb.append("}");
+      if (methodName.equals("remove")) {
+        sb.append(_packagePath + ".model." + entity.getName()+ " "+ entity.getVarName()+ " = ");
+      }
+ else {
+        sb.append(entity.getVarName() + " = ");
+      }
+    }
+ else {
+      if (!xMethod.getReturnType().getType().getQualifiedName().equals("void")) {
+        sb.append("return ");
+      }
+    }
+    sb.append("getPersistence()." + methodName + "(");
+    for (int j=0; j < parameters.size(); j++) {
+      XParameter xParameter=(XParameter)parameters.get(j);
+      sb.append(xParameter.getName());
+      if ((j + 1) != parameters.size()) {
+        sb.append(", ");
+      }
+    }
+    sb.append(");");
+    if (methodName.equals("remove") || methodName.equals("update")) {
+      sb.append("if (listener != null) {");
+      if (methodName.equals("remove")) {
+        sb.append("listener.onAfterRemove(" + entity.getVarName() + ");");
+      }
+ else {
+        sb.append("if (isNew) {");
+        sb.append("listener.onAfterCreate(" + entity.getVarName() + ");");
+        sb.append("}");
+        sb.append("else {");
+        sb.append("listener.onAfterUpdate(" + entity.getVarName() + ");");
+        sb.append("}");
+      }
+      sb.append("}");
+      sb.append("return " + entity.getVarName() + ";");
+    }
+    sb.append("}");
+  }
+  sb.append("public static " + entity.getName() + "Persistence getPersistence() {");
+  sb.append("ApplicationContext ctx = SpringUtil.getContext();");
+  sb.append(entity.getName() + "Util util = (" + entity.getName()+ "Util)ctx.getBean(CLASS_NAME);");
+  sb.append("return util._persistence;");
+  sb.append("}");
+  sb.append("public void setPersistence(" + entity.getName() + "Persistence persistence) {");
+  sb.append("_persistence = persistence;");
+  sb.append("}");
+  sb.append("private static Log _log = LogFactory.getLog(" + entity.getName() + "Util.class);");
+  sb.append("private " + entity.getName() + "Persistence _persistence;");
+  sb.append("}");
+  File ejbFile=new File(_outputPath + "/service/persistence/" + entity.getName()+ "Util.java");
+  writeFile(ejbFile,sb.toString());
+}

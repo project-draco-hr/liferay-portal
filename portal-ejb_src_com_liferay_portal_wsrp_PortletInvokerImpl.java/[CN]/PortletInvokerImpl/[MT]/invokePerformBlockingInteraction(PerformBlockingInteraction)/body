@@ -1,0 +1,41 @@
+{
+  String portletHandle=pbo.getPortletContext().getPortletHandle();
+  BlockingInteractionResponse bir=new BlockingInteractionResponse();
+  UpdateResponse updateRes=new UpdateResponse();
+  bir.setUpdateResponse(updateRes);
+  try {
+    MarkupParams markupParams=pbo.getMarkupParams();
+    String wsrpWindowState=markupParams.getWindowState();
+    WindowState windowState=WSRPUtil.fromWsrpWindowState(wsrpWindowState);
+    String wsrpMode=markupParams.getMode();
+    PortletMode mode=WSRPUtil.fromWsrpMode(wsrpMode);
+    ServletContext ctx=WSRPUtil.getServletContext();
+    String companyId=WSRPUtil.getCompanyId();
+    ServletContext portalCtx=ctx.getContext(PropsUtil.get(PropsUtil.PORTAL_CTX));
+    Portlet portlet=PortletServiceUtil.getPortletById(companyId,portletHandle);
+    CachePortlet cachePortlet=PortletInstanceFactory.create(portlet,portalCtx);
+    PortletConfig portletConfig=PortletConfigFactory.create(portlet,portalCtx);
+    PortletContext portletCtx=portletConfig.getPortletContext();
+    Locale reqLocale=LocaleHelper.getLocale(markupParams.getLocales()[0]);
+    String reqMimeType=markupParams.getMimeTypes()[0];
+    InteractionParams interactionParams=pbo.getInteractionParams();
+    Map actionParameters=_getActionParameters(interactionParams);
+    HttpServletRequest httpReq=new WSRPServletRequest(WSRPUtil.getHttpServletRequest(),reqLocale,reqMimeType,actionParameters);
+    PortletPreferences prefs=PortletPreferencesServiceUtil.getPreferences(companyId,PortletPreferencesFactory.getPortletPreferencesPK(httpReq,portlet.getPortletId()));
+    User user=UserLocalServiceUtil.getDefaultUser(companyId);
+    Layout layout=_getDefaultUserLayout(user.getActualCompanyId());
+    ActionRequestImpl actionRequest=ActionRequestFactory.create(httpReq,portlet,cachePortlet,portletCtx,windowState,mode,prefs,layout.getPlid());
+    WSRPServletResponse res=new WSRPServletResponse();
+    ActionResponseImpl actionResponse=new WSRPActionResponseImpl(pbo,_provider,actionRequest,res,portlet.getPortletId(),user,layout,windowState,mode);
+    cachePortlet.processAction(actionRequest,actionResponse);
+    String newNavState=null;
+    Map renderParams=_getRenderParameters(httpReq,actionResponse);
+    newNavState=Base64.encode(ObjectSerializer.serialize(renderParams));
+    updateRes.setNavigationalState(newNavState);
+    ActionRequestFactory.recycle(actionRequest);
+  }
+ catch (  Exception e) {
+    e.printStackTrace();
+  }
+  return bir;
+}

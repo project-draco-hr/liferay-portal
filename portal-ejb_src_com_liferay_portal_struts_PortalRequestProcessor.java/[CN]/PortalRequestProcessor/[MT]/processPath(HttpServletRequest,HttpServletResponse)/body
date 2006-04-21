@@ -1,0 +1,161 @@
+{
+  String path=super.processPath(req,res);
+  HttpSession ses=req.getSession();
+  String companyId=PortalUtil.getCompanyId(req);
+  Map currentUsers=(Map)WebAppPool.get(companyId,WebKeys.CURRENT_USERS);
+  UserTracker userTracker=(UserTracker)currentUsers.get(ses.getId());
+  if ((userTracker != null) && ((path != null) && (!path.equals(_PATH_C)) && (path.indexOf(_PATH_J_SECURITY_CHECK) == -1)&& (path.indexOf(_PATH_PORTAL_PROTECTED) == -1))) {
+    StringBuffer fullPathSB=new StringBuffer();
+    fullPathSB.append(path);
+    fullPathSB.append(StringPool.QUESTION);
+    fullPathSB.append(req.getQueryString());
+    UserTrackerPath userTrackerPath=new UserTrackerPath();
+    userTrackerPath.setUserTrackerPathId(userTracker.getUserTrackerId());
+    userTrackerPath.setUserTrackerId(userTracker.getUserTrackerId());
+    userTrackerPath.setPath(fullPathSB.toString());
+    userTrackerPath.setPathDate(new Date());
+    userTracker.addPath(userTrackerPath);
+  }
+  String userId=req.getRemoteUser();
+  User user=null;
+  try {
+    user=PortalUtil.getUser(req);
+  }
+ catch (  Exception e) {
+  }
+  if ((path != null) && (_lastPaths.contains(path))) {
+    boolean saveLastPath=true;
+    String strutsAction=req.getParameter("_58_struts_action");
+    if ((strutsAction != null) && (strutsAction.equals(_PATH_LOGIN_VIEW))) {
+      saveLastPath=false;
+    }
+    strutsAction=req.getParameter("_2_struts_action");
+    if ((strutsAction != null) && (strutsAction.equals(_PATH_MY_ACCOUNT_CREATE_ACCOUNT))) {
+      saveLastPath=false;
+    }
+    if (LiferayWindowState.isPopUp(req)) {
+      saveLastPath=false;
+    }
+    if (saveLastPath) {
+      String mainPath=(String)req.getAttribute(WebKeys.MAIN_PATH);
+      LastPath lastPath=(LastPath)req.getAttribute(WebKeys.LAST_PATH);
+      if (lastPath == null) {
+        lastPath=new LastPath(mainPath,path,req.getParameterMap());
+      }
+      ses.setAttribute(WebKeys.LAST_PATH,lastPath);
+    }
+  }
+  if ((userId == null) && (ses.getAttribute("j_username") == null) && (!isAutoLoginDisabledPaths(path))) {
+    try {
+      String[] autoLogins=PropsUtil.getArray(PropsUtil.AUTO_LOGIN_HOOKS);
+      for (int i=0; i < autoLogins.length; i++) {
+        AutoLogin autoLogin=(AutoLogin)InstancePool.get(autoLogins[i]);
+        String[] credentials=autoLogin.login(req,res);
+        if ((credentials != null) && (credentials.length == 3)) {
+          String jUsername=credentials[0];
+          String jPassword=credentials[1];
+          boolean encPwd=GetterUtil.getBoolean(credentials[2]);
+          if (Validator.isNotNull(jUsername) && Validator.isNotNull(jPassword)) {
+            ses.setAttribute("j_username",jUsername);
+            if (encPwd) {
+              ses.setAttribute("j_password",jPassword);
+            }
+ else {
+              ses.setAttribute("j_password",PwdEncryptor.encrypt(jPassword));
+              ses.setAttribute(WebKeys.USER_PASSWORD,jPassword);
+            }
+            ses.setAttribute("j_remoteuser",jUsername);
+            return _PATH_PORTAL_LOGIN;
+          }
+        }
+      }
+    }
+ catch (    AutoLoginException ale) {
+      _log.error(ale.getMessage());
+    }
+  }
+  if ((userId != null || user != null) && (path != null) && (path.equals(_PATH_PORTAL_LOGOUT))) {
+    return _PATH_PORTAL_LOGOUT;
+  }
+  if ((userId != null || user != null) && (path != null) && (path.equals(_PATH_PORTAL_CSS) || path.equals(_PATH_PORTAL_CSS_CACHED) || path.equals(_PATH_PORTAL_JAVASCRIPT)|| path.equals(_PATH_PORTAL_JAVASCRIPT_CACHED))) {
+    return path;
+  }
+  if ((userId != null || user != null) && (path != null) && (path.equals(_PATH_PORTAL_UPDATE_TERMS_OF_USE))) {
+    return _PATH_PORTAL_UPDATE_TERMS_OF_USE;
+  }
+  if ((userId != null) && (user == null)) {
+    return _PATH_PORTAL_LOGOUT;
+  }
+  if ((user != null) && (!user.isAgreedToTermsOfUse())) {
+    boolean termsOfUseRequired=GetterUtil.get(PropsUtil.get(PropsUtil.TERMS_OF_USE_REQUIRED),true);
+    if (termsOfUseRequired) {
+      return _PATH_PORTAL_TERMS_OF_USE;
+    }
+  }
+  if ((user != null) && (!user.isActive())) {
+    SessionErrors.add(req,UserActiveException.class.getName());
+    return _PATH_PORTAL_ERROR;
+  }
+  boolean simultaenousLogins=GetterUtil.get(PropsUtil.get(PropsUtil.AUTH_SIMULTANEOUS_LOGINS),true);
+  if (!simultaenousLogins) {
+    Boolean staleSession=(Boolean)ses.getAttribute(WebKeys.STALE_SESSION);
+    if ((user != null) && (staleSession != null && staleSession.booleanValue() == true)) {
+      return _PATH_PORTAL_ERROR;
+    }
+  }
+  if ((user != null) && (user.isPasswordReset())) {
+    return _PATH_PORTAL_CHANGE_PASSWORD;
+  }
+  if (user != null) {
+    ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
+    if (themeDisplay.getLayouts().size() == 0) {
+      SessionErrors.add(req,RequiredLayoutException.class.getName());
+      return _PATH_PORTAL_ERROR;
+    }
+  }
+  if (!isPublicPath(path)) {
+    if (user == null) {
+      SessionErrors.add(req,PrincipalException.class.getName());
+      return _PATH_PORTAL_LOGIN;
+    }
+  }
+  ActionMapping mapping=(ActionMapping)moduleConfig.findActionConfig(path);
+  if (path.startsWith(_PATH_WSRP)) {
+    path=_PATH_WSRP;
+  }
+ else {
+    path=mapping.getPath();
+  }
+  if (user != null) {
+    try {
+      if (false) {
+        SessionErrors.add(req,RequiredRoleException.class.getName());
+        return _PATH_PORTAL_ERROR;
+      }
+    }
+ catch (    Exception e) {
+      e.printStackTrace();
+    }
+  }
+  if (isPortletPath(path)) {
+    try {
+      Portlet portlet=null;
+      String portletId=ParamUtil.getString(req,"p_p_id");
+      if (Validator.isNotNull(portletId)) {
+        portlet=PortletServiceUtil.getPortletById(companyId,portletId);
+      }
+      if (portlet == null) {
+        String strutsPath=path.substring(1,path.lastIndexOf(StringPool.SLASH));
+        portlet=PortletServiceUtil.getPortletByStrutsPath(companyId,strutsPath);
+      }
+      if (portlet != null && portlet.isActive()) {
+        defineObjects(req,res,portlet);
+      }
+    }
+ catch (    Exception e) {
+      req.setAttribute(PageContext.EXCEPTION,e);
+      path=_PATH_COMMON_ERROR;
+    }
+  }
+  return path;
+}

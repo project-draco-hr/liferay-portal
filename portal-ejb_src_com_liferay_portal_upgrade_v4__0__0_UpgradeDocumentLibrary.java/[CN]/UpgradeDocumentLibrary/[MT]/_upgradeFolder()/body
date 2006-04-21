@@ -1,0 +1,36 @@
+{
+  CounterServiceUtil.rename("com.liferay.portlet.documentlibrary.model.DLRepository",DLFolder.class.getName());
+  long folderIdCount=CounterServiceUtil.increment(DLFolder.class.getName());
+  CounterServiceUtil.increment(DLFolder.class.getName(),(int)folderIdCount * 2);
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getConnection(Constants.DATA_SOURCE);
+    ps=con.prepareStatement(_UPGRADE_FOLDER_1);
+    ps.setString(1,Group.DEFAULT_PARENT_GROUP_ID);
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      String repositoryId=rs.getString("repositoryId");
+      String groupId=rs.getString("groupId");
+      String companyId=rs.getString("companyId");
+      String userId=rs.getString("userId");
+      String name=_fixName(rs.getString("name"));
+      String plid=Layout.PUBLIC + groupId + ".1";
+      String parentFolderId=DLFolder.DEFAULT_PARENT_FOLDER_ID;
+      String description=name;
+      boolean addCommunityPermissions=true;
+      boolean addGuestPermissions=true;
+      _log.debug("Migrating repository " + repositoryId);
+      DLFolder folder=DLFolderLocalServiceUtil.addFolder(userId,plid,parentFolderId,name,description,addCommunityPermissions,addGuestPermissions);
+      _upgradeFileEntry(repositoryId,folder.getFolderId());
+      _dlDeleteAll(companyId,PortletKeys.DOCUMENT_LIBRARY,repositoryId);
+      ps=con.prepareStatement(_UPGRADE_FOLDER_2);
+      ps.setString(1,repositoryId);
+      ps.executeUpdate();
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}

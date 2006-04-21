@@ -1,0 +1,30 @@
+{
+  HttpSession ses=req.getSession();
+  String companyId=PortalUtil.getCompanyId(req);
+  User user=PortalUtil.getUser(req);
+  Layout layout=(Layout)req.getAttribute(WebKeys.LAYOUT);
+  String portletId=ParamUtil.getString(req,"p_p_id");
+  Portlet portlet=PortletServiceUtil.getPortletById(companyId,portletId);
+  ServletContext ctx=(ServletContext)req.getAttribute(WebKeys.CTX);
+  CachePortlet cachePortlet=PortletInstanceFactory.create(portlet,ctx);
+  if (user != null) {
+    CachePortlet.clearResponse(ses,layout.getPrimaryKey(),portletId);
+  }
+  PortletPreferencesPK prefsPK=PortletPreferencesFactory.getPortletPreferencesPK(req,portletId);
+  PortletPreferences prefs=PortletPreferencesServiceUtil.getPreferences(companyId,prefsPK);
+  PortletConfig portletConfig=PortletConfigFactory.create(portlet,ctx);
+  PortletContext portletCtx=portletConfig.getPortletContext();
+  WindowState windowState=new WindowState(ParamUtil.getString(req,"p_p_state"));
+  PortletMode portletMode=new PortletMode(ParamUtil.getString(req,"p_p_mode"));
+  if (action) {
+    ActionRequestImpl actionRequestImpl=ActionRequestFactory.create(req,portlet,cachePortlet,portletCtx,windowState,portletMode,prefs,layout.getPlid());
+    ActionResponseImpl actionResponseImpl=ActionResponseFactory.create(actionRequestImpl,res,portletId,user,layout,windowState,portletMode);
+    actionRequestImpl.defineObjects(portletConfig,actionResponseImpl);
+    cachePortlet.processAction(actionRequestImpl,actionResponseImpl);
+    RenderParametersPool.put(req,layout.getPlid(),portletId,actionResponseImpl.getRenderParameters());
+  }
+ else {
+    PortalUtil.updateWindowState(portletId,user,layout,windowState,req);
+    PortalUtil.updatePortletMode(portletId,user,layout,portletMode);
+  }
+}

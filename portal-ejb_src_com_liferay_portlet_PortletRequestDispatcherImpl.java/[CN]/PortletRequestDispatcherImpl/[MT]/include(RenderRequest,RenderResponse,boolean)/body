@@ -1,0 +1,83 @@
+{
+  try {
+    RenderRequestImpl reqImpl=(RenderRequestImpl)req;
+    RenderResponseImpl resImpl=(RenderResponseImpl)res;
+    HttpServletRequest httpReq=reqImpl.getHttpServletRequest();
+    String pathInfo=null;
+    String queryString=null;
+    String requestURI=null;
+    String servletPath=null;
+    if (_path != null) {
+      String pathNoQueryString=_path;
+      int pos=_path.indexOf(StringPool.QUESTION);
+      if (pos != -1) {
+        pathNoQueryString=_path.substring(0,pos);
+        queryString=_path.substring(pos + 1,_path.length());
+        Map queryParams=new HashMap();
+        String[] queryParamsArray=StringUtil.split(queryString,StringPool.AMPERSAND);
+        for (int i=0; i < queryParamsArray.length; i++) {
+          String[] nameValuePair=StringUtil.split(queryParamsArray[i],StringPool.EQUAL);
+          String name=nameValuePair[0];
+          String value=nameValuePair[1];
+          String[] values=(String[])queryParams.get(name);
+          if (values == null) {
+            queryParams.put(name,new String[]{value});
+          }
+ else {
+            String[] newValues=new String[values.length + 1];
+            System.arraycopy(values,0,newValues,0,values.length);
+            newValues[newValues.length - 1]=value;
+            queryParams.put(name,newValues);
+          }
+        }
+        DynamicServletRequest dynamicReq=null;
+        if (reqImpl.isPrivateRequestAttributes()) {
+          dynamicReq=new NamespaceServletRequest(httpReq,reqImpl.getPortletName());
+        }
+ else {
+          dynamicReq=new DynamicServletRequest(httpReq);
+        }
+        Iterator itr=queryParams.entrySet().iterator();
+        while (itr.hasNext()) {
+          Map.Entry entry=(Map.Entry)itr.next();
+          String name=(String)entry.getKey();
+          String[] values=(String[])entry.getValue();
+          String[] oldValues=dynamicReq.getParameterValues(name);
+          if (oldValues == null) {
+            dynamicReq.setParameterValues(name,values);
+          }
+ else {
+            String[] newValues=new String[values.length + oldValues.length];
+            System.arraycopy(values,0,newValues,0,values.length);
+            System.arraycopy(oldValues,0,newValues,values.length,oldValues.length);
+            dynamicReq.setParameterValues(name,newValues);
+          }
+        }
+        httpReq=dynamicReq;
+      }
+      pos=pathNoQueryString.indexOf(StringPool.SLASH,1);
+      if (pos != -1) {
+        pathInfo=pathNoQueryString.substring(pos,pathNoQueryString.length());
+        servletPath=pathNoQueryString.substring(0,pos);
+      }
+ else {
+        servletPath=pathNoQueryString;
+      }
+      requestURI=req.getContextPath() + pathNoQueryString;
+    }
+    PortletServletRequest portletServletReq=new PortletServletRequest(httpReq,reqImpl,pathInfo,queryString,requestURI,servletPath,reqImpl.getSharedSessionAttributes());
+    PortletServletResponse portletServletRes=new PortletServletResponse(resImpl.getHttpServletResponse(),resImpl);
+    if (strutsURLEncoder) {
+      ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
+      resImpl.setURLEncoder(new StrutsURLEncoder(portletServletReq.getContextPath(),themeDisplay.getPathMain(),(String)_portletCtx.getAttribute(Globals.SERVLET_KEY),(com.liferay.portlet.PortletURLImpl)res.createRenderURL()));
+    }
+    if (ServerDetector.isJetty()) {
+      portletServletReq.setAttribute("org.mortbay.jetty.servlet.Dispatcher.shared_session",Boolean.TRUE);
+    }
+    _rd.include(portletServletReq,portletServletRes);
+  }
+ catch (  ServletException se) {
+    se.printStackTrace();
+    throw new PortletException(se);
+  }
+}

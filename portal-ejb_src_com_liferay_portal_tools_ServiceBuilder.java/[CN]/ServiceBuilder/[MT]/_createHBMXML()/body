@@ -1,0 +1,123 @@
+{
+  StringBuffer sb=new StringBuffer();
+  for (int i=0; i < _ejbList.size(); i++) {
+    Entity entity=(Entity)_ejbList.get(i);
+    List pkList=entity.getPKList();
+    List columnList=entity.getColumnList();
+    List finderList=entity.getFinderList();
+    if (entity.hasColumns()) {
+      sb.append("\t<class name=\"" + _packagePath + ".service.persistence."+ entity.getName()+ "HBM\" table=\""+ entity.getTable()+ "\">\n");
+      sb.append("\t\t<cache usage=\"read-write\" />\n");
+      if (entity.hasCompoundPK()) {
+        sb.append("\t\t<composite-id name=\"primaryKey\" class=\"" + _packagePath + ".service.persistence."+ entity.getName()+ "PK\">\n");
+        for (int j=0; j < pkList.size(); j++) {
+          EntityColumn col=(EntityColumn)pkList.get(j);
+          sb.append("\t\t\t<key-property name=\"" + col.getName() + "\" ");
+          if (!col.getName().equals(col.getDBName())) {
+            sb.append("column=\"" + col.getDBName() + "\" />\n");
+          }
+ else {
+            sb.append("/>\n");
+          }
+        }
+        sb.append("\t\t</composite-id>\n");
+      }
+ else {
+        EntityColumn col=(EntityColumn)pkList.get(0);
+        sb.append("\t\t<id name=\"" + col.getName() + "\" ");
+        if (!col.getName().equals(col.getDBName())) {
+          sb.append("column=\"" + col.getDBName() + "\" ");
+        }
+        sb.append("type=\"java.lang." + col.getType() + "\">\n");
+        String colIdType=col.getIdType();
+        if (Validator.isNull(colIdType)) {
+          sb.append("\t\t\t<generator class=\"assigned\" />\n");
+        }
+ else         if (colIdType.equals("class")) {
+          sb.append("\t\t\t<generator class=\"" + col.getIdParam() + "\" />\n");
+        }
+ else         if (colIdType.equals("sequence")) {
+          sb.append("\t\t\t<generator class=\"sequence\">\n");
+          sb.append("\t\t\t\t<param name=\"sequence\">" + col.getIdParam() + "</param>\n");
+          sb.append("\t\t\t</generator>\n");
+        }
+ else {
+          sb.append("\t\t\t<generator class=\"" + colIdType + "\" />\n");
+        }
+        sb.append("\t\t</id>\n");
+      }
+      for (int j=0; j < columnList.size(); j++) {
+        EntityColumn col=(EntityColumn)columnList.get(j);
+        if (!col.isPrimary() && !col.isCollection() && col.getEJBName() == null) {
+          sb.append("\t\t<property name=\"" + col.getName() + "\" ");
+          if (!col.getName().equals(col.getDBName())) {
+            sb.append("column=\"" + col.getDBName() + "\" ");
+          }
+          if (col.isPrimitiveType()) {
+            sb.append("type=\"com.liferay.util.dao.hibernate.");
+            String colType=col.getType();
+            if (colType.equals("boolean")) {
+              sb.append("Boolean");
+            }
+ else             if (colType.equals("double")) {
+              sb.append("Double");
+            }
+ else             if (colType.equals("float")) {
+              sb.append("Float");
+            }
+ else             if (colType.equals("int")) {
+              sb.append("Integer");
+            }
+ else             if (colType.equals("long")) {
+              sb.append("Long");
+            }
+ else             if (colType.equals("short")) {
+              sb.append("Short");
+            }
+            sb.append("Type\" ");
+          }
+          sb.append("/>\n");
+        }
+ else         if (!col.isPrimary() && col.isCollection() && col.getEJBName() != null) {
+          Entity tempEntity=getEntity(col.getEJBName());
+          EntityColumn pk1=(EntityColumn)pkList.get(0);
+          EntityColumn pk2=(EntityColumn)tempEntity.getPKList().get(0);
+          if (col.isMappingOneToMany()) {
+            sb.append("\t\t<set name=\"" + col.getName() + "\" lazy=\"true\">\n");
+            sb.append("\t\t\t<key column=\"" + col.getMappingKey() + "\" />\n");
+            sb.append("\t\t\t<one-to-many class=\"" + tempEntity.getPackagePath() + ".service.persistence."+ tempEntity.getName()+ "HBM\" />\n");
+            sb.append("\t\t</set>\n");
+          }
+ else           if (col.isMappingManyToMany()) {
+            sb.append("\t\t<set name=\"" + col.getName() + "\" table=\""+ col.getMappingTable()+ "\" lazy=\"true\">\n");
+            sb.append("\t\t\t<key column=\"" + pk1.getDBName() + "\" />\n");
+            sb.append("\t\t\t<many-to-many class=\"" + tempEntity.getPackagePath() + ".service.persistence."+ tempEntity.getName()+ "HBM\" column=\""+ pk2.getDBName()+ "\" />\n");
+            sb.append("\t\t</set>\n");
+          }
+        }
+      }
+      sb.append("\t</class>\n");
+    }
+  }
+  File xmlFile=new File(_hbmFileName);
+  if (!xmlFile.exists()) {
+    String content="<?xml version=\"1.0\"?>\n" + "<!DOCTYPE hibernate-mapping PUBLIC \"-//Hibernate/Hibernate Mapping DTD 3.0//EN\" \"http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd\">\n" + "\n"+ "<hibernate-mapping default-lazy=\"false\">\n"+ "</hibernate-mapping>";
+    FileUtil.write(xmlFile,content);
+  }
+  String oldContent=FileUtil.read(xmlFile);
+  String newContent=new String(oldContent);
+  int firstClass=newContent.indexOf("<class name=\"" + _packagePath + ".service.persistence.");
+  int lastClass=newContent.lastIndexOf("<class name=\"" + _packagePath + ".service.persistence.");
+  if (firstClass == -1) {
+    int x=newContent.indexOf("</hibernate-mapping>");
+    newContent=newContent.substring(0,x) + sb.toString() + newContent.substring(x,newContent.length());
+  }
+ else {
+    firstClass=newContent.lastIndexOf("<class",firstClass) - 1;
+    lastClass=newContent.indexOf("</class>",lastClass) + 9;
+    newContent=newContent.substring(0,firstClass) + sb.toString() + newContent.substring(lastClass,newContent.length());
+  }
+  if (!oldContent.equals(newContent)) {
+    FileUtil.write(xmlFile,newContent);
+  }
+}

@@ -1,0 +1,122 @@
+{
+  String companyMx=companyId;
+  Date now=new Date();
+  Company company=null;
+  try {
+    company=CompanyUtil.findByPrimaryKey(companyId);
+  }
+ catch (  NoSuchCompanyException nsce) {
+    String portalURL="localhost";
+    String homeURL="localhost";
+    String name=companyId;
+    String legalName=null;
+    String legalId=null;
+    String legalType=null;
+    String sicCode=null;
+    String tickerSymbol=null;
+    String industry=null;
+    String type=null;
+    String size=null;
+    company=CompanyUtil.create(companyId);
+    try {
+      company.setKeyObj(Encryptor.generateKey());
+    }
+ catch (    EncryptorException ee) {
+      throw new SystemException(ee);
+    }
+    company.setPortalURL(portalURL);
+    company.setHomeURL(homeURL);
+    company.setMx(companyMx);
+    CompanyUtil.update(company);
+    updateCompany(companyId,portalURL,homeURL,companyMx,name,legalName,legalId,legalType,sicCode,tickerSymbol,industry,type,size);
+    if (companyId.equals("liferay.net")) {
+      company=CompanyUtil.findByPrimaryKey(companyId);
+      company.setPortalURL("demo.liferay.net");
+      company.setHomeURL("demo.liferay.net");
+      CompanyUtil.update(company);
+      updateSecurity(companyId,Company.AUTH_TYPE_EA,true,true);
+      PortletPreferences prefs=AdminUtil.getPreferences(companyId);
+      try {
+        prefs.setValue("email-from-name","Liferay Demo");
+        prefs.setValue("email-from-address","test@liferay.net");
+        prefs.store();
+      }
+ catch (      IOException ioe) {
+        throw new SystemException(ioe);
+      }
+catch (      PortletException pe) {
+        throw new SystemException(pe);
+      }
+    }
+  }
+  checkCompanyKey(companyId);
+  User defaultUser=null;
+  try {
+    defaultUser=UserLocalServiceUtil.getDefaultUser(companyId);
+  }
+ catch (  NoSuchUserException nsue) {
+    defaultUser=UserUtil.create(User.getDefaultUserId(companyId));
+    defaultUser.setCompanyId(User.DEFAULT);
+    defaultUser.setCreateDate(now);
+    defaultUser.setModifiedDate(now);
+    defaultUser.setPassword("password");
+    defaultUser.setEmailAddress(User.DEFAULT + "@" + companyMx);
+    defaultUser.setLanguageId(null);
+    defaultUser.setTimeZoneId(null);
+    defaultUser.setGreeting("Welcome!");
+    defaultUser.setResolution(PropsUtil.get(PropsUtil.DEFAULT_GUEST_LAYOUT_RESOLUTION));
+    defaultUser.setLoginDate(now);
+    defaultUser.setFailedLoginAttempts(0);
+    defaultUser.setAgreedToTermsOfUse(false);
+    defaultUser.setActive(true);
+    UserUtil.update(defaultUser);
+    Contact defaultContact=ContactUtil.create(defaultUser.getUserId());
+    defaultContact.setCompanyId(defaultUser.getCompanyId());
+    defaultContact.setUserId(defaultUser.getUserId());
+    defaultContact.setUserName(StringPool.BLANK);
+    defaultContact.setCreateDate(now);
+    defaultContact.setModifiedDate(now);
+    defaultContact.setAccountId(defaultUser.getCompanyId());
+    defaultContact.setParentContactId(Contact.DEFAULT_PARENT_CONTACT_ID);
+    defaultContact.setFirstName(StringPool.BLANK);
+    defaultContact.setMiddleName(StringPool.BLANK);
+    defaultContact.setLastName(StringPool.BLANK);
+    defaultContact.setMale(true);
+    defaultContact.setBirthday(now);
+    ContactUtil.update(defaultContact);
+  }
+  GroupLocalServiceUtil.checkSystemGroups(companyId);
+  RoleLocalServiceUtil.checkSystemRoles(companyId);
+  if (UserUtil.countByCompanyId(companyId) == 0) {
+    boolean autoUserId=true;
+    String userId=StringPool.BLANK;
+    boolean autoPassword=false;
+    String password1="test";
+    String password2="test";
+    boolean passwordReset=false;
+    String emailAddress="test@" + companyMx;
+    Locale locale=defaultUser.getLocale();
+    String firstName="Test";
+    String middleName=StringPool.BLANK;
+    String lastName="Test";
+    String nickName=StringPool.BLANK;
+    String prefixId=StringPool.BLANK;
+    String suffixId=StringPool.BLANK;
+    boolean male=true;
+    int birthdayMonth=Calendar.JANUARY;
+    int birthdayDay=1;
+    int birthdayYear=1970;
+    String jobTitle=StringPool.BLANK;
+    String organizationId=null;
+    String locationId=null;
+    if (companyId.equals("liferay.net")) {
+      firstName="Liferay";
+      lastName="Demo";
+    }
+    User user=UserLocalServiceUtil.addUser(companyId,autoUserId,userId,autoPassword,password1,password2,passwordReset,emailAddress,locale,firstName,middleName,lastName,nickName,prefixId,suffixId,male,birthdayMonth,birthdayDay,birthdayYear,jobTitle,organizationId,locationId,false);
+    Role adminRole=RoleLocalServiceUtil.getRole(companyId,Role.ADMINISTRATOR);
+    Role powerUserRole=RoleLocalServiceUtil.getRole(companyId,Role.POWER_USER);
+    String[] roleIds=new String[]{adminRole.getRoleId(),powerUserRole.getRoleId()};
+    RoleLocalServiceUtil.setUserRoles(user.getUserId(),roleIds);
+  }
+}

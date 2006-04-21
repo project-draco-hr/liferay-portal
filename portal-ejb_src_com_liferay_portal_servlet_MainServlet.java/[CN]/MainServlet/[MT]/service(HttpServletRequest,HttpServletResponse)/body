@@ -1,0 +1,200 @@
+{
+  if (!PortalInstances.matches()) {
+    res.setContentType(Constants.TEXT_HTML);
+    String html=ContentUtil.get("com/liferay/portal/dependencies/init.html");
+    res.getOutputStream().print(html);
+    return;
+  }
+  if (ShutdownUtil.isShutdown()) {
+    res.setContentType(Constants.TEXT_HTML);
+    String html=ContentUtil.get("com/liferay/portal/dependencies/shutdown.html");
+    res.getOutputStream().print(html);
+    return;
+  }
+  HttpSession ses=req.getSession();
+  ServletContext ctx=getServletContext();
+  ServletContext portalCtx=ctx.getContext(CompanyPropsUtil.get(_companyId,PropsUtil.PORTAL_CTX));
+  if (portalCtx == null) {
+    portalCtx=ctx;
+  }
+  req.setAttribute(WebKeys.CTX,portalCtx);
+  ModuleConfig moduleConfig=getModuleConfig(req);
+  if (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.LAST_MODIFIED_CHECK))) {
+    String path=req.getPathInfo();
+    if ((path != null) && _lastModifiedPaths.contains(path)) {
+      ActionMapping mapping=(ActionMapping)moduleConfig.findActionConfig(path);
+      LastModifiedAction lastModifiedAction=(LastModifiedAction)InstancePool.get(mapping.getType());
+      String lmKey=lastModifiedAction.getLastModifiedKey(req);
+      if (lmKey != null) {
+        long ifModifiedSince=req.getDateHeader(HttpHeaders.IF_MODIFIED_SINCE);
+        if (ifModifiedSince <= 0) {
+          lastModifiedAction.setLastModifiedValue(lmKey,lmKey);
+        }
+ else {
+          String lmValue=lastModifiedAction.getLastModifiedValue(lmKey);
+          if (lmValue != null) {
+            res.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
+            return;
+          }
+ else {
+            lastModifiedAction.setLastModifiedValue(lmKey,lmKey);
+          }
+        }
+      }
+    }
+  }
+  String companyId=(String)ctx.getAttribute(WebKeys.COMPANY_ID);
+  if (portalCtx.getAttribute(WebKeys.COMPANY_ID) == null) {
+    portalCtx.setAttribute(WebKeys.COMPANY_ID,companyId);
+  }
+  if (ses.getAttribute(WebKeys.COMPANY_ID) == null) {
+    ses.setAttribute(WebKeys.COMPANY_ID,companyId);
+  }
+  req.setAttribute(WebKeys.COMPANY_ID,companyId);
+  String rootPath=(String)ctx.getAttribute(WebKeys.ROOT_PATH);
+  if (portalCtx.getAttribute(WebKeys.ROOT_PATH) == null) {
+    portalCtx.setAttribute(WebKeys.ROOT_PATH,rootPath);
+  }
+  if (ses.getAttribute(WebKeys.ROOT_PATH) == null) {
+    ses.setAttribute(WebKeys.ROOT_PATH,rootPath);
+  }
+  req.setAttribute(WebKeys.ROOT_PATH,rootPath);
+  String mainPath=(String)ctx.getAttribute(WebKeys.MAIN_PATH);
+  if (portalCtx.getAttribute(WebKeys.MAIN_PATH) == null) {
+    portalCtx.setAttribute(WebKeys.MAIN_PATH,mainPath);
+  }
+  if (ses.getAttribute(WebKeys.MAIN_PATH) == null) {
+    ses.setAttribute(WebKeys.MAIN_PATH,mainPath);
+  }
+  req.setAttribute(WebKeys.MAIN_PATH,mainPath);
+  String captchaPath=(String)ctx.getAttribute(WebKeys.CAPTCHA_PATH);
+  if (portalCtx.getAttribute(WebKeys.CAPTCHA_PATH) == null) {
+    portalCtx.setAttribute(WebKeys.CAPTCHA_PATH,captchaPath);
+  }
+  if (ses.getAttribute(WebKeys.CAPTCHA_PATH) == null) {
+    ses.setAttribute(WebKeys.CAPTCHA_PATH,captchaPath);
+  }
+  req.setAttribute(WebKeys.CAPTCHA_PATH,captchaPath);
+  String friendlyURLPrivatePath=(String)ctx.getAttribute(WebKeys.FRIENDLY_URL_PRIVATE_PATH);
+  if (portalCtx.getAttribute(WebKeys.FRIENDLY_URL_PRIVATE_PATH) == null) {
+    portalCtx.setAttribute(WebKeys.FRIENDLY_URL_PRIVATE_PATH,friendlyURLPrivatePath);
+  }
+  if (ses.getAttribute(WebKeys.FRIENDLY_URL_PRIVATE_PATH) == null) {
+    ses.setAttribute(WebKeys.FRIENDLY_URL_PRIVATE_PATH,friendlyURLPrivatePath);
+  }
+  req.setAttribute(WebKeys.FRIENDLY_URL_PRIVATE_PATH,friendlyURLPrivatePath);
+  String friendlyURLPublicPath=(String)ctx.getAttribute(WebKeys.FRIENDLY_URL_PUBLIC_PATH);
+  if (portalCtx.getAttribute(WebKeys.FRIENDLY_URL_PUBLIC_PATH) == null) {
+    portalCtx.setAttribute(WebKeys.FRIENDLY_URL_PUBLIC_PATH,friendlyURLPublicPath);
+  }
+  if (ses.getAttribute(WebKeys.FRIENDLY_URL_PUBLIC_PATH) == null) {
+    ses.setAttribute(WebKeys.FRIENDLY_URL_PUBLIC_PATH,friendlyURLPublicPath);
+  }
+  req.setAttribute(WebKeys.FRIENDLY_URL_PUBLIC_PATH,friendlyURLPublicPath);
+  String imagePath=(String)ctx.getAttribute(WebKeys.IMAGE_PATH);
+  if (portalCtx.getAttribute(WebKeys.IMAGE_PATH) == null) {
+    portalCtx.setAttribute(WebKeys.IMAGE_PATH,imagePath);
+  }
+  if (ses.getAttribute(WebKeys.IMAGE_PATH) == null) {
+    ses.setAttribute(WebKeys.IMAGE_PATH,imagePath);
+  }
+  req.setAttribute(WebKeys.IMAGE_PATH,imagePath);
+  PortletRequestProcessor portletReqProcessor=(PortletRequestProcessor)portalCtx.getAttribute(WebKeys.PORTLET_STRUTS_PROCESSOR);
+  if (portletReqProcessor == null) {
+    portletReqProcessor=PortletRequestProcessor.getInstance(this,moduleConfig);
+    portalCtx.setAttribute(WebKeys.PORTLET_STRUTS_PROCESSOR,portletReqProcessor);
+  }
+  if (portalCtx.getAttribute(TilesUtilImpl.DEFINITIONS_FACTORY) == null) {
+    portalCtx.setAttribute(TilesUtilImpl.DEFINITIONS_FACTORY,ctx.getAttribute(TilesUtilImpl.DEFINITIONS_FACTORY));
+  }
+  Object applicationAssociate=ctx.getAttribute(WebKeys.ASSOCIATE_KEY);
+  if (portalCtx.getAttribute(WebKeys.ASSOCIATE_KEY) == null) {
+    portalCtx.setAttribute(WebKeys.ASSOCIATE_KEY,applicationAssociate);
+  }
+  String strutsCharEncoding=PropsUtil.get(PropsUtil.STRUTS_CHAR_ENCODING);
+  req.setCharacterEncoding(strutsCharEncoding);
+  String contentType=req.getHeader(HttpHeaders.CONTENT_TYPE);
+  if ((contentType != null) && (contentType.startsWith("multipart/form-data"))) {
+    req=new UploadServletRequest(req);
+  }
+ else   if (ParamUtil.get(req,WebKeys.ENCRYPT,false)) {
+    try {
+      Company company=CompanyLocalServiceUtil.getCompany(companyId);
+      req=new EncryptedServletRequest(req,company.getKeyObj());
+    }
+ catch (    Exception e) {
+    }
+  }
+  String completeURL=Http.getCompleteURL(req);
+  if ((Validator.isNotNull(completeURL)) && (completeURL.indexOf("j_security_check") == -1)) {
+    completeURL=completeURL.substring(completeURL.indexOf("://") + 3,completeURL.length());
+    completeURL=completeURL.substring(completeURL.indexOf("/"),completeURL.length());
+  }
+  if (Validator.isNull(completeURL)) {
+    completeURL=mainPath;
+  }
+  req.setAttribute(WebKeys.CURRENT_URL,completeURL);
+  Object chatServer=ctx.getAttribute(ChatServlet.CHAT_SERVER);
+  req.setAttribute(ChatServlet.CHAT_SERVER,chatServer);
+  String userId=PortalUtil.getUserId(req);
+  String remoteUser=req.getRemoteUser();
+  if (!GetterUtil.getBoolean(PropsUtil.get(PropsUtil.PORTAL_JAAS_ENABLE))) {
+    String jRemoteUser=(String)ses.getAttribute("j_remoteuser");
+    if (jRemoteUser != null) {
+      remoteUser=jRemoteUser;
+      ses.removeAttribute("j_remoteuser");
+    }
+  }
+  if ((userId != null) && (remoteUser == null)) {
+    remoteUser=userId;
+    req=new ProtectedServletRequest(req,userId);
+  }
+  if ((userId != null) || (remoteUser != null)) {
+    String name=userId;
+    if (remoteUser != null) {
+      name=remoteUser;
+    }
+    PrincipalThreadLocal.setName(name);
+  }
+  if ((userId == null) && (remoteUser != null)) {
+    try {
+      userId=remoteUser;
+      try {
+        PrincipalFinder principalFinder=(PrincipalFinder)InstancePool.get(PropsUtil.get(PropsUtil.PRINCIPAL_FINDER));
+        userId=principalFinder.toLiferay(userId);
+      }
+ catch (      Exception e) {
+      }
+      EventsProcessor.process(PropsUtil.getArray(PropsUtil.LOGIN_EVENTS_PRE),req,res);
+      User user=UserLocalServiceUtil.getUserById(userId);
+      UserLocalServiceUtil.updateLastLogin(userId,req.getRemoteAddr());
+      ses.setAttribute(WebKeys.USER_ID,userId);
+      ses.setAttribute(Globals.LOCALE_KEY,user.getLocale());
+      EventsProcessor.process(PropsUtil.getArray(PropsUtil.LOGIN_EVENTS_POST),req,res);
+    }
+ catch (    Exception e) {
+      e.printStackTrace();
+    }
+  }
+  try {
+    EventsProcessor.process(PropsUtil.getArray(PropsUtil.SERVLET_SERVICE_EVENTS_PRE),req,res);
+  }
+ catch (  Exception e) {
+    _log.error(e);
+    req.setAttribute(PageContext.EXCEPTION,e);
+    StrutsUtil.forward(PropsUtil.get(PropsUtil.SERVLET_SERVICE_EVENTS_PRE_ERROR_PAGE),portalCtx,req,res);
+  }
+  try {
+    callParentService(req,res);
+  }
+  finally {
+    try {
+      EventsProcessor.process(PropsUtil.getArray(PropsUtil.SERVLET_SERVICE_EVENTS_POST),req,res);
+    }
+ catch (    Exception e) {
+      _log.error(e);
+    }
+    res.addHeader(_LIFERAY_PORTAL_REQUEST_HEADER,ReleaseInfo.getReleaseInfo());
+    PrincipalThreadLocal.setName(null);
+  }
+}

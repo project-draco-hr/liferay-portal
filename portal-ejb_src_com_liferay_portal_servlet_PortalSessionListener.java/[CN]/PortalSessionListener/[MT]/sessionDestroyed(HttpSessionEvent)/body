@@ -1,0 +1,46 @@
+{
+  HttpSession ses=event.getSession();
+  PortalSessionContext.remove(ses.getId());
+  if (ServerDetector.isWebLogic()) {
+    PortletSessionPool.remove(ses.getId());
+  }
+  try {
+    String companyId=(String)ses.getAttribute(WebKeys.COMPANY_ID);
+    String userId=(String)ses.getAttribute(WebKeys.USER_ID);
+    if (companyId == null) {
+      _log.warn("Company id is not in the session");
+    }
+    if (userId == null) {
+      _log.warn("User id is not in the session");
+    }
+    if ((companyId == null) || (userId == null)) {
+      return;
+    }
+    MailUtil.clearCache(userId);
+    Map currentUsers=(Map)WebAppPool.get(companyId,WebKeys.CURRENT_USERS);
+    UserTracker userTracker=null;
+    if (currentUsers != null) {
+      userTracker=(UserTracker)currentUsers.remove(ses.getId());
+    }
+    try {
+      if (userTracker != null) {
+        UserTrackerLocalServiceUtil.addUserTracker(userTracker.getCompanyId(),userTracker.getUserId(),userTracker.getModifiedDate(),userTracker.getRemoteAddr(),userTracker.getRemoteHost(),userTracker.getUserAgent(),userTracker.getPaths());
+      }
+    }
+ catch (    Exception e1) {
+      _log.warn(e1.getMessage());
+    }
+  }
+ catch (  IllegalStateException ise) {
+    _log.warn("Please upgrade to a servlet 2.4 compliant container");
+  }
+catch (  Exception e2) {
+    _log.error(StackTraceUtil.getStackTrace(e2));
+  }
+  try {
+    EventsProcessor.process(PropsUtil.getArray(PropsUtil.SERVLET_SESSION_DESTROY_EVENTS),ses);
+  }
+ catch (  ActionException ae) {
+    _log.error(StackTraceUtil.getStackTrace(ae));
+  }
+}

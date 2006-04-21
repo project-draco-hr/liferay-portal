@@ -1,0 +1,47 @@
+{
+  String invoice=null;
+  try {
+    _log.debug("Receiving notification from PayPal");
+    String query="cmd=_notify-validate";
+    Enumeration enu=req.getParameterNames();
+    while (enu.hasMoreElements()) {
+      String name=(String)enu.nextElement();
+      String value=req.getParameter(name);
+      query=query + "&" + name+ "="+ Http.encodeURL(value);
+    }
+    _log.debug("Sending response to PayPal: " + query);
+    URL url=new URL("http://www.paypal.com/cgi-bin/webscr");
+    URLConnection urlc=url.openConnection();
+    urlc.setDoOutput(true);
+    urlc.setRequestProperty("Content-Type","application/x-www-form-urlencoded");
+    PrintWriter pw=new PrintWriter(urlc.getOutputStream());
+    pw.println(query);
+    pw.close();
+    BufferedReader br=new BufferedReader(new InputStreamReader(urlc.getInputStream()));
+    String payPalStatus=br.readLine();
+    br.close();
+    _log.debug("Receiving response from PayPal: " + payPalStatus);
+    String itemName=ParamUtil.getString(req,"item_name");
+    String itemNumber=ParamUtil.getString(req,"item_number");
+    invoice=ParamUtil.getString(req,"invoice");
+    String txnId=ParamUtil.getString(req,"txn_id");
+    String paymentStatus=ParamUtil.getString(req,"payment_status");
+    double paymentGross=ParamUtil.get(req,"payment_gross",0.0);
+    String receiverEmail=ParamUtil.getString(req,"receiver_email");
+    String payerEmail=ParamUtil.getString(req,"payer_email");
+    if (payPalStatus.equals("VERIFIED")) {
+      ShoppingOrderLocalServiceUtil.completeOrder(invoice,txnId,paymentStatus,paymentGross,receiverEmail,payerEmail,true);
+    }
+ else     if (payPalStatus.equals("INVALID")) {
+    }
+    return null;
+  }
+ catch (  NoSuchOrderException nsoe) {
+    _log.error("Order " + invoice + " does not exist");
+    return null;
+  }
+catch (  Exception e) {
+    req.setAttribute(PageContext.EXCEPTION,e);
+    return mapping.findForward(Constants.COMMON_ERROR);
+  }
+}

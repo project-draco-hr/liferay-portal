@@ -1,0 +1,41 @@
+{
+  try {
+    PortletSession ses=req.getPortletSession();
+    User user=PortalUtil.getUser(req);
+    if (user.hasCompanyMx()) {
+      String folderName=req.getParameter("folder_name");
+      Folder folder=MailUtil.getFolder(req,folderName);
+      ses.setAttribute(WebKeys.MAIL_FOLDER,folder,PortletSession.APPLICATION_SCOPE);
+      if (folder.getName().equals(MailUtil.MAIL_INBOX_NAME)) {
+        int unreadMsgCount=folder.getUnreadMessageCount();
+        if (unreadMsgCount > 0) {
+          Integer msgCount=(Integer)ses.getAttribute(WebKeys.MAIL_UNREAD_MESSAGE_COUNT,PortletSession.APPLICATION_SCOPE);
+          if ((msgCount == null) || (msgCount.intValue() == 0)) {
+            PortletPreferences prefs=req.getPreferences();
+            int newMailNotification=GetterUtil.getInteger(prefs.getValue("new-mail-notification",StringPool.BLANK));
+            if (newMailNotification != 0) {
+              req.setAttribute(WebKeys.MAIL_GOT_MAIL,Boolean.TRUE);
+            }
+          }
+        }
+        ses.setAttribute(WebKeys.MAIL_UNREAD_MESSAGE_COUNT,new Integer(unreadMsgCount),PortletSession.APPLICATION_SCOPE);
+      }
+    }
+    if (req.getWindowState().equals(WindowState.NORMAL)) {
+      return mapping.findForward("portlet.mail.view");
+    }
+ else {
+      PortletPreferences prefs=req.getPreferences();
+      String forwardAddress=prefs.getValue("forward-address",StringPool.BLANK);
+      if ((!user.hasCompanyMx()) || (Validator.isNotNull(forwardAddress))) {
+        return mapping.findForward("portlet.mail.view");
+      }
+ else {
+        return mapping.findForward("portlet.mail.view_folder");
+      }
+    }
+  }
+ catch (  Exception e) {
+    throw new PortletException(e);
+  }
+}

@@ -1,0 +1,58 @@
+{
+  try {
+    Indexer.deleteMessage(message.getCompanyId(),message.getTopicId(),message.getMessageId());
+  }
+ catch (  IOException ioe) {
+    _log.error(ioe.getMessage());
+  }
+  if (message.isAttachments()) {
+    String companyId=message.getCompanyId();
+    String portletId=Company.SYSTEM;
+    String repositoryId=Company.SYSTEM;
+    String dirName=message.getAttachmentsDir();
+    try {
+      DLServiceUtil.deleteDirectory(companyId,portletId,repositoryId,dirName);
+    }
+ catch (    NoSuchDirectoryException nsde) {
+    }
+  }
+  int count=MBMessageUtil.countByThreadId(message.getThreadId());
+  if (count == 1) {
+    SubscriptionLocalServiceUtil.deleteSubscriptions(message.getCompanyId(),MBThread.class.getName(),message.getThreadId());
+    MBThreadUtil.remove(message.getThreadId());
+  }
+ else   if (count > 1) {
+    MBThread thread=MBThreadUtil.findByPrimaryKey(message.getThreadId());
+    if (thread.getRootMessageId().equals(message.getMessageId())) {
+      List childrenMessages=MBMessageUtil.findByT_P(message.getThreadId(),message.getMessageId());
+      if (childrenMessages.size() > 1) {
+        throw new RequiredMessageException();
+      }
+ else       if (childrenMessages.size() == 1) {
+        MBMessage childMessage=(MBMessage)childrenMessages.get(0);
+        childMessage.setParentMessageId(MBMessage.DEFAULT_PARENT_MESSAGE_ID);
+        MBMessageUtil.update(childMessage);
+        thread.setRootMessageId(childMessage.getMessageId());
+        MBThreadUtil.update(thread);
+      }
+    }
+ else {
+      List childrenMessages=MBMessageUtil.findByT_P(message.getThreadId(),message.getMessageId());
+      if (childrenMessages.size() > 0) {
+        Iterator itr=childrenMessages.iterator();
+        while (itr.hasNext()) {
+          MBMessage childMessage=(MBMessage)itr.next();
+          childMessage.setParentMessageId(message.getParentMessageId());
+          MBMessageUtil.update(childMessage);
+        }
+      }
+    }
+    thread.setMessageCount(count - 1);
+    MBThreadUtil.update(thread);
+  }
+  MBMessageFlagUtil.removeByT_M(message.getTopicId(),message.getMessageId());
+  if (!message.isDiscussion()) {
+    ResourceLocalServiceUtil.deleteResource(message.getCompanyId(),MBMessage.class.getName(),Resource.TYPE_CLASS,Resource.SCOPE_INDIVIDUAL,message.getPrimaryKey().toString());
+  }
+  MBMessageUtil.remove(message.getPrimaryKey());
+}

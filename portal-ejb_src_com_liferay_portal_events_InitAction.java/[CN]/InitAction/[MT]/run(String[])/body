@@ -1,0 +1,57 @@
+{
+  String userLanguage=SystemProperties.get("user.language");
+  String userCountry=SystemProperties.get("user.country");
+  String userVariant=SystemProperties.get("user.variant");
+  if (Validator.isNull(userVariant)) {
+    Locale.setDefault(new Locale(userLanguage,userCountry));
+  }
+ else {
+    Locale.setDefault(new Locale(userLanguage,userCountry,userVariant));
+  }
+  TimeZone.setDefault(TimeZone.getTimeZone(SystemProperties.get("user.timezone")));
+  if (GetterUtil.get(SystemProperties.get("log4j.configure.on.startup"),true) && !ServerDetector.isSun()) {
+    ClassLoader classLoader=getClass().getClassLoader();
+    configureLog4J(classLoader.getResource("META-INF/portal-log4j.xml"));
+    configureLog4J(classLoader.getResource("META-INF/portal-log4j-ext.xml"));
+  }
+  if ((GetterUtil.getBoolean(PropsUtil.get(PropsUtil.PORTAL_CONFIGURATION))) && (ServerDetector.isJBoss() || ServerDetector.isPramati() || ServerDetector.isSun()|| ServerDetector.isWebLogic())) {
+    PortalConfiguration portalConfig=new PortalConfiguration(Configuration.getConfiguration());
+    Configuration.setConfiguration(portalConfig);
+  }
+  try {
+    File repistoryRoot=new File(JCRFactoryImpl.REPOSITORY_ROOT);
+    if (!repistoryRoot.exists()) {
+      repistoryRoot.mkdirs();
+      File tempFile=new File(Time.getTimestamp());
+      String content=StringUtil.read(getClass().getClassLoader(),"com/liferay/portal/jcr/jackrabbit/dependencies/" + "repository.xml");
+      FileUtil.write(tempFile,content);
+      FileUtil.copyFile(tempFile,new File(JCRFactoryImpl.CONFIG_FILE_PATH));
+      tempFile.delete();
+    }
+  }
+ catch (  Exception e) {
+    e.printStackTrace();
+  }
+  SpringBrokerContainerFactory factory=new SpringBrokerContainerFactory();
+  factory.setResource(new ClassPathResource("META-INF/activemq.xml"));
+  BrokerContainer container=factory.createBrokerContainer("DefaultBroker",BrokerContext.getInstance());
+  try {
+    container.start();
+  }
+ catch (  Exception e) {
+    e.printStackTrace();
+  }
+  MultipleResourceLoader.setListeners(SystemProperties.getArray(VelocityResourceListener.class.getName()));
+  ExtendedProperties props=new ExtendedProperties();
+  props.setProperty(RuntimeConstants.RESOURCE_LOADER,"servlet");
+  props.setProperty("servlet." + RuntimeConstants.RESOURCE_LOADER + ".class",MultipleResourceLoader.class.getName());
+  props.setProperty(RuntimeConstants.RUNTIME_LOG_LOGSYSTEM_CLASS,"org.apache.velocity.runtime.log.SimpleLog4JLogSystem");
+  props.setProperty("runtime.log.logsystem.log4j.category","org.apache.velocity");
+  Velocity.setExtendedProperties(props);
+  try {
+    Velocity.init();
+  }
+ catch (  Exception e) {
+    e.printStackTrace();
+  }
+}

@@ -1,0 +1,79 @@
+{
+  String xml=null;
+  try {
+    xml=StringUtil.read(classLoader,source);
+  }
+ catch (  Exception e) {
+    _log.warn("Cannot load " + source);
+  }
+  if (xml == null) {
+    return;
+  }
+  _log.debug("Loading " + source);
+  SAXReader reader=new SAXReader();
+  Document doc=reader.read(new StringReader(xml));
+  Element root=doc.getRootElement();
+  Iterator itr1=root.elements("hint-collection").iterator();
+  while (itr1.hasNext()) {
+    Element hintCollection=(Element)itr1.next();
+    String name=hintCollection.attributeValue("name");
+    Map hints=(Map)_hintCollections.get(name);
+    if (hints == null) {
+      hints=CollectionFactory.getHashMap();
+      _hintCollections.put(name,hints);
+    }
+    Iterator itr2=hintCollection.elements("hint").iterator();
+    while (itr2.hasNext()) {
+      Element hint=(Element)itr2.next();
+      String hintName=hint.attributeValue("name");
+      String hintValue=hint.getText();
+      hints.put(hintName,hintValue);
+    }
+  }
+  itr1=root.elements("model").iterator();
+  while (itr1.hasNext()) {
+    Element model=(Element)itr1.next();
+    String name=model.attributeValue("name");
+    Map defaultHints=CollectionFactory.getHashMap();
+    _defaultHints.put(name,defaultHints);
+    Element defaultHintsEl=model.element("default-hints");
+    if (defaultHintsEl != null) {
+      Iterator itr2=defaultHintsEl.elements("hint").iterator();
+      while (itr2.hasNext()) {
+        Element hint=(Element)itr2.next();
+        String hintName=hint.attributeValue("name");
+        String hintValue=hint.getText();
+        defaultHints.put(hintName,hintValue);
+      }
+    }
+    Map fields=(Map)_modelFields.get(name);
+    if (fields == null) {
+      fields=CollectionFactory.getHashMap();
+      _modelFields.put(name,fields);
+    }
+    Iterator itr2=model.elements("field").iterator();
+    while (itr2.hasNext()) {
+      Element field=(Element)itr2.next();
+      String fieldName=field.attributeValue("name");
+      String fieldType=field.attributeValue("type");
+      Map fieldHints=CollectionFactory.getHashMap();
+      fieldHints.putAll(defaultHints);
+      Iterator itr3=field.elements("hint-collection").iterator();
+      while (itr3.hasNext()) {
+        Element hintCollection=(Element)itr3.next();
+        Map hints=(Map)_hintCollections.get(hintCollection.attributeValue("name"));
+        fieldHints.putAll(hints);
+      }
+      itr3=field.elements("hint").iterator();
+      while (itr3.hasNext()) {
+        Element hint=(Element)itr3.next();
+        String hintName=hint.attributeValue("name");
+        String hintValue=hint.getText();
+        fieldHints.put(hintName,hintValue);
+      }
+      fields.put(fieldName + _ELEMENTS_SUFFIX,field);
+      fields.put(fieldName + _TYPE_SUFFIX,fieldType);
+      fields.put(fieldName + _HINTS_SUFFIX,fieldHints);
+    }
+  }
+}

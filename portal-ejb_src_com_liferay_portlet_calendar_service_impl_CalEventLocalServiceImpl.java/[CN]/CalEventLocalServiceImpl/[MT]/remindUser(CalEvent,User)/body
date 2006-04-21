@@ -1,0 +1,46 @@
+{
+  String remindBy=event.getRemindBy();
+  if (remindBy.equals(CalEvent.REMIND_BY_NONE)) {
+    return;
+  }
+  try {
+    PortletPreferencesPK prefsPK=new PortletPreferencesPK(PortletKeys.CALENDAR,PortletKeys.PREFS_LAYOUT_ID_SHARED,PortletKeys.PREFS_OWNER_ID_GROUP + StringPool.PERIOD + event.getGroupId());
+    PortletPreferences prefs=PortletPreferencesServiceUtil.getPreferences(event.getCompanyId(),prefsPK);
+    Company company=CompanyUtil.findByPrimaryKey(user.getCompanyId());
+    Contact contact=user.getContact();
+    String portletName=PortalUtil.getPortletTitle(PortletKeys.CALENDAR,user);
+    String fromName=CalUtil.getEmailFromName(prefs);
+    String fromAddress=CalUtil.getEmailFromAddress(prefs);
+    String toName=user.getFullName();
+    String toAddress=user.getEmailAddress();
+    if (remindBy.equals(CalEvent.REMIND_BY_SMS)) {
+      toAddress=contact.getSmsSn();
+    }
+    String subject=CalUtil.getEmailEventReminderSubject(prefs);
+    String body=CalUtil.getEmailEventReminderBody(prefs);
+    DateFormat dateFormatDateTime=DateFormats.getDateTime(user.getLocale(),user.getTimeZone());
+    subject=StringUtil.replace(subject,new String[]{"[$EVENT_START_DATE$]","[$EVENT_TITLE$]","[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PORTAL_URL$]","[$PORTLET_NAME$]","[$TO_ADDRESS$]","[$TO_NAME$]"},new String[]{dateFormatDateTime.format(event.getStartDate()),event.getTitle(),fromAddress,fromName,company.getPortalURL(),portletName,toAddress,toName});
+    body=StringUtil.replace(body,new String[]{"[$EVENT_START_DATE$]","[$EVENT_TITLE$]","[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PORTAL_URL$]","[$PORTLET_NAME$]","[$TO_ADDRESS$]","[$TO_NAME$]"},new String[]{dateFormatDateTime.format(event.getStartDate()),event.getTitle(),fromAddress,fromName,company.getPortalURL(),portletName,toAddress,toName});
+    if (remindBy.equals(CalEvent.REMIND_BY_EMAIL) || remindBy.equals(CalEvent.REMIND_BY_SMS)) {
+      InternetAddress from=new InternetAddress(fromAddress,fromName);
+      InternetAddress to=new InternetAddress(toAddress,toName);
+      MailMessage message=new MailMessage(from,to,subject,body,true);
+      MailServiceUtil.sendEmail(message);
+    }
+ else     if (remindBy.equals(CalEvent.REMIND_BY_AIM) && Validator.isNotNull(contact.getAimSn())) {
+      AIMConnector.send(contact.getAimSn(),body);
+    }
+ else     if (remindBy.equals(CalEvent.REMIND_BY_ICQ) && Validator.isNotNull(contact.getIcqSn())) {
+      ICQConnector.send(contact.getIcqSn(),body);
+    }
+ else     if (remindBy.equals(CalEvent.REMIND_BY_MSN) && Validator.isNotNull(contact.getMsnSn())) {
+      MSNConnector.send(contact.getMsnSn(),body);
+    }
+ else     if (remindBy.equals(CalEvent.REMIND_BY_YM) && Validator.isNotNull(contact.getYmSn())) {
+      YMConnector.send(contact.getYmSn(),body);
+    }
+  }
+ catch (  Exception e) {
+    _log.error(e);
+  }
+}

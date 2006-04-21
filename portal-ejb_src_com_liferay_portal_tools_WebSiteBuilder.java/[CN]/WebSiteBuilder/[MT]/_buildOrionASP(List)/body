@@ -1,0 +1,69 @@
+{
+  if (_portalExtProperties.startsWith("${") || _availableWebApps.startsWith("${") || _orionConfigDir.startsWith("${")) {
+    return;
+  }
+  BufferedReader br=new BufferedReader(new FileReader(_portalExtProperties));
+  StringBuffer sb=new StringBuffer();
+  String line=null;
+  while ((line=br.readLine()) != null) {
+    if (line.startsWith("portal.instances")) {
+      sb.append("portal.instances=" + webSites.size());
+    }
+ else {
+      sb.append(line);
+    }
+    sb.append("\n");
+  }
+  br.close();
+  FileUtil.write(_portalExtProperties,sb.toString());
+  sb=new StringBuffer();
+  Iterator itr=webSites.iterator();
+  while (itr.hasNext()) {
+    WebSite webSite=(WebSite)itr.next();
+    if (webSite.isHttpEnabled() || webSite.isHttpsEnabled()) {
+      sb.append("\t<web-module id=\"");
+      sb.append(webSite.getId());
+      sb.append("-web\" ");
+      sb.append("path=\"../applications/");
+      sb.append(webSite.getId());
+      sb.append("-web.war\" />\n");
+    }
+  }
+  File file=new File(_orionConfigDir + "/application.xml");
+  String content=FileUtil.read(file);
+  int x=content.indexOf("<!-- Begin ASP -->");
+  int y=content.indexOf("<!-- End ASP -->");
+  content=content.substring(0,x + 20) + sb.toString() + content.substring(y - 2,content.length());
+  FileUtil.write(file,content);
+  sb=new StringBuffer();
+  itr=webSites.iterator();
+  while (itr.hasNext()) {
+    WebSite webSite=(WebSite)itr.next();
+    if (webSite.isHttpEnabled()) {
+      sb.append("\t<web-site path=\"./web-sites/");
+      sb.append(webSite.getId());
+      sb.append("-web.xml\" />\n");
+    }
+    if (webSite.isHttpsEnabled()) {
+      sb.append("\t<web-site path=\"./web-sites/");
+      sb.append(webSite.getId());
+      sb.append("-web-secure.xml\" />\n");
+    }
+  }
+  file=new File(_orionConfigDir + "/server.xml");
+  content=FileUtil.read(file);
+  x=content.indexOf("<!-- Begin ASP -->");
+  y=content.indexOf("<!-- End ASP -->");
+  content=content.substring(0,x + 20) + sb.toString() + content.substring(y - 2,content.length());
+  FileUtil.write(file,content);
+  itr=webSites.iterator();
+  while (itr.hasNext()) {
+    WebSite webSite=(WebSite)itr.next();
+    if (webSite.isHttpEnabled()) {
+      _buildOrionASP(webSite,false);
+    }
+    if (webSite.isHttpsEnabled()) {
+      _buildOrionASP(webSite,true);
+    }
+  }
+}

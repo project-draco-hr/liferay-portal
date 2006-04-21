@@ -1,0 +1,34 @@
+{
+synchronized (LuceneServlet.class) {
+    super.init(sc);
+    ServletContext ctx=getServletContext();
+    _companyId=ctx.getInitParameter("company_id");
+    if (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.INDEX_ON_STARTUP))) {
+      _indexer=new LuceneIndexer(_companyId);
+      if (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.INDEX_WITH_THREAD)) || ServerDetector.isOrion()) {
+        _indexerThread=new Thread(_indexer,THREAD_NAME + "." + _companyId);
+        _indexerThread.setPriority(THREAD_PRIORITY);
+        _indexerThread.start();
+      }
+ else {
+        _indexer.reIndex();
+      }
+    }
+ else {
+      String luceneDir=LuceneUtil.getLuceneDir(_companyId);
+      FileUtil.mkdirs(luceneDir);
+      IndexWriter writer=null;
+      try {
+        writer=new IndexWriter(luceneDir,LuceneUtil.getAnalyzer(),false);
+      }
+ catch (      IOException ioe1) {
+        try {
+          writer=new IndexWriter(luceneDir,LuceneUtil.getAnalyzer(),true);
+        }
+ catch (        IOException ioe2) {
+          ioe2.printStackTrace();
+        }
+      }
+    }
+  }
+}

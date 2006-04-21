@@ -1,0 +1,35 @@
+{
+  try {
+    Connection con=DataAccess.getConnection(Constants.DATA_SOURCE);
+    String url=con.getMetaData().getURL();
+    int x=url.indexOf(":");
+    int y=url.indexOf(":",x + 1);
+    String urlPrefix=url.substring(x + 1,y);
+    String dialectClass=PropsUtil.get(PropsUtil.HIBERNATE_DIALECT + urlPrefix);
+    if (dialectClass != null) {
+      _log.debug("Class implementation " + dialectClass);
+    }
+ else {
+      _log.debug("Class implementation is null");
+    }
+    if (dialectClass != null) {
+      _dialect=(Dialect)Class.forName(dialectClass).newInstance();
+    }
+    DataAccess.cleanUp(con);
+  }
+ catch (  Exception e) {
+    _log.error(e);
+  }
+  if (_dialect == null) {
+    throw new DynamicDialectException("No dialect found");
+  }
+  Properties dynamicDefaultProps=getDefaultProperties();
+  Properties dialectDefaultProps=_dialect.getDefaultProperties();
+  dynamicDefaultProps.clear();
+  Enumeration enu=dialectDefaultProps.propertyNames();
+  while (enu.hasMoreElements()) {
+    String key=(String)enu.nextElement();
+    String value=dialectDefaultProps.getProperty(key);
+    dynamicDefaultProps.setProperty(key,value);
+  }
+}

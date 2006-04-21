@@ -1,0 +1,71 @@
+{
+  StringBuffer sb=new StringBuffer();
+  boolean foundBeginForm=false;
+  boolean foundEndForm=false;
+  boolean processingJava=false;
+  BufferedReader br=new BufferedReader(new StringReader(content));
+  int lineCount=0;
+  String line=null;
+  while ((line=br.readLine()) != null) {
+    lineCount++;
+    if ("<%".equals(line.trim()) || "<%!".equals(line.trim())) {
+      processingJava=true;
+    }
+ else     if ("%>".equals(line.trim())) {
+      processingJava=false;
+    }
+    if (!processingJava) {
+      int beginIndex=0;
+      int singleTagIndex=0;
+      for (int i=0; i < _SINGLE_TAGS.length; i++) {
+        _populateSingleTagPositions(line,_SINGLE_TAGS[i],0);
+      }
+      if (_SINGLE_TAG_POSITIONS.size() > 0) {
+        Collections.sort(_SINGLE_TAG_POSITIONS);
+        line=_addClosingsToSingleTags(line);
+        _SINGLE_TAG_POSITIONS.clear();
+      }
+      if (line.indexOf("<form") != -1) {
+        foundBeginForm=true;
+        line=_replaceFormNameWithId(line);
+      }
+ else       if (line.indexOf("</form>") != -1) {
+        foundEndForm=true;
+      }
+      beginIndex=line.indexOf("<img");
+      if (beginIndex != -1) {
+        String preTag=line.substring(0,beginIndex);
+        line=preTag + _formatImgTags(line.substring(beginIndex,line.length()));
+      }
+      beginIndex=line.indexOf("<font");
+      if (beginIndex != -1) {
+        String preTag=line.substring(0,beginIndex);
+        line=preTag + _convertFontTagToSpan(line.substring(beginIndex,line.length()));
+      }
+      beginIndex=line.indexOf("<embed");
+      if (beginIndex != -1) {
+        String preTag=line.substring(0,beginIndex);
+        line=preTag + _convertEmbedToObject(line.substring(beginIndex,line.length()));
+      }
+    }
+    if (line.trim().length() == 0) {
+      line=StringPool.BLANK;
+    }
+    line=StringUtil.trimTrailing(line);
+    if (foundEndForm) {
+      sb.append("</p>").append("\n");
+      foundEndForm=false;
+    }
+    sb.append(line).append("\n");
+    if (foundBeginForm) {
+      sb.append("<p>").append("\n");
+      foundBeginForm=false;
+    }
+  }
+  br.close();
+  String newContent=sb.toString();
+  if (newContent.endsWith("\n")) {
+    newContent=newContent.substring(0,newContent.length() - 1);
+  }
+  return newContent;
+}

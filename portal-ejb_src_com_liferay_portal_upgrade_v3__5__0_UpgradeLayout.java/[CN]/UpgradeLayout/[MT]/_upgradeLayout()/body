@@ -1,0 +1,59 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getConnection(Constants.DATA_SOURCE);
+    ps=con.prepareStatement(_UPGRADE_LAYOUT_1);
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      String layoutId=rs.getString("layoutId");
+      String userId=rs.getString("userId");
+      String parentLayoutId=rs.getString("parentLayoutId");
+      String columnOrder=rs.getString("columnOrder");
+      String narrow1=rs.getString("narrow1");
+      String narrow2=rs.getString("narrow2");
+      String wide=rs.getString("wide");
+      String stateMax=rs.getString("stateMax");
+      String stateMin=rs.getString("stateMin");
+      String modeEdit=rs.getString("modeEdit");
+      String modeHelp=rs.getString("modeHelp");
+      String type=Layout.TYPE_PORTLET;
+      int priority=0;
+      _log.debug("Upgrading layout " + new LayoutPK(layoutId,userId));
+      String companyId=null;
+      int pos=layoutId.indexOf(".");
+      if (pos != -1) {
+        String groupId=layoutId.substring(0,pos);
+        companyId=_getCompanyIdByGroupId(groupId);
+      }
+ else {
+        companyId=_getCompanyIdByUserId(userId);
+      }
+      parentLayoutId=GetterUtil.getString(parentLayoutId,Layout.DEFAULT_PARENT_LAYOUT_ID);
+      Properties props=new Properties();
+      props.setProperty("column-order",StringUtil.replace(GetterUtil.getString(columnOrder),"w","w1"));
+      props.setProperty("narrow-1",GetterUtil.getString(narrow1));
+      props.setProperty("narrow-2",GetterUtil.getString(narrow2));
+      props.setProperty("wide-1",GetterUtil.getString(wide));
+      props.setProperty(LayoutTypePortlet.STATE_MAX,GetterUtil.getString(stateMax));
+      props.setProperty(LayoutTypePortlet.STATE_MIN,GetterUtil.getString(stateMin));
+      props.setProperty(LayoutTypePortlet.MODE_EDIT,GetterUtil.getString(modeEdit));
+      props.setProperty(LayoutTypePortlet.MODE_HELP,GetterUtil.getString(modeHelp));
+      String typeSettings=PropertiesUtil.toString(props);
+      ps=con.prepareStatement(_UPGRADE_LAYOUT_2);
+      ps.setString(1,companyId);
+      ps.setString(2,parentLayoutId);
+      ps.setString(3,type);
+      ps.setString(4,typeSettings);
+      ps.setInt(5,priority);
+      ps.setString(6,layoutId);
+      ps.setString(7,userId);
+      ps.executeUpdate();
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+  ClusterPool.clear();
+}

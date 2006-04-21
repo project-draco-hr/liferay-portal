@@ -1,0 +1,46 @@
+{
+  XClass xClass=_getXClass(_outputPath + "/service/impl/" + entity.getName()+ (sessionType != _REMOTE ? "Local" : "")+ "ServiceImpl.java");
+  List methods=xClass.getMethods();
+  StringBuffer sb=new StringBuffer();
+  sb.append("package " + _packagePath + ".service.spring;");
+  sb.append("public interface " + entity.getName() + _getSessionTypeName(sessionType)+ "Service {");
+  for (int i=0; i < methods.size(); i++) {
+    XMethod xMethod=(XMethod)methods.get(i);
+    String methodName=xMethod.getName();
+    if (_isCustomMethod(xMethod) && xMethod.isPublic()) {
+      sb.append("public " + xMethod.getReturnType().getType().getQualifiedName() + xMethod.getReturnType().getDimensionAsString()+ " "+ methodName+ "(");
+      List parameters=xMethod.getParameters();
+      for (int j=0; j < parameters.size(); j++) {
+        XParameter xParameter=(XParameter)parameters.get(j);
+        sb.append(xParameter.getType().getQualifiedName() + xParameter.getDimensionAsString() + " "+ xParameter.getName());
+        if ((j + 1) != parameters.size()) {
+          sb.append(", ");
+        }
+      }
+      sb.append(")");
+      List thrownExceptions=xMethod.getThrownExceptions();
+      Set newExceptions=new LinkedHashSet();
+      for (int j=0; j < thrownExceptions.size(); j++) {
+        XClass thrownException=(XClass)thrownExceptions.get(j);
+        newExceptions.add(thrownException.getQualifiedName());
+      }
+      if (sessionType != _LOCAL) {
+        newExceptions.add("java.rmi.RemoteException");
+      }
+      if (newExceptions.size() > 0) {
+        sb.append(" throws ");
+        Iterator itr=newExceptions.iterator();
+        while (itr.hasNext()) {
+          sb.append(itr.next());
+          if (itr.hasNext()) {
+            sb.append(", ");
+          }
+        }
+      }
+      sb.append(";");
+    }
+  }
+  sb.append("}");
+  File ejbFile=new File(_outputPath + "/service/spring/" + entity.getName()+ _getSessionTypeName(sessionType)+ "Service.java");
+  writeFile(ejbFile,sb.toString());
+}

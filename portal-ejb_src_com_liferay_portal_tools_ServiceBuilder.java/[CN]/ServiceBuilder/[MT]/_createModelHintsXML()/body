@@ -1,0 +1,74 @@
+{
+  StringBuffer sb=new StringBuffer();
+  for (int i=0; i < _ejbList.size(); i++) {
+    Entity entity=(Entity)_ejbList.get(i);
+    List pkList=entity.getPKList();
+    List columnList=entity.getColumnList();
+    List finderList=entity.getFinderList();
+    if (entity.hasColumns()) {
+      sb.append("\t<model name=\"" + _packagePath + ".model."+ entity.getName()+ "\">\n");
+      Map defaultHints=ModelHintsUtil.getDefaultHints(_packagePath + ".model." + entity.getName());
+      if ((defaultHints != null) && (defaultHints.size() > 0)) {
+        sb.append("\t\t<default-hints>\n");
+        Iterator itr=defaultHints.entrySet().iterator();
+        while (itr.hasNext()) {
+          Map.Entry entry=(Map.Entry)itr.next();
+          String key=(String)entry.getKey();
+          String value=(String)entry.getValue();
+          sb.append("\t\t\t<hint name=\"" + key + "\">"+ value+ "</hint>\n");
+        }
+        sb.append("\t\t</default-hints>\n");
+      }
+      for (int j=0; j < columnList.size(); j++) {
+        EntityColumn col=(EntityColumn)columnList.get(j);
+        if (!col.isCollection()) {
+          sb.append("\t\t<field name=\"" + col.getName() + "\" type=\""+ col.getType()+ "\"");
+          Element field=ModelHintsUtil.getFieldsEl(_packagePath + ".model." + entity.getName(),col.getName());
+          List hints=null;
+          if (field != null) {
+            hints=field.elements();
+          }
+          if ((hints == null) || (hints.size() == 0)) {
+            sb.append(" />\n");
+          }
+ else {
+            sb.append(">\n");
+            Iterator itr=hints.iterator();
+            while (itr.hasNext()) {
+              Element hint=(Element)itr.next();
+              if (hint.getName().equals("hint")) {
+                sb.append("\t\t\t<hint name=\"" + hint.attributeValue("name") + "\">"+ hint.getText()+ "</hint>\n");
+              }
+ else {
+                sb.append("\t\t\t<hint-collection name=\"" + hint.attributeValue("name") + "\" />\n");
+              }
+            }
+            sb.append("\t\t</field>\n");
+          }
+        }
+      }
+      sb.append("\t</model>\n");
+    }
+  }
+  File xmlFile=new File(_modelHintsFileName);
+  if (!xmlFile.exists()) {
+    String content="<?xml version=\"1.0\"?>\n" + "\n" + "<model-hints>\n"+ "</model-hints>";
+    FileUtil.write(xmlFile,content);
+  }
+  String oldContent=FileUtil.read(xmlFile);
+  String newContent=new String(oldContent);
+  int firstModel=newContent.indexOf("<model name=\"" + _packagePath + ".model.");
+  int lastModel=newContent.lastIndexOf("<model name=\"" + _packagePath + ".model.");
+  if (firstModel == -1) {
+    int x=newContent.indexOf("</model-hints>");
+    newContent=newContent.substring(0,x) + sb.toString() + newContent.substring(x,newContent.length());
+  }
+ else {
+    firstModel=newContent.lastIndexOf("<model",firstModel) - 1;
+    lastModel=newContent.indexOf("</model>",lastModel) + 9;
+    newContent=newContent.substring(0,firstModel) + sb.toString() + newContent.substring(lastModel,newContent.length());
+  }
+  if (!oldContent.equals(newContent)) {
+    FileUtil.write(xmlFile,newContent);
+  }
+}

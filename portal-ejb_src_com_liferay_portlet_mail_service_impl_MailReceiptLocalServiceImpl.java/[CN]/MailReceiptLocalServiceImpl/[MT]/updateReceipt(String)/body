@@ -1,0 +1,31 @@
+{
+  MailReceipt receipt=MailReceiptUtil.findByPrimaryKey(receiptId);
+  Date now=new Date();
+  int readCount=receipt.getReadCount() + 1;
+  Date firstReadDate=receipt.getFirstReadDate();
+  if (firstReadDate == null) {
+    firstReadDate=now;
+  }
+  receipt.setModifiedDate(now);
+  receipt.setReadCount(readCount);
+  receipt.setFirstReadDate(firstReadDate);
+  receipt.setLastReadDate(now);
+  MailReceiptUtil.update(receipt);
+  if (readCount == 1) {
+    String subject="Read: " + receipt.getSubject();
+    User user=UserLocalServiceUtil.getUserById(receipt.getUserId());
+    DateFormat dateFormat=DateFormat.getDateTimeInstance(DateFormat.LONG,DateFormat.LONG,user.getLocale());
+    dateFormat.setTimeZone(user.getTimeZone());
+    String body=ContentUtil.get("content/en_US/mail_receipt_read.tmpl");
+    body=StringUtil.replace(body,new String[]{"[$RECEIPT_RECIPIENT$]","[$RECEIPT_SUBJECT$]","[$RECEIPT_SENT_DATE$]","[$RECEIPT_READ_DATE$]"},new String[]{receipt.getRecipient(),receipt.getSubject(),dateFormat.format(receipt.getSentDate()),dateFormat.format(receipt.getLastReadDate())});
+    try {
+      InternetAddress from=new InternetAddress(user.getEmailAddress(),user.getFullName());
+      InternetAddress to=from;
+      MailServiceUtil.sendEmail(new MailMessage(from,to,subject,body));
+    }
+ catch (    IOException ioe) {
+      throw new SystemException(ioe);
+    }
+  }
+  return receipt;
+}

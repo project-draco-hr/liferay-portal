@@ -1,0 +1,53 @@
+{
+  List list=new ArrayList(numOfItems);
+  int countBySale=countBySale(companyId,categoryIds);
+  if (countBySale == 0) {
+    return list;
+  }
+  Session session=null;
+  try {
+    session=HibernateUtil.openSession();
+    StringBuffer query=new StringBuffer();
+    query.append("SELECT shoppingItem FROM ");
+    query.append(ShoppingItemHBM.class.getName());
+    query.append(" AS shoppingItem ");
+    query.append("WHERE ");
+    query.append("(");
+    for (int i=0; i < categoryIds.length; i++) {
+      query.append("shoppingItem.categoryId = ? ");
+      if (i + 1 < categoryIds.length) {
+        query.append("OR ");
+      }
+    }
+    query.append(") AND ");
+    query.append("shoppingItem.companyId = ? AND ");
+    query.append("shoppingItem.sale = ? AND ");
+    query.append("shoppingItem.smallImage = ?");
+    Query q=session.createQuery(query.toString());
+    for (int i=0; i < categoryIds.length; i++) {
+      q.setString(i,categoryIds[i]);
+    }
+    q.setString(categoryIds.length,companyId);
+    q.setBoolean(categoryIds.length + 1,true);
+    q.setBoolean(categoryIds.length + 2,true);
+    ScrollableResults sr=q.scroll();
+    if (sr.first()) {
+      Randomizer randomizer=new Randomizer();
+      int[] scrollIds=randomizer.nextInt(countBySale,numOfItems);
+      for (int i=0; i < scrollIds.length; i++) {
+        if (sr.scroll(scrollIds[i])) {
+          ShoppingItemHBM shoppingItemHBM=(ShoppingItemHBM)sr.get(0);
+          list.add(ShoppingItemHBMUtil.model(shoppingItemHBM));
+          sr.first();
+        }
+      }
+    }
+    return list;
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+ finally {
+    HibernateUtil.closeSession(session);
+  }
+}

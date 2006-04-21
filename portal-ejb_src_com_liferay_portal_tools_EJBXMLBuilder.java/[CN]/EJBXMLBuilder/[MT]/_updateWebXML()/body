@@ -1,0 +1,51 @@
+{
+  StringBuffer sb=new StringBuffer();
+  SAXReader reader=new SAXReader();
+  reader.setEntityResolver(new EntityResolver());
+  Document doc=reader.read(new File("classes/META-INF/ejb-jar.xml"));
+  Iterator itr=doc.getRootElement().element("enterprise-beans").elements("session").iterator();
+  while (itr.hasNext()) {
+    Element entity=(Element)itr.next();
+    String displayName=entity.elementText("display-name");
+    if (displayName.endsWith("LocalServiceEJB")) {
+      sb.append("\t<ejb-local-ref>\n");
+      sb.append("\t\t<ejb-ref-name>ejb/liferay/").append(displayName.substring(0,displayName.length() - 3)).append("Home</ejb-ref-name>\n");
+      sb.append("\t\t<ejb-ref-type>Session</ejb-ref-type>\n");
+      sb.append("\t\t<local-home>").append(entity.elementText("local-home")).append("</local-home>\n");
+      sb.append("\t\t<local>").append(entity.elementText("local")).append("</local>\n");
+      sb.append("\t\t<ejb-link>").append(entity.elementText("ejb-name")).append("</ejb-link>\n");
+      sb.append("\t</ejb-local-ref>\n");
+    }
+  }
+  File manualFile=new File("../portal-web/docroot/WEB-INF/web-ejb-local-ref.xml");
+  if (!manualFile.exists()) {
+    manualFile=new File("../ext-web/docroot/WEB-INF/web-ejb-local-ref.xml");
+  }
+  if (manualFile.exists()) {
+    String content=FileUtil.read(manualFile);
+    int x=content.indexOf("<ejb-local-ref>");
+    int y=content.lastIndexOf("</ejb-local-ref>") + 17;
+    if (x != -1) {
+      sb.append(content.substring(x - 1,y));
+    }
+  }
+  File outputFile=new File("../portal-web/docroot/WEB-INF/web.xml");
+  if (!outputFile.exists()) {
+    outputFile=new File("../ext-web/docroot/WEB-INF/web.xml");
+  }
+  String content=FileUtil.read(outputFile);
+  String newContent=content;
+  int x=content.indexOf("<ejb-local-ref>");
+  int y=content.lastIndexOf("</ejb-local-ref>") + 17;
+  if (x != -1) {
+    newContent=content.substring(0,x - 1) + sb.toString() + content.substring(y,content.length());
+  }
+ else {
+    x=content.indexOf("</web-app>");
+    newContent=content.substring(0,x) + sb.toString() + content.substring(x,content.length());
+  }
+  if (!content.equals(newContent)) {
+    FileUtil.write(outputFile,newContent);
+    System.out.println(outputFile.toString());
+  }
+}

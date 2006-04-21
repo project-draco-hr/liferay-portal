@@ -1,0 +1,40 @@
+{
+  if ((Validator.isNotNull(folderName)) && (Validator.isNotNull(newFolderName))) {
+    if (!folderName.equals(MAIL_INBOX_NAME)) {
+      if (!folderName.startsWith(MailUtil.MAIL_BOX_STYLE)) {
+        folderName=MailUtil.MAIL_BOX_STYLE + folderName;
+      }
+    }
+    if (!newFolderName.startsWith(MailUtil.MAIL_BOX_STYLE)) {
+      newFolderName=MailUtil.MAIL_BOX_STYLE + newFolderName;
+    }
+    Store store=getStore(req);
+    FolderPool folderPool=getFolderPool(req);
+    Folder folder=folderPool.get(MailCache.getFolderCacheId(folderName,store));
+    if (folder == null) {
+      folder=store.getFolder(folderName);
+    }
+ else {
+      folderPool.remove(folderName);
+    }
+    if (folder.exists()) {
+      if ((!folderName.equals(MAIL_INBOX_NAME)) && (!folderName.equals(MailUtil.MAIL_BOX_STYLE + MAIL_JUNK_NAME)) && (!folderName.equals(MailUtil.MAIL_BOX_STYLE + MAIL_SENT_NAME))&& (!folderName.equals(MailUtil.MAIL_BOX_STYLE + MAIL_DRAFTS_NAME))&& (!folderName.equals(MailUtil.MAIL_BOX_STYLE + MAIL_TRASH_NAME))) {
+        if (!folder.isOpen()) {
+          folder.open(Folder.READ_WRITE);
+        }
+        Folder newFolder=store.getFolder(newFolderName);
+        if (newFolder.exists()) {
+          newFolder.delete(false);
+        }
+        newFolder.create(Folder.HOLDS_MESSAGES);
+        newFolder.open(Folder.READ_WRITE);
+        Message[] messages=folder.getMessages();
+        newFolder.appendMessages(messages);
+        folder.setFlags(messages,new Flags(Flags.Flag.DELETED),true);
+        folder.expunge();
+        folder.close(false);
+        folder.delete(false);
+      }
+    }
+  }
+}

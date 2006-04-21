@@ -1,0 +1,51 @@
+{
+  File tempFile=new File("ServiceBuilder.temp");
+  FileUtil.write(tempFile,content);
+  String[] checkImports=new String[]{"com.liferay.portal.PortalException","com.liferay.portal.security.auth.HttpPrincipal","com.liferay.portal.service.impl.PrincipalSessionBean","com.liferay.portal.servlet.TunnelUtil","com.liferay.portal.spring.hibernate.HibernateUtil","com.liferay.portal.util.PropsUtil","com.liferay.portal.shared.util.BooleanWrapper","com.liferay.portal.shared.util.DoubleWrapper","com.liferay.portal.shared.util.FloatWrapper","com.liferay.portal.shared.util.IntegerWrapper","com.liferay.portal.shared.util.LongWrapper","com.liferay.portal.shared.util.MethodWrapper","com.liferay.portal.shared.util.NullWrapper","com.liferay.portal.shared.util.ShortWrapper","com.liferay.portal.shared.util.StackTraceUtil","com.liferay.util.GetterUtil","com.liferay.util.InstancePool","com.liferay.util.StringPool","com.liferay.util.ObjectValuePair","com.liferay.util.dao.hibernate.OrderByComparator","com.liferay.util.dao.hibernate.QueryPos","com.liferay.util.dao.hibernate.QueryUtil","java.rmi.RemoteException","java.util.Collection","java.util.Collections","java.util.Date","java.util.HashSet","java.util.Properties","java.util.Set","org.hibernate.Hibernate","org.hibernate.ObjectNotFoundException","org.hibernate.Query","org.hibernate.SQLQuery"};
+  Set classes=ClassUtil.getClasses(tempFile);
+  for (int i=0; i < checkImports.length; i++) {
+    String importClass=checkImports[i].substring(checkImports[i].lastIndexOf(".") + 1,checkImports[i].length());
+    if (!classes.contains(importClass)) {
+      content=StringUtil.replace(content,"import " + checkImports[i] + ";","");
+    }
+  }
+  FileUtil.write(tempFile,content);
+  StringBuffer sb=new StringBuffer();
+  Jalopy jalopy=new Jalopy();
+  jalopy.setFileFormat(FileFormat.UNIX);
+  jalopy.setInput(tempFile);
+  jalopy.setOutput(sb);
+  try {
+    Jalopy.setConvention("../tools/jalopy.xml");
+  }
+ catch (  FileNotFoundException fnne) {
+  }
+  Environment env=Environment.getInstance();
+  env.set("author",author);
+  env.set("fileName",file.getName());
+  Convention convention=Convention.getInstance();
+  convention.put(ConventionKeys.COMMENT_JAVADOC_TEMPLATE_CLASS,env.interpolate(convention.get(ConventionKeys.COMMENT_JAVADOC_TEMPLATE_CLASS,"")));
+  convention.put(ConventionKeys.COMMENT_JAVADOC_TEMPLATE_INTERFACE,env.interpolate(convention.get(ConventionKeys.COMMENT_JAVADOC_TEMPLATE_INTERFACE,"")));
+  jalopy.format();
+  String newContent=sb.toString();
+  String oldContent=null;
+  if (file.exists()) {
+    oldContent=FileUtil.read(file);
+    int x=oldContent.indexOf("@version $Revision:");
+    if (x != -1) {
+      int y=oldContent.indexOf("$",x);
+      y=oldContent.indexOf("$",y + 1);
+      String oldVersion=oldContent.substring(x,y + 1);
+      newContent=StringUtil.replace(newContent,"@version $Rev: $",oldVersion);
+    }
+  }
+ else {
+    newContent=StringUtil.replace(newContent,"@version $Rev: $","@version $Revision: 1.183 $");
+  }
+  if (oldContent == null || !oldContent.equals(newContent)) {
+    FileUtil.write(file,newContent);
+    System.out.println(file);
+    file.setLastModified(System.currentTimeMillis() - (Time.SECOND * 5));
+  }
+  tempFile.deleteOnExit();
+}

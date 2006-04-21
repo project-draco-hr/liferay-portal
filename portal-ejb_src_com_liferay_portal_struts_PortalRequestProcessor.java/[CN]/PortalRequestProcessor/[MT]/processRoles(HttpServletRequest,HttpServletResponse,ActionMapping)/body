@@ -1,0 +1,58 @@
+{
+  String path=mapping.getPath();
+  if (isPublicPath(path)) {
+    return true;
+  }
+  boolean authorized=true;
+  User user=null;
+  try {
+    user=PortalUtil.getUser(req);
+  }
+ catch (  Exception e) {
+  }
+  if ((user != null) && isPortletPath(path)) {
+    try {
+      if (path.equals(_PATH_PORTAL_LOGOUT)) {
+        return true;
+      }
+      Portlet portlet=null;
+      String portletId=ParamUtil.getString(req,"p_p_id");
+      if (Validator.isNotNull(portletId)) {
+        portlet=PortletServiceUtil.getPortletById(user.getCompanyId(),portletId);
+      }
+      String strutsPath=path.substring(1,path.lastIndexOf(StringPool.SLASH));
+      if (portlet != null) {
+        if (!strutsPath.equals(portlet.getStrutsPath())) {
+          throw new PrincipalException();
+        }
+      }
+ else {
+        portlet=PortletServiceUtil.getPortletByStrutsPath(user.getCompanyId(),strutsPath);
+      }
+      if ((portlet != null) && portlet.isActive()) {
+        ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
+        Layout layout=themeDisplay.getLayout();
+        PermissionChecker permissionChecker=themeDisplay.getPermissionChecker();
+        if (!PortletPermission.contains(permissionChecker,layout.getPlid(),portlet.getPortletId(),ActionKeys.VIEW)) {
+          throw new PrincipalException();
+        }
+      }
+ else       if (portlet != null && !portlet.isActive()) {
+        SessionErrors.add(req,PortletActiveException.class.getName());
+        authorized=false;
+      }
+    }
+ catch (    Exception e) {
+      SessionErrors.add(req,PrincipalException.class.getName());
+      authorized=false;
+    }
+  }
+  if (!authorized) {
+    ForwardConfig forwardConfig=mapping.findForward(_PATH_PORTAL_ERROR);
+    processForwardConfig(req,res,forwardConfig);
+    return false;
+  }
+ else {
+    return true;
+  }
+}

@@ -1,0 +1,79 @@
+{
+  String servletContextName=null;
+  try {
+    ServletContext ctx=event.getServletContext();
+    servletContextName=StringUtil.replace(ctx.getServletContextName(),StringPool.SPACE,StringPool.UNDERLINE);
+    _log.debug("Invoking deploy for " + servletContextName);
+    String[] companyIds=StringUtil.split(ctx.getInitParameter("company_id"));
+    String[] xmls=new String[]{Http.URLtoString(ctx.getResource("/WEB-INF/portlet.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-portlet.xml"))};
+    if (xmls[0] == null) {
+      return;
+    }
+    _log.info("Registering portlets for " + servletContextName);
+    List portlets=PortletServiceUtil.initWAR(servletContextName,xmls);
+    ClassLoader portletClassLoader=event.getContextClassLoader();
+    ctx.setAttribute(PortletServlet.PORTLET_CLASS_LOADER,portletClassLoader);
+    Iterator itr1=portlets.iterator();
+    while (itr1.hasNext()) {
+      Portlet portlet=(Portlet)itr1.next();
+      javax.portlet.Portlet portletInstance=(javax.portlet.Portlet)portletClassLoader.loadClass(portlet.getPortletClass()).newInstance();
+      Indexer indexerInstance=null;
+      if (Validator.isNotNull(portlet.getIndexerClass())) {
+        indexerInstance=(Indexer)portletClassLoader.loadClass(portlet.getIndexerClass()).newInstance();
+      }
+      Scheduler schedulerInstance=null;
+      if (Validator.isNotNull(portlet.getSchedulerClass())) {
+        schedulerInstance=(Scheduler)portletClassLoader.loadClass(portlet.getSchedulerClass()).newInstance();
+      }
+      PreferencesValidator prefsValidator=null;
+      if (Validator.isNotNull(portlet.getPreferencesValidator())) {
+        prefsValidator=(PreferencesValidator)portletClassLoader.loadClass(portlet.getPreferencesValidator()).newInstance();
+        try {
+          if (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.PREFERENCE_VALIDATE_ON_STARTUP))) {
+            prefsValidator.validate(PortletPreferencesSerializer.fromDefaultXML(portlet.getDefaultPreferences()));
+          }
+        }
+ catch (        Exception e1) {
+          _log.warn("Portlet with the name " + portlet.getPortletId() + " does not have valid default preferences");
+        }
+      }
+      Map resourceBundles=null;
+      if (Validator.isNotNull(portlet.getResourceBundle())) {
+        resourceBundles=CollectionFactory.getHashMap();
+        Iterator itr2=portlet.getSupportedLocales().iterator();
+        while (itr2.hasNext()) {
+          String supportedLocale=(String)itr2.next();
+          Locale locale=new Locale(supportedLocale);
+          try {
+            ResourceBundle resourceBundle=ResourceBundle.getBundle(portlet.getResourceBundle(),locale,portletClassLoader);
+            resourceBundles.put(locale.getLanguage(),resourceBundle);
+          }
+ catch (          MissingResourceException mre) {
+            _log.warn(mre.getMessage());
+          }
+        }
+      }
+      Map customUserAttributes=CollectionFactory.getHashMap();
+      Iterator itr2=portlet.getCustomUserAttributes().entrySet().iterator();
+      while (itr2.hasNext()) {
+        Map.Entry entry=(Map.Entry)itr2.next();
+        String attrCustomClass=(String)entry.getValue();
+        customUserAttributes.put(attrCustomClass,portletClassLoader.loadClass(attrCustomClass).newInstance());
+      }
+      PortletContextWrapper pcw=new PortletContextWrapper(portlet.getPortletId(),ctx,portletInstance,indexerInstance,schedulerInstance,prefsValidator,resourceBundles,customUserAttributes);
+      PortletContextPool.put(portlet.getPortletId(),pcw);
+    }
+    String xml=Http.URLtoString(ctx.getResource("/WEB-INF/liferay-display.xml"));
+    PortletCategory newPortletCategory=PortletServiceUtil.getWARDisplay(servletContextName,xml);
+    for (int i=0; i < companyIds.length; i++) {
+      String companyId=companyIds[i];
+      PortletCategory portletCategory=(PortletCategory)WebAppPool.get(companyId,WebKeys.PORTLET_CATEGORY);
+      portletCategory.merge(newPortletCategory);
+    }
+    _vars.put(servletContextName,new ObjectValuePair(companyIds,portlets));
+    _log.info("Portlets for " + servletContextName + " registered successfully");
+  }
+ catch (  Exception e2) {
+    throw new HotDeployException("Error registering portlets for " + servletContextName,e2);
+  }
+}

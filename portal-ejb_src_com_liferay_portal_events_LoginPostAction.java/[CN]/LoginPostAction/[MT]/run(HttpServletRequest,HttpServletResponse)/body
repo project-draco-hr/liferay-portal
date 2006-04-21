@@ -1,0 +1,49 @@
+{
+  try {
+    HttpSession ses=req.getSession();
+    String companyId=PortalUtil.getCompanyId(req);
+    String userId=PortalUtil.getUserId(req);
+    Map currentUsers=(Map)WebAppPool.get(companyId,WebKeys.CURRENT_USERS);
+    boolean simultaenousLogins=GetterUtil.get(PropsUtil.get(PropsUtil.AUTH_SIMULTANEOUS_LOGINS),true);
+    if (!simultaenousLogins) {
+      Map.Entry[] currentUsersArray=(Map.Entry[])currentUsers.entrySet().toArray(new Map.Entry[0]);
+      for (int i=0; i < currentUsersArray.length; i++) {
+        Map.Entry mapEntry=currentUsersArray[i];
+        UserTracker userTracker=(UserTracker)mapEntry.getValue();
+        if (userTracker.getUserId().equals(userId)) {
+          userTracker.getHttpSession().setAttribute(WebKeys.STALE_SESSION,Boolean.TRUE);
+        }
+      }
+    }
+    UserTracker userTracker=(UserTracker)currentUsers.get(ses.getId());
+    if ((userTracker == null) && (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.SESSION_TRACKER_MEMORY_ENABLED)))) {
+      userTracker=new UserTracker();
+      userTracker.setUserTrackerId(ses.getId());
+      userTracker.setCompanyId(companyId);
+      userTracker.setUserId(req.getRemoteUser());
+      userTracker.setModifiedDate(new Date());
+      userTracker.setRemoteAddr(req.getRemoteAddr());
+      userTracker.setRemoteHost(req.getRemoteHost());
+      userTracker.setUserAgent(req.getHeader(HttpHeaders.USER_AGENT));
+      userTracker.setHttpSession(ses);
+      currentUsers.put(ses.getId(),userTracker);
+    }
+    if (!GetterUtil.getBoolean(PropsUtil.get(PropsUtil.LAYOUT_REMEMBER_SESSION_WINDOW_STATE_MAXIMIZED))) {
+      Group group=GroupLocalServiceUtil.getUserGroup(companyId,userId);
+      Iterator itr=LayoutLocalServiceUtil.getLayouts(Layout.PRIVATE + group.getGroupId()).iterator();
+      while (itr.hasNext()) {
+        Layout layout=(Layout)itr.next();
+        LayoutTypePortlet layoutType=(LayoutTypePortlet)layout.getLayoutType();
+        if (layoutType.hasStateMax()) {
+          layoutType.resetStates();
+          layoutType.resetModes();
+          LayoutServiceUtil.updateLayout(layout.getLayoutId(),layout.getOwnerId(),layout.getTypeSettings());
+        }
+      }
+    }
+    ses.removeAttribute(Globals.LOCALE_KEY);
+  }
+ catch (  Exception e) {
+    throw new ActionException(e);
+  }
+}

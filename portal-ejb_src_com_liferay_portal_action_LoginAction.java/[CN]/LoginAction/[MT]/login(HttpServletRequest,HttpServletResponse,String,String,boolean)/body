@@ -1,0 +1,54 @@
+{
+  CookieKeys.validateSupportCookie(req);
+  HttpSession ses=req.getSession();
+  String userId=login;
+  int authResult=Authenticator.FAILURE;
+  Company company=PortalUtil.getCompany(req);
+  if (company.getAuthType().equals(Company.AUTH_TYPE_EA)) {
+    authResult=UserLocalServiceUtil.authenticateByEmailAddress(company.getCompanyId(),login,password);
+    userId=UserLocalServiceUtil.getUserId(company.getCompanyId(),login);
+  }
+ else {
+    authResult=UserLocalServiceUtil.authenticateByUserId(company.getCompanyId(),login,password);
+  }
+  try {
+    PrincipalFinder principalFinder=(PrincipalFinder)InstancePool.get(PropsUtil.get(PropsUtil.PRINCIPAL_FINDER));
+    userId=principalFinder.fromLiferay(userId);
+  }
+ catch (  Exception e) {
+  }
+  if (authResult == Authenticator.SUCCESS) {
+    LastPath lastPath=(LastPath)ses.getAttribute(WebKeys.LAST_PATH);
+    ses.invalidate();
+    ses=req.getSession(true);
+    if (lastPath != null) {
+      ses.setAttribute(WebKeys.LAST_PATH,lastPath);
+    }
+    User user=UserLocalServiceUtil.getUserById(userId);
+    ses.setAttribute("j_username",userId);
+    ses.setAttribute("j_password",user.getPassword());
+    ses.setAttribute("j_remoteuser",userId);
+    ses.setAttribute(WebKeys.USER_PASSWORD,password);
+    Cookie idCookie=new Cookie(CookieKeys.ID,UserLocalServiceUtil.encryptUserId(userId));
+    idCookie.setPath("/");
+    Cookie passwordCookie=new Cookie(CookieKeys.PASSWORD,Encryptor.encrypt(company.getKeyObj(),password));
+    passwordCookie.setPath("/");
+    if (rememberMe) {
+      idCookie.setMaxAge(CookieKeys.MAX_AGE);
+      passwordCookie.setMaxAge(CookieKeys.MAX_AGE);
+    }
+ else {
+      idCookie.setMaxAge(0);
+      passwordCookie.setMaxAge(0);
+    }
+    Cookie loginCookie=new Cookie(CookieKeys.LOGIN,login);
+    loginCookie.setPath("/");
+    loginCookie.setMaxAge(CookieKeys.MAX_AGE);
+    CookieKeys.addCookie(res,idCookie);
+    CookieKeys.addCookie(res,passwordCookie);
+    CookieKeys.addCookie(res,loginCookie);
+  }
+ else {
+    throw new AuthException();
+  }
+}

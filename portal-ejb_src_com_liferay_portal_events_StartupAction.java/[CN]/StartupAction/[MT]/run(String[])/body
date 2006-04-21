@@ -1,0 +1,40 @@
+{
+  try {
+    System.out.println("Starting " + ReleaseInfo.getReleaseInfo());
+    SimpleCachePool.put(StartupAction.class.getName() + ".uptime",new Date());
+    try {
+      LockServiceUtil.clear();
+    }
+ catch (    Exception e) {
+      e.printStackTrace();
+    }
+    Runtime.getRuntime().addShutdownHook(new Thread(new ShutdownHook()));
+    int buildNumber=ReleaseLocalServiceUtil.getRelease().getBuildNumber();
+    String[] upgradeProcesses=PropsUtil.getArray(PropsUtil.UPGRADE_PROCESSES);
+    for (int i=0; i < upgradeProcesses.length; i++) {
+      _log.debug("Initializing upgrade " + upgradeProcesses[i]);
+      try {
+        UpgradeProcess upgradeProcess=(UpgradeProcess)Class.forName(upgradeProcesses[i]).newInstance();
+        if ((upgradeProcess.getThreshold() == 0) || (upgradeProcess.getThreshold() > buildNumber)) {
+          _log.debug("Running upgrade " + upgradeProcesses[i]);
+          upgradeProcess.upgrade();
+          _log.debug("Finished upgrade " + upgradeProcesses[i]);
+        }
+ else {
+          _log.debug("Skipping upgrade " + upgradeProcesses[i]);
+        }
+      }
+ catch (      ClassNotFoundException cnfe) {
+        _log.error(upgradeProcesses[i] + " cannot be found");
+      }
+catch (      InstantiationException ie) {
+        _log.error(upgradeProcesses[i] + " cannot be initiated");
+      }
+    }
+    ReleaseLocalServiceUtil.updateRelease();
+    _deleteTempImages();
+  }
+ catch (  Exception e) {
+    throw new ActionException(e);
+  }
+}

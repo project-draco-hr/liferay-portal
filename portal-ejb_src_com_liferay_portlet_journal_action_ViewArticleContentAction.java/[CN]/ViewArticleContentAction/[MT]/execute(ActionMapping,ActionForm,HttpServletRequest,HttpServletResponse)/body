@@ -1,0 +1,46 @@
+{
+  try {
+    String cmd=ParamUtil.getString(req,Constants.CMD);
+    String companyId=PortalUtil.getCompanyId(req);
+    String articleId=ParamUtil.getString(req,"articleId");
+    double version=ParamUtil.getDouble(req,"version",JournalArticle.DEFAULT_VERSION);
+    String languageId=LanguageUtil.getLanguageId(req);
+    String rootPath=(String)req.getAttribute(WebKeys.ROOT_PATH);
+    String output=null;
+    if (cmd.equals(Constants.PREVIEW)) {
+      String title=ParamUtil.getString(req,"title");
+      Date now=new Date();
+      Date createDate=now;
+      Date modifiedDate=now;
+      Date displayDate=now;
+      String xml=ParamUtil.getString(req,"xml");
+      SAXReader reader=new SAXReader();
+      Document doc=reader.read(new StringReader(xml));
+      Element root=doc.getRootElement();
+      String previewArticleId="PREVIEW_" + PwdGenerator.getPassword(PwdGenerator.KEY3,10);
+      format(articleId,version,previewArticleId,companyId,root,(UploadServletRequest)req);
+      Map tokens=JournalUtil.getTokens(companyId,rootPath);
+      JournalUtil.addReservedEl(root,tokens,JournalStructure.RESERVED_ARTICLE_ID,articleId);
+      JournalUtil.addReservedEl(root,tokens,JournalStructure.RESERVED_ARTICLE_VERSION,Double.toString(version));
+      JournalUtil.addReservedEl(root,tokens,JournalStructure.RESERVED_ARTICLE_TITLE,title);
+      JournalUtil.addReservedEl(root,tokens,JournalStructure.RESERVED_ARTICLE_CREATE_DATE,createDate.toString());
+      JournalUtil.addReservedEl(root,tokens,JournalStructure.RESERVED_ARTICLE_MODIFIED_DATE,modifiedDate.toString());
+      JournalUtil.addReservedEl(root,tokens,JournalStructure.RESERVED_ARTICLE_DISPLAY_DATE,displayDate.toString());
+      xml=JournalUtil.formatXML(doc);
+      String templateId=ParamUtil.getString(req,"templateId");
+      JournalTemplate template=JournalTemplateLocalServiceUtil.getTemplate(companyId,templateId);
+      String langType=template.getLangType();
+      String script=template.getXsl();
+      output=JournalUtil.transform(tokens,languageId,xml,script,langType);
+    }
+ else {
+      output=JournalArticleLocalServiceUtil.getArticleContent(companyId,articleId,version,languageId,rootPath);
+    }
+    req.setAttribute(WebKeys.JOURNAL_ARTICLE_CONTENT,output);
+    return mapping.findForward("portlet.journal.view_article_content");
+  }
+ catch (  Exception e) {
+    req.setAttribute(PageContext.EXCEPTION,e);
+    return mapping.findForward(Constants.COMMON_ERROR);
+  }
+}

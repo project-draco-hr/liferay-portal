@@ -1,0 +1,84 @@
+{
+  User user=UserUtil.findByPrimaryKey(userId);
+  MBTopic topic=MBTopicUtil.findByPrimaryKey(topicId);
+  MBCategory category=topic.getCategory();
+  Date now=new Date();
+  validate(subject,body);
+  String rootMessageId=Long.toString(CounterServiceUtil.increment(MBMessage.class.getName() + "." + topicId));
+  String messageId=rootMessageId;
+  MBMessage message=MBMessageUtil.create(new MBMessagePK(topicId,messageId));
+  message.setCompanyId(user.getCompanyId());
+  message.setUserId(user.getUserId());
+  message.setUserName(user.getFullName());
+  message.setCreateDate(now);
+  message.setModifiedDate(now);
+  if (files.size() > 0) {
+    String companyId=message.getCompanyId();
+    String portletId=Company.SYSTEM;
+    String groupId=Group.DEFAULT_PARENT_GROUP_ID;
+    String repositoryId=Company.SYSTEM;
+    String dirName=message.getAttachmentsDir();
+    try {
+      DLServiceUtil.deleteDirectory(companyId,portletId,repositoryId,dirName);
+    }
+ catch (    NoSuchDirectoryException nsde) {
+    }
+    DLServiceUtil.addDirectory(companyId,repositoryId,dirName);
+    for (int i=0; i < files.size(); i++) {
+      ObjectValuePair ovp=(ObjectValuePair)files.get(i);
+      String fileName=(String)ovp.getKey();
+      byte[] byteArray=(byte[])ovp.getValue();
+      try {
+        DLServiceUtil.addFile(companyId,portletId,groupId,repositoryId,dirName + "/" + fileName,byteArray);
+      }
+ catch (      DuplicateFileException dfe) {
+      }
+    }
+  }
+  try {
+    MBMessageUtil.findByPrimaryKey(new MBMessagePK(topicId,parentMessageId));
+  }
+ catch (  NoSuchMessageException nsme) {
+    parentMessageId=MBMessage.DEFAULT_PARENT_MESSAGE_ID;
+  }
+  MBThread thread=null;
+  if (threadId != null) {
+    try {
+      thread=MBThreadUtil.findByPrimaryKey(threadId);
+    }
+ catch (    NoSuchThreadException nste) {
+    }
+  }
+  if (thread == null || parentMessageId.equals(MBMessage.DEFAULT_PARENT_MESSAGE_ID)) {
+    threadId=Long.toString(CounterServiceUtil.increment(MBThread.class.getName()));
+    thread=MBThreadUtil.create(threadId);
+    thread.setRootMessageId(rootMessageId);
+    thread.setTopicId(topicId);
+    MBThreadUtil.update(thread);
+  }
+  thread.setMessageCount(thread.getMessageCount() + 1);
+  thread.setLastPostDate(now);
+  MBThreadUtil.update(thread);
+  message.setThreadId(threadId);
+  message.setParentMessageId(parentMessageId);
+  message.setSubject(subject);
+  message.setBody(body);
+  message.setAttachments((files.size() > 0 ? true : false));
+  message.setAnonymous(anonymous);
+  MBMessageUtil.update(message);
+  if (category != null) {
+    addMessageResources(category,message,addCommunityPermissions,addGuestPermissions);
+  }
+  notifySubscribers(message,prefs,false);
+  topic.setLastPostDate(now);
+  MBTopicUtil.update(topic);
+  try {
+    if (category != null) {
+      Indexer.addMessage(message.getCompanyId(),category.getGroupId(),category.getCategoryId(),topicId,threadId,messageId,subject,body);
+    }
+  }
+ catch (  IOException ioe) {
+    _log.error(ioe.getMessage());
+  }
+  return message;
+}

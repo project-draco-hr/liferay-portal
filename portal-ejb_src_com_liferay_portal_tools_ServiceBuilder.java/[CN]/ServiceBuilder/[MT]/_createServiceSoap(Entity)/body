@@ -1,0 +1,88 @@
+{
+  XClass xClass=_getXClass(_outputPath + "/service/impl/" + entity.getName()+ "ServiceImpl.java");
+  List methods=xClass.getMethods();
+  StringBuffer sb=new StringBuffer();
+  sb.append("package " + _packagePath + ".service.http;");
+  if (_hasSoapMethods(xClass)) {
+    sb.append("import " + _packagePath + ".service.spring."+ entity.getName()+ "ServiceUtil;");
+  }
+  sb.append("import com.liferay.portal.shared.util.StackTraceUtil;");
+  sb.append("import java.rmi.RemoteException;");
+  sb.append("import org.apache.commons.logging.Log;");
+  sb.append("import org.apache.commons.logging.LogFactory;");
+  sb.append("public class " + entity.getName() + "ServiceSoap {");
+  for (int i=0; i < methods.size(); i++) {
+    XMethod xMethod=(XMethod)methods.get(i);
+    String methodName=xMethod.getName();
+    if (_isCustomMethod(xMethod) && xMethod.isPublic() && _isSoapMethod(xMethod)) {
+      String returnValueName=xMethod.getReturnType().getType().getQualifiedName();
+      String returnValueDimension=xMethod.getReturnType().getDimensionAsString();
+      String extendedModelName=_packagePath + ".model." + entity.getName();
+      String modelName=extendedModelName + "Model";
+      sb.append("public static ");
+      if (returnValueName.equals(extendedModelName)) {
+        if (entity.hasColumns()) {
+          sb.append(modelName + returnValueDimension);
+        }
+ else {
+          sb.append(extendedModelName + returnValueDimension);
+        }
+      }
+ else       if (returnValueName.equals("java.util.List")) {
+        if (entity.hasColumns()) {
+          sb.append(modelName + "[]");
+        }
+ else {
+          sb.append("java.util.List");
+        }
+      }
+ else {
+        sb.append(returnValueName + returnValueDimension);
+      }
+      sb.append(" " + methodName + "(");
+      List parameters=xMethod.getParameters();
+      for (int j=0; j < parameters.size(); j++) {
+        XParameter xParameter=(XParameter)parameters.get(j);
+        sb.append(xParameter.getType().getQualifiedName() + xParameter.getDimensionAsString() + " "+ xParameter.getName());
+        if ((j + 1) != parameters.size()) {
+          sb.append(", ");
+        }
+      }
+      sb.append(") throws RemoteException {");
+      sb.append("try {");
+      if (!returnValueName.equals("void")) {
+        sb.append(returnValueName + returnValueDimension + " returnValue = ");
+      }
+      sb.append(entity.getName() + "ServiceUtil." + methodName+ "(");
+      for (int j=0; j < parameters.size(); j++) {
+        XParameter xParameter=(XParameter)parameters.get(j);
+        sb.append(xParameter.getName());
+        if ((j + 1) != parameters.size()) {
+          sb.append(", ");
+        }
+      }
+      sb.append(");");
+      if (!returnValueName.equals("void")) {
+        sb.append("return ");
+        if (entity.hasColumns() && returnValueName.equals("java.util.List")) {
+          sb.append("(" + extendedModelName + "[])returnValue.toArray(new "+ extendedModelName+ "[0])");
+        }
+ else {
+          sb.append("returnValue");
+        }
+        sb.append(";");
+      }
+      sb.append("}");
+      sb.append("catch (Exception e) {");
+      sb.append("String stackTrace = StackTraceUtil.getStackTrace(e);");
+      sb.append("_log.error(stackTrace);");
+      sb.append("throw new RemoteException(stackTrace);");
+      sb.append("}");
+      sb.append("}");
+    }
+  }
+  sb.append("private static Log _log = LogFactory.getLog(" + entity.getName() + "ServiceSoap.class);");
+  sb.append("}");
+  File ejbFile=new File(_outputPath + "/service/http/" + entity.getName()+ "ServiceSoap.java");
+  writeFile(ejbFile,sb.toString());
+}

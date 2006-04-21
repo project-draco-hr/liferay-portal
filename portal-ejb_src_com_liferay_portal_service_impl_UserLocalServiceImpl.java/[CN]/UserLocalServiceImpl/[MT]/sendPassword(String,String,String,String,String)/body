@@ -1,0 +1,34 @@
+{
+  if (!AdminUtil.getEmailPasswordSentEnabled(companyId)) {
+    return;
+  }
+  emailAddress=emailAddress.trim().toLowerCase();
+  if (!Validator.isEmailAddress(emailAddress)) {
+    throw new UserEmailAddressException();
+  }
+  Company company=CompanyUtil.findByPrimaryKey(companyId);
+  User user=UserUtil.findByC_EA(companyId,emailAddress);
+  if (PwdEncryptor.PASSWORDS_ENCRYPTED) {
+    user.setPassword(PwdToolkitUtil.generate());
+    user.setPasswordEncrypted(false);
+    user.setPasswordReset(GetterUtil.getBoolean(PropsUtil.get(PropsUtil.PASSWORDS_CHANGE_ON_FIRST_USE)));
+    UserUtil.update(user);
+  }
+  try {
+    String fromName=AdminUtil.getEmailFromName(companyId);
+    String fromAddress=AdminUtil.getEmailFromAddress(companyId);
+    String toName=user.getFullName();
+    String toAddress=user.getEmailAddress();
+    String subject=AdminUtil.getEmailPasswordSentSubject(companyId);
+    String body=AdminUtil.getEmailPasswordSentBody(companyId);
+    subject=StringUtil.replace(subject,new String[]{"[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PORTAL_URL$]","[$REMOTE_ADDRESS$]","[$REMOTE_HOST$]","[$TO_ADDRESS$]","[$TO_NAME$]","[$USER_AGENT$]","[$USER_ID$]","[$USER_PASSWORD$]"},new String[]{fromAddress,fromName,company.getPortalURL(),remoteAddr,remoteHost,toAddress,toName,userAgent,user.getUserId(),user.getPassword()});
+    body=StringUtil.replace(body,new String[]{"[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PORTAL_URL$]","[$REMOTE_ADDRESS$]","[$REMOTE_HOST$]","[$TO_ADDRESS$]","[$TO_NAME$]","[$USER_AGENT$]","[$USER_ID$]","[$USER_PASSWORD$]"},new String[]{fromAddress,fromName,company.getPortalURL(),remoteAddr,remoteHost,toAddress,toName,userAgent,user.getUserId(),user.getPassword()});
+    InternetAddress from=new InternetAddress(fromAddress,fromName);
+    InternetAddress to=new InternetAddress(toAddress,toName);
+    MailMessage message=new MailMessage(from,to,subject,body,true);
+    MailServiceUtil.sendEmail(message);
+  }
+ catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+}

@@ -1,0 +1,39 @@
+{
+  ShoppingOrder order=ShoppingOrderUtil.findByPrimaryKey(orderId);
+  order.setModifiedDate(new Date());
+  order.setPpTxnId(ppTxnId);
+  order.setPpPaymentStatus(ppPaymentStatus);
+  order.setPpPaymentGross(ppPaymentGross);
+  order.setPpReceiverEmail(ppReceiverEmail);
+  order.setPpPayerEmail(ppPayerEmail);
+  ShoppingOrderUtil.update(order);
+  if (updateInventory && ppPaymentStatus.equals(ShoppingOrder.STATUS_COMPLETED)) {
+    List orderItems=ShoppingOrderItemServiceUtil.getOrderItems(order.getOrderId());
+    for (int i=0; i < orderItems.size(); i++) {
+      ShoppingOrderItem orderItem=(ShoppingOrderItem)orderItems.get(i);
+      ShoppingItem item=ShoppingItemServiceUtil.getItemById(ShoppingUtil.getItemId(orderItem.getItemId()));
+      if (!item.isFields()) {
+        int quantity=item.getStockQuantity() - orderItem.getQuantity();
+        item.setStockQuantity(quantity);
+      }
+ else {
+        ShoppingItemField[] itemFields=(ShoppingItemField[])ShoppingItemFieldServiceUtil.getItemFields(item.getItemId()).toArray(new ShoppingItemField[0]);
+        String[] fieldsArray=ShoppingCartItem.getFieldsArray(ShoppingUtil.getItemFields(orderItem.getItemId()));
+        int rowPos=ShoppingUtil.getFieldsQuantitiesPos(item,itemFields,fieldsArray);
+        String[] fieldsQuantities=item.getFieldsQuantitiesArray();
+        try {
+          int quantity=GetterUtil.getInteger(fieldsQuantities[rowPos]) - orderItem.getQuantity();
+          fieldsQuantities[rowPos]=Integer.toString(quantity);
+          item.setFieldsQuantitiesArray(fieldsQuantities);
+        }
+ catch (        Exception e) {
+        }
+      }
+      ShoppingItemUtil.update(item);
+    }
+  }
+  ShoppingConfig shoppingConfig=AdminConfigServiceUtil.getShoppingConfig(order.getCompanyId());
+  if (shoppingConfig.usePayPal()) {
+    sendOrderEmail(order);
+  }
+}

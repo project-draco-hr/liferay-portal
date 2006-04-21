@@ -1,0 +1,51 @@
+{
+  Layout layout=(Layout)req.getAttribute(WebKeys.LAYOUT);
+  LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
+  String cmd=ParamUtil.getString(req,Constants.CMD);
+  String portletId=ParamUtil.getString(req,"p_p_id");
+  if (cmd.equals(Constants.ADD)) {
+    portletId=layoutTypePortlet.addPortletId(req.getRemoteUser(),portletId);
+  }
+ else   if (cmd.equals(Constants.DELETE)) {
+    layoutTypePortlet.removePortletId(portletId);
+  }
+ else   if (cmd.equals("minimize")) {
+    boolean restore=ParamUtil.getBoolean(req,"p_p_restore");
+    if (restore) {
+      layoutTypePortlet.removeStateMinPortletId(portletId);
+    }
+ else {
+      layoutTypePortlet.addStateMinPortletId(portletId);
+    }
+  }
+ else   if (cmd.equals("move")) {
+    String columnId=ParamUtil.getString(req,"p_p_col_id");
+    int columnPos=ParamUtil.getInteger(req,"p_p_col_pos");
+    layoutTypePortlet.movePortletId(req.getRemoteUser(),portletId,columnId,columnPos);
+  }
+ else   if (cmd.equals("template")) {
+    String layoutTemplateId=ParamUtil.getString(req,"layoutTemplateId");
+    layoutTypePortlet.setLayoutTemplateId(layoutTemplateId);
+  }
+  LayoutServiceUtil.updateLayout(layout.getLayoutId(),layout.getOwnerId(),layout.getTypeSettings());
+  if (ParamUtil.getBoolean(req,"refresh")) {
+    return mapping.findForward(Constants.COMMON_REFERER);
+  }
+ else {
+    if (cmd.equals(Constants.ADD) && (portletId != null)) {
+      Action renderPortletAction=(Action)InstancePool.get(RenderPortletAction.class.getName());
+      String companyId=PortalUtil.getCompanyId(req);
+      Portlet portlet=PortletServiceUtil.getPortletById(companyId,portletId);
+      DynamicServletRequest dynamicReq=null;
+      if (portlet.isPrivateRequestAttributes()) {
+        dynamicReq=new NamespaceServletRequest(req,portlet.getPortletId());
+      }
+ else {
+        dynamicReq=new DynamicServletRequest(req);
+      }
+      dynamicReq.setParameter("p_p_id",portletId);
+      renderPortletAction.execute(mapping,form,dynamicReq,res);
+    }
+    return null;
+  }
+}

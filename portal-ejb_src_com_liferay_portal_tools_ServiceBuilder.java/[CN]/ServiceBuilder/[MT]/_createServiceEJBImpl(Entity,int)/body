@@ -1,0 +1,88 @@
+{
+  XClass xClass=_getXClass(_outputPath + "/service/spring/" + entity.getName()+ (sessionType != _REMOTE ? "Local" : "")+ "Service.java");
+  List methods=xClass.getMethods();
+  StringBuffer sb=new StringBuffer();
+  sb.append("package " + _packagePath + ".service.ejb;");
+  sb.append("import " + _springUtilClassName + ";");
+  sb.append("import " + _packagePath + ".service.spring."+ entity.getName()+ _getSessionTypeName(sessionType)+ "Service;");
+  sb.append("import javax.ejb.CreateException;");
+  sb.append("import javax.ejb.SessionContext;");
+  sb.append("import javax.ejb.SessionBean;");
+  sb.append("import org.springframework.context.ApplicationContext;");
+  if (sessionType == _REMOTE) {
+    sb.append("import com.liferay.portal.service.impl.PrincipalSessionBean;");
+  }
+  sb.append("public class " + entity.getName() + _getSessionTypeName(sessionType)+ "ServiceEJBImpl implements "+ entity.getName()+ _getSessionTypeName(sessionType)+ "Service, SessionBean {");
+  sb.append("public static final String CLASS_NAME = " + entity.getName() + _getSessionTypeName(sessionType)+ "Service.class.getName() + \".transaction\";");
+  sb.append("public static " + entity.getName() + _getSessionTypeName(sessionType)+ "Service getService() {");
+  sb.append("ApplicationContext ctx = SpringUtil.getContext();");
+  sb.append("return (" + entity.getName() + _getSessionTypeName(sessionType)+ "Service)ctx.getBean(CLASS_NAME);");
+  sb.append("}");
+  for (int i=0; i < methods.size(); i++) {
+    XMethod xMethod=(XMethod)methods.get(i);
+    String methodName=xMethod.getName();
+    if (_isCustomMethod(xMethod) && xMethod.isPublic()) {
+      sb.append("public " + xMethod.getReturnType().getType().getQualifiedName() + xMethod.getReturnType().getDimensionAsString()+ " "+ methodName+ "(");
+      List parameters=xMethod.getParameters();
+      for (int j=0; j < parameters.size(); j++) {
+        XParameter xParameter=(XParameter)parameters.get(j);
+        sb.append(xParameter.getType().getQualifiedName() + xParameter.getDimensionAsString() + " "+ xParameter.getName());
+        if ((j + 1) != parameters.size()) {
+          sb.append(", ");
+        }
+      }
+      sb.append(")");
+      List thrownExceptions=xMethod.getThrownExceptions();
+      Set newExceptions=new LinkedHashSet();
+      for (int j=0; j < thrownExceptions.size(); j++) {
+        XClass thrownException=(XClass)thrownExceptions.get(j);
+        newExceptions.add(thrownException.getQualifiedName());
+      }
+      if (newExceptions.size() > 0) {
+        sb.append(" throws ");
+        Iterator itr=newExceptions.iterator();
+        while (itr.hasNext()) {
+          sb.append(itr.next());
+          if (itr.hasNext()) {
+            sb.append(", ");
+          }
+        }
+      }
+      sb.append("{");
+      if (sessionType == _REMOTE) {
+        sb.append("PrincipalSessionBean.setThreadValues(_sc);");
+      }
+      if (!xMethod.getReturnType().getType().getQualifiedName().equals("void")) {
+        sb.append("return ");
+      }
+      sb.append("getService()." + methodName + "(");
+      for (int j=0; j < parameters.size(); j++) {
+        XParameter xParameter=(XParameter)parameters.get(j);
+        sb.append(xParameter.getName());
+        if ((j + 1) != parameters.size()) {
+          sb.append(", ");
+        }
+      }
+      sb.append(");");
+      sb.append("}");
+    }
+  }
+  sb.append("public void ejbCreate() throws CreateException {");
+  sb.append("}");
+  sb.append("public void ejbRemove() {");
+  sb.append("}");
+  sb.append("public void ejbActivate() {");
+  sb.append("}");
+  sb.append("public void ejbPassivate() {");
+  sb.append("}");
+  sb.append("public SessionContext getSessionContext() {");
+  sb.append("return _sc;");
+  sb.append("}");
+  sb.append("public void setSessionContext(SessionContext sc) {");
+  sb.append("_sc = sc;");
+  sb.append("}");
+  sb.append("private SessionContext _sc;");
+  sb.append("}");
+  File ejbFile=new File(_outputPath + "/service/ejb/" + entity.getName()+ _getSessionTypeName(sessionType)+ "ServiceEJBImpl.java");
+  writeFile(ejbFile,sb.toString());
+}

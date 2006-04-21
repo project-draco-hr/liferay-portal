@@ -1,0 +1,77 @@
+{
+  User user=getUser();
+  categoryId=_getCategoryId(categoryId);
+  sku=sku.trim().toUpperCase();
+  byte[] smallBytes=null;
+  byte[] mediumBytes=null;
+  byte[] largeBytes=null;
+  try {
+    smallBytes=FileUtil.getBytes(smallFile);
+    mediumBytes=FileUtil.getBytes(mediumFile);
+    largeBytes=FileUtil.getBytes(largeFile);
+  }
+ catch (  IOException ioe) {
+  }
+  _validate(user.getCompanyId(),null,categoryId,sku,name,smallImage,smallImageURL,smallFile,smallBytes,mediumImage,mediumImageURL,mediumFile,mediumBytes,largeImage,largeImageURL,largeFile,largeBytes);
+  if (!ShoppingCategoryServiceUtil.hasAdmin()) {
+    throw new PrincipalException();
+  }
+  String itemId=Long.toString(CounterServiceUtil.increment(ShoppingItem.class.getName()));
+  ShoppingItem item=ShoppingItemUtil.create(itemId);
+  Date now=new Date();
+  item.setCompanyId(user.getCompanyId());
+  item.setCreateDate(now);
+  item.setModifiedDate(now);
+  item.setCategoryId(categoryId);
+  item.setSku(sku);
+  item.setName(name);
+  item.setDescription(description);
+  item.setProperties(properties);
+  item.setSupplierUserId(supplierUserId);
+  item.setFields(itemFields.size() > 0);
+  item.setFieldsQuantities(fieldsQuantities);
+  for (int i=0; i < itemPrices.size(); i++) {
+    ShoppingItemPrice itemPrice=(ShoppingItemPrice)itemPrices.get(i);
+    if (itemPrice.getStatus() == ShoppingItemPrice.STATUS_ACTIVE_DEFAULT) {
+      item.setMinQuantity(itemPrice.getMinQuantity());
+      item.setMaxQuantity(itemPrice.getMaxQuantity());
+      item.setPrice(itemPrice.getPrice());
+      item.setDiscount(itemPrice.getDiscount());
+      item.setTaxable(itemPrice.getTaxable());
+      item.setShipping(itemPrice.getShipping());
+      item.setUseShippingFormula(itemPrice.getUseShippingFormula());
+    }
+    if ((sale == null) && (itemPrice.getDiscount() > 0) && ((itemPrice.getStatus() == ShoppingItemPrice.STATUS_ACTIVE_DEFAULT) || (itemPrice.getStatus() == ShoppingItemPrice.STATUS_ACTIVE))) {
+      sale=Boolean.TRUE;
+    }
+  }
+  item.setRequiresShipping(requiresShipping);
+  item.setStockQuantity(stockQuantity);
+  item.setFeatured(featured);
+  item.setSale((sale != null) ? sale.booleanValue() : false);
+  item.setSmallImage(smallImage);
+  item.setSmallImageURL(smallImageURL);
+  item.setMediumImage(mediumImage);
+  item.setMediumImageURL(mediumImageURL);
+  item.setLargeImage(largeImage);
+  item.setLargeImageURL(largeImageURL);
+  ShoppingItemUtil.update(item);
+  for (int i=0; i < itemFields.size() && itemFields.size() > 0; i++) {
+    ShoppingItemField itemField=(ShoppingItemField)itemFields.get(i);
+    String itemFieldId=Long.toString(CounterServiceUtil.increment(ShoppingItemField.class.getName()));
+    itemField.setItemFieldId(itemFieldId);
+    itemField.setItemId(itemId);
+    itemField.setName(_checkItemField(itemField.getName()));
+    itemField.setValues(_checkItemField(itemField.getValues()));
+    ShoppingItemFieldUtil.update(itemField);
+  }
+  for (int i=0; i < itemPrices.size() && itemPrices.size() > 1; i++) {
+    ShoppingItemPrice itemPrice=(ShoppingItemPrice)itemPrices.get(i);
+    String itemPriceId=Long.toString(CounterServiceUtil.increment(ShoppingItemPrice.class.getName()));
+    itemPrice.setItemPriceId(itemPriceId);
+    itemPrice.setItemId(itemId);
+    ShoppingItemPriceUtil.update(itemPrice);
+  }
+  _saveImages(smallImage,item.getSmallImageId(),smallFile,smallBytes,mediumImage,item.getMediumImageId(),mediumFile,mediumBytes,largeImage,item.getLargeImageId(),largeFile,largeBytes);
+  return item;
+}

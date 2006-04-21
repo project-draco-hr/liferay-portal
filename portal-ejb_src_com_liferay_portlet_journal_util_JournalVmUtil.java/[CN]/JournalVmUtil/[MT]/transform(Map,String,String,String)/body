@@ -1,0 +1,37 @@
+{
+  StringWriter output=new StringWriter();
+  boolean load=false;
+  try {
+    VelocityContext context=new VelocityContext();
+    SAXReader reader=new SAXReader();
+    Document doc=reader.read(new StringReader(xml));
+    List nodes=_extractDynamicContents(doc.getRootElement());
+    Iterator itr=nodes.iterator();
+    while (itr.hasNext()) {
+      TemplateNode node=(TemplateNode)itr.next();
+      context.put(node.getName(),node);
+    }
+    String companyId=(String)tokens.get("company_id");
+    context.put("journalTemplatesPath",VelocityResourceListener.JOURNAL_SEPARATOR + StringPool.SLASH + companyId);
+    load=Velocity.evaluate(context,output,JournalVmUtil.class.getName(),vmScript);
+  }
+ catch (  Exception e) {
+    if (e instanceof DocumentException) {
+      throw new TransformException("Unable to read XML document",e);
+    }
+ else     if (e instanceof VelocityException) {
+      VelocityException pex=(VelocityException)e;
+      throw new TransformException("Unable to parse velocity template." + Html.escape(pex.getMessage(),false),e);
+    }
+ else     if (e instanceof IOException) {
+      throw new TransformException("Error reading velocity template",e);
+    }
+ else {
+      throw new TransformException("Unhandled exception",e);
+    }
+  }
+  if (!load) {
+    throw new TransformException("Unable to dynamically load velocity transform script");
+  }
+  return output.toString();
+}

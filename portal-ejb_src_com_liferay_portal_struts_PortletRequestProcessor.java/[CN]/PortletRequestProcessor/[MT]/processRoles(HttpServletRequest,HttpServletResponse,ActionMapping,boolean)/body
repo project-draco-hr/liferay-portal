@@ -1,0 +1,46 @@
+{
+  User user=null;
+  try {
+    user=PortalUtil.getUser(req);
+  }
+ catch (  Exception e) {
+  }
+  if (user == null) {
+    return true;
+  }
+  String path=mapping.getPath();
+  try {
+    PortletConfigImpl portletConfig=(PortletConfigImpl)req.getAttribute(WebKeys.JAVAX_PORTLET_CONFIG);
+    Portlet portlet=PortletServiceUtil.getPortletById(user.getCompanyId(),portletConfig.getPortletId());
+    if (portlet == null) {
+      return false;
+    }
+    String strutsPath=path.substring(1,path.lastIndexOf(StringPool.SLASH));
+    if (!strutsPath.equals(portlet.getStrutsPath())) {
+      throw new PrincipalException();
+    }
+ else     if (portlet.isActive()) {
+      ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
+      Layout layout=themeDisplay.getLayout();
+      PermissionChecker permissionChecker=themeDisplay.getPermissionChecker();
+      if (!PortletPermission.contains(permissionChecker,layout.getPlid(),portlet.getPortletId(),ActionKeys.VIEW)) {
+        throw new PrincipalException();
+      }
+    }
+ else     if (!portlet.isActive()) {
+      ForwardConfig forwardConfig=mapping.findForward(_PATH_PORTAL_PORTLET_INACTIVE);
+      if (!action) {
+        processForwardConfig(req,res,forwardConfig);
+      }
+      return false;
+    }
+  }
+ catch (  Exception e) {
+    ForwardConfig forwardConfig=mapping.findForward(_PATH_PORTAL_PORTLET_ACCESS_DENIED);
+    if (!action) {
+      processForwardConfig(req,res,forwardConfig);
+    }
+    return false;
+  }
+  return true;
+}

@@ -1,0 +1,82 @@
+{
+  LdapContext ctx=null;
+  try {
+    Hashtable env=new Hashtable();
+    env.put(Context.INITIAL_CONTEXT_FACTORY,INITIAL_CONTEXT_FACTORY);
+    env.put(Context.SECURITY_PRINCIPAL,USERID);
+    env.put(Context.SECURITY_CREDENTIALS,PASSWORD);
+    env.put(Context.PROVIDER_URL,URL);
+    try {
+      ctx=new InitialLdapContext(env,null);
+    }
+ catch (    Exception e) {
+      return FAILURE;
+    }
+    String authId=null;
+    String emailAddress=null;
+    String firstName=null;
+    String middleName=null;
+    String lastName=null;
+    String ldapFilterString="(&(objectCategory=person)(sAMAccountName=" + userId + "))";
+    SearchControls sch=new SearchControls(SearchControls.SUBTREE_SCOPE,1,0,null,false,false);
+    NamingEnumeration ctxSearch=ctx.search("",ldapFilterString,sch);
+    if (ctxSearch.hasMore()) {
+      Binding bd=(Binding)ctxSearch.next();
+      Attributes attrs=ctx.getAttributes(bd.getName());
+      authId=attrs.get("cn").get().toString();
+      emailAddress=attrs.get("mail").get().toString();
+      firstName=attrs.get("givenName").get().toString();
+      if (attrs.get("initials") != null) {
+        middleName=attrs.get("initials").get().toString();
+      }
+      lastName=attrs.get("sn").get().toString();
+    }
+    ctx.close();
+    if ((emailAddress == null) || (emailAddress.length() < 3)) {
+      return FAILURE;
+    }
+    env.put(Context.SECURITY_PRINCIPAL,emailAddress);
+    env.put(Context.SECURITY_CREDENTIALS,password);
+    try {
+      ctx=new InitialLdapContext(env,null);
+    }
+ catch (    Exception e) {
+      return FAILURE;
+    }
+    User user=null;
+    try {
+      user=UserLocalServiceUtil.getUserById(companyId,userId);
+    }
+ catch (    NoSuchUserException nsue) {
+      boolean autoUserId=false;
+      boolean autoPassword=false;
+      String password1=password;
+      String password2=password;
+      boolean passwordReset=false;
+      Locale locale=Locale.US;
+      String nickName=StringPool.BLANK;
+      String prefixId=StringPool.BLANK;
+      String suffixId=StringPool.BLANK;
+      boolean male=true;
+      int birthdayMonth=Calendar.JANUARY;
+      int birthdayDay=1;
+      int birthdayYear=1970;
+      String jobTitle=StringPool.BLANK;
+      String organizationId=null;
+      String locationId=null;
+      user=UserLocalServiceUtil.addUser(companyId,autoUserId,userId,autoPassword,password1,password2,passwordReset,emailAddress,locale,firstName,middleName,lastName,nickName,prefixId,suffixId,male,birthdayMonth,birthdayDay,birthdayYear,jobTitle,organizationId,locationId);
+    }
+    return SUCCESS;
+  }
+ catch (  Exception e) {
+    _log.error(StackTraceUtil.getStackTrace(e));
+    throw new AuthException(e);
+  }
+ finally {
+    try {
+      ctx.close();
+    }
+ catch (    Exception e) {
+    }
+  }
+}
