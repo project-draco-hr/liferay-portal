@@ -1,0 +1,69 @@
+{
+  try {
+    ZipReader zipReader=new ZipReader(file);
+    String xml=zipReader.getEntryAsString("layouts.xml");
+    SAXReader reader=new SAXReader();
+    Document doc=reader.read(new StringReader(xml));
+    Element root=doc.getRootElement();
+    Element header=(Element)root.element("header");
+    int buildNumber=ReleaseInfo.getBuildNumber();
+    int importBuildNumber=GetterUtil.getInteger(header.attributeValue("buildNumber"));
+    if (buildNumber != importBuildNumber) {
+      throw new LayoutImportException();
+    }
+    String themeId=header.attributeValue("themeId");
+    String colorSchemeId=header.attributeValue("colorSchemeId");
+    LayoutSetLocalServiceUtil.updateLookAndFeel(ownerId,themeId,colorSchemeId);
+    User user=UserUtil.findByPrimaryKey(userId);
+    deleteLayouts(ownerId);
+    Iterator itr=root.elements("layout").iterator();
+    while (itr.hasNext()) {
+      Element el=(Element)itr.next();
+      String layoutId=el.attributeValue("layoutId");
+      String parentLayoutId=el.elementText("parentLayoutId");
+      String name=el.elementText("name");
+      String type=el.elementText("type");
+      String typeSettings=el.elementText("typeSettings");
+      boolean hidden=Boolean.getBoolean(el.elementText("hidden"));
+      String friendlyURL=el.elementText("friendlyURL");
+      themeId=el.elementText("themeId");
+      colorSchemeId=el.elementText("colorSchemeId");
+      int priority=Integer.parseInt(el.elementText("priority"));
+      Layout layout=LayoutUtil.create(new LayoutPK(layoutId,ownerId));
+      layout.setCompanyId(user.getActualCompanyId());
+      layout.setParentLayoutId(parentLayoutId);
+      layout.setName(name);
+      layout.setType(type);
+      layout.setTypeSettings(typeSettings);
+      layout.setHidden(hidden);
+      layout.setFriendlyURL(friendlyURL);
+      layout.setThemeId(themeId);
+      layout.setColorSchemeId(colorSchemeId);
+      layout.setPriority(priority);
+      LayoutUtil.update(layout);
+    }
+    PortletPreferencesUtil.removeByOwnerId(ownerId);
+    itr=root.elements("portletPreferences").iterator();
+    while (itr.hasNext()) {
+      Element el=(Element)itr.next();
+      String portletId=el.attributeValue("portletId");
+      String layoutId=el.attributeValue("layoutId");
+      String preferences=el.elementText("preferences");
+      PortletPreferences prefs=PortletPreferencesUtil.create(new PortletPreferencesPK(portletId,layoutId,ownerId));
+      prefs.setPreferences(preferences);
+      PortletPreferencesUtil.update(prefs);
+    }
+    LayoutSetLocalServiceUtil.updatePageCount(ownerId);
+  }
+ catch (  Exception e) {
+    if (e instanceof LayoutImportException) {
+      throw (LayoutImportException)e;
+    }
+ else     if (e instanceof SystemException) {
+      throw (SystemException)e;
+    }
+ else {
+      throw new SystemException(e);
+    }
+  }
+}

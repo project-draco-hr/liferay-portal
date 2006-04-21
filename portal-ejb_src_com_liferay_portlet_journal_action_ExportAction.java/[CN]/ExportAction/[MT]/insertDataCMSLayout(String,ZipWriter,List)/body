@@ -1,0 +1,73 @@
+{
+  StringBuffer sb=new StringBuffer();
+  List layouts=LayoutLocalServiceUtil.getLayouts(Layout.PUBLIC + siteGroupId);
+  Collections.sort(layouts,new LayoutComparator(true));
+  Iterator itr=layouts.iterator();
+  while (itr.hasNext()) {
+    Layout layout=(Layout)itr.next();
+    sb.append("insert into Layout (");
+    sb.append("layoutId, ownerId, companyId, parentLayoutId, name, ");
+    sb.append("type_, typeSettings, hidden_, friendlyURL, themeId, ");
+    sb.append("colorSchemeId, priority");
+    sb.append(") values (");
+    addColumn(sb,layout.getLayoutId());
+    addColumn(sb,layout.getOwnerId());
+    addColumn(sb,layout.getCompanyId());
+    addColumn(sb,layout.getParentLayoutId());
+    addColumn(sb,layout.getName());
+    addColumn(sb,layout.getType());
+    addColumn(sb,layout.getTypeSettings());
+    addColumn(sb,layout.getHidden());
+    addColumn(sb,layout.getFriendlyURL());
+    addColumn(sb,layout.getThemeId());
+    addColumn(sb,layout.getColorSchemeId());
+    addColumn(sb,layout.getPriority());
+    removeTrailingComma(sb);
+    sb.append(");\n");
+  }
+  sb.append("\n");
+  itr=layouts.iterator();
+  while (itr.hasNext()) {
+    Layout layout=(Layout)itr.next();
+    LayoutTypePortlet layoutType=(LayoutTypePortlet)layout.getLayoutType();
+    List portletIds=layoutType.getPortletIds();
+    Collections.sort(portletIds);
+    for (int i=0; i < portletIds.size(); i++) {
+      String portletId=(String)portletIds.get(i);
+      PortletPreferencesPK pk=new PortletPreferencesPK(portletId,layout.getLayoutId(),layout.getOwnerId());
+      try {
+        PortletPreferences portletPreferences=PortletPreferencesLocalServiceUtil.getPortletPreferences(pk);
+        String prefsXml=portletPreferences.getPreferences();
+        PortletPreferencesImpl prefs=(PortletPreferencesImpl)PortletPreferencesSerializer.fromDefaultXML(portletPreferences.getPreferences());
+        String articleId=prefs.getValue("article-id",StringPool.BLANK);
+        articleId=articleId.toUpperCase();
+        if (Validator.isNotNull(articleId)) {
+          prefs.setValue("article-id",articleId);
+          prefsXml=PortletPreferencesSerializer.toXML(prefs);
+          JournalContentSearch journalContentSearch=new JournalContentSearch();
+          journalContentSearch.setPortletId(portletId);
+          journalContentSearch.setLayoutId(layout.getLayoutId());
+          journalContentSearch.setOwnerId(layout.getOwnerId());
+          journalContentSearch.setArticleId(articleId);
+          journalContentSearches.add(journalContentSearch);
+        }
+        sb.append("insert into PortletPreferences (");
+        sb.append("portletId, layoutId, ownerId, preferences");
+        sb.append(") values (");
+        addColumn(sb,portletId);
+        addColumn(sb,portletPreferences.getLayoutId());
+        addColumn(sb,portletPreferences.getOwnerId());
+        addColumn(sb,prefsXml);
+        removeTrailingComma(sb);
+        sb.append(");\n");
+      }
+ catch (      NoSuchPortletPreferencesException nsppe) {
+        _log.warn(nsppe.getMessage());
+      }
+    }
+    sb.append("\n");
+  }
+  removeTrailingNewLine(sb);
+  removeTrailingNewLine(sb);
+  zipWriter.addEntry("portal-data-cms-layout.sql",sb);
+}
