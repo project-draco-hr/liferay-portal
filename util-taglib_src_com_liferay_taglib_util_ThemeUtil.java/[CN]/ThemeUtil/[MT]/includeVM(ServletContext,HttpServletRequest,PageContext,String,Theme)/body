@@ -1,0 +1,59 @@
+{
+  String ctxName=GetterUtil.getString(ctx.getServletContextName());
+  if (VelocityContextPool.get(ctxName) == null) {
+    VelocityContextPool.put(ctxName,ctx);
+  }
+  int pos=page.lastIndexOf(StringPool.PERIOD);
+  String source=ctxName + VelocityResourceListener.SERVLET_SEPARATOR + theme.getTemplatesPath()+ StringPool.SLASH+ page.substring(0,pos)+ ".vm";
+  if (!Velocity.resourceExists(source)) {
+    _log.error(source + " does not exist");
+    return;
+  }
+  Template template=Velocity.getTemplate(source);
+  StringWriter sw=new StringWriter();
+  VelocityContext vc=new VelocityContext();
+  vc.put("request",req);
+  vc.put("pageContext",pageContext);
+  PortletConfigImpl portletConfig=(PortletConfigImpl)req.getAttribute(WebKeys.JAVAX_PORTLET_CONFIG);
+  if (portletConfig != null) {
+    vc.put("portletConfig",portletConfig);
+  }
+  PortletRequest portletRequest=(PortletRequest)req.getAttribute(WebKeys.JAVAX_PORTLET_REQUEST);
+  if (portletRequest != null) {
+    if (portletRequest instanceof RenderRequest) {
+      vc.put("renderRequest",portletRequest);
+    }
+  }
+  PortletResponse portletResponse=(PortletResponse)req.getAttribute(WebKeys.JAVAX_PORTLET_RESPONSE);
+  if (portletResponse != null) {
+    if (portletResponse instanceof RenderResponse) {
+      vc.put("renderResponse",portletResponse);
+    }
+  }
+  ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
+  if (themeDisplay != null) {
+    vc.put("themeDisplay",themeDisplay);
+    vc.put("company",themeDisplay.getCompany());
+    vc.put("user",themeDisplay.getUser());
+    vc.put("layout",themeDisplay.getLayout());
+    vc.put("layouts",themeDisplay.getLayouts());
+    vc.put("plid",themeDisplay.getPlid());
+    vc.put("layoutTypePortlet",themeDisplay.getLayoutTypePortlet());
+    vc.put("portletGroupId",themeDisplay.getPortletGroupId());
+    vc.put("locale",themeDisplay.getLocale());
+    vc.put("timeZone",themeDisplay.getTimeZone());
+    vc.put("theme",themeDisplay.getTheme());
+    vc.put("colorScheme",themeDisplay.getColorScheme());
+    vc.put("portletDisplay",themeDisplay.getPortletDisplay());
+  }
+  _setTilesAttribute(pageContext,vc,"tilesTitle","title");
+  _setTilesAttribute(pageContext,vc,"tilesSubNav","sub_nav");
+  _setTilesAttribute(pageContext,vc,"tilesContent","content");
+  _setTilesAttribute(pageContext,vc,"tilesSelectable","selectable");
+  vc.put("fullTemplatesPath",ctxName + VelocityResourceListener.SERVLET_SEPARATOR + theme.getTemplatesPath());
+  StringServletResponse stringServletResponse=new StringServletResponse((HttpServletResponse)pageContext.getResponse());
+  vc.put("taglibLiferay",new VelocityTaglib(ctx,req,stringServletResponse,pageContext));
+  _setHelperUtilities(vc);
+  template.merge(vc,sw);
+  pageContext.getOut().print(sw.toString());
+}
