@@ -1,0 +1,44 @@
+{
+  if (USE_LAYOUT_CACHE_FILTER) {
+    _log.debug("Layout Cache is enabled");
+  }
+ else {
+    _log.debug("Layout Cache is disabled");
+  }
+  HttpServletRequest request=(HttpServletRequest)req;
+  HttpServletResponse response=(HttpServletResponse)res;
+  String companyId=PortalUtil.getCompanyId(request);
+  String plid=ParamUtil.getString(request,"p_l_id");
+  String portletId=ParamUtil.getString(request,"p_p_id");
+  String languageId=LanguageUtil.getLanguageId(request);
+  if (Validator.isNull(portletId) && Validator.isNotNull(plid)) {
+    if (USE_LAYOUT_CACHE_FILTER && !_isAlreadyFiltered(request) && !_isSignedIn(request)&& !_isInclude(request)&& _isCacheable(companyId,plid)) {
+      request.setAttribute(_ALREADY_FILTERED,Boolean.TRUE);
+      byte[] byteArray=null;
+      if (!LayoutCacheUtil.isCached(companyId,plid,languageId)) {
+        _log.info("Caching layout " + plid);
+        LayoutCacheResponse layoutCacheResponse=new LayoutCacheResponse(response);
+        chain.doFilter(req,layoutCacheResponse);
+        byteArray=layoutCacheResponse.getData();
+        LayoutCacheUtil.putLayout(companyId,plid,languageId,byteArray);
+      }
+ else {
+        _log.info("Getting cached layout " + plid);
+        byteArray=LayoutCacheUtil.getLayout(companyId,plid,languageId);
+      }
+      res.setContentLength(byteArray.length);
+      ServletOutputStream out=response.getOutputStream();
+      out.write(byteArray,0,byteArray.length);
+      out.flush();
+      out.close();
+    }
+ else {
+      _log.debug("Not checking cached layout " + plid);
+      chain.doFilter(req,res);
+    }
+  }
+ else {
+    _log.debug("Did not request a layout");
+    chain.doFilter(req,res);
+  }
+}
