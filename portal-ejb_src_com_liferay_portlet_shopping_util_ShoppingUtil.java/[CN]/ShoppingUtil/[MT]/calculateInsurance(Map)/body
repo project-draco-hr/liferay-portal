@@ -1,36 +1,37 @@
 {
   double insurance=0.0;
   double subtotal=0.0;
-  ShoppingConfig shoppingConfig=null;
+  ShoppingPreferences shoppingPrefs=null;
   Iterator itr=items.entrySet().iterator();
   while (itr.hasNext()) {
     Map.Entry entry=(Map.Entry)itr.next();
     ShoppingCartItem cartItem=(ShoppingCartItem)entry.getKey();
     Integer count=(Integer)entry.getValue();
     ShoppingItem item=cartItem.getItem();
-    if (shoppingConfig == null) {
-      shoppingConfig=AdminConfigServiceUtil.getShoppingConfig(item.getCompanyId());
+    if (shoppingPrefs == null) {
+      ShoppingCategory category=item.getCategory();
+      shoppingPrefs=ShoppingPreferences.getInstance(category.getCompanyId(),category.getGroupId());
     }
     ShoppingItemPrice itemPrice=_getItemPrice(item,count.intValue());
     subtotal+=calculateActualPrice(itemPrice) * count.intValue();
   }
-  if (shoppingConfig != null && subtotal > 0) {
+  if ((shoppingPrefs != null) && (subtotal > 0)) {
     double insuranceRate=0.0;
-    double[] range=ShoppingConfig.INSURANCE_RANGE;
+    double[] range=ShoppingPreferences.INSURANCE_RANGE;
     for (int i=0; i < range.length - 1; i++) {
       if (subtotal > range[i] && subtotal <= range[i + 1]) {
         int rangeId=i / 2;
         if (MathUtil.isOdd(i)) {
           rangeId=(i + 1) / 2;
         }
-        insuranceRate=GetterUtil.get(shoppingConfig.getInsurance()[rangeId],0.0);
+        insuranceRate=GetterUtil.getDouble(shoppingPrefs.getInsurance()[rangeId],0.0);
       }
     }
-    String formula=shoppingConfig.getInsuranceFormula();
-    if (formula.equals(ShoppingConfig.INSURANCE_FLAT_AMOUNT)) {
+    String formula=shoppingPrefs.getInsuranceFormula();
+    if (formula.equals("flat")) {
       insurance+=insuranceRate;
     }
- else     if (formula.equals(ShoppingConfig.INSURANCE_PERCENTAGE)) {
+ else     if (formula.equals("percentage")) {
       insurance+=subtotal * insuranceRate;
     }
   }
