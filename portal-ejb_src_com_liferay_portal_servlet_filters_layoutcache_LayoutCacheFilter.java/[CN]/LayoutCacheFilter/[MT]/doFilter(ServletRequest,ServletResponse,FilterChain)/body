@@ -8,25 +8,24 @@
   HttpServletRequest request=(HttpServletRequest)req;
   HttpServletResponse response=(HttpServletResponse)res;
   String companyId=PortalUtil.getCompanyId(request);
-  String plid=_getPlid(request.getPathInfo(),ParamUtil.getString(request,"p_l_id"));
+  String plid=_getPlid(request.getPathInfo(),request.getServletPath(),ParamUtil.getString(request,"p_l_id"));
   String portletId=ParamUtil.getString(request,"p_p_id");
   String languageId=LanguageUtil.getLanguageId(request);
   if (Validator.isNull(portletId) && Validator.isNotNull(plid)) {
     if (USE_LAYOUT_CACHE_FILTER && !_isAlreadyFiltered(request) && !_isSignedIn(request)&& !_isInclude(request)&& _isCacheable(companyId,plid)) {
       request.setAttribute(_ALREADY_FILTERED,Boolean.TRUE);
-      byte[] byteArray=null;
-      if (!LayoutCacheUtil.isCached(companyId,plid,languageId)) {
+      LayoutCacheResponseData layoutCacheResponseData=LayoutCacheUtil.getLayoutCacheResponseData(companyId,plid,languageId);
+      ;
+      if (layoutCacheResponseData == null) {
         _log.info("Caching layout " + plid);
         LayoutCacheResponse layoutCacheResponse=new LayoutCacheResponse(response);
         chain.doFilter(req,layoutCacheResponse);
-        byteArray=layoutCacheResponse.getData();
-        LayoutCacheUtil.putLayout(companyId,plid,languageId,byteArray);
+        layoutCacheResponseData=new LayoutCacheResponseData(layoutCacheResponse.getData(),layoutCacheResponse.getContentType());
+        LayoutCacheUtil.putLayoutCacheResponseData(companyId,plid,languageId,layoutCacheResponseData);
       }
- else {
-        _log.info("Getting cached layout " + plid);
-        byteArray=LayoutCacheUtil.getLayout(companyId,plid,languageId);
-      }
+      byte[] byteArray=layoutCacheResponseData.getData();
       res.setContentLength(byteArray.length);
+      res.setContentType(layoutCacheResponseData.getContentType());
       ServletOutputStream out=response.getOutputStream();
       out.write(byteArray,0,byteArray.length);
       out.flush();
