@@ -1,16 +1,17 @@
 {
-  PortletSession ses=req.getPortletSession();
-  PortletContext portletCtx=ses.getPortletContext();
-  Company company=PortalUtil.getCompany(req);
+  ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
   ShoppingCart cart=ShoppingUtil.getCart(req);
   ShoppingOrder order=(ShoppingOrder)req.getAttribute(WebKeys.SHOPPING_ORDER);
-  ShoppingConfig shoppingConfig=AdminConfigServiceUtil.getShoppingConfig(company.getCompanyId());
-  String mainPath=(String)portletCtx.getAttribute(WebKeys.MAIN_PATH);
+  ShoppingPreferences prefs=ShoppingPreferences.getInstance(themeDisplay.getCompanyId(),themeDisplay.getPortletGroupId());
   String returnURL=ShoppingUtil.getPayPalReturnURL(((ActionResponseImpl)res).createActionURL(),order);
-  String notifyURL=ShoppingUtil.getPayPalNotifyURL(company,mainPath);
-  if (shoppingConfig.usePayPal()) {
+  String notifyURL=ShoppingUtil.getPayPalNotifyURL(themeDisplay.getCompany(),themeDisplay.getPathMain());
+  if (prefs.usePayPal()) {
     double total=ShoppingUtil.calculateTotal(cart.getItems(),order.getBillingState(),cart.getCoupon(),cart.getAltShipping(),cart.isInsure());
+    String redirectURL=ShoppingUtil.getPayPalRedirectURL(prefs,order,total,returnURL,notifyURL);
+    res.sendRedirect(redirectURL);
   }
  else {
+    ShoppingOrderLocalServiceUtil.sendEmail(order,"confirmation");
+    res.sendRedirect(returnURL);
   }
 }
