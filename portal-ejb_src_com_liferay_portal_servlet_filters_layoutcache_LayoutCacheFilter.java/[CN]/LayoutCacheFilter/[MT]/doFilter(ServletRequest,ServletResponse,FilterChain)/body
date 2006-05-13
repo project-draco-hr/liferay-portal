@@ -8,51 +8,50 @@
   HttpServletRequest request=(HttpServletRequest)req;
   HttpServletResponse response=(HttpServletResponse)res;
   String companyId=PortalUtil.getCompanyId(request);
-  String plid=_getPlid(request.getPathInfo(),request.getServletPath(),ParamUtil.getString(request,"p_l_id"));
   String portletId=ParamUtil.getString(request,"p_p_id");
-  if (Validator.isNull(portletId) && Validator.isNotNull(plid)) {
-    if (USE_LAYOUT_CACHE_FILTER && !_isAlreadyFiltered(request) && !_isSignedIn(request)&& !_isInclude(request)&& _isCacheable(companyId,plid)) {
-      request.setAttribute(_ALREADY_FILTERED,Boolean.TRUE);
-      String key=getCacheKey(plid,request);
-      LayoutCacheResponseData data=LayoutCacheUtil.getLayoutCacheResponseData(companyId,key);
-      if (data == null) {
-        _log.info("Caching layout " + plid);
-        LayoutCacheResponse layoutCacheResponse=new LayoutCacheResponse(response);
-        chain.doFilter(req,layoutCacheResponse);
-        data=new LayoutCacheResponseData(layoutCacheResponse.getData(),layoutCacheResponse.getContentType(),layoutCacheResponse.getHeaders());
-        LayoutCacheUtil.putLayoutCacheResponseData(companyId,key,data);
+  if (Validator.isNull(portletId) && _isLayout(request) && USE_LAYOUT_CACHE_FILTER&& !_isAlreadyFiltered(request)&& !_isSignedIn(request)&& !_isInclude(request)) {
+    request.setAttribute(_ALREADY_FILTERED,Boolean.TRUE);
+    String key=getCacheKey(request);
+    LayoutCacheResponseData data=LayoutCacheUtil.getLayoutCacheResponseData(companyId,key);
+    if (data == null) {
+      String plid=_getPlid(request.getPathInfo(),request.getServletPath(),ParamUtil.getString(request,"p_l_id"));
+      if (!_isCacheable(companyId,plid)) {
+        _log.debug("Layout is not cacheable " + plid);
+        chain.doFilter(req,res);
+        return;
       }
-      Map headers=data.getHeaders();
-      Iterator itr=headers.keySet().iterator();
-      while (itr.hasNext()) {
-        String headerKey=(String)itr.next();
-        List headerValues=(List)headers.get(headerKey);
-        for (int i=0; i < headerValues.size(); i++) {
-          Header header=(Header)headerValues.get(i);
-          int type=header.getType();
-          if (type == Header.DATE_TYPE) {
-            response.addDateHeader(headerKey,header.getDateValue());
-          }
- else           if (type == Header.INTEGER_TYPE) {
-            response.addIntHeader(headerKey,header.getIntValue());
-          }
- else           if (type == Header.STRING_TYPE) {
-            response.addHeader(headerKey,header.getStringValue());
-          }
+      _log.info("Caching layout " + plid);
+      LayoutCacheResponse layoutCacheResponse=new LayoutCacheResponse(response);
+      chain.doFilter(req,layoutCacheResponse);
+      data=new LayoutCacheResponseData(layoutCacheResponse.getData(),layoutCacheResponse.getContentType(),layoutCacheResponse.getHeaders());
+      LayoutCacheUtil.putLayoutCacheResponseData(companyId,key,data);
+    }
+    Map headers=data.getHeaders();
+    Iterator itr=headers.keySet().iterator();
+    while (itr.hasNext()) {
+      String headerKey=(String)itr.next();
+      List headerValues=(List)headers.get(headerKey);
+      for (int i=0; i < headerValues.size(); i++) {
+        Header header=(Header)headerValues.get(i);
+        int type=header.getType();
+        if (type == Header.DATE_TYPE) {
+          response.addDateHeader(headerKey,header.getDateValue());
+        }
+ else         if (type == Header.INTEGER_TYPE) {
+          response.addIntHeader(headerKey,header.getIntValue());
+        }
+ else         if (type == Header.STRING_TYPE) {
+          response.addHeader(headerKey,header.getStringValue());
         }
       }
-      byte[] byteArray=data.getData();
-      response.setContentLength(byteArray.length);
-      response.setContentType(data.getContentType());
-      ServletOutputStream out=response.getOutputStream();
-      out.write(byteArray,0,byteArray.length);
-      out.flush();
-      out.close();
     }
- else {
-      _log.debug("Not checking cached layout " + plid);
-      chain.doFilter(req,res);
-    }
+    byte[] byteArray=data.getData();
+    response.setContentLength(byteArray.length);
+    response.setContentType(data.getContentType());
+    ServletOutputStream out=response.getOutputStream();
+    out.write(byteArray,0,byteArray.length);
+    out.flush();
+    out.close();
   }
  else {
     _log.debug("Did not request a layout");
