@@ -10,28 +10,29 @@
   if (Validator.isNotNull(modelResource)) {
     selResource=modelResource;
   }
-  if (selResource.equals(Group.class.getName())) {
-    if (!GroupPermission.contains(permissionChecker,resourcePrimKey,ActionKeys.PERMISSIONS)) {
-      SessionErrors.add(req,PrincipalException.class.getName());
-      setForward(req,"portlet.portlet_configuration.error");
+  try {
+    if (selResource.equals(Group.class.getName())) {
+      GroupPermission.check(permissionChecker,resourcePrimKey,ActionKeys.PERMISSIONS);
+    }
+ else     if (selResource.equals(Layout.class.getName())) {
+      String layoutGroupId=StringUtil.split(resourcePrimKey,".")[1];
+      layoutGroupId=StringUtil.replace(layoutGroupId,"}","");
+      GroupPermission.check(permissionChecker,layoutGroupId,ActionKeys.MANAGE_LAYOUTS);
+    }
+ else     if (selResource.equals(User.class.getName())) {
+      User user=UserLocalServiceUtil.getUserById(resourcePrimKey);
+      UserPermission.check(permissionChecker,resourcePrimKey,user.getOrganization().getOrganizationId(),user.getLocation().getOrganizationId(),ActionKeys.PERMISSIONS);
+    }
+ else     if (resourcePrimKey.startsWith(ownerId)) {
+      if (!permissionChecker.hasPermission(groupId,selResource,resourcePrimKey,ActionKeys.CONFIGURATION)) {
+        throw new PrincipalException();
+      }
+    }
+ else     if (!permissionChecker.hasPermission(groupId,selResource,resourcePrimKey,ActionKeys.PERMISSIONS)) {
+      throw new PrincipalException();
     }
   }
- else   if (selResource.equals(Layout.class.getName())) {
-    String layoutGroupId=StringUtil.split(resourcePrimKey,".")[1];
-    layoutGroupId=StringUtil.replace(layoutGroupId,"}","");
-    if (!GroupPermission.contains(permissionChecker,layoutGroupId,ActionKeys.MANAGE_LAYOUTS)) {
-      SessionErrors.add(req,PrincipalException.class.getName());
-      setForward(req,"portlet.portlet_configuration.error");
-    }
-  }
- else   if (selResource.equals(User.class.getName())) {
-    User user=UserLocalServiceUtil.getUserById(resourcePrimKey);
-    if (!UserPermission.contains(permissionChecker,resourcePrimKey,user.getOrganization().getOrganizationId(),user.getLocation().getOrganizationId(),ActionKeys.PERMISSIONS)) {
-      SessionErrors.add(req,PrincipalException.class.getName());
-      setForward(req,"portlet.portlet_configuration.error");
-    }
-  }
- else   if (!permissionChecker.hasPermission(groupId,selResource,resourcePrimKey,ActionKeys.PERMISSIONS)) {
+ catch (  PrincipalException pe) {
     SessionErrors.add(req,PrincipalException.class.getName());
     setForward(req,"portlet.portlet_configuration.error");
   }
