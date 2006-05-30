@@ -2,6 +2,7 @@
   ZipWriter zipWriter=new ZipWriter();
   int buildNumber=ReleaseInfo.getBuildNumber();
   LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(ownerId);
+  Group guestGroup=GroupLocalServiceUtil.getGroup(layoutSet.getCompanyId(),Group.GUEST);
   Document doc=DocumentHelper.createDocument();
   Element root=doc.addElement("root");
   Element header=root.addElement("header");
@@ -13,17 +14,35 @@
   Iterator itr=getLayouts(ownerId).iterator();
   while (itr.hasNext()) {
     Layout layout=(Layout)itr.next();
-    Element el=root.addElement("layout");
-    el.addAttribute("layout-id",layout.getLayoutId());
-    el.addElement("parent-layout-id").addText(layout.getParentLayoutId());
-    el.addElement("name").addCDATA(layout.getName());
-    el.addElement("type").addText(layout.getType());
-    el.addElement("type-settings").addCDATA(layout.getTypeSettings());
-    el.addElement("hidden").addText(Boolean.toString(layout.getHidden()));
-    el.addElement("friendly-url").addText(layout.getFriendlyURL());
-    el.addElement("theme-id").addText(layout.getThemeId());
-    el.addElement("color-scheme-id").addText(layout.getColorSchemeId());
-    el.addElement("priority").addText(Integer.toString(layout.getPriority()));
+    Element layoutEl=root.addElement("layout");
+    layoutEl.addAttribute("layout-id",layout.getLayoutId());
+    layoutEl.addElement("parent-layout-id").addText(layout.getParentLayoutId());
+    layoutEl.addElement("name").addCDATA(layout.getName());
+    layoutEl.addElement("type").addText(layout.getType());
+    layoutEl.addElement("type-settings").addCDATA(layout.getTypeSettings());
+    layoutEl.addElement("hidden").addText(Boolean.toString(layout.getHidden()));
+    layoutEl.addElement("friendly-url").addText(layout.getFriendlyURL());
+    layoutEl.addElement("theme-id").addText(layout.getThemeId());
+    layoutEl.addElement("color-scheme-id").addText(layout.getColorSchemeId());
+    layoutEl.addElement("priority").addText(Integer.toString(layout.getPriority()));
+    Element permissionsEl=layoutEl.addElement("permissions");
+    exportLayoutPermissions(layout,layout.getGroupId(),permissionsEl,"community-actions");
+    if (!layout.getGroupId().equals(guestGroup.getGroupId())) {
+      exportLayoutPermissions(layout,guestGroup.getGroupId(),permissionsEl,"guest-actions");
+    }
+    if (layout.getType().equals(Layout.TYPE_PORTLET)) {
+      LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
+      List portletIds=layoutTypePortlet.getPortletIds();
+      for (int i=0; i < portletIds.size(); i++) {
+        String portletId=(String)portletIds.get(i);
+        Element portletEl=permissionsEl.addElement("portlet");
+        portletEl.addAttribute("portlet-id",portletId);
+        exportPortletPermissions(portletId,layout,layout.getGroupId(),portletEl,"community-actions");
+        if (!layout.getGroupId().equals(guestGroup.getGroupId())) {
+          exportPortletPermissions(portletId,layout,guestGroup.getGroupId(),portletEl,"guest-actions");
+        }
+      }
+    }
   }
   itr=PortletPreferencesLocalServiceUtil.getPortletPreferences(ownerId).iterator();
   while (itr.hasNext()) {
