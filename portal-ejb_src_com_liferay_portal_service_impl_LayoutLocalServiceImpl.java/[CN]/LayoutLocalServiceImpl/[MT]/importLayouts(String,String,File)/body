@@ -1,69 +1,78 @@
 {
+  LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(ownerId);
+  Group guestGroup=GroupLocalServiceUtil.getGroup(layoutSet.getCompanyId(),Group.GUEST);
+  Element root=null;
   try {
     ZipReader zipReader=new ZipReader(file);
     String xml=zipReader.getEntryAsString("layouts.xml");
     SAXReader reader=new SAXReader();
     Document doc=reader.read(new StringReader(xml));
-    Element root=doc.getRootElement();
-    Element header=(Element)root.element("header");
-    int buildNumber=ReleaseInfo.getBuildNumber();
-    int importBuildNumber=GetterUtil.getInteger(header.attributeValue("build-number"));
-    if (buildNumber != importBuildNumber) {
-      throw new LayoutImportException();
-    }
-    String themeId=header.attributeValue("theme-id");
-    String colorSchemeId=header.attributeValue("color-scheme-id");
-    LayoutSetLocalServiceUtil.updateLookAndFeel(ownerId,themeId,colorSchemeId);
-    User user=UserUtil.findByPrimaryKey(userId);
-    deleteLayouts(ownerId);
-    Iterator itr=root.elements("layout").iterator();
-    while (itr.hasNext()) {
-      Element el=(Element)itr.next();
-      String layoutId=el.attributeValue("layout-id");
-      String parentLayoutId=el.elementText("parent-layout-id");
-      String name=el.elementText("name");
-      String type=el.elementText("type");
-      String typeSettings=el.elementText("type-settings");
-      boolean hidden=Boolean.getBoolean(el.elementText("hidden"));
-      String friendlyURL=el.elementText("friendly-url");
-      themeId=el.elementText("theme-id");
-      colorSchemeId=el.elementText("color-scheme-id");
-      int priority=Integer.parseInt(el.elementText("priority"));
-      Layout layout=LayoutUtil.create(new LayoutPK(layoutId,ownerId));
-      layout.setCompanyId(user.getActualCompanyId());
-      layout.setParentLayoutId(parentLayoutId);
-      layout.setName(name);
-      layout.setType(type);
-      layout.setTypeSettings(typeSettings);
-      layout.setHidden(hidden);
-      layout.setFriendlyURL(friendlyURL);
-      layout.setThemeId(themeId);
-      layout.setColorSchemeId(colorSchemeId);
-      layout.setPriority(priority);
-      LayoutUtil.update(layout);
-    }
-    PortletPreferencesUtil.removeByOwnerId(ownerId);
-    itr=root.elements("portlet-preferences").iterator();
-    while (itr.hasNext()) {
-      Element el=(Element)itr.next();
-      String portletId=el.attributeValue("portlet-id");
-      String layoutId=el.attributeValue("layout-id");
-      String preferences=el.elementText("preferences");
-      PortletPreferences prefs=PortletPreferencesUtil.create(new PortletPreferencesPK(portletId,layoutId,ownerId));
-      prefs.setPreferences(preferences);
-      PortletPreferencesUtil.update(prefs);
-    }
-    LayoutSetLocalServiceUtil.updatePageCount(ownerId);
+    root=doc.getRootElement();
   }
  catch (  Exception e) {
-    if (e instanceof LayoutImportException) {
-      throw (LayoutImportException)e;
+    throw new SystemException(e);
+  }
+  Element header=(Element)root.element("header");
+  int buildNumber=ReleaseInfo.getBuildNumber();
+  int importBuildNumber=GetterUtil.getInteger(header.attributeValue("build-number"));
+  if (buildNumber != importBuildNumber) {
+    throw new LayoutImportException();
+  }
+  String themeId=header.attributeValue("theme-id");
+  String colorSchemeId=header.attributeValue("color-scheme-id");
+  LayoutSetLocalServiceUtil.updateLookAndFeel(ownerId,themeId,colorSchemeId);
+  User user=UserUtil.findByPrimaryKey(userId);
+  deleteLayouts(ownerId);
+  Iterator itr=root.elements("layout").iterator();
+  while (itr.hasNext()) {
+    Element layoutEl=(Element)itr.next();
+    String layoutId=layoutEl.attributeValue("layout-id");
+    String parentLayoutId=layoutEl.elementText("parent-layout-id");
+    String name=layoutEl.elementText("name");
+    String type=layoutEl.elementText("type");
+    String typeSettings=layoutEl.elementText("type-settings");
+    boolean hidden=GetterUtil.getBoolean(layoutEl.elementText("hidden"));
+    String friendlyURL=layoutEl.elementText("friendly-url");
+    themeId=layoutEl.elementText("theme-id");
+    colorSchemeId=layoutEl.elementText("color-scheme-id");
+    int priority=GetterUtil.getInteger(layoutEl.elementText("priority"));
+    Layout layout=LayoutUtil.create(new LayoutPK(layoutId,ownerId));
+    layout.setCompanyId(user.getActualCompanyId());
+    layout.setParentLayoutId(parentLayoutId);
+    layout.setName(name);
+    layout.setType(type);
+    layout.setTypeSettings(typeSettings);
+    layout.setHidden(hidden);
+    layout.setFriendlyURL(friendlyURL);
+    layout.setThemeId(themeId);
+    layout.setColorSchemeId(colorSchemeId);
+    layout.setPriority(priority);
+    LayoutUtil.update(layout);
+    Element permissionsEl=layoutEl.element("permissions");
+    importLayoutPermissions(layout,layout.getGroupId(),permissionsEl,"community-actions");
+    if (!layout.getGroupId().equals(guestGroup.getGroupId())) {
+      importLayoutPermissions(layout,guestGroup.getGroupId(),permissionsEl,"guest-actions");
     }
- else     if (e instanceof SystemException) {
-      throw (SystemException)e;
-    }
- else {
-      throw new SystemException(e);
+    List portlets=permissionsEl.elements("portlet");
+    for (int i=0; i < portlets.size(); i++) {
+      Element portletEl=(Element)portlets.get(i);
+      String portletId=portletEl.attributeValue("portlet-id");
+      importPortletPermissions(portletId,layout,layout.getGroupId(),portletEl,"community-actions");
+      if (!layout.getGroupId().equals(guestGroup.getGroupId())) {
+        importPortletPermissions(portletId,layout,guestGroup.getGroupId(),portletEl,"guest-actions");
+      }
     }
   }
+  PortletPreferencesUtil.removeByOwnerId(ownerId);
+  itr=root.elements("portlet-preferences").iterator();
+  while (itr.hasNext()) {
+    Element el=(Element)itr.next();
+    String portletId=el.attributeValue("portlet-id");
+    String layoutId=el.attributeValue("layout-id");
+    String preferences=el.elementText("preferences");
+    PortletPreferences prefs=PortletPreferencesUtil.create(new PortletPreferencesPK(portletId,layoutId,ownerId));
+    prefs.setPreferences(preferences);
+    PortletPreferencesUtil.update(prefs);
+  }
+  LayoutSetLocalServiceUtil.updatePageCount(ownerId);
 }
