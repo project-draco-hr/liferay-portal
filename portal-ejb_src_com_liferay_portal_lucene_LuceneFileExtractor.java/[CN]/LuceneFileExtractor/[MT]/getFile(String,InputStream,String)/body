@@ -1,97 +1,61 @@
 {
-  fileExt=fileExt.toLowerCase();
-  Reader reader=new BufferedReader(new InputStreamReader(is));
-  String text=null;
+  String text=StringPool.BLANK;
   try {
+    fileExt=fileExt.toLowerCase();
+    PropertyId id=null;
+    PropertyState state=new PropertyState(id,1,true);
+    InternalValue value=InternalValue.create(is);
+    state.setValues(new InternalValue[]{value});
+    TextFilter filter=null;
     if (fileExt.equals(".doc")) {
-      try {
-        WordExtractor wordExtractor=new WordExtractor();
-        text=wordExtractor.extractText(is);
-        text=GetterUtil.getString(text);
-      }
- catch (      Exception e1) {
-        _log.error(e1.getMessage());
-      }
+      filter=new MsWordTextFilter();
     }
  else     if (fileExt.equals(".htm") || fileExt.equals(".html")) {
-      try {
-        DefaultStyledDocument dsd=new DefaultStyledDocument();
-        HTMLEditorKit htmlEditorKit=new HTMLEditorKit();
-        htmlEditorKit.read(reader,dsd,0);
-        text=dsd.getText(0,dsd.getLength());
-      }
- catch (      Exception e) {
-        _log.error(e);
-      }
+      filter=new HTMLTextFilter();
+    }
+ else     if (fileExt.equals(".odp") || fileExt.equals(".ods") || fileExt.equals(".odt")) {
+      filter=new OpenOfficeTextFilter();
     }
  else     if (fileExt.equals(".pdf")) {
-      PDDocument pdDoc=null;
-      StringWriter stringWriter=null;
-      try {
-        PDFParser parser=new PDFParser(is);
-        parser.parse();
-        pdDoc=parser.getPDDocument();
-        stringWriter=new StringWriter();
-        PDFTextStripper stripper=new PDFTextStripper();
-        stripper.setLineSeparator("\n");
-        stripper.writeText(pdDoc,stringWriter);
-        text=stringWriter.toString();
-      }
- catch (      Exception e) {
-        _log.error(e);
-      }
- finally {
-        try {
-          stringWriter.close();
-        }
- catch (        Exception e) {
-        }
-        try {
-          pdDoc.close();
-        }
- catch (        Exception e) {
-        }
-      }
+      filter=new PdfTextFilter();
+    }
+ else     if (fileExt.equals(".ppt")) {
+      filter=new MsPowerPointTextFilter();
     }
  else     if (fileExt.equals(".rtf")) {
-      try {
-        DefaultStyledDocument dsd=new DefaultStyledDocument();
-        RTFEditorKit rtfEditorKit=new RTFEditorKit();
-        rtfEditorKit.read(reader,dsd,0);
-        text=dsd.getText(0,dsd.getLength());
-      }
- catch (      Exception e) {
-        _log.error(e);
-      }
+      filter=new RTFTextFilter();
     }
  else     if (fileExt.equals(".xls")) {
-      try {
-        XLSTextStripper stripper=new XLSTextStripper(is);
-        text=stripper.getText();
-      }
- catch (      Exception e) {
-        _log.error(e);
-      }
+      filter=new MsExcelTextFilter();
     }
-    if (text != null) {
-      return new Field(field,text,Field.Store.YES,Field.Index.TOKENIZED);
+ else     if (fileExt.equals(".xml")) {
+      filter=new XMLTextFilter();
     }
- else {
-      return new Field(field,reader);
-    }
-  }
-  finally {
-    if (text != null) {
-      try {
+    if (filter != null) {
+      _log.debug("Using filter " + filter.getClass().getName() + " for extension "+ fileExt);
+      StringBuffer sb=new StringBuffer();
+      Map fields=filter.doFilter(state,System.getProperty("encoding"));
+      Iterator itr=fields.keySet().iterator();
+      while (itr.hasNext()) {
+        String key=(String)itr.next();
+        Reader reader=(Reader)fields.get(key);
+        int i;
+        while ((i=reader.read()) != -1) {
+          sb.append((char)i);
+        }
         reader.close();
       }
- catch (      Exception e) {
-      }
-      try {
-        is.close();
-      }
- catch (      Exception e) {
-      }
+      text=sb.toString();
+    }
+ else {
+      _log.debug("No filter found for extension " + fileExt);
     }
   }
+ catch (  Exception e) {
+    _log.error(e);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Filter returned text:\n\n" + text);
+  }
+  return new Field(field,text,Field.Store.YES,Field.Index.TOKENIZED);
 }
