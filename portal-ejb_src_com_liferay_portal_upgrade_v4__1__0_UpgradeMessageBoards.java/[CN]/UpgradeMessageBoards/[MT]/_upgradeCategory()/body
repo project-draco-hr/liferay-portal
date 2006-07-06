@@ -1,0 +1,38 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getConnection(Constants.DATA_SOURCE);
+    ps=con.prepareStatement(_UPGRADE_CATEGORY_1);
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      String topicId=rs.getString("topicId");
+      String companyId=rs.getString("companyId");
+      String userId=rs.getString("userId");
+      Timestamp createDate=rs.getTimestamp("createDate");
+      Timestamp modifiedDate=rs.getTimestamp("modifiedDate");
+      String parentCategoryId=rs.getString("categoryId");
+      String name=rs.getString("name");
+      String description=rs.getString("description");
+      Timestamp lastPostDate=rs.getTimestamp("lastPostDate");
+      _log.debug("Upgrading topic " + topicId);
+      MBCategory category=null;
+      if (topicId.equals(Company.SYSTEM)) {
+        category=MBCategoryLocalServiceUtil.getSystemCategory();
+      }
+ else {
+        MBCategory parentCategory=MBCategoryLocalServiceUtil.getCategory(parentCategoryId);
+        String plid=Layout.PUBLIC + parentCategory.getGroupId() + ".1";
+        boolean addCommunityPermissions=true;
+        boolean addGuestPermissions=true;
+        category=MBCategoryLocalServiceUtil.addCategory(userId,plid,parentCategoryId,name,description,addCommunityPermissions,addGuestPermissions);
+      }
+      _upgradeMessage(category.getCategoryId(),topicId);
+      _upgradeCategory(category.getCategoryId(),createDate,modifiedDate,lastPostDate);
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}
