@@ -1,17 +1,46 @@
 {
   User user=UserUtil.findByPrimaryKey(userId);
-  MBTopic topic=MBTopicUtil.findByPrimaryKey(topicId);
-  MBCategory category=topic.getCategory();
+  MBCategory category=MBCategoryUtil.findByPrimaryKey(categoryId);
   Date now=new Date();
   validate(subject,body);
-  String rootMessageId=Long.toString(CounterServiceUtil.increment(MBMessage.class.getName() + "." + topicId));
+  String rootMessageId=Long.toString(CounterServiceUtil.increment(MBMessage.class.getName()));
   String messageId=rootMessageId;
-  MBMessage message=MBMessageUtil.create(new MBMessagePK(topicId,messageId));
+  MBMessage message=MBMessageUtil.create(new MBMessagePK(MBMessage.DEPRECATED_TOPIC_ID,messageId));
   message.setCompanyId(user.getCompanyId());
   message.setUserId(user.getUserId());
   message.setUserName(user.getFullName());
   message.setCreateDate(now);
   message.setModifiedDate(now);
+  try {
+    MBMessageUtil.findByPrimaryKey(new MBMessagePK(message.getTopicId(),parentMessageId));
+  }
+ catch (  NoSuchMessageException nsme) {
+    parentMessageId=MBMessage.DEFAULT_PARENT_MESSAGE_ID;
+  }
+  MBThread thread=null;
+  if (threadId != null) {
+    try {
+      thread=MBThreadUtil.findByPrimaryKey(threadId);
+    }
+ catch (    NoSuchThreadException nste) {
+    }
+  }
+  if (thread == null || parentMessageId.equals(MBMessage.DEFAULT_PARENT_MESSAGE_ID)) {
+    threadId=Long.toString(CounterServiceUtil.increment(MBThread.class.getName()));
+    thread=MBThreadUtil.create(threadId);
+    thread.setCategoryId(categoryId);
+    thread.setTopicId(message.getTopicId());
+    thread.setRootMessageId(rootMessageId);
+  }
+  thread.setMessageCount(thread.getMessageCount() + 1);
+  thread.setLastPostDate(now);
+  message.setCategoryId(categoryId);
+  message.setThreadId(threadId);
+  message.setParentMessageId(parentMessageId);
+  message.setSubject(subject);
+  message.setBody(body);
+  message.setAttachments((files.size() > 0 ? true : false));
+  message.setAnonymous(anonymous);
   if (files.size() > 0) {
     String companyId=message.getCompanyId();
     String portletId=Company.SYSTEM;
@@ -35,49 +64,20 @@
       }
     }
   }
-  try {
-    MBMessageUtil.findByPrimaryKey(new MBMessagePK(topicId,parentMessageId));
-  }
- catch (  NoSuchMessageException nsme) {
-    parentMessageId=MBMessage.DEFAULT_PARENT_MESSAGE_ID;
-  }
-  MBThread thread=null;
-  if (threadId != null) {
-    try {
-      thread=MBThreadUtil.findByPrimaryKey(threadId);
-    }
- catch (    NoSuchThreadException nste) {
-    }
-  }
-  if (thread == null || parentMessageId.equals(MBMessage.DEFAULT_PARENT_MESSAGE_ID)) {
-    threadId=Long.toString(CounterServiceUtil.increment(MBThread.class.getName()));
-    thread=MBThreadUtil.create(threadId);
-    thread.setRootMessageId(rootMessageId);
-    thread.setTopicId(topicId);
-    MBThreadUtil.update(thread);
-  }
-  thread.setMessageCount(thread.getMessageCount() + 1);
-  thread.setLastPostDate(now);
   MBThreadUtil.update(thread);
-  message.setThreadId(threadId);
-  message.setParentMessageId(parentMessageId);
-  message.setSubject(subject);
-  message.setBody(body);
-  message.setAttachments((files.size() > 0 ? true : false));
-  message.setAnonymous(anonymous);
   MBMessageUtil.update(message);
-  if (category != null) {
+  if (!category.isDiscussion()) {
     addMessageResources(category,message,addCommunityPermissions,addGuestPermissions);
   }
-  if (category != null) {
+  if (!category.isDiscussion()) {
     MBStatsUserLocalServiceUtil.updateStatsUser(category.getGroupId(),userId);
   }
   notifySubscribers(message,prefs,false);
-  topic.setLastPostDate(now);
-  MBTopicUtil.update(topic);
+  category.setLastPostDate(now);
+  MBCategoryUtil.update(category);
   try {
-    if (category != null) {
-      Indexer.addMessage(message.getCompanyId(),category.getGroupId(),category.getCategoryId(),topicId,threadId,messageId,subject,body);
+    if (!category.isDiscussion()) {
+      Indexer.addMessage(message.getCompanyId(),category.getGroupId(),category.getCategoryId(),message.getTopicId(),threadId,messageId,subject,body);
     }
   }
  catch (  IOException ioe) {
