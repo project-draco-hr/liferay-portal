@@ -3,33 +3,44 @@
   PreparedStatement ps=null;
   ResultSet rs=null;
   try {
-    List kvpList=new ArrayList();
+    List messages=new ArrayList();
     con=DataAccess.getConnection(Constants.DATA_SOURCE);
     ps=con.prepareStatement(_UPGRADE_MESSAGE_1);
     ps.setString(1,topicId);
     rs=ps.executeQuery();
     while (rs.next()) {
       String oldMessageId=rs.getString("messageId");
+      String companyId=rs.getString("companyId");
+      String threadId=rs.getString("threadId");
+      boolean attachments=rs.getBoolean("attachments");
       String newMessageId=Long.toString(CounterServiceUtil.increment(MBMessage.class.getName()));
-      kvpList.add(new KeyValuePair(oldMessageId,newMessageId));
+      List files=_getFiles(companyId,topicId,oldMessageId,attachments);
+      messages.add(new Object[]{companyId,threadId,oldMessageId,newMessageId,files});
     }
-    for (int i=kvpList.size() - 1; i >= 0; i--) {
-      KeyValuePair kvp=(KeyValuePair)kvpList.get(i);
-      String oldMessageId=kvp.getKey();
-      String newMessageId=kvp.getValue();
+    for (int i=messages.size() - 1; i >= 0; i--) {
+      Object[] array=(Object[])messages.get(i);
+      String companyId=(String)array[0];
+      String threadId=(String)array[1];
+      String oldMessageId=(String)array[2];
+      String newMessageId=(String)array[3];
+      List files=(List)array[4];
       _log.debug("Upgrading message " + new MBMessagePK(topicId,oldMessageId));
-      ps=con.prepareStatement(_UPGRADE_MESSAGE_5);
+      ps=con.prepareStatement(_UPGRADE_MESSAGE_2);
       ps.setString(1,newMessageId);
       ps.setString(2,topicId);
       ps.setString(3,oldMessageId);
       ps.executeUpdate();
     }
-    for (int i=0; i < kvpList.size(); i++) {
-      KeyValuePair kvp=(KeyValuePair)kvpList.get(i);
-      String oldMessageId=kvp.getKey();
-      String newMessageId=kvp.getValue();
+    for (int i=0; i < messages.size(); i++) {
+      Object[] array=(Object[])messages.get(i);
+      String companyId=(String)array[0];
+      String threadId=(String)array[1];
+      String oldMessageId=(String)array[2];
+      String newMessageId=(String)array[3];
+      List files=(List)array[4];
       _log.debug("Upgrading message " + new MBMessagePK(topicId,oldMessageId));
       _upgradeMessage(categoryId,topicId,oldMessageId,newMessageId);
+      _upgradeFiles(companyId,threadId,newMessageId,files);
     }
   }
   finally {
