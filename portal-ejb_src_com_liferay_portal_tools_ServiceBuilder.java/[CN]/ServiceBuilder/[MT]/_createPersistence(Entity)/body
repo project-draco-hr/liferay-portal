@@ -14,6 +14,9 @@
   sb.append("import com.liferay.util.dao.hibernate.OrderByComparator;");
   sb.append("import com.liferay.util.dao.hibernate.QueryPos;");
   sb.append("import com.liferay.util.dao.hibernate.QueryUtil;");
+  sb.append("import java.sql.ResultSet;");
+  sb.append("import java.sql.SQLException;");
+  sb.append("import java.sql.Types;");
   sb.append("import java.util.ArrayList;");
   sb.append("import java.util.Collection;");
   sb.append("import java.util.Collections;");
@@ -22,6 +25,7 @@
   sb.append("import java.util.Iterator;");
   sb.append("import java.util.List;");
   sb.append("import java.util.Set;");
+  sb.append("import javax.sql.DataSource;");
   sb.append("import org.apache.commons.logging.Log;");
   sb.append("import org.apache.commons.logging.LogFactory;");
   sb.append("import org.hibernate.Hibernate;");
@@ -30,26 +34,31 @@
   sb.append("import org.hibernate.Query;");
   sb.append("import org.hibernate.Session;");
   sb.append("import org.hibernate.SQLQuery;");
+  sb.append("import org.springframework.dao.DataAccessException;");
+  sb.append("import org.springframework.jdbc.core.SqlParameter;");
+  sb.append("import org.springframework.jdbc.object.MappingSqlQuery;");
+  sb.append("import org.springframework.jdbc.object.SqlUpdate;");
   sb.append("import " + _packagePath + "."+ _getNoSuchEntityException(entity)+ "Exception;");
+  sb.append("import " + _packagePath + ".model."+ entity.getName()+ ";");
   sb.append("public class " + entity.getName() + "Persistence extends BasePersistence {");
-  sb.append("public " + _packagePath + ".model."+ entity.getName()+ " create("+ entity.getPKClassName()+ " "+ pkVarName+ ") {");
-  sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = new "+ entity.getName()+ "HBM();");
-  sb.append(entity.getVarName() + "HBM.setNew(true);");
-  sb.append(entity.getVarName() + "HBM.setPrimaryKey(" + pkVarName+ ");");
-  sb.append("return " + entity.getName() + "HBMUtil.model("+ entity.getVarName()+ "HBM);");
+  sb.append("public " + entity.getName() + " create("+ entity.getPKClassName()+ " "+ pkVarName+ ") {");
+  sb.append(entity.getName() + " " + entity.getVarName()+ " = new "+ entity.getName()+ "();");
+  sb.append(entity.getVarName() + ".setNew(true);");
+  sb.append(entity.getVarName() + ".setPrimaryKey(" + pkVarName+ ");");
+  sb.append("return " + entity.getVarName() + ";");
   sb.append("}");
-  sb.append("public " + _packagePath + ".model."+ entity.getName()+ " remove("+ pkClassName+ " "+ pkVarName+ ") throws "+ _getNoSuchEntityException(entity)+ "Exception, SystemException {");
+  sb.append("public " + entity.getName() + " remove("+ pkClassName+ " "+ pkVarName+ ") throws "+ _getNoSuchEntityException(entity)+ "Exception, SystemException {");
   sb.append("Session session = null;");
   sb.append("try {");
   sb.append("session = openSession();");
-  sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)session.get("+ entity.getName()+ "HBM.class, "+ pkVarName+ ");");
-  sb.append("if (" + entity.getVarName() + "HBM == null) {");
+  sb.append(entity.getName() + " " + entity.getVarName()+ " = ("+ entity.getName()+ ")session.get("+ entity.getName()+ ".class, "+ pkVarName+ ");");
+  sb.append("if (" + entity.getVarName() + " == null) {");
   sb.append("_log.warn(\"No " + entity.getName() + " exists with the primary key \" + "+ pkVarName+ ".toString());");
   sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(\"No "+ entity.getName()+ " exists with the primary key \" + "+ pkVarName+ ".toString());");
   sb.append("}");
-  sb.append("session.delete(" + entity.getVarName() + "HBM);");
+  sb.append("session.delete(" + entity.getVarName() + ");");
   sb.append("session.flush();");
-  sb.append("return " + entity.getName() + "HBMUtil.model("+ entity.getVarName()+ "HBM);");
+  sb.append("return " + entity.getVarName() + ";");
   sb.append("}");
   sb.append("catch (HibernateException he) {");
   sb.append("throw new SystemException(he);");
@@ -64,39 +73,36 @@
   sb.append("if (" + entity.getVarName() + ".isNew() || "+ entity.getVarName()+ ".isModified()) {");
   sb.append("session = openSession();");
   sb.append("if (" + entity.getVarName() + ".isNew()) {");
-  sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = new "+ entity.getName()+ "HBM();");
+  sb.append(entity.getName() + " " + entity.getVarName()+ "Model = new "+ entity.getName()+ "();");
   for (int i=0; i < columnList.size(); i++) {
     EntityColumn col=(EntityColumn)columnList.get(i);
-    if (!col.isCollection() && col.getEJBName() == null) {
-      sb.append(entity.getVarName() + "HBM.set" + col.getMethodName()+ "("+ entity.getVarName()+ ".get"+ col.getMethodName()+ "());");
-    }
- else     if (col.isCollection()) {
-      sb.append(entity.getVarName() + "HBM.set" + col.getMethodName()+ "(new HashSet());");
+    if (!col.isCollection() && (col.getEJBName() == null)) {
+      sb.append(entity.getVarName() + "Model.set" + col.getMethodName()+ "("+ entity.getVarName()+ ".get"+ col.getMethodName()+ "());");
     }
   }
-  sb.append("session.save(" + entity.getVarName() + "HBM);");
+  sb.append("session.save(" + entity.getVarName() + "Model);");
   sb.append("session.flush();");
   sb.append("}");
   sb.append("else {");
-  sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)session.get("+ entity.getName()+ "HBM.class, "+ entity.getVarName()+ ".getPrimaryKey());");
-  sb.append("if (" + entity.getVarName() + "HBM != null) {");
+  sb.append(entity.getName() + " " + entity.getVarName()+ "Model = ("+ entity.getName()+ ")session.get("+ entity.getName()+ ".class, "+ entity.getVarName()+ ".getPrimaryKey());");
+  sb.append("if (" + entity.getVarName() + "Model != null) {");
   for (int i=0; i < columnList.size(); i++) {
     EntityColumn col=(EntityColumn)columnList.get(i);
     if (!col.isPrimary() && !col.isCollection() && col.getEJBName() == null) {
-      sb.append(entity.getVarName() + "HBM.set" + col.getMethodName()+ "("+ entity.getVarName()+ ".get"+ col.getMethodName()+ "());");
+      sb.append(entity.getVarName() + "Model.set" + col.getMethodName()+ "("+ entity.getVarName()+ ".get"+ col.getMethodName()+ "());");
     }
   }
   sb.append("session.flush();");
   sb.append("}");
   sb.append("else {");
-  sb.append(entity.getVarName() + "HBM = new " + entity.getName()+ "HBM();");
+  sb.append(entity.getVarName() + "Model = new " + entity.getName()+ "();");
   for (int i=0; i < columnList.size(); i++) {
     EntityColumn col=(EntityColumn)columnList.get(i);
-    if (!col.isCollection() && col.getEJBName() == null) {
-      sb.append(entity.getVarName() + "HBM.set" + col.getMethodName()+ "("+ entity.getVarName()+ ".get"+ col.getMethodName()+ "());");
+    if (!col.isCollection() && (col.getEJBName() == null)) {
+      sb.append(entity.getVarName() + "Model.set" + col.getMethodName()+ "("+ entity.getVarName()+ ".get"+ col.getMethodName()+ "());");
     }
   }
-  sb.append("session.save(" + entity.getVarName() + "HBM);");
+  sb.append("session.save(" + entity.getVarName() + "Model);");
   sb.append("session.flush();");
   sb.append("}");
   sb.append("}");
@@ -112,512 +118,16 @@
   sb.append("closeSession(session);");
   sb.append("}");
   sb.append("}");
-  for (int i=0; i < columnList.size(); i++) {
-    EntityColumn col=(EntityColumn)columnList.get(i);
-    if ((col.isCollection()) && (col.isMappingManyToMany() || col.isMappingOneToMany())) {
-      Entity tempEntity=getEntity(col.getEJBName());
-      EntityOrder tempOrder=tempEntity.getOrder();
-      EntityColumn tempCol=tempEntity.getColumnByMappingTable(col.getMappingTable());
-      sb.append("public List get" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk) throws "+ _getNoSuchEntityException(entity)+ "Exception, SystemException {");
-      sb.append("Session session = null;");
-      sb.append("try {");
-      sb.append("session = openSession();");
-      sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)session.get("+ entity.getName()+ "HBM.class, pk);");
-      sb.append("if (" + entity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + entity.getName() + " exists with the primary key \" + pk.toString());");
-      sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(\"No "+ entity.getName()+ " exists with the primary key \" + pk.toString());");
-      sb.append("}");
-      sb.append("StringBuffer query = new StringBuffer();");
-      sb.append("query.append(\"SELECT " + tempEntity.getVarName() + "HBM FROM \");");
-      sb.append("query.append(" + entity.getPackagePath() + ".service.persistence."+ entity.getName()+ "HBM.class.getName());");
-      sb.append("query.append(\" " + entity.getVarName() + "HBM \");");
-      sb.append("query.append(\"JOIN " + entity.getVarName() + "HBM."+ col.getName()+ " AS "+ tempEntity.getVarName()+ "HBM \");");
-      sb.append("query.append(\"WHERE " + entity.getVarName() + "HBM."+ pkVarName+ " = ? \");");
-      if (tempOrder != null) {
-        List tempOrderList=tempOrder.getColumns();
-        sb.append("query.append(\"ORDER BY \");");
-        for (int j=0; j < tempOrderList.size(); j++) {
-          EntityColumn tempOrderCol=(EntityColumn)tempOrderList.get(j);
-          sb.append("query.append(\"" + tempEntity.getVarName() + "HBM."+ tempOrderCol.getDBName()+ " "+ (tempOrderCol.isOrderByAscending() ? "ASC" : "DESC")+ "\")");
-          if ((j + 1) != tempOrderList.size()) {
-            sb.append(".append(\", \");");
-          }
- else {
-            sb.append(";");
-          }
-        }
-      }
-      sb.append("Query q = session.createQuery(query.toString());");
-      sb.append("q.set" + pkClassName + "(0, pk);");
-      sb.append("Iterator itr = q.list().iterator();");
-      sb.append("List list = new ArrayList();");
-      sb.append("while (itr.hasNext()) {");
-      sb.append(tempEntity.getPackagePath() + ".service.persistence." + tempEntity.getName()+ "HBM "+ tempEntity.getVarName()+ "HBM = ("+ tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM)itr.next();");
-      sb.append("list.add(" + tempEntity.getPackagePath() + ".service.persistence."+ tempEntity.getName()+ "HBMUtil.model("+ tempEntity.getVarName()+ "HBM));");
-      sb.append("}");
-      sb.append("return list;");
-      sb.append("}");
-      sb.append("catch (HibernateException he) {");
-      sb.append("throw new SystemException(he);");
-      sb.append("}");
-      sb.append("finally {");
-      sb.append("closeSession(session);");
-      sb.append("}");
-      sb.append("}");
-      sb.append("public List get" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk, int begin, int end) throws "+ _getNoSuchEntityException(entity)+ "Exception, SystemException {");
-      sb.append("return get" + tempEntity.getNames() + "(pk, begin, end, null);");
-      sb.append("}");
-      sb.append("public List get" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk, int begin, int end, OrderByComparator obc) throws "+ _getNoSuchEntityException(entity)+ "Exception, SystemException {");
-      sb.append("Session session = null;");
-      sb.append("try {");
-      sb.append("session = openSession();");
-      sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)session.get("+ entity.getName()+ "HBM.class, pk);");
-      sb.append("if (" + entity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + entity.getName() + " exists with the primary key \" + pk.toString());");
-      sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(\"No "+ entity.getName()+ " exists with the primary key \" + pk.toString());");
-      sb.append("}");
-      sb.append("StringBuffer query = new StringBuffer();");
-      sb.append("query.append(\"SELECT " + tempEntity.getVarName() + "HBM FROM \");");
-      sb.append("query.append(" + entity.getPackagePath() + ".service.persistence."+ entity.getName()+ "HBM.class.getName());");
-      sb.append("query.append(\" " + entity.getVarName() + "HBM \");");
-      sb.append("query.append(\"JOIN " + entity.getVarName() + "HBM."+ col.getName()+ " AS "+ tempEntity.getVarName()+ "HBM \");");
-      sb.append("query.append(\"WHERE " + entity.getVarName() + "HBM."+ pkVarName+ " = ? \");");
-      sb.append("if (obc != null) {");
-      sb.append("query.append(\"ORDER BY \" + obc.getOrderBy());");
-      sb.append("}");
-      if (tempOrder != null) {
-        List tempOrderList=tempOrder.getColumns();
-        sb.append("else {");
-        sb.append("query.append(\"ORDER BY \");");
-        for (int j=0; j < tempOrderList.size(); j++) {
-          EntityColumn tempOrderCol=(EntityColumn)tempOrderList.get(j);
-          sb.append("query.append(\"" + tempEntity.getVarName() + "HBM."+ tempOrderCol.getDBName()+ " "+ (tempOrderCol.isOrderByAscending() ? "ASC" : "DESC")+ "\")");
-          if ((j + 1) != tempOrderList.size()) {
-            sb.append(".append(\", \");");
-          }
- else {
-            sb.append(";");
-          }
-        }
-        sb.append("}");
-      }
-      sb.append("Query q = session.createQuery(query.toString());");
-      sb.append("q.set" + pkClassName + "(0, pk);");
-      sb.append("List list = new ArrayList();");
-      sb.append("Iterator itr = QueryUtil.iterate(q, getDialect(), begin, end);");
-      sb.append("while (itr.hasNext()) {");
-      sb.append(tempEntity.getPackagePath() + ".service.persistence." + tempEntity.getName()+ "HBM "+ tempEntity.getVarName()+ "HBM = ("+ tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM)itr.next();");
-      sb.append("list.add(" + tempEntity.getPackagePath() + ".service.persistence."+ tempEntity.getName()+ "HBMUtil.model("+ tempEntity.getVarName()+ "HBM));");
-      sb.append("}");
-      sb.append("return list;");
-      sb.append("}");
-      sb.append("catch (HibernateException he) {");
-      sb.append("throw new SystemException(he);");
-      sb.append("}");
-      sb.append("finally {");
-      sb.append("closeSession(session);");
-      sb.append("}");
-      sb.append("}");
-      sb.append("public int get" + tempEntity.getNames() + "Size("+ entity.getPKClassName()+ " pk) throws SystemException {");
-      sb.append("Session session = null;");
-      sb.append("try {");
-      sb.append("session = openSession();");
-      sb.append("StringBuffer query = new StringBuffer();");
-      sb.append("query.append(\"SELECT COUNT(*) FROM \");");
-      sb.append("query.append(" + entity.getPackagePath() + ".service.persistence."+ entity.getName()+ "HBM.class.getName());");
-      sb.append("query.append(\" " + entity.getVarName() + "HBM \");");
-      sb.append("query.append(\"JOIN " + entity.getVarName() + "HBM."+ col.getName()+ " AS "+ tempEntity.getVarName()+ "HBM \");");
-      sb.append("query.append(\"WHERE " + entity.getVarName() + "HBM."+ pkVarName+ " = ? \");");
-      sb.append("Query q = session.createQuery(query.toString());");
-      sb.append("q.set" + pkClassName + "(0, pk);");
-      sb.append("Iterator itr = q.iterate();");
-      sb.append("if (itr.hasNext()) {");
-      sb.append("Long count = (Long)itr.next();");
-      sb.append("if (count != null) {");
-      sb.append("return count.intValue();");
-      sb.append("}");
-      sb.append("}");
-      sb.append("return 0;");
-      sb.append("}");
-      sb.append("catch (HibernateException he) {");
-      sb.append("throw new SystemException(he);");
-      sb.append("}");
-      sb.append("finally {");
-      sb.append("closeSession(session);");
-      sb.append("}");
-      sb.append("}");
-      sb.append("public void set" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk, "+ tempEntity.getPKClassName()+ "[] pks) throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
-      sb.append("Session session = null;");
-      sb.append("try {");
-      sb.append("session = openSession();");
-      sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)session.get("+ entity.getName()+ "HBM.class, pk);");
-      sb.append("if (" + entity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + entity.getName() + " exists with the primary key \" + pk.toString());");
-      sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(\"No "+ entity.getName()+ " exists with the primary key \" + pk.toString());");
-      sb.append("}");
-      sb.append("Set " + col.getName() + "Set = new HashSet();");
-      sb.append("for (int i = 0; pks != null && i < pks.length; i++) {");
-      sb.append(tempEntity.getPackagePath() + ".service.persistence." + tempEntity.getName()+ "HBM "+ tempEntity.getVarName()+ "HBM = ("+ tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM)session.get("+ tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM.class, pks[i]);");
-      sb.append("if (" + tempEntity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + tempEntity.getName() + " exists with the primary key \" + pks[i].toString());");
-      sb.append("throw new " + tempEntity.getPackagePath() + "."+ _getNoSuchEntityException(tempEntity)+ "Exception(\"No "+ tempEntity.getName()+ " exists with the primary key \" + pks[i].toString());");
-      sb.append("}");
-      sb.append(col.getName() + "Set.add(" + tempEntity.getVarName()+ "HBM);");
-      sb.append("}");
-      sb.append(entity.getVarName() + "HBM.set" + col.getMethodName()+ "("+ col.getName()+ "Set);");
-      sb.append("session.flush();");
-      sb.append("}");
-      sb.append("catch (HibernateException he) {");
-      sb.append("throw new SystemException(he);");
-      sb.append("}");
-      sb.append("finally {");
-      sb.append("closeSession(session);");
-      sb.append("}");
-      sb.append("}");
-      sb.append("public void set" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk, List "+ col.getName()+ ") throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
-      sb.append("Session session = null;");
-      sb.append("try {");
-      sb.append("session = openSession();");
-      sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)session.get("+ entity.getName()+ "HBM.class, pk);");
-      sb.append("if (" + entity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + entity.getName() + " exists with the primary key \" + pk.toString());");
-      sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(\"No "+ entity.getName()+ " exists with the primary key \" + pk.toString());");
-      sb.append("}");
-      sb.append("Set " + col.getName() + "Set = new HashSet();");
-      sb.append("Iterator itr = " + col.getName() + ".iterator();");
-      sb.append("while (itr.hasNext()) {");
-      sb.append(tempEntity.getPackagePath() + ".model." + tempEntity.getName()+ " "+ tempEntity.getVarName()+ " = ("+ tempEntity.getPackagePath()+ ".model."+ tempEntity.getName()+ ")itr.next();");
-      sb.append(tempEntity.getPackagePath() + ".service.persistence." + tempEntity.getName()+ "HBM "+ tempEntity.getVarName()+ "HBM = ("+ tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM)session.get("+ tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM.class, "+ tempEntity.getVarName()+ ".getPrimaryKey());");
-      sb.append("if (" + tempEntity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + tempEntity.getName() + " exists with the primary key \" + "+ tempEntity.getVarName()+ ".getPrimaryKey().toString());");
-      sb.append("throw new " + tempEntity.getPackagePath() + "."+ _getNoSuchEntityException(tempEntity)+ "Exception(\"No "+ tempEntity.getName()+ " exists with the primary key \" + "+ tempEntity.getVarName()+ ".getPrimaryKey().toString());");
-      sb.append("}");
-      sb.append(col.getName() + "Set.add(" + tempEntity.getVarName()+ "HBM);");
-      sb.append("}");
-      sb.append(entity.getVarName() + "HBM.set" + col.getMethodName()+ "("+ col.getName()+ "Set);");
-      sb.append("session.flush();");
-      sb.append("}");
-      sb.append("catch (HibernateException he) {");
-      sb.append("throw new SystemException(he);");
-      sb.append("}");
-      sb.append("finally {");
-      sb.append("closeSession(session);");
-      sb.append("}");
-      sb.append("}");
-      sb.append("public boolean add" + tempEntity.getName() + "("+ entity.getPKClassName()+ " pk, "+ tempEntity.getPKClassName()+ " "+ tempEntity.getVarName()+ "PK) throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
-      sb.append("Session session = null;");
-      sb.append("try {");
-      sb.append("session = openSession();");
-      sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)session.get("+ entity.getName()+ "HBM.class, pk);");
-      sb.append("if (" + entity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + entity.getName() + " exists with the primary key \" + pk.toString());");
-      sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(\"No "+ entity.getName()+ " exists with the primary key \" + pk.toString());");
-      sb.append("}");
-      sb.append(tempEntity.getPackagePath() + ".service.persistence." + tempEntity.getName()+ "HBM "+ tempEntity.getVarName()+ "HBM = null;");
-      sb.append(tempEntity.getVarName() + "HBM = (" + tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM)session.get("+ tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM.class, "+ tempEntity.getVarName()+ "PK);");
-      sb.append("if (" + tempEntity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + tempEntity.getName() + " exists with the primary key \" + "+ tempEntity.getVarName()+ "PK.toString());");
-      sb.append("throw new " + tempEntity.getPackagePath() + "."+ _getNoSuchEntityException(tempEntity)+ "Exception(\"No "+ tempEntity.getName()+ " exists with the primary key \" + "+ tempEntity.getVarName()+ "PK.toString());");
-      sb.append("}");
-      sb.append("boolean value = " + entity.getVarName() + "HBM.get"+ col.getMethodName()+ "().add("+ tempEntity.getVarName()+ "HBM);");
-      sb.append("session.flush();");
-      sb.append("return value;");
-      sb.append("}");
-      sb.append("catch (HibernateException he) {");
-      sb.append("throw new SystemException(he);");
-      sb.append("}");
-      sb.append("finally {");
-      sb.append("closeSession(session);");
-      sb.append("}");
-      sb.append("}");
-      sb.append("public boolean add" + tempEntity.getName() + "("+ entity.getPKClassName()+ " pk, "+ tempEntity.getPackagePath()+ ".model."+ tempEntity.getName()+ " "+ tempEntity.getVarName()+ ") throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
-      sb.append("Session session = null;");
-      sb.append("try {");
-      sb.append("session = openSession();");
-      sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)session.get("+ entity.getName()+ "HBM.class, pk);");
-      sb.append("if (" + entity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + entity.getName() + " exists with the primary key \" + pk.toString());");
-      sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(\"No "+ entity.getName()+ " exists with the primary key \" + pk.toString());");
-      sb.append("}");
-      sb.append(tempEntity.getPackagePath() + ".service.persistence." + tempEntity.getName()+ "HBM "+ tempEntity.getVarName()+ "HBM = null;");
-      sb.append(tempEntity.getVarName() + "HBM = (" + tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM)session.get("+ tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM.class, "+ tempEntity.getVarName()+ ".getPrimaryKey());");
-      sb.append("if (" + tempEntity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + tempEntity.getName() + " exists with the primary key \" + "+ tempEntity.getVarName()+ ".getPrimaryKey().toString());");
-      sb.append("throw new " + tempEntity.getPackagePath() + "."+ _getNoSuchEntityException(tempEntity)+ "Exception(\"No "+ tempEntity.getName()+ " exists with the primary key \" + "+ tempEntity.getVarName()+ ".getPrimaryKey().toString());");
-      sb.append("}");
-      sb.append("boolean value = " + entity.getVarName() + "HBM.get"+ col.getMethodName()+ "().add("+ tempEntity.getVarName()+ "HBM);");
-      sb.append("session.flush();");
-      sb.append("return value;");
-      sb.append("}");
-      sb.append("catch (HibernateException he) {");
-      sb.append("throw new SystemException(he);");
-      sb.append("}");
-      sb.append("finally {");
-      sb.append("closeSession(session);");
-      sb.append("}");
-      sb.append("}");
-      sb.append("public boolean add" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk, "+ tempEntity.getPKClassName()+ "[] "+ tempEntity.getVarName()+ "PKs) throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
-      sb.append("Session session = null;");
-      sb.append("try {");
-      sb.append("session = openSession();");
-      sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)session.get("+ entity.getName()+ "HBM.class, pk);");
-      sb.append("if (" + entity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + entity.getName() + " exists with the primary key \" + pk.toString());");
-      sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(\"No "+ entity.getName()+ " exists with the primary key \" + pk.toString());");
-      sb.append("}");
-      sb.append("boolean value = false;");
-      sb.append("for (int i = 0; i < " + tempEntity.getVarName() + "PKs.length; i++) {");
-      sb.append(tempEntity.getPackagePath() + ".service.persistence." + tempEntity.getName()+ "HBM "+ tempEntity.getVarName()+ "HBM = null;");
-      sb.append(tempEntity.getVarName() + "HBM = (" + tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM)session.get("+ tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM.class, "+ tempEntity.getVarName()+ "PKs[i]);");
-      sb.append("if (" + tempEntity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + tempEntity.getName() + " exists with the primary key \" + "+ tempEntity.getVarName()+ "PKs[i].toString());");
-      sb.append("throw new " + tempEntity.getPackagePath() + "."+ _getNoSuchEntityException(tempEntity)+ "Exception(\"No "+ tempEntity.getName()+ " exists with the primary key \" + "+ tempEntity.getVarName()+ "PKs[i].toString());");
-      sb.append("}");
-      sb.append("if (" + entity.getVarName() + "HBM.get"+ col.getMethodName()+ "().add("+ tempEntity.getVarName()+ "HBM)) {");
-      sb.append("value = true;");
-      sb.append("}");
-      sb.append("}");
-      sb.append("session.flush();");
-      sb.append("return value;");
-      sb.append("}");
-      sb.append("catch (HibernateException he) {");
-      sb.append("throw new SystemException(he);");
-      sb.append("}");
-      sb.append("finally {");
-      sb.append("closeSession(session);");
-      sb.append("}");
-      sb.append("}");
-      sb.append("public boolean add" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk, List "+ tempEntity.getVarNames()+ ") throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
-      sb.append("Session session = null;");
-      sb.append("try {");
-      sb.append("session = openSession();");
-      sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)session.get("+ entity.getName()+ "HBM.class, pk);");
-      sb.append("if (" + entity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + entity.getName() + " exists with the primary key \" + pk.toString());");
-      sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(\"No "+ entity.getName()+ " exists with the primary key \" + pk.toString());");
-      sb.append("}");
-      sb.append("boolean value = false;");
-      sb.append("for (int i = 0; i < " + tempEntity.getVarNames() + ".size(); i++) {");
-      sb.append(tempEntity.getPackagePath() + ".model." + tempEntity.getName()+ " "+ tempEntity.getVarName()+ " = ("+ tempEntity.getPackagePath()+ ".model."+ tempEntity.getName()+ ")"+ tempEntity.getVarNames()+ ".get(i);");
-      sb.append(tempEntity.getPackagePath() + ".service.persistence." + tempEntity.getName()+ "HBM "+ tempEntity.getVarName()+ "HBM = ("+ tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM)session.get("+ tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM.class, "+ tempEntity.getVarName()+ ".getPrimaryKey());");
-      sb.append("if (" + tempEntity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + tempEntity.getName() + " exists with the primary key \" + "+ tempEntity.getVarName()+ ".getPrimaryKey().toString());");
-      sb.append("throw new " + tempEntity.getPackagePath() + "."+ _getNoSuchEntityException(tempEntity)+ "Exception(\"No "+ tempEntity.getName()+ " exists with the primary key \" + "+ tempEntity.getVarName()+ ".getPrimaryKey().toString());");
-      sb.append("}");
-      sb.append("if (" + entity.getVarName() + "HBM.get"+ col.getMethodName()+ "().add("+ tempEntity.getVarName()+ "HBM)) {");
-      sb.append("value = true;");
-      sb.append("}");
-      sb.append("}");
-      sb.append("session.flush();");
-      sb.append("return value;");
-      sb.append("}");
-      sb.append("catch (HibernateException he) {");
-      sb.append("throw new SystemException(he);");
-      sb.append("}");
-      sb.append("finally {");
-      sb.append("closeSession(session);");
-      sb.append("}");
-      sb.append("}");
-      sb.append("public void clear" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk) throws "+ _getNoSuchEntityException(entity)+ "Exception, SystemException {");
-      sb.append("Session session = null;");
-      sb.append("try {");
-      sb.append("session = openSession();");
-      sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)session.get("+ entity.getName()+ "HBM.class, pk);");
-      sb.append("if (" + entity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + entity.getName() + " exists with the primary key \" + pk.toString());");
-      sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(\"No "+ entity.getName()+ " exists with the primary key \" + pk.toString());");
-      sb.append("}");
-      sb.append(entity.getVarName() + "HBM.get" + col.getMethodName()+ "().clear();");
-      sb.append("session.flush();");
-      sb.append("}");
-      sb.append("catch (HibernateException he) {");
-      sb.append("throw new SystemException(he);");
-      sb.append("}");
-      sb.append("finally {");
-      sb.append("closeSession(session);");
-      sb.append("}");
-      sb.append("}");
-      if (col.isMappingManyToMany()) {
-        sb.append("public static final String SQL_CONTAINS" + tempEntity.getName().toUpperCase() + " = \"SELECT COUNT(*) AS COUNT_VALUE FROM "+ col.getMappingTable()+ " WHERE "+ entity.getPKVarName()+ " = ? AND "+ tempEntity.getPKVarName()+ " = ?\";");
-        sb.append("public boolean contains" + tempEntity.getName() + "("+ entity.getPKClassName()+ " pk, "+ tempEntity.getPKClassName()+ " "+ tempEntity.getVarName()+ "PK) throws SystemException {");
-        sb.append("Session session = null;");
-        sb.append("try {");
-        sb.append("session = openSession();");
-        sb.append("SQLQuery q = session.createSQLQuery(SQL_CONTAINS" + tempEntity.getName().toUpperCase() + ");");
-        sb.append("q.addScalar(HibernateUtil.getCountColumnName(), Hibernate.LONG);");
-        sb.append("QueryPos qPos = QueryPos.getInstance(q);");
-        sb.append("qPos.add(pk);");
-        sb.append("qPos.add(" + tempEntity.getVarName() + "PK);");
-        sb.append("Iterator itr = q.list().iterator();");
-        sb.append("if (itr.hasNext()) {");
-        sb.append("Long count = (Long)itr.next();");
-        sb.append("if ((count != null) && (count.intValue() > 0)) {");
-        sb.append("return true;");
-        sb.append("}");
-        sb.append("}");
-        sb.append("return false;");
-        sb.append("}");
-        sb.append("catch (HibernateException he) {");
-        sb.append("throw new SystemException(he);");
-        sb.append("}");
-        sb.append("finally {");
-        sb.append("closeSession(session);");
-        sb.append("}");
-        sb.append("}");
-      }
-      if (col.isMappingManyToMany()) {
-        sb.append("public static final String SQL_CONTAINS" + tempEntity.getName().toUpperCase() + "S = \"SELECT COUNT(*) AS COUNT_VALUE FROM "+ col.getMappingTable()+ " WHERE "+ entity.getPKVarName()+ " = ?\";");
-        sb.append("public boolean contains" + tempEntity.getName() + "s("+ entity.getPKClassName()+ " pk) throws SystemException {");
-        sb.append("Session session = null;");
-        sb.append("try {");
-        sb.append("session = openSession();");
-        sb.append("SQLQuery q = session.createSQLQuery(SQL_CONTAINS" + tempEntity.getName().toUpperCase() + "S);");
-        sb.append("q.addScalar(HibernateUtil.getCountColumnName(), Hibernate.LONG);");
-        sb.append("QueryPos qPos = QueryPos.getInstance(q);");
-        sb.append("qPos.add(pk);");
-        sb.append("Iterator itr = q.list().iterator();");
-        sb.append("if (itr.hasNext()) {");
-        sb.append("Long count = (Long)itr.next();");
-        sb.append("if ((count != null) && (count.intValue() > 0)) {");
-        sb.append("return true;");
-        sb.append("}");
-        sb.append("}");
-        sb.append("return false;");
-        sb.append("}");
-        sb.append("catch (HibernateException he) {");
-        sb.append("throw new SystemException(he);");
-        sb.append("}");
-        sb.append("finally {");
-        sb.append("closeSession(session);");
-        sb.append("}");
-        sb.append("}");
-      }
-      sb.append("public boolean remove" + tempEntity.getName() + "("+ entity.getPKClassName()+ " pk, "+ tempEntity.getPKClassName()+ " "+ tempEntity.getVarName()+ "PK) throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
-      sb.append("Session session = null;");
-      sb.append("try {");
-      sb.append("session = openSession();");
-      sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)session.get("+ entity.getName()+ "HBM.class, pk);");
-      sb.append("if (" + entity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + entity.getName() + " exists with the primary key \" + pk.toString());");
-      sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(\"No "+ entity.getName()+ " exists with the primary key \" + pk.toString());");
-      sb.append("}");
-      sb.append(tempEntity.getPackagePath() + ".service.persistence." + tempEntity.getName()+ "HBM "+ tempEntity.getVarName()+ "HBM = null;");
-      sb.append(tempEntity.getVarName() + "HBM = (" + tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM)session.get("+ tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM.class, "+ tempEntity.getVarName()+ "PK);");
-      sb.append("if (" + tempEntity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + tempEntity.getName() + " exists with the primary key \" + "+ tempEntity.getVarName()+ "PK.toString());");
-      sb.append("throw new " + tempEntity.getPackagePath() + "."+ _getNoSuchEntityException(tempEntity)+ "Exception(\"No "+ tempEntity.getName()+ " exists with the primary key \" + "+ tempEntity.getVarName()+ "PK.toString());");
-      sb.append("}");
-      sb.append("boolean value = " + entity.getVarName() + "HBM.get"+ col.getMethodName()+ "().remove("+ tempEntity.getVarName()+ "HBM);");
-      sb.append("session.flush();");
-      sb.append("return value;");
-      sb.append("}");
-      sb.append("catch (HibernateException he) {");
-      sb.append("throw new SystemException(he);");
-      sb.append("}");
-      sb.append("finally {");
-      sb.append("closeSession(session);");
-      sb.append("}");
-      sb.append("}");
-      sb.append("public boolean remove" + tempEntity.getName() + "("+ entity.getPKClassName()+ " pk, "+ tempEntity.getPackagePath()+ ".model."+ tempEntity.getName()+ " "+ tempEntity.getVarName()+ ") throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
-      sb.append("Session session = null;");
-      sb.append("try {");
-      sb.append("session = openSession();");
-      sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)session.get("+ entity.getName()+ "HBM.class, pk);");
-      sb.append("if (" + entity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + entity.getName() + " exists with the primary key \" + pk.toString());");
-      sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(\"No "+ entity.getName()+ " exists with the primary key \" + pk.toString());");
-      sb.append("}");
-      sb.append(tempEntity.getPackagePath() + ".service.persistence." + tempEntity.getName()+ "HBM "+ tempEntity.getVarName()+ "HBM = null;");
-      sb.append(tempEntity.getVarName() + "HBM = (" + tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM)session.get("+ tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM.class, "+ tempEntity.getVarName()+ ".getPrimaryKey());");
-      sb.append("if (" + tempEntity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + tempEntity.getName() + " exists with the primary key \" + "+ tempEntity.getVarName()+ ".getPrimaryKey().toString());");
-      sb.append("throw new " + tempEntity.getPackagePath() + "."+ _getNoSuchEntityException(tempEntity)+ "Exception(\"No "+ tempEntity.getName()+ " exists with the primary key \" + "+ tempEntity.getVarName()+ ".getPrimaryKey().toString());");
-      sb.append("}");
-      sb.append("boolean value = " + entity.getVarName() + "HBM.get"+ col.getMethodName()+ "().remove("+ tempEntity.getVarName()+ "HBM);");
-      sb.append("session.flush();");
-      sb.append("return value;");
-      sb.append("}");
-      sb.append("catch (HibernateException he) {");
-      sb.append("throw new SystemException(he);");
-      sb.append("}");
-      sb.append("finally {");
-      sb.append("closeSession(session);");
-      sb.append("}");
-      sb.append("}");
-      sb.append("public boolean remove" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk, "+ tempEntity.getPKClassName()+ "[] "+ tempEntity.getVarName()+ "PKs) throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
-      sb.append("Session session = null;");
-      sb.append("try {");
-      sb.append("session = openSession();");
-      sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)session.get("+ entity.getName()+ "HBM.class, pk);");
-      sb.append("if (" + entity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + entity.getName() + " exists with the primary key \" + pk.toString());");
-      sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(\"No "+ entity.getName()+ " exists with the primary key \" + pk.toString());");
-      sb.append("}");
-      sb.append("boolean value = false;");
-      sb.append("for (int i = 0; i < " + tempEntity.getVarName() + "PKs.length; i++) {");
-      sb.append(tempEntity.getPackagePath() + ".service.persistence." + tempEntity.getName()+ "HBM "+ tempEntity.getVarName()+ "HBM = null;");
-      sb.append(tempEntity.getVarName() + "HBM = (" + tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM)session.get("+ tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM.class, "+ tempEntity.getVarName()+ "PKs[i]);");
-      sb.append("if (" + tempEntity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + tempEntity.getName() + " exists with the primary key \" + "+ tempEntity.getVarName()+ "PKs[i].toString());");
-      sb.append("throw new " + tempEntity.getPackagePath() + "."+ _getNoSuchEntityException(tempEntity)+ "Exception(\"No "+ tempEntity.getName()+ " exists with the primary key \" + "+ tempEntity.getVarName()+ "PKs[i].toString());");
-      sb.append("}");
-      sb.append("if (" + entity.getVarName() + "HBM.get"+ col.getMethodName()+ "().remove("+ tempEntity.getVarName()+ "HBM)) {");
-      sb.append("value = true;");
-      sb.append("}");
-      sb.append("}");
-      sb.append("session.flush();");
-      sb.append("return value;");
-      sb.append("}");
-      sb.append("catch (HibernateException he) {");
-      sb.append("throw new SystemException(he);");
-      sb.append("}");
-      sb.append("finally {");
-      sb.append("closeSession(session);");
-      sb.append("}");
-      sb.append("}");
-      sb.append("public boolean remove" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk, List "+ tempEntity.getVarNames()+ ") throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
-      sb.append("Session session = null;");
-      sb.append("try {");
-      sb.append("session = openSession();");
-      sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)session.get("+ entity.getName()+ "HBM.class, pk);");
-      sb.append("if (" + entity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + entity.getName() + " exists with the primary key \" + pk.toString());");
-      sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(\"No "+ entity.getName()+ " exists with the primary key \" + pk.toString());");
-      sb.append("}");
-      sb.append("boolean value = false;");
-      sb.append("for (int i = 0; i < " + tempEntity.getVarNames() + ".size(); i++) {");
-      sb.append(tempEntity.getPackagePath() + ".model." + tempEntity.getName()+ " "+ tempEntity.getVarName()+ " = ("+ tempEntity.getPackagePath()+ ".model."+ tempEntity.getName()+ ")"+ tempEntity.getVarNames()+ ".get(i);");
-      sb.append(tempEntity.getPackagePath() + ".service.persistence." + tempEntity.getName()+ "HBM "+ tempEntity.getVarName()+ "HBM = ("+ tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM)session.get("+ tempEntity.getPackagePath()+ ".service.persistence."+ tempEntity.getName()+ "HBM.class, "+ tempEntity.getVarName()+ ".getPrimaryKey());");
-      sb.append("if (" + tempEntity.getVarName() + "HBM == null) {");
-      sb.append("_log.warn(\"No " + tempEntity.getName() + " exists with the primary key \" + "+ tempEntity.getVarName()+ ".getPrimaryKey().toString());");
-      sb.append("throw new " + tempEntity.getPackagePath() + "."+ _getNoSuchEntityException(tempEntity)+ "Exception(\"No "+ tempEntity.getName()+ " exists with the primary key \" + "+ tempEntity.getVarName()+ ".getPrimaryKey().toString());");
-      sb.append("}");
-      sb.append("if (" + entity.getVarName() + "HBM.get"+ col.getMethodName()+ "().remove("+ tempEntity.getVarName()+ "HBM)) {");
-      sb.append("value = true;");
-      sb.append("}");
-      sb.append("}");
-      sb.append("session.flush();");
-      sb.append("return value;");
-      sb.append("}");
-      sb.append("catch (HibernateException he) {");
-      sb.append("throw new SystemException(he);");
-      sb.append("}");
-      sb.append("finally {");
-      sb.append("closeSession(session);");
-      sb.append("}");
-      sb.append("}");
-    }
-  }
-  sb.append("public " + _packagePath + ".model."+ entity.getName()+ " findByPrimaryKey("+ pkClassName+ " "+ pkVarName+ ") throws "+ _getNoSuchEntityException(entity)+ "Exception, SystemException {");
+  sb.append("public " + entity.getName() + " findByPrimaryKey("+ pkClassName+ " "+ pkVarName+ ") throws "+ _getNoSuchEntityException(entity)+ "Exception, SystemException {");
   sb.append("Session session = null;");
   sb.append("try {");
   sb.append("session = openSession();");
-  sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)session.get("+ entity.getName()+ "HBM.class, "+ pkVarName+ ");");
-  sb.append("if (" + entity.getVarName() + "HBM == null) {");
+  sb.append(entity.getName() + " " + entity.getVarName()+ " = ("+ entity.getName()+ ")session.get("+ entity.getName()+ ".class, "+ pkVarName+ ");");
+  sb.append("if (" + entity.getVarName() + " == null) {");
   sb.append("_log.warn(\"No " + entity.getName() + " exists with the primary key \" + "+ pkVarName+ ".toString());");
   sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(\"No "+ entity.getName()+ " exists with the primary key \" + "+ pkVarName+ ".toString());");
   sb.append("}");
-  sb.append("return " + entity.getName() + "HBMUtil.model("+ entity.getVarName()+ "HBM);");
+  sb.append("return " + entity.getVarName() + ";");
   sb.append("}");
   sb.append("catch (HibernateException he) {");
   sb.append("throw new SystemException(he);");
@@ -629,7 +139,7 @@
   for (int i=0; i < finderList.size(); i++) {
     EntityFinder finder=(EntityFinder)finderList.get(i);
     List finderColsList=finder.getColumns();
-    sb.append("public " + (finder.isCollection() ? "List" : _packagePath + ".model." + entity.getName()) + " findBy"+ finder.getName()+ "(");
+    sb.append("public " + (finder.isCollection() ? "List" : entity.getName()) + " findBy"+ finder.getName()+ "(");
     for (int j=0; j < finderColsList.size(); j++) {
       EntityColumn col=(EntityColumn)finderColsList.get(j);
       sb.append(col.getType() + " " + col.getName());
@@ -647,7 +157,7 @@
     sb.append("try {");
     sb.append("session = openSession();");
     sb.append("StringBuffer query = new StringBuffer();");
-    sb.append("query.append(\"FROM " + entity.getTable() + " IN CLASS "+ _packagePath+ ".service.persistence."+ entity.getName()+ "HBM WHERE \");");
+    sb.append("query.append(\"FROM " + _packagePath + ".model."+ entity.getName()+ " WHERE \");");
     for (int j=0; j < finderColsList.size(); j++) {
       EntityColumn col=(EntityColumn)finderColsList.get(j);
       if (_requiresNullCheck(col)) {
@@ -735,17 +245,12 @@
         sb.append("}");
       }
     }
-    sb.append("Iterator itr = q.list().iterator();");
+    sb.append("List list = q.list();");
     if (finder.isCollection()) {
-      sb.append("List list = new ArrayList();");
-      sb.append("while (itr.hasNext()) {");
-      sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)itr.next();");
-      sb.append("list.add(" + entity.getName() + "HBMUtil.model("+ entity.getVarName()+ "HBM));");
-      sb.append("}");
       sb.append("return list;");
     }
  else {
-      sb.append("if (!itr.hasNext()) {");
+      sb.append("if (list.size() == 0) {");
       sb.append("String msg = \"No " + entity.getName() + " exists with the key \";");
       for (int j=0; j < finderColsList.size(); j++) {
         EntityColumn col=(EntityColumn)finderColsList.get(j);
@@ -763,8 +268,8 @@
       }
       sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(msg);");
       sb.append("}");
-      sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)itr.next();");
-      sb.append("return " + entity.getName() + "HBMUtil.model("+ entity.getVarName()+ "HBM);");
+      sb.append(entity.getName() + " " + entity.getVarName()+ " = ("+ entity.getName()+ ")list.get(0);");
+      sb.append("return " + entity.getVarName() + ";");
     }
     sb.append("}");
     sb.append("catch (HibernateException he) {");
@@ -798,7 +303,7 @@
       sb.append("try {");
       sb.append("session = openSession();");
       sb.append("StringBuffer query = new StringBuffer();");
-      sb.append("query.append(\"FROM " + entity.getTable() + " IN CLASS "+ _packagePath+ ".service.persistence."+ entity.getName()+ "HBM WHERE \");");
+      sb.append("query.append(\"FROM " + _packagePath + ".model."+ entity.getName()+ " WHERE \");");
       for (int j=0; j < finderColsList.size(); j++) {
         EntityColumn col=(EntityColumn)finderColsList.get(j);
         if (_requiresNullCheck(col)) {
@@ -890,13 +395,7 @@
           sb.append("}");
         }
       }
-      sb.append("List list = new ArrayList();");
-      sb.append("Iterator itr = QueryUtil.iterate(q, getDialect(), begin, end);");
-      sb.append("while (itr.hasNext()) {");
-      sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)itr.next();");
-      sb.append("list.add(" + entity.getName() + "HBMUtil.model("+ entity.getVarName()+ "HBM));");
-      sb.append("}");
-      sb.append("return list;");
+      sb.append("return QueryUtil.list(q, getDialect(), begin, end);");
       sb.append("}");
       sb.append("catch (HibernateException he) {");
       sb.append("throw new SystemException(he);");
@@ -905,7 +404,7 @@
       sb.append("closeSession(session);");
       sb.append("}");
       sb.append("}");
-      sb.append("public " + _packagePath + ".model."+ entity.getName()+ " findBy"+ finder.getName()+ "_First(");
+      sb.append("public " + entity.getName() + " findBy"+ finder.getName()+ "_First(");
       for (int j=0; j < finderColsList.size(); j++) {
         EntityColumn col=(EntityColumn)finderColsList.get(j);
         sb.append(col.getType() + " " + col.getName()+ ", ");
@@ -936,10 +435,10 @@
       sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(msg);");
       sb.append("}");
       sb.append("else {");
-      sb.append("return (" + _packagePath + ".model."+ entity.getName()+ ")list.get(0);");
+      sb.append("return (" + entity.getName() + ")list.get(0);");
       sb.append("}");
       sb.append("}");
-      sb.append("public " + _packagePath + ".model."+ entity.getName()+ " findBy"+ finder.getName()+ "_Last(");
+      sb.append("public " + entity.getName() + " findBy"+ finder.getName()+ "_Last(");
       for (int j=0; j < finderColsList.size(); j++) {
         EntityColumn col=(EntityColumn)finderColsList.get(j);
         sb.append(col.getType() + " " + col.getName()+ ", ");
@@ -979,16 +478,16 @@
       sb.append("throw new " + _getNoSuchEntityException(entity) + "Exception(msg);");
       sb.append("}");
       sb.append("else {");
-      sb.append("return (" + _packagePath + ".model."+ entity.getName()+ ")list.get(0);");
+      sb.append("return (" + entity.getName() + ")list.get(0);");
       sb.append("}");
       sb.append("}");
-      sb.append("public " + _packagePath + ".model."+ entity.getName()+ "[] findBy"+ finder.getName()+ "_PrevAndNext("+ pkClassName+ " "+ pkVarName+ ", ");
+      sb.append("public " + entity.getName() + "[] findBy"+ finder.getName()+ "_PrevAndNext("+ pkClassName+ " "+ pkVarName+ ", ");
       for (int j=0; j < finderColsList.size(); j++) {
         EntityColumn col=(EntityColumn)finderColsList.get(j);
         sb.append(col.getType() + " " + col.getName()+ ", ");
       }
       sb.append("OrderByComparator obc) throws " + _getNoSuchEntityException(entity) + "Exception, SystemException {");
-      sb.append(_packagePath + ".model." + entity.getName()+ " "+ entity.getVarName()+ " = findByPrimaryKey("+ pkVarName+ ");");
+      sb.append(entity.getName() + " " + entity.getVarName()+ " = findByPrimaryKey("+ pkVarName+ ");");
       sb.append("int count = countBy" + finder.getName() + "(");
       for (int j=0; j < finderColsList.size(); j++) {
         EntityColumn col=(EntityColumn)finderColsList.get(j);
@@ -1002,7 +501,7 @@
       sb.append("try {");
       sb.append("session = openSession();");
       sb.append("StringBuffer query = new StringBuffer();");
-      sb.append("query.append(\"FROM " + entity.getTable() + " IN CLASS "+ _packagePath+ ".service.persistence."+ entity.getName()+ "HBM WHERE \");");
+      sb.append("query.append(\"FROM " + _packagePath + ".model."+ entity.getName()+ " WHERE \");");
       for (int j=0; j < finderColsList.size(); j++) {
         EntityColumn col=(EntityColumn)finderColsList.get(j);
         if (_requiresNullCheck(col)) {
@@ -1094,11 +593,11 @@
           sb.append("}");
         }
       }
-      sb.append("Object[] objArray = QueryUtil.getPrevAndNext(q, count, obc, " + entity.getVarName() + ", "+ entity.getName()+ "HBMUtil.getInstance());");
-      sb.append(_packagePath + ".model." + entity.getName()+ "[] array = new "+ _packagePath+ ".model."+ entity.getName()+ "[3];");
-      sb.append("array[0] = (" + _packagePath + ".model."+ entity.getName()+ ")objArray[0];");
-      sb.append("array[1] = (" + _packagePath + ".model."+ entity.getName()+ ")objArray[1];");
-      sb.append("array[2] = (" + _packagePath + ".model."+ entity.getName()+ ")objArray[2];");
+      sb.append("Object[] objArray = QueryUtil.getPrevAndNext(q, count, obc, " + entity.getVarName() + ");");
+      sb.append(entity.getName() + "[] array = new " + entity.getName()+ "[3];");
+      sb.append("array[0] = (" + entity.getName() + ")objArray[0];");
+      sb.append("array[1] = (" + entity.getName() + ")objArray[1];");
+      sb.append("array[2] = (" + entity.getName() + ")objArray[2];");
       sb.append("return array;");
       sb.append("}");
       sb.append("catch (HibernateException he) {");
@@ -1115,7 +614,7 @@
   sb.append("try {");
   sb.append("session = openSession();");
   sb.append("StringBuffer query = new StringBuffer();");
-  sb.append("query.append(\"FROM " + entity.getTable() + " IN CLASS "+ _packagePath+ ".service.persistence."+ entity.getName()+ "HBM \");");
+  sb.append("query.append(\"FROM " + _packagePath + ".model."+ entity.getName()+ " \");");
   EntityOrder order=entity.getOrder();
   if (order != null) {
     List orderList=order.getColumns();
@@ -1132,13 +631,7 @@
     }
   }
   sb.append("Query q = session.createQuery(query.toString());");
-  sb.append("Iterator itr = q.iterate();");
-  sb.append("List list = new ArrayList();");
-  sb.append("while (itr.hasNext()) {");
-  sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)itr.next();");
-  sb.append("list.add(" + entity.getName() + "HBMUtil.model("+ entity.getVarName()+ "HBM));");
-  sb.append("}");
-  sb.append("return list;");
+  sb.append("return q.list();");
   sb.append("}");
   sb.append("catch (HibernateException he) {");
   sb.append("throw new SystemException(he);");
@@ -1168,7 +661,7 @@
     sb.append("try {");
     sb.append("session = openSession();");
     sb.append("StringBuffer query = new StringBuffer();");
-    sb.append("query.append(\"FROM " + entity.getTable() + " IN CLASS "+ _packagePath+ ".service.persistence."+ entity.getName()+ "HBM WHERE \");");
+    sb.append("query.append(\"FROM " + _packagePath + ".model."+ entity.getName()+ " WHERE \");");
     for (int j=0; j < finderColsList.size(); j++) {
       EntityColumn col=(EntityColumn)finderColsList.get(j);
       if (_requiresNullCheck(col)) {
@@ -1257,8 +750,8 @@
     }
     sb.append("Iterator itr = q.list().iterator();");
     sb.append("while (itr.hasNext()) {");
-    sb.append(entity.getName() + "HBM " + entity.getVarName()+ "HBM = ("+ entity.getName()+ "HBM)itr.next();");
-    sb.append("session.delete(" + entity.getVarName() + "HBM);");
+    sb.append(entity.getName() + " " + entity.getVarName()+ " = ("+ entity.getName()+ ")itr.next();");
+    sb.append("session.delete(" + entity.getVarName() + ");");
     sb.append("}");
     sb.append("session.flush();");
     sb.append("}");
@@ -1312,7 +805,7 @@
     sb.append("session = openSession();");
     sb.append("StringBuffer query = new StringBuffer();");
     sb.append("query.append(\"SELECT COUNT(*) \");");
-    sb.append("query.append(\"FROM " + entity.getTable() + " IN CLASS "+ _packagePath+ ".service.persistence."+ entity.getName()+ "HBM WHERE \");");
+    sb.append("query.append(\"FROM " + _packagePath + ".model."+ entity.getName()+ " WHERE \");");
     for (int j=0; j < finderColsList.size(); j++) {
       EntityColumn col=(EntityColumn)finderColsList.get(j);
       if (_requiresNullCheck(col)) {
@@ -1401,6 +894,314 @@
     sb.append("closeSession(session);");
     sb.append("}");
     sb.append("}");
+  }
+  for (int i=0; i < columnList.size(); i++) {
+    EntityColumn col=(EntityColumn)columnList.get(i);
+    if ((col.isCollection()) && (col.isMappingManyToMany() || col.isMappingOneToMany())) {
+      Entity tempEntity=getEntity(col.getEJBName());
+      EntityOrder tempOrder=tempEntity.getOrder();
+      EntityColumn tempCol=tempEntity.getColumnByMappingTable(col.getMappingTable());
+      sb.append("public List get" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk) throws "+ _getNoSuchEntityException(entity)+ "Exception, SystemException {");
+      sb.append("return get" + tempEntity.getNames() + "(pk, QueryUtil.ALL_POS, QueryUtil.ALL_POS);");
+      sb.append("}");
+      sb.append("public List get" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk, int begin, int end) throws "+ _getNoSuchEntityException(entity)+ "Exception, SystemException {");
+      sb.append("return get" + tempEntity.getNames() + "(pk, begin, end, null);");
+      sb.append("}");
+      sb.append("public List get" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk, int begin, int end, OrderByComparator obc) throws "+ _getNoSuchEntityException(entity)+ "Exception, SystemException {");
+      sb.append("Session session = null;");
+      sb.append("try {");
+      sb.append("session = HibernateUtil.openSession();");
+      sb.append("String sql = _SQL_GET" + tempEntity.getName().toUpperCase() + "S;");
+      sb.append("if (obc != null) {");
+      sb.append("sql += \"ORDER BY \" + obc.getOrderBy();");
+      sb.append("}");
+      if (tempOrder != null) {
+        List tempOrderList=tempOrder.getColumns();
+        sb.append("else {");
+        sb.append("sql += \"ORDER BY \";");
+        for (int j=0; j < tempOrderList.size(); j++) {
+          EntityColumn tempOrderCol=(EntityColumn)tempOrderList.get(j);
+          sb.append("sql += \"" + tempEntity.getTable() + "."+ tempOrderCol.getDBName()+ " "+ (tempOrderCol.isOrderByAscending() ? "ASC" : "DESC")+ "\";");
+          if ((j + 1) != tempOrderList.size()) {
+            sb.append("sql += \", \";");
+          }
+        }
+        sb.append("}");
+      }
+      sb.append("SQLQuery q = session.createSQLQuery(sql);");
+      sb.append("q.addEntity(\"" + tempEntity.getTable() + "\", "+ tempEntity.getPackagePath()+ ".model."+ tempEntity.getName()+ ".class);");
+      sb.append("QueryPos qPos = QueryPos.getInstance(q);");
+      sb.append("qPos.add(pk);");
+      sb.append("return QueryUtil.list(q, HibernateUtil.getDialect(), begin, end);");
+      sb.append("}");
+      sb.append("catch (Exception e) {");
+      sb.append("throw new SystemException(e);");
+      sb.append("}");
+      sb.append("finally {");
+      sb.append("HibernateUtil.closeSession(session);");
+      sb.append("}");
+      sb.append("}");
+      sb.append("public int get" + tempEntity.getNames() + "Size("+ entity.getPKClassName()+ " pk) throws SystemException {");
+      sb.append("Session session = null;");
+      sb.append("try {");
+      sb.append("session = openSession();");
+      sb.append("SQLQuery q = session.createSQLQuery(_SQL_GET" + tempEntity.getName().toUpperCase() + "SSIZE);");
+      sb.append("q.addScalar(HibernateUtil.getCountColumnName(), Hibernate.LONG);");
+      sb.append("QueryPos qPos = QueryPos.getInstance(q);");
+      sb.append("qPos.add(pk);");
+      sb.append("Iterator itr = q.list().iterator();");
+      sb.append("if (itr.hasNext()) {");
+      sb.append("Long count = (Long)itr.next();");
+      sb.append("if (count != null) {");
+      sb.append("return count.intValue();");
+      sb.append("}");
+      sb.append("}");
+      sb.append("return 0;");
+      sb.append("}");
+      sb.append("catch (HibernateException he) {");
+      sb.append("throw new SystemException(he);");
+      sb.append("}");
+      sb.append("finally {");
+      sb.append("closeSession(session);");
+      sb.append("}");
+      sb.append("}");
+      sb.append("public boolean contains" + tempEntity.getName() + "("+ entity.getPKClassName()+ " pk, "+ tempEntity.getPKClassName()+ " "+ tempEntity.getVarName()+ "PK) throws SystemException {");
+      sb.append("try {");
+      sb.append("return contains" + tempEntity.getName() + ".contains(pk, "+ tempEntity.getVarName()+ "PK);");
+      sb.append("}");
+      sb.append("catch (DataAccessException dae) {");
+      sb.append("throw new SystemException(dae);");
+      sb.append("}");
+      sb.append("}");
+      sb.append("public boolean contains" + tempEntity.getName() + "s("+ entity.getPKClassName()+ " pk) throws SystemException {");
+      sb.append("if (get" + tempEntity.getNames() + "Size(pk) > 0) {");
+      sb.append("return true;");
+      sb.append("}");
+      sb.append("else {");
+      sb.append("return false;");
+      sb.append("}");
+      sb.append("}");
+      if (col.isMappingManyToMany()) {
+        sb.append("public void add" + tempEntity.getName() + "("+ entity.getPKClassName()+ " pk, "+ tempEntity.getPKClassName()+ " "+ tempEntity.getVarName()+ "PK) throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
+        sb.append("try {");
+        sb.append("add" + tempEntity.getName() + ".add(pk, "+ tempEntity.getVarName()+ "PK);");
+        sb.append("}");
+        sb.append("catch (DataAccessException dae) {");
+        sb.append("throw new SystemException(dae);");
+        sb.append("}");
+        sb.append("}");
+        sb.append("public void add" + tempEntity.getName() + "("+ entity.getPKClassName()+ " pk, "+ tempEntity.getPackagePath()+ ".model."+ tempEntity.getName()+ " "+ tempEntity.getVarName()+ ") throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
+        sb.append("try {");
+        sb.append("add" + tempEntity.getName() + ".add(pk, "+ tempEntity.getVarName()+ ".getPrimaryKey());");
+        sb.append("}");
+        sb.append("catch (DataAccessException dae) {");
+        sb.append("throw new SystemException(dae);");
+        sb.append("}");
+        sb.append("}");
+        sb.append("public void add" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk, "+ tempEntity.getPKClassName()+ "[] "+ tempEntity.getVarName()+ "PKs) throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
+        sb.append("try {");
+        sb.append("for (int i = 0; i < " + tempEntity.getVarName() + "PKs.length; i++) {");
+        sb.append("add" + tempEntity.getName() + ".add(pk, "+ tempEntity.getVarName()+ "PKs[i]);");
+        sb.append("}");
+        sb.append("}");
+        sb.append("catch (DataAccessException dae) {");
+        sb.append("throw new SystemException(dae);");
+        sb.append("}");
+        sb.append("}");
+        sb.append("public void add" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk, List "+ tempEntity.getVarNames()+ ") throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
+        sb.append("try {");
+        sb.append("for (int i = 0; i < " + tempEntity.getVarNames() + ".size(); i++) {");
+        sb.append(tempEntity.getPackagePath() + ".model." + tempEntity.getName()+ " "+ tempEntity.getVarName()+ " = ("+ tempEntity.getPackagePath()+ ".model."+ tempEntity.getName()+ ")"+ tempEntity.getVarNames()+ ".get(i);");
+        sb.append("add" + tempEntity.getName() + ".add(pk, "+ tempEntity.getVarName()+ ".getPrimaryKey());");
+        sb.append("}");
+        sb.append("}");
+        sb.append("catch (DataAccessException dae) {");
+        sb.append("throw new SystemException(dae);");
+        sb.append("}");
+        sb.append("}");
+        sb.append("public void clear" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk) throws "+ _getNoSuchEntityException(entity)+ "Exception, SystemException {");
+        sb.append("try {");
+        sb.append("clear" + tempEntity.getNames() + ".clear(pk);");
+        sb.append("}");
+        sb.append("catch (DataAccessException dae) {");
+        sb.append("throw new SystemException(dae);");
+        sb.append("}");
+        sb.append("}");
+        sb.append("public void remove" + tempEntity.getName() + "("+ entity.getPKClassName()+ " pk, "+ tempEntity.getPKClassName()+ " "+ tempEntity.getVarName()+ "PK) throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
+        sb.append("try {");
+        sb.append("remove" + tempEntity.getName() + ".remove(pk, "+ tempEntity.getVarName()+ "PK);");
+        sb.append("}");
+        sb.append("catch (DataAccessException dae) {");
+        sb.append("throw new SystemException(dae);");
+        sb.append("}");
+        sb.append("}");
+        sb.append("public void remove" + tempEntity.getName() + "("+ entity.getPKClassName()+ " pk, "+ tempEntity.getPackagePath()+ ".model."+ tempEntity.getName()+ " "+ tempEntity.getVarName()+ ") throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
+        sb.append("try {");
+        sb.append("remove" + tempEntity.getName() + ".remove(pk, "+ tempEntity.getVarName()+ ".getPrimaryKey());");
+        sb.append("}");
+        sb.append("catch (DataAccessException dae) {");
+        sb.append("throw new SystemException(dae);");
+        sb.append("}");
+        sb.append("}");
+        sb.append("public void remove" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk, "+ tempEntity.getPKClassName()+ "[] "+ tempEntity.getVarName()+ "PKs) throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
+        sb.append("try {");
+        sb.append("for (int i = 0; i < " + tempEntity.getVarName() + "PKs.length; i++) {");
+        sb.append("remove" + tempEntity.getName() + ".remove(pk, "+ tempEntity.getVarName()+ "PKs[i]);");
+        sb.append("}");
+        sb.append("}");
+        sb.append("catch (DataAccessException dae) {");
+        sb.append("throw new SystemException(dae);");
+        sb.append("}");
+        sb.append("}");
+        sb.append("public void remove" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk, List "+ tempEntity.getVarNames()+ ") throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
+        sb.append("try {");
+        sb.append("for (int i = 0; i < " + tempEntity.getVarNames() + ".size(); i++) {");
+        sb.append(tempEntity.getPackagePath() + ".model." + tempEntity.getName()+ " "+ tempEntity.getVarName()+ " = ("+ tempEntity.getPackagePath()+ ".model."+ tempEntity.getName()+ ")"+ tempEntity.getVarNames()+ ".get(i);");
+        sb.append("remove" + tempEntity.getName() + ".remove(pk, "+ tempEntity.getVarName()+ ".getPrimaryKey());");
+        sb.append("}");
+        sb.append("}");
+        sb.append("catch (DataAccessException dae) {");
+        sb.append("throw new SystemException(dae);");
+        sb.append("}");
+        sb.append("}");
+        sb.append("public void set" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk, "+ tempEntity.getPKClassName()+ "[] "+ tempEntity.getVarName()+ "PKs) throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
+        sb.append("try {");
+        sb.append("clear" + tempEntity.getNames() + ".clear(pk);");
+        sb.append("for (int i = 0; i < " + tempEntity.getVarName() + "PKs.length; i++) {");
+        sb.append("add" + tempEntity.getName() + ".add(pk, "+ tempEntity.getVarName()+ "PKs[i]);");
+        sb.append("}");
+        sb.append("}");
+        sb.append("catch (DataAccessException dae) {");
+        sb.append("throw new SystemException(dae);");
+        sb.append("}");
+        sb.append("}");
+        sb.append("public void set" + tempEntity.getNames() + "("+ entity.getPKClassName()+ " pk, List "+ tempEntity.getVarNames()+ ") throws "+ _getNoSuchEntityException(entity)+ "Exception, "+ tempEntity.getPackagePath()+ "."+ _getNoSuchEntityException(tempEntity)+ "Exception, SystemException {");
+        sb.append("try {");
+        sb.append("clear" + tempEntity.getNames() + ".clear(pk);");
+        sb.append("for (int i = 0; i < " + tempEntity.getVarNames() + ".size(); i++) {");
+        sb.append(tempEntity.getPackagePath() + ".model." + tempEntity.getName()+ " "+ tempEntity.getVarName()+ " = ("+ tempEntity.getPackagePath()+ ".model."+ tempEntity.getName()+ ")"+ tempEntity.getVarNames()+ ".get(i);");
+        sb.append("add" + tempEntity.getName() + ".add(pk, "+ tempEntity.getVarName()+ ".getPrimaryKey());");
+        sb.append("}");
+        sb.append("}");
+        sb.append("catch (DataAccessException dae) {");
+        sb.append("throw new SystemException(dae);");
+        sb.append("}");
+        sb.append("}");
+      }
+    }
+  }
+  sb.append("protected void initDao() {");
+  for (int i=0; i < columnList.size(); i++) {
+    EntityColumn col=(EntityColumn)columnList.get(i);
+    if ((col.isCollection()) && (col.isMappingManyToMany() || col.isMappingOneToMany())) {
+      Entity tempEntity=getEntity(col.getEJBName());
+      sb.append("contains" + tempEntity.getName() + " = new Contains"+ tempEntity.getName()+ "(this);");
+      if (col.isMappingManyToMany()) {
+        sb.append("add" + tempEntity.getName() + " = new Add"+ tempEntity.getName()+ "(this);");
+        sb.append("clear" + tempEntity.getNames() + " = new Clear"+ tempEntity.getNames()+ "(this);");
+        sb.append("remove" + tempEntity.getName() + " = new Remove"+ tempEntity.getName()+ "(this);");
+      }
+    }
+  }
+  sb.append("}");
+  for (int i=0; i < columnList.size(); i++) {
+    EntityColumn col=(EntityColumn)columnList.get(i);
+    if ((col.isCollection()) && (col.isMappingManyToMany() || col.isMappingOneToMany())) {
+      Entity tempEntity=getEntity(col.getEJBName());
+      sb.append("protected Contains" + tempEntity.getName() + " contains"+ tempEntity.getName()+ ";");
+      if (col.isMappingManyToMany()) {
+        sb.append("protected Add" + tempEntity.getName() + " add"+ tempEntity.getName()+ ";");
+        sb.append("protected Clear" + tempEntity.getNames() + " clear"+ tempEntity.getNames()+ ";");
+        sb.append("protected Remove" + tempEntity.getName() + " remove"+ tempEntity.getName()+ ";");
+      }
+    }
+  }
+  for (int i=0; i < columnList.size(); i++) {
+    EntityColumn col=(EntityColumn)columnList.get(i);
+    if ((col.isCollection()) && (col.isMappingManyToMany() || col.isMappingOneToMany())) {
+      Entity tempEntity=getEntity(col.getEJBName());
+      sb.append("protected class Contains" + tempEntity.getName() + " extends MappingSqlQuery {");
+      sb.append("protected Contains" + tempEntity.getName() + "("+ entity.getName()+ "Persistence persistence) {");
+      sb.append("super(persistence.getDataSource(), _SQL_CONTAINS" + tempEntity.getName().toUpperCase() + ");");
+      sb.append("_persistence = persistence;");
+      sb.append("declareParameter(new SqlParameter(Types.VARCHAR));");
+      sb.append("declareParameter(new SqlParameter(Types.VARCHAR));");
+      sb.append("compile();");
+      sb.append("}");
+      sb.append("protected Object mapRow(ResultSet rs, int rowNumber) throws SQLException {");
+      sb.append("return new Integer(rs.getInt(\"COUNT_VALUE\"));");
+      sb.append("}");
+      sb.append("protected boolean contains(" + pkClassName + " "+ pkVarName+ ", "+ tempEntity.getPKClassName()+ " "+ tempEntity.getPKVarName()+ ") {");
+      sb.append("List results = execute(new Object[] {" + pkVarName + ", "+ tempEntity.getPKVarName()+ "});");
+      sb.append("if (results.size() > 0) {");
+      sb.append("Integer count = (Integer)results.get(0);");
+      sb.append("if (count.intValue() > 0) {");
+      sb.append("return true;");
+      sb.append("}");
+      sb.append("}");
+      sb.append("return false;");
+      sb.append("}");
+      sb.append("private " + entity.getName() + "Persistence _persistence;");
+      sb.append("}");
+      if (col.isMappingManyToMany()) {
+        sb.append("protected class Add" + tempEntity.getName() + " extends SqlUpdate {");
+        sb.append("protected Add" + tempEntity.getName() + "("+ entity.getName()+ "Persistence persistence) {");
+        sb.append("super(persistence.getDataSource(), \"INSERT INTO " + col.getMappingTable() + " ("+ pkVarName+ ", "+ tempEntity.getPKVarName()+ ") VALUES (?, ?)\");");
+        sb.append("_persistence = persistence;");
+        sb.append("declareParameter(new SqlParameter(Types.VARCHAR));");
+        sb.append("declareParameter(new SqlParameter(Types.VARCHAR));");
+        sb.append("compile();");
+        sb.append("}");
+        sb.append("protected void add(" + pkClassName + " "+ pkVarName+ ", "+ tempEntity.getPKClassName()+ " "+ tempEntity.getPKVarName()+ ") {");
+        sb.append("if (!_persistence.contains" + tempEntity.getName() + ".contains("+ pkVarName+ ", "+ tempEntity.getPKVarName()+ ")) {");
+        sb.append("update(new Object[] {" + pkVarName + ", "+ tempEntity.getPKVarName()+ "});");
+        sb.append("}");
+        sb.append("}");
+        sb.append("private " + entity.getName() + "Persistence _persistence;");
+        sb.append("}");
+        sb.append("protected class Clear" + tempEntity.getNames() + " extends SqlUpdate {");
+        sb.append("protected Clear" + tempEntity.getNames() + "("+ entity.getName()+ "Persistence persistence) {");
+        sb.append("super(persistence.getDataSource(), \"DELETE FROM " + col.getMappingTable() + " WHERE "+ pkVarName+ " = ?\");");
+        sb.append("_persistence = persistence;");
+        sb.append("declareParameter(new SqlParameter(Types.VARCHAR));");
+        sb.append("compile();");
+        sb.append("}");
+        sb.append("protected void clear(" + pkClassName + " "+ pkVarName+ ") {");
+        sb.append("update(new Object[] {" + pkVarName + "});");
+        sb.append("}");
+        sb.append("private " + entity.getName() + "Persistence _persistence;");
+        sb.append("}");
+        sb.append("protected class Remove" + tempEntity.getName() + " extends SqlUpdate {");
+        sb.append("protected Remove" + tempEntity.getName() + "("+ entity.getName()+ "Persistence persistence) {");
+        sb.append("super(persistence.getDataSource(), \"DELETE FROM " + col.getMappingTable() + " WHERE "+ pkVarName+ " = ? AND "+ tempEntity.getPKVarName()+ " = ?\");");
+        sb.append("_persistence = persistence;");
+        sb.append("declareParameter(new SqlParameter(Types.VARCHAR));");
+        sb.append("declareParameter(new SqlParameter(Types.VARCHAR));");
+        sb.append("compile();");
+        sb.append("}");
+        sb.append("protected void remove(" + pkClassName + " "+ pkVarName+ ", "+ tempEntity.getPKClassName()+ " "+ tempEntity.getPKVarName()+ ") {");
+        sb.append("update(new Object[] {" + pkVarName + ", "+ tempEntity.getPKVarName()+ "});");
+        sb.append("}");
+        sb.append("private " + entity.getName() + "Persistence _persistence;");
+        sb.append("}");
+      }
+    }
+  }
+  for (int i=0; i < columnList.size(); i++) {
+    EntityColumn col=(EntityColumn)columnList.get(i);
+    if (col.isCollection()) {
+      Entity tempEntity=getEntity(col.getEJBName());
+      if (col.isMappingManyToMany()) {
+        sb.append("private static final String _SQL_GET" + tempEntity.getName().toUpperCase() + "S = \"SELECT {"+ tempEntity.getTable()+ ".*} FROM "+ tempEntity.getTable()+ " INNER JOIN "+ col.getMappingTable()+ " ON ("+ col.getMappingTable()+ "."+ entity.getPKVarName()+ " = ?) AND ("+ col.getMappingTable()+ "."+ tempEntity.getPKVarName()+ " = "+ tempEntity.getTable()+ "."+ tempEntity.getPKVarName()+ ")\";");
+        sb.append("private static final String _SQL_GET" + tempEntity.getName().toUpperCase() + "SSIZE = \"SELECT COUNT(*) AS COUNT_VALUE FROM "+ col.getMappingTable()+ " WHERE "+ entity.getPKVarName()+ " = ?\";");
+        sb.append("private static final String _SQL_CONTAINS" + tempEntity.getName().toUpperCase() + " = \"SELECT COUNT(*) AS COUNT_VALUE FROM "+ col.getMappingTable()+ " WHERE "+ entity.getPKVarName()+ " = ? AND "+ tempEntity.getPKVarName()+ " = ?\";");
+      }
+ else       if (col.isMappingOneToMany()) {
+        sb.append("private static final String _SQL_GET" + tempEntity.getName().toUpperCase() + "S = \"SELECT {"+ tempEntity.getTable()+ ".*} FROM "+ tempEntity.getTable()+ " INNER JOIN "+ entity.getTable()+ " ON ("+ entity.getTable()+ "."+ entity.getPKVarName()+ " = ?) AND ("+ entity.getTable()+ "."+ tempEntity.getPKVarName()+ " = "+ tempEntity.getTable()+ "."+ tempEntity.getPKVarName()+ ")\";");
+        sb.append("private static final String _SQL_GET" + tempEntity.getName().toUpperCase() + "SSIZE = \"SELECT COUNT(*) AS COUNT_VALUE FROM "+ tempEntity.getTable()+ " WHERE "+ entity.getPKVarName()+ " = ?\";");
+        sb.append("private static final String _SQL_CONTAINS" + tempEntity.getName().toUpperCase() + " = \"SELECT COUNT(*) AS COUNT_VALUE FROM "+ tempEntity.getTable()+ " WHERE "+ entity.getPKVarName()+ " = ? AND "+ tempEntity.getPKVarName()+ " = ?\";");
+      }
+    }
   }
   sb.append("private static Log _log = LogFactory.getLog(" + entity.getName() + "Persistence.class);");
   sb.append("}");

@@ -1,10 +1,14 @@
 {
+  long start=0;
+  if (_log.isDebugEnabled()) {
+    start=System.currentTimeMillis();
+  }
   User user=UserUtil.findByPrimaryKey(userId);
   MBCategory category=MBCategoryUtil.findByPrimaryKey(categoryId);
   Date now=new Date();
   validate(subject,body);
-  String rootMessageId=Long.toString(CounterServiceUtil.increment(MBMessage.class.getName()));
-  String messageId=rootMessageId;
+  String messageId=Long.toString(CounterServiceUtil.increment(MBMessage.class.getName()));
+  start=logAddMessage(messageId,start,1);
   MBMessage message=MBMessageUtil.create(new MBMessagePK(MBMessage.DEPRECATED_TOPIC_ID,messageId));
   message.setCompanyId(user.getCompanyId());
   message.setUserId(user.getUserId());
@@ -30,10 +34,11 @@
     thread=MBThreadUtil.create(threadId);
     thread.setCategoryId(categoryId);
     thread.setTopicId(message.getTopicId());
-    thread.setRootMessageId(rootMessageId);
+    thread.setRootMessageId(messageId);
   }
   thread.setMessageCount(thread.getMessageCount() + 1);
   thread.setLastPostDate(now);
+  start=logAddMessage(messageId,start,2);
   message.setCategoryId(categoryId);
   message.setThreadId(threadId);
   message.setParentMessageId(parentMessageId);
@@ -64,17 +69,23 @@
       }
     }
   }
+  start=logAddMessage(messageId,start,3);
   MBThreadUtil.update(thread);
   MBMessageUtil.update(message);
+  start=logAddMessage(messageId,start,4);
   if (!category.isDiscussion()) {
     addMessageResources(category,message,addCommunityPermissions,addGuestPermissions);
   }
+  start=logAddMessage(messageId,start,5);
   if (!category.isDiscussion()) {
     MBStatsUserLocalServiceUtil.updateStatsUser(category.getGroupId(),userId);
   }
+  start=logAddMessage(messageId,start,6);
   notifySubscribers(message,prefs,false);
+  start=logAddMessage(messageId,start,7);
   category.setLastPostDate(now);
   MBCategoryUtil.update(category);
+  start=logAddMessage(messageId,start,8);
   try {
     if (!category.isDiscussion()) {
       Indexer.addMessage(message.getCompanyId(),category.getGroupId(),category.getCategoryId(),threadId,messageId,subject,body);
@@ -83,5 +94,6 @@
  catch (  IOException ioe) {
     _log.error(ioe.getMessage());
   }
+  start=logAddMessage(messageId,start,9);
   return message;
 }
