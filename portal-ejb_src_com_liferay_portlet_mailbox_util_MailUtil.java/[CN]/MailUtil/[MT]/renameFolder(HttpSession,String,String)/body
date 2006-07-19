@@ -1,32 +1,42 @@
 {
-  if (!oldFolderName.equals(MAIL_INBOX_NAME) && !oldFolderName.startsWith(MAIL_BOX_STYLE)) {
-    oldFolderName=MAIL_BOX_STYLE + oldFolderName;
-  }
-  if (!newFolderName.equals(MAIL_INBOX_NAME) && !newFolderName.startsWith(MAIL_BOX_STYLE)) {
-    newFolderName=MAIL_BOX_STYLE + newFolderName;
-  }
-  for (int i=0; i < DEFAULT_FOLDERS.length; i++) {
-    if (DEFAULT_FOLDERS[i].equals(oldFolderName)) {
-      throw new Exception("The folder " + oldFolderName + " is a system-defined folder and cannot be changed");
+  try {
+    if (!oldFolderName.equals(MAIL_INBOX_NAME) && !oldFolderName.startsWith(MAIL_BOX_STYLE)) {
+      oldFolderName=MAIL_BOX_STYLE + oldFolderName;
     }
- else     if (DEFAULT_FOLDERS[i].equals(newFolderName)) {
-      throw new Exception("The folder " + newFolderName + " is a system-defined folder and cannot be changed");
+    if (!newFolderName.equals(MAIL_INBOX_NAME) && !newFolderName.startsWith(MAIL_BOX_STYLE)) {
+      newFolderName=MAIL_BOX_STYLE + newFolderName;
+    }
+    for (int i=0; i < DEFAULT_FOLDERS.length; i++) {
+      if (DEFAULT_FOLDERS[i].equals(oldFolderName)) {
+        _log.error("The folder " + oldFolderName + " is a system-defined folder and cannot be changed");
+        throw new FolderException();
+      }
+ else       if (DEFAULT_FOLDERS[i].equals(newFolderName)) {
+        _log.error("The folder " + newFolderName + " is a system-defined folder and cannot be changed");
+        throw new FolderException();
+      }
+    }
+    Store store=_getStore(ses);
+    Folder oldFolder=store.getFolder(oldFolderName);
+    Folder newFolder=store.getFolder(newFolderName);
+    if (!oldFolder.exists()) {
+      _log.error("The folder " + oldFolderName + " does not exist in the system");
+      throw new FolderException();
+    }
+ else     if (newFolder.exists()) {
+      _log.error("The folder " + newFolderName + " already exists in the system");
+      throw new FolderException();
+    }
+    if (!oldFolder.isOpen()) {
+      oldFolder.open(Folder.READ_WRITE);
+    }
+    oldFolder.renameTo(newFolder);
+    if (_getCurrentFolder(ses).getName().equals(oldFolderName)) {
+      setCurrentFolder(ses,newFolderName);
     }
   }
-  Store store=_getStore(ses);
-  Folder oldFolder=store.getFolder(oldFolderName);
-  Folder newFolder=store.getFolder(newFolderName);
-  if (!oldFolder.exists()) {
-    throw new Exception("The folder " + oldFolderName + " does not exist in the system");
-  }
- else   if (newFolder.exists()) {
-    throw new Exception("The folder " + newFolderName + " already exists in the system");
-  }
-  if (!oldFolder.isOpen()) {
-    oldFolder.open(Folder.READ_WRITE);
-  }
-  oldFolder.renameTo(newFolder);
-  if (_getCurrentFolder(ses).getName().equals(oldFolderName)) {
-    setCurrentFolder(ses,newFolderName);
+ catch (  MessagingException ex) {
+    _log.error("Error trying to rename folder from '" + oldFolderName + "' to '"+ newFolderName+ "'");
+    throw new FolderException(ex);
   }
 }

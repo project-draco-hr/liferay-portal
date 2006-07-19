@@ -1,38 +1,48 @@
 {
-  String contentType=part.getContentType().toLowerCase();
-  if (part.getContent() instanceof Multipart) {
-    Multipart mp=(Multipart)part.getContent();
-    if (contentType.startsWith(Constants.MULTIPART_ALTERNATE)) {
-      for (int i=0; i < mp.getCount(); i++) {
-        Part mpbp=mp.getBodyPart(i);
-        if (part.isMimeType(Constants.TEXT_PLAIN)) {
-          mm.setPlainBody((String)mpbp.getContent());
-        }
- else         if (part.isMimeType(Constants.TEXT_HTML)) {
-          mm.setHtmlBody((String)mpbp.getContent());
-        }
+  try {
+    String contentType=part.getContentType().toLowerCase();
+    if (part.getContent() instanceof Multipart) {
+      Multipart mp=(Multipart)part.getContent();
+      if (contentType.startsWith(Constants.MULTIPART_ALTERNATE)) {
+        for (int i=0; i < mp.getCount(); i++) {
+          Part mpbp=mp.getBodyPart(i);
+          if (part.isMimeType(Constants.TEXT_PLAIN)) {
+            mm.setPlainBody((String)mpbp.getContent());
+          }
+ else           if (part.isMimeType(Constants.TEXT_HTML)) {
+            mm.setHtmlBody((String)mpbp.getContent());
+          }
  else {
+            mm=_getContent(mpbp,mm,contentPath + StringPool.PERIOD + i);
+          }
+        }
+      }
+ else {
+        for (int i=0; i < mp.getCount(); i++) {
+          Part mpbp=mp.getBodyPart(i);
           mm=_getContent(mpbp,mm,contentPath + StringPool.PERIOD + i);
         }
       }
     }
+ else     if (contentType.startsWith(Constants.TEXT_PLAIN)) {
+      mm.appendPlainBody((String)part.getContent());
+    }
+ else     if (contentType.startsWith(Constants.TEXT_HTML)) {
+      mm.appendHtmlBody((String)part.getContent());
+    }
+ else     if (contentType.startsWith(Constants.MESSAGE_RFC822)) {
+    }
  else {
-      for (int i=0; i < mp.getCount(); i++) {
-        Part mpbp=mp.getBodyPart(i);
-        mm=_getContent(mpbp,mm,contentPath + StringPool.PERIOD + i);
-      }
+      mm.appendRemoteAttachment(_getRemoteAttachment(part,contentPath + StringPool.PERIOD + -1));
     }
   }
- else   if (contentType.startsWith(Constants.TEXT_PLAIN)) {
-    mm.appendPlainBody((String)part.getContent());
+ catch (  MessagingException ex) {
+    _log.error("Error extracting MIME content");
+    throw new ContentException(ex);
   }
- else   if (contentType.startsWith(Constants.TEXT_HTML)) {
-    mm.appendHtmlBody((String)part.getContent());
-  }
- else   if (contentType.startsWith(Constants.MESSAGE_RFC822)) {
-  }
- else {
-    mm.appendRemoteAttachment(_getRemoteAttachment(part,contentPath + StringPool.PERIOD + -1));
+catch (  IOException ex) {
+    _log.error("Error extracting MIME content");
+    throw new ContentException(ex);
   }
   return mm;
 }

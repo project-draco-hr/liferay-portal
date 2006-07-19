@@ -1,15 +1,16 @@
 {
-  if (!toFolderName.equals(MAIL_INBOX_NAME) && !toFolderName.startsWith(MAIL_BOX_STYLE)) {
-    toFolderName=MAIL_BOX_STYLE + toFolderName;
-  }
-  if (_getCurrentFolder(ses).getName().equals(toFolderName)) {
-    return;
-  }
-  if (_getCurrentFolder(ses).getName().equals(MAIL_DRAFTS_NAME) || toFolderName.equals(MAIL_DRAFTS_NAME)) {
-    throw new Exception("Cannot move message to or from the 'Drafts' folder");
-  }
   IMAPFolder toFolder=null;
   try {
+    if (!toFolderName.equals(MAIL_INBOX_NAME) && !toFolderName.startsWith(MAIL_BOX_STYLE)) {
+      toFolderName=MAIL_BOX_STYLE + toFolderName;
+    }
+    if (_getCurrentFolder(ses).getName().equals(toFolderName)) {
+      return;
+    }
+    if (_getCurrentFolder(ses).getName().equals(MAIL_DRAFTS_NAME) || toFolderName.equals(MAIL_DRAFTS_NAME)) {
+      _log.error("Cannot move message to/from the '" + MAIL_DRAFTS_NAME + "' folder");
+      throw new FolderException();
+    }
     toFolder=(IMAPFolder)_getStore(ses).getFolder(toFolderName);
     toFolder.open(IMAPFolder.READ_WRITE);
     Message[] msgs=_getCurrentFolder(ses).getMessagesByUID(messageUIDs);
@@ -17,13 +18,17 @@
     _getCurrentFolder(ses).setFlags(msgs,new Flags(Flags.Flag.DELETED),true);
     _getCurrentFolder(ses).expunge();
   }
- catch (  Exception e) {
-    _log.error(e);
-    throw e;
+ catch (  MessagingException ex) {
+    _log.error("Unable to move messages");
+    throw new FolderException(ex);
   }
  finally {
-    if (toFolder != null && toFolder.isOpen()) {
-      toFolder.close(true);
+    try {
+      if (toFolder != null && toFolder.isOpen()) {
+        toFolder.close(true);
+      }
+    }
+ catch (    Exception ex) {
     }
   }
 }

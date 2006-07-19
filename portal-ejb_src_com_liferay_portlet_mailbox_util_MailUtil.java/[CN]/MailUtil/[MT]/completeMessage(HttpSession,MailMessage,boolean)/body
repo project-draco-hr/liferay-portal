@@ -1,66 +1,80 @@
 {
-  String userId=(String)ses.getAttribute(WebKeys.USER_ID);
-  String password=(String)ses.getAttribute(WebKeys.USER_PASSWORD);
-  Email email=null;
-  if (mm.isSimple()) {
-    SimpleEmail se=new SimpleEmail();
-    se.setMsg(mm.getPlainBody());
-    email=se;
-  }
+  try {
+    String userId=(String)ses.getAttribute(WebKeys.USER_ID);
+    String password=(String)ses.getAttribute(WebKeys.USER_PASSWORD);
+    Email email=null;
+    if (mm.isSimple()) {
+      SimpleEmail se=new SimpleEmail();
+      se.setMsg(mm.getPlainBody());
+      email=se;
+    }
  else {
-    HtmlEmail he=new HtmlEmail();
-    he.setHtmlMsg(mm.getHtmlBody());
-    if (Validator.isNotNull(mm.getPlainBody())) {
-      he.setMsg(mm.getPlainBody());
+      HtmlEmail he=new HtmlEmail();
+      he.setHtmlMsg(mm.getHtmlBody());
+      if (Validator.isNotNull(mm.getPlainBody())) {
+        he.setMsg(mm.getPlainBody());
+      }
+      List attachments=mm.getAttachments();
+      for (Iterator itr=attachments.iterator(); itr.hasNext(); ) {
+        MailAttachment ma=(MailAttachment)itr.next();
+        DataSource ds=new ByteArrayDataSource(ma.getContent(),ma.getContentType());
+        he.attach(ds,ma.getFilename(),ma.getFilename());
+      }
+      List remoteAttachments=mm.getRemoteAttachments();
+      for (Iterator itr=remoteAttachments.iterator(); itr.hasNext(); ) {
+        RemoteMailAttachment rma=(RemoteMailAttachment)itr.next();
+        Object[] parts=getAttachment(ses,rma.getContentPath());
+        DataSource ds=new ByteArrayDataSource((byte[])parts[0],(String)parts[1]);
+        he.attach(ds,rma.getFilename(),rma.getFilename());
+      }
+      email=he;
     }
-    List attachments=mm.getAttachments();
-    for (Iterator itr=attachments.iterator(); itr.hasNext(); ) {
-      MailAttachment ma=(MailAttachment)itr.next();
-      DataSource ds=new ByteArrayDataSource(ma.getContent(),ma.getContentType());
-      he.attach(ds,ma.getFilename(),ma.getFilename());
+    String fromAddy=((InternetAddress)mm.getFrom()).getAddress();
+    String fromName=((InternetAddress)mm.getFrom()).getPersonal();
+    email.setFrom(fromAddy,fromName);
+    Collection tos=ListUtil.fromArray(mm.getTo());
+    Collection ccs=ListUtil.fromArray(mm.getCc());
+    Collection bccs=ListUtil.fromArray(mm.getBcc());
+    if (!tos.isEmpty()) {
+      email.setTo(tos);
     }
-    List remoteAttachments=mm.getRemoteAttachments();
-    for (Iterator itr=remoteAttachments.iterator(); itr.hasNext(); ) {
-      RemoteMailAttachment rma=(RemoteMailAttachment)itr.next();
-      Object[] parts=getAttachment(ses,rma.getContentPath());
-      DataSource ds=new ByteArrayDataSource((byte[])parts[0],(String)parts[1]);
-      he.attach(ds,rma.getFilename(),rma.getFilename());
+    if (!ccs.isEmpty()) {
+      email.setCc(ccs);
     }
-    email=he;
-  }
-  String fromAddy=((InternetAddress)mm.getFrom()).getAddress();
-  String fromName=((InternetAddress)mm.getFrom()).getPersonal();
-  email.setFrom(fromAddy,fromName);
-  Collection tos=ListUtil.fromArray(mm.getTo());
-  Collection ccs=ListUtil.fromArray(mm.getCc());
-  Collection bccs=ListUtil.fromArray(mm.getBcc());
-  if (!tos.isEmpty()) {
-    email.setTo(tos);
-  }
-  if (!ccs.isEmpty()) {
-    email.setCc(ccs);
-  }
-  if (!bccs.isEmpty()) {
-    email.setBcc(bccs);
-  }
-  email.setSubject(mm.getSubject());
-  email.setHostName(_getSMTPHost());
-  email.setAuthentication(_getLogin(userId),password);
-  email.setSentDate(new Date());
-  email.buildMimeMessage();
-  if (send) {
-    email.send();
-    setCurrentFolder(ses,MAIL_SENT_NAME);
-  }
+    if (!bccs.isEmpty()) {
+      email.setBcc(bccs);
+    }
+    email.setSubject(mm.getSubject());
+    email.setHostName(_getSMTPHost());
+    email.setAuthentication(_getLogin(userId),password);
+    email.setSentDate(new Date());
+    email.buildMimeMessage();
+    if (send) {
+      email.send();
+      setCurrentFolder(ses,MAIL_SENT_NAME);
+    }
  else {
-    setCurrentFolder(ses,MAIL_DRAFTS_NAME);
+      setCurrentFolder(ses,MAIL_DRAFTS_NAME);
+    }
+    Message[] mimeMsg={email.getMimeMessage()};
+    _getCurrentFolder(ses).appendMessages(mimeMsg);
+    if (send && mm.getMessageUID() > 0L) {
+      setCurrentFolder(ses,MAIL_DRAFTS_NAME);
+      Message msg=_getCurrentFolder(ses).getMessageByUID(mm.getMessageUID());
+      _getCurrentFolder(ses).setFlags(new Message[]{msg},new Flags(Flags.Flag.DELETED),true);
+      _getCurrentFolder(ses).expunge();
+    }
   }
-  Message[] mimeMsg={email.getMimeMessage()};
-  _getCurrentFolder(ses).appendMessages(mimeMsg);
-  if (send && mm.getMessageUID() > 0L) {
-    setCurrentFolder(ses,MAIL_DRAFTS_NAME);
-    Message msg=_getCurrentFolder(ses).getMessageByUID(mm.getMessageUID());
-    _getCurrentFolder(ses).setFlags(new Message[]{msg},new Flags(Flags.Flag.DELETED),true);
-    _getCurrentFolder(ses).expunge();
+ catch (  EmailException e) {
+    _log.error("Error in building and sending email object");
+    throw new ContentException(e);
+  }
+catch (  NamingException e) {
+    _log.error("Error in building and sending email object");
+    throw new ContentException(e);
+  }
+catch (  MessagingException e) {
+    _log.error("Error in building and sending email object");
+    throw new ContentException(e);
   }
 }
