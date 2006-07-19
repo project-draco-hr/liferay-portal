@@ -1,8 +1,6 @@
 {
   String composeAction=ParamUtil.getString(req,"composeAction");
-  if ("replyAll".equals(composeAction)) {
-  }
-  if ("forward".equals(composeAction) || "reply".equals(composeAction)) {
+  if (composeAction.equals("forward") || composeAction.startsWith("reply")) {
     long messageId=ParamUtil.getLong(req,"messageId");
     String folderId=ParamUtil.getString(req,"folderId");
     RenderRequestImpl reqImpl=(RenderRequestImpl)req;
@@ -11,26 +9,32 @@
     User user=PortalUtil.getUser(req);
     DateFormat dateFormatter=DateFormats.getDateTime(user.getLocale(),user.getTimeZone());
     req.setAttribute(WebKeys.MAIL_MESSAGE,_buildBody(mm,dateFormatter));
-    if ("reply".equals(composeAction)) {
-      String userEmail=PortalUtil.getUser(req).getEmailAddress();
-      InternetAddress[] tos=(InternetAddress[])mm.getTo();
-      InternetAddress[] ccs=(InternetAddress[])mm.getCc();
-      InternetAddress[] rtos=(InternetAddress[])mm.getReplyTo();
-      tos=InternetAddressUtil.removeEntries(tos,userEmail);
-      ccs=InternetAddressUtil.removeEntries(ccs,userEmail);
-      String tosStr=InternetAddressUtil.toString(tos);
-      String rtosStr=InternetAddressUtil.toString(rtos);
-      String ccsStr=InternetAddressUtil.toString(ccs);
-      if (Validator.isNotNull(rtosStr)) {
-        tosStr=rtosStr + StringPool.COMMA + StringPool.SPACE+ tosStr;
-      }
-      String[] recipients={tosStr,ccsStr};
-      req.setAttribute(WebKeys.MAIL_RECIPIENTS,recipients);
-      req.setAttribute(WebKeys.MAIL_SUBJECT,"Re: " + _removeSubjectPrefix(mm.getSubject()));
+    if (composeAction.equals("forward")) {
+      req.setAttribute(WebKeys.MAIL_SUBJECT,"Fw: " + _removeSubjectPrefix(mm.getSubject(),"fw"));
+      req.setAttribute(WebKeys.MAIL_ATTACHMENTS,mm.getRemoteAttachments());
     }
  else {
-      req.setAttribute(WebKeys.MAIL_SUBJECT,"Fw: " + _removeSubjectPrefix(mm.getSubject()));
-      req.setAttribute(WebKeys.MAIL_ATTACHMENTS,mm.getRemoteAttachments());
+      String tosStr=StringPool.BLANK;
+      String ccsStr=StringPool.BLANK;
+      if (composeAction.equals("replyAll")) {
+        String userEmail=PortalUtil.getUser(req).getEmailAddress();
+        tosStr=InternetAddressUtil.toString(InternetAddressUtil.removeEntry(mm.getTo(),userEmail));
+        ccsStr=InternetAddressUtil.toString(InternetAddressUtil.removeEntry(mm.getCc(),userEmail));
+        String rtosStr=InternetAddressUtil.toString(mm.getReplyTo());
+        if (Validator.isNull(rtosStr)) {
+          rtosStr=((InternetAddress)mm.getFrom()).toUnicodeString();
+        }
+        tosStr=rtosStr + StringPool.COMMA + StringPool.SPACE+ tosStr;
+      }
+ else {
+        tosStr=InternetAddressUtil.toString(mm.getReplyTo());
+        if (Validator.isNull(tosStr)) {
+          tosStr=((InternetAddress)mm.getFrom()).toUnicodeString();
+        }
+      }
+      String[] recipients={Html.escape(tosStr,true),Html.escape(ccsStr,true)};
+      req.setAttribute(WebKeys.MAIL_RECIPIENTS,recipients);
+      req.setAttribute(WebKeys.MAIL_SUBJECT,"Re: " + _removeSubjectPrefix(mm.getSubject(),"re"));
     }
   }
   return mapping.findForward(getForward(req,"portlet.mailbox.edit_message"));
