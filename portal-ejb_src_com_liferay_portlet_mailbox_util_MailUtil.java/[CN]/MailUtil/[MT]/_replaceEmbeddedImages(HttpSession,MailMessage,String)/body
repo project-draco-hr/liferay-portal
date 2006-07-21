@@ -1,0 +1,39 @@
+{
+  String cidPrefix=ses.getId() + (new Date()).getTime();
+  int cidCount=0;
+  String html=mm.getHtmlBody();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Body before content paths have been replaced:\n" + html);
+  }
+  int beg=html.indexOf(actionurl);
+  while (beg >= 0) {
+    int end=html.indexOf("-1",beg);
+    if (end > 0) {
+      end+=2;
+      String attachmentPath=html.substring(beg,end);
+      String fileName=Http.getParameter(attachmentPath,"fileName",true);
+      String contentPath=Http.getParameter(attachmentPath,"contentPath",true);
+      String cid=cidPrefix + cidCount;
+      _log.info("Replacing all attachment paths '" + attachmentPath + "' with: "+ cid);
+      Object[] parts=getAttachment(ses,contentPath);
+      MailAttachment ma=new MailAttachment();
+      ma.setContent((byte[])parts[0]);
+      ma.setContentType((String)parts[1]);
+      ma.setContentID(StringPool.LESS_THAN + cid + StringPool.GREATER_THAN);
+      ma.setFilename(fileName);
+      mm.appendAttachment(ma);
+      html=StringUtil.replace(html,attachmentPath,"cid:" + cid);
+      cidCount++;
+      beg=html.indexOf(actionurl);
+    }
+ else {
+      beg=html.indexOf(actionurl,beg + 1);
+    }
+  }
+  if (cidCount > 0) {
+    mm.setHtmlBody(html);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Body after content paths have been replaced:\n" + html);
+  }
+}
