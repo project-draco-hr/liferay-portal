@@ -4,11 +4,10 @@
       _log.error("A message with no recipients cannot be sent");
       throw new RecipientException();
     }
-    String fromAddy=((InternetAddress)mm.getFrom()).getAddress();
+    String fromAddress=((InternetAddress)mm.getFrom()).getAddress();
     String fromName=((InternetAddress)mm.getFrom()).getPersonal();
     Message message=new MimeMessage(_getSession());
-    message.setSubject(mm.getSubject());
-    message.setFrom(new InternetAddress(fromAddy,fromName));
+    message.setFrom(new InternetAddress(fromAddress,fromName));
     if (!Validator.isNull(mm.getTo())) {
       message.setRecipients(Message.RecipientType.TO,mm.getTo());
     }
@@ -18,13 +17,15 @@
     if (!Validator.isNull(mm.getBcc())) {
       message.setRecipients(Message.RecipientType.BCC,mm.getBcc());
     }
+    message.setSubject(mm.getSubject());
     _replaceEmbeddedImages(ses,mm,url);
     Multipart multipart=new MimeMultipart();
-    BodyPart bodypart=new MimeBodyPart();
-    bodypart.setContent(mm.getHtmlBody(),Constants.TEXT_HTML);
-    multipart.addBodyPart(bodypart);
+    BodyPart bodyPart=new MimeBodyPart();
+    bodyPart.setContent(mm.getHtmlBody(),Constants.TEXT_HTML);
+    multipart.addBodyPart(bodyPart);
     List attachments=mm.getAttachments();
-    for (Iterator itr=attachments.iterator(); itr.hasNext(); ) {
+    Iterator itr=attachments.iterator();
+    while (itr.hasNext()) {
       MailAttachment ma=(MailAttachment)itr.next();
       DataSource ds=new ByteArrayDataSource(ma.getContent(),ma.getContentType());
       BodyPart attachment=new MimeBodyPart();
@@ -36,7 +37,8 @@
       multipart.addBodyPart(attachment);
     }
     List remoteAttachments=mm.getRemoteAttachments();
-    for (Iterator itr=remoteAttachments.iterator(); itr.hasNext(); ) {
+    itr=remoteAttachments.iterator();
+    while (itr.hasNext()) {
       RemoteMailAttachment rma=(RemoteMailAttachment)itr.next();
       Object[] parts=getAttachment(ses,rma.getContentPath());
       DataSource ds=new ByteArrayDataSource((byte[])parts[0],(String)parts[1]);
@@ -54,23 +56,17 @@
  else {
       setCurrentFolder(ses,MAIL_DRAFTS_NAME);
     }
-    _getCurrentFolder(ses).appendMessages(new Message[]{message});
+    IMAPFolder folder=_getCurrentFolder(ses);
+    folder.appendMessages(new Message[]{message});
     if (draftId > 0L) {
       setCurrentFolder(ses,MAIL_DRAFTS_NAME);
-      Message msg=_getCurrentFolder(ses).getMessageByUID(draftId);
-      _getCurrentFolder(ses).setFlags(new Message[]{msg},new Flags(Flags.Flag.DELETED),true);
-      _getCurrentFolder(ses).expunge();
+      folder=_getCurrentFolder(ses);
+      Message msg=folder.getMessageByUID(draftId);
+      folder.setFlags(new Message[]{msg},new Flags(Flags.Flag.DELETED),true);
+      folder.expunge();
     }
   }
- catch (  UnsupportedEncodingException e) {
-    _log.error("Error in building and sending email object");
-    throw new ContentException(e);
-  }
-catch (  NamingException e) {
-    _log.error("Error in building and sending email object");
-    throw new ContentException(e);
-  }
-catch (  MessagingException e) {
+ catch (  Exception e) {
     _log.error("Error in building and sending email object");
     throw new ContentException(e);
   }
