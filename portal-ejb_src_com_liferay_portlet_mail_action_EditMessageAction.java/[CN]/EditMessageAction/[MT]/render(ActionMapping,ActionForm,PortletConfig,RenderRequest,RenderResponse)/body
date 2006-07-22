@@ -1,0 +1,54 @@
+{
+  String composeAction=ParamUtil.getString(req,"composeAction");
+  long messageId=ParamUtil.getLong(req,"messageId");
+  String folderId=ParamUtil.getString(req,"folderId");
+  RenderRequestImpl reqImpl=(RenderRequestImpl)req;
+  HttpServletRequest svltReq=reqImpl.getHttpServletRequest();
+  ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
+  String attachmentUrl=themeDisplay.getPathMain() + "/mail/get_attachment?";
+  if (composeAction.equals("forward") || composeAction.startsWith("reply")) {
+    MailUtil.setCurrentFolder(svltReq.getSession(),folderId);
+    MailMessage mm=MailUtil.getMessage(svltReq.getSession(),messageId,attachmentUrl);
+    User user=PortalUtil.getUser(req);
+    DateFormat dateFormatter=DateFormats.getDateTime(user.getLocale(),user.getTimeZone());
+    req.setAttribute(WebKeys.MAIL_MESSAGE,_buildBody(mm,dateFormatter));
+    if (composeAction.equals("forward")) {
+      req.setAttribute(WebKeys.MAIL_SUBJECT,"Fw: " + _removeSubjectPrefix(mm.getSubject(),"fw"));
+      req.setAttribute(WebKeys.MAIL_ATTACHMENTS,mm.getRemoteAttachments());
+    }
+ else {
+      String tosStr=StringPool.BLANK;
+      String ccsStr=StringPool.BLANK;
+      if (composeAction.equals("replyAll")) {
+        String userEmail=PortalUtil.getUser(req).getEmailAddress();
+        tosStr=InternetAddressUtil.toString(InternetAddressUtil.removeEntry(mm.getTo(),userEmail));
+        ccsStr=InternetAddressUtil.toString(InternetAddressUtil.removeEntry(mm.getCc(),userEmail));
+        String rtosStr=InternetAddressUtil.toString(mm.getReplyTo());
+        if (Validator.isNull(rtosStr)) {
+          rtosStr=((InternetAddress)mm.getFrom()).toUnicodeString();
+        }
+        tosStr=rtosStr + StringPool.COMMA + StringPool.SPACE+ tosStr;
+      }
+ else {
+        tosStr=InternetAddressUtil.toString(mm.getReplyTo());
+        if (Validator.isNull(tosStr)) {
+          tosStr=((InternetAddress)mm.getFrom()).toUnicodeString();
+        }
+      }
+      String[] recipients={Html.escape(tosStr,true),Html.escape(ccsStr,true),StringPool.BLANK};
+      req.setAttribute(WebKeys.MAIL_RECIPIENTS,recipients);
+      req.setAttribute(WebKeys.MAIL_SUBJECT,"Re: " + _removeSubjectPrefix(mm.getSubject(),"re"));
+    }
+  }
+ else   if (composeAction.equals("edit")) {
+    MailUtil.setCurrentFolder(svltReq.getSession(),folderId);
+    MailMessage mm=MailUtil.getMessage(svltReq.getSession(),messageId,attachmentUrl);
+    String[] recipients={Html.escape(InternetAddressUtil.toString(mm.getTo()),true),Html.escape(InternetAddressUtil.toString(mm.getCc()),true),Html.escape(InternetAddressUtil.toString(mm.getBcc()),true)};
+    req.setAttribute(WebKeys.MAIL_RECIPIENTS,recipients);
+    req.setAttribute(WebKeys.MAIL_SUBJECT,mm.getSubject());
+    req.setAttribute(WebKeys.MAIL_ATTACHMENTS,mm.getRemoteAttachments());
+    req.setAttribute(WebKeys.MAIL_MESSAGE,mm.getHtmlBody());
+    req.setAttribute(WebKeys.MAIL_DRAFT_ID,new Long(messageId));
+  }
+  return mapping.findForward(getForward(req,"portlet.mail.edit_message"));
+}
