@@ -1,18 +1,24 @@
 {
-  Store store=(Store)ses.getAttribute(WebKeys.MAIL_STORE);
-  String userId=(String)ses.getAttribute(WebKeys.USER_ID);
-  String password=(String)ses.getAttribute(WebKeys.USER_PASSWORD);
   try {
+    Store store=(Store)ses.getAttribute(WebKeys.MAIL_STORE);
     if (store == null) {
-      store=_getSession().getStore("imap");
-      store.connect(_getIMAPHost(),_getLogin(userId),password);
+      Session session=MailEngine.getSession();
+      String imapHost=session.getProperty("mail.imap.host");
+      String userId=(String)ses.getAttribute(WebKeys.USER_ID);
+      if (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.MAIL_USERNAME_REPLACE))) {
+        userId=StringUtil.replace(userId,".","_");
+      }
+      String password=(String)ses.getAttribute(WebKeys.USER_PASSWORD);
+      store=session.getStore("imap");
+      store.connect(imapHost,userId,password);
       ses.setAttribute(WebKeys.MAIL_STORE,store);
-      List list=getAllFolders(ses);
+      List list=getFolders(ses);
       for (int i=0; i < DEFAULT_FOLDERS.length; i++) {
         boolean exists=false;
-        for (Iterator itr=list.iterator(); itr.hasNext(); ) {
-          MailFolder mf=(MailFolder)itr.next();
-          if (DEFAULT_FOLDERS[i].equals(mf.getName())) {
+        Iterator itr=list.iterator();
+        while (itr.hasNext()) {
+          MailFolder mailFolder=(MailFolder)itr.next();
+          if (DEFAULT_FOLDERS[i].equals(mailFolder.getName())) {
             exists=true;
             break;
           }
@@ -22,17 +28,15 @@
         }
       }
       if (ses.getAttribute(WebKeys.MAIL_FOLDER) == null) {
-        setCurrentFolder(ses,MAIL_INBOX_NAME);
+        getFolder(ses,MAIL_INBOX_NAME);
       }
     }
+    return store;
   }
- catch (  NamingException ex) {
-    _log.error("Error in accessing IMAP store");
-    throw new StoreException(ex);
+ catch (  MessagingException me) {
+    throw new StoreException(me);
   }
-catch (  MessagingException ex) {
-    _log.error("Error initializing store");
-    throw new StoreException(ex);
+catch (  NamingException ne) {
+    throw new StoreException(ne);
   }
-  return store;
 }

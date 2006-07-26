@@ -1,39 +1,38 @@
 {
-  String cidPrefix=ses.getId() + (new Date()).getTime();
-  int cidCount=0;
-  String html=mm.getHtmlBody();
+  String prefix=ses.getId() + System.currentTimeMillis();
+  int count=0;
+  String body=mailMessage.getHtmlBody();
   if (_log.isDebugEnabled()) {
-    _log.debug("Body before content paths have been replaced:\n" + html);
+    _log.debug("Body before replacing embedded images\n" + body);
   }
-  int beg=html.indexOf(actionurl);
-  while (beg >= 0) {
-    int end=html.indexOf("-1",beg);
-    if (end > 0) {
-      end+=2;
-      String attachmentPath=html.substring(beg,end);
-      String fileName=Http.getParameter(attachmentPath,"fileName",true);
-      String contentPath=Http.getParameter(attachmentPath,"contentPath",true);
-      String cid=cidPrefix + cidCount;
-      _log.info("Replacing all attachment paths '" + attachmentPath + "' with "+ cid);
+  int x=body.indexOf(url);
+  while (x >= 0) {
+    int y=body.indexOf("-1",x);
+    if (y > 0) {
+      y+=2;
+      String attachmentPath=body.substring(x,y);
+      String fileName=Http.getParameter(attachmentPath,"fileName");
+      String contentPath=Http.getParameter(attachmentPath,"contentPath");
+      String contentId=prefix + count;
       Object[] parts=getAttachment(ses,contentPath);
-      MailAttachment ma=new MailAttachment();
-      ma.setContent((byte[])parts[0]);
-      ma.setContentType((String)parts[1]);
-      ma.setContentID(StringPool.LESS_THAN + cid + StringPool.GREATER_THAN);
-      ma.setFilename(fileName);
-      mm.appendAttachment(ma);
-      html=StringUtil.replace(html,attachmentPath,"cid:" + cid);
-      cidCount++;
-      beg=html.indexOf(actionurl);
+      MailAttachment mailAttachment=new MailAttachment();
+      mailAttachment.setFilename(fileName);
+      mailAttachment.setContent((byte[])parts[0]);
+      mailAttachment.setContentType((String)parts[1]);
+      mailAttachment.setContentId(StringPool.LESS_THAN + contentId + StringPool.GREATER_THAN);
+      mailMessage.appendAttachment(mailAttachment);
+      body=StringUtil.replace(body,attachmentPath,"cid:" + contentId);
+      count++;
+      x=body.indexOf(url);
     }
  else {
-      beg=html.indexOf(actionurl,beg + 1);
+      x=body.indexOf(url,x + 1);
     }
   }
-  if (cidCount > 0) {
-    mm.setHtmlBody(html);
+  if (count > 0) {
+    mailMessage.setHtmlBody(body);
   }
   if (_log.isDebugEnabled()) {
-    _log.debug("Body after content paths have been replaced:\n" + html);
+    _log.debug("Body after replacing embedded images\n" + body);
   }
 }

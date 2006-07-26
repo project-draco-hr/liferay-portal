@@ -1,73 +1,69 @@
 {
   try {
-    if (send && Validator.isNull(mm.getTo()) && Validator.isNull(mm.getCc())&& Validator.isNull(mm.getBcc())) {
+    if (send && Validator.isNull(mailMessage.getTo()) && Validator.isNull(mailMessage.getCc())&& Validator.isNull(mailMessage.getBcc())) {
       _log.error("A message with no recipients cannot be sent");
       throw new RecipientException();
     }
-    String fromAddress=((InternetAddress)mm.getFrom()).getAddress();
-    String fromName=((InternetAddress)mm.getFrom()).getPersonal();
-    Message message=new MimeMessage(_getSession());
-    message.setFrom(new InternetAddress(fromAddress,fromName));
-    if (!Validator.isNull(mm.getTo())) {
-      message.setRecipients(Message.RecipientType.TO,mm.getTo());
+    Message message=new MimeMessage(MailEngine.getSession());
+    message.setFrom(mailMessage.getFrom());
+    if (!Validator.isNull(mailMessage.getTo())) {
+      message.setRecipients(Message.RecipientType.TO,mailMessage.getTo());
     }
-    if (!Validator.isNull(mm.getCc())) {
-      message.setRecipients(Message.RecipientType.CC,mm.getCc());
+    if (!Validator.isNull(mailMessage.getCc())) {
+      message.setRecipients(Message.RecipientType.CC,mailMessage.getCc());
     }
-    if (!Validator.isNull(mm.getBcc())) {
-      message.setRecipients(Message.RecipientType.BCC,mm.getBcc());
+    if (!Validator.isNull(mailMessage.getBcc())) {
+      message.setRecipients(Message.RecipientType.BCC,mailMessage.getBcc());
     }
-    message.setSubject(mm.getSubject());
-    _replaceEmbeddedImages(ses,mm,url);
+    message.setSubject(mailMessage.getSubject());
+    _replaceEmbeddedImages(ses,mailMessage,url);
     Multipart multipart=new MimeMultipart();
     BodyPart bodyPart=new MimeBodyPart();
-    bodyPart.setContent(mm.getHtmlBody(),Constants.TEXT_HTML);
+    bodyPart.setContent(mailMessage.getHtmlBody(),Constants.TEXT_HTML);
     multipart.addBodyPart(bodyPart);
-    List attachments=mm.getAttachments();
+    List attachments=mailMessage.getAttachments();
     Iterator itr=attachments.iterator();
     while (itr.hasNext()) {
-      MailAttachment ma=(MailAttachment)itr.next();
-      DataSource ds=new ByteArrayDataSource(ma.getContent(),ma.getContentType());
+      MailAttachment mailAttachment=(MailAttachment)itr.next();
+      DataSource dataSource=new ByteArrayDataSource(mailAttachment.getContent(),mailAttachment.getContentType());
       BodyPart attachment=new MimeBodyPart();
-      attachment.setDataHandler(new DataHandler(ds));
-      attachment.setFileName(ma.getFilename());
-      if (Validator.isNotNull(ma.getContentID())) {
-        attachment.addHeader(Constants.CONTENT_ID,ma.getContentID());
+      attachment.setFileName(mailAttachment.getFilename());
+      attachment.setDataHandler(new DataHandler(dataSource));
+      if (Validator.isNotNull(mailAttachment.getContentId())) {
+        attachment.addHeader(Constants.CONTENT_ID,mailAttachment.getContentId());
       }
       multipart.addBodyPart(attachment);
     }
-    List remoteAttachments=mm.getRemoteAttachments();
+    List remoteAttachments=mailMessage.getRemoteAttachments();
     itr=remoteAttachments.iterator();
     while (itr.hasNext()) {
-      RemoteMailAttachment rma=(RemoteMailAttachment)itr.next();
-      Object[] parts=getAttachment(ses,rma.getContentPath());
-      DataSource ds=new ByteArrayDataSource((byte[])parts[0],(String)parts[1]);
+      RemoteMailAttachment remoteMailAttachment=(RemoteMailAttachment)itr.next();
+      Object[] parts=getAttachment(ses,remoteMailAttachment.getContentPath());
+      DataSource dataSource=new ByteArrayDataSource((byte[])parts[0],(String)parts[1]);
       BodyPart attachment=new MimeBodyPart();
-      attachment.setDataHandler(new DataHandler(ds));
-      attachment.setFileName(rma.getFilename());
+      attachment.setFileName(remoteMailAttachment.getFilename());
+      attachment.setDataHandler(new DataHandler(dataSource));
       multipart.addBodyPart(attachment);
     }
     message.setContent(multipart);
     message.setSentDate(new Date());
+    IMAPFolder folder=null;
     if (send) {
       Transport.send(message);
-      setCurrentFolder(ses,MAIL_SENT_NAME);
+      folder=getFolder(ses,MAIL_SENT_NAME);
     }
  else {
-      setCurrentFolder(ses,MAIL_DRAFTS_NAME);
+      folder=getFolder(ses,MAIL_DRAFTS_NAME);
     }
-    IMAPFolder folder=_getCurrentFolder(ses);
     folder.appendMessages(new Message[]{message});
-    if (draftId > 0L) {
-      setCurrentFolder(ses,MAIL_DRAFTS_NAME);
-      folder=_getCurrentFolder(ses);
+    if (draftId > 0) {
+      folder=getFolder(ses,MAIL_DRAFTS_NAME);
       Message msg=folder.getMessageByUID(draftId);
       folder.setFlags(new Message[]{msg},new Flags(Flags.Flag.DELETED),true);
       folder.expunge();
     }
   }
  catch (  Exception e) {
-    _log.error("Error in building and sending email object");
     throw new ContentException(e);
   }
 }

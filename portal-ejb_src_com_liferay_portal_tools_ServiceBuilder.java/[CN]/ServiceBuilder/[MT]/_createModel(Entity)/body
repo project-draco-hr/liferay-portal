@@ -1,6 +1,6 @@
 {
   List pkList=entity.getPKList();
-  List columnList=entity.getColumnList();
+  List regularColList=entity.getRegularColList();
   StringBuffer sb=new StringBuffer();
   sb.append("package " + _packagePath + ".model;");
   if (entity.hasCompoundPK()) {
@@ -15,8 +15,8 @@
   sb.append("public class " + entity.getName() + "Model extends BaseModel {");
   sb.append("public static boolean CACHEABLE = GetterUtil.get(PropsUtil.get(\"value.object.cacheable." + _packagePath + ".model."+ entity.getName()+ "\"), VALUE_OBJECT_CACHEABLE);");
   sb.append("public static boolean XSS_ALLOW_BY_MODEL = GetterUtil.getBoolean(PropsUtil.get(\"xss.allow." + _packagePath + ".model."+ entity.getName()+ "\"), XSS_ALLOW);");
-  for (int i=0; i < columnList.size(); i++) {
-    EntityColumn col=(EntityColumn)columnList.get(i);
+  for (int i=0; i < regularColList.size(); i++) {
+    EntityColumn col=(EntityColumn)regularColList.get(i);
     if (col.getType().equals("String")) {
       sb.append("public static boolean XSS_ALLOW_" + col.getName().toUpperCase() + " = GetterUtil.getBoolean(PropsUtil.get(\"xss.allow."+ _packagePath+ ".model."+ entity.getName()+ "."+ col.getName()+ "\"), XSS_ALLOW_BY_MODEL);");
     }
@@ -53,58 +53,54 @@
     sb.append("set" + col.getMethodName() + "(pk);");
   }
   sb.append("}");
-  for (int i=0; i < columnList.size(); i++) {
-    EntityColumn col=(EntityColumn)columnList.get(i);
+  for (int i=0; i < regularColList.size(); i++) {
+    EntityColumn col=(EntityColumn)regularColList.get(i);
     String colType=col.getType();
-    if (!col.isCollection()) {
-      sb.append("public " + colType + " get"+ col.getMethodName()+ "() {");
-      if (colType.equals("String")) {
-        sb.append("return GetterUtil.getString(_" + col.getName() + ");");
-      }
+    sb.append("public " + colType + " get"+ col.getMethodName()+ "() {");
+    if (colType.equals("String")) {
+      sb.append("return GetterUtil.getString(_" + col.getName() + ");");
+    }
  else {
-        sb.append("return _" + col.getName() + ";");
-      }
-      sb.append("}");
-      if (colType.equals("boolean")) {
-        sb.append("public " + colType + " is"+ col.getMethodName()+ "() {");
-        sb.append("return _" + col.getName() + ";");
-        sb.append("}");
-      }
-      sb.append("public void set" + col.getMethodName() + "("+ colType+ " "+ col.getName()+ ") {");
-      sb.append("if (");
-      if (!col.isPrimitiveType()) {
-        sb.append("(" + col.getName() + " == null && _"+ col.getName()+ " != null) ||");
-        sb.append("(" + col.getName() + " != null && _"+ col.getName()+ " == null) ||");
-        sb.append("(" + col.getName() + " != null && _"+ col.getName()+ " != null && !"+ col.getName()+ ".equals(_"+ col.getName()+ "))");
-      }
- else {
-        sb.append(col.getName() + " != _" + col.getName());
-      }
-      sb.append(") {");
-      if (colType.equals("String")) {
-        sb.append("if (!XSS_ALLOW_" + col.getName().toUpperCase() + ") {");
-        sb.append(col.getName() + " = XSSUtil.strip(" + col.getName()+ ");");
-        sb.append("}");
-      }
-      sb.append("_" + col.getName() + " = "+ col.getName()+ ";");
-      sb.append("}");
+      sb.append("return _" + col.getName() + ";");
+    }
+    sb.append("}");
+    if (colType.equals("boolean")) {
+      sb.append("public " + colType + " is"+ col.getMethodName()+ "() {");
+      sb.append("return _" + col.getName() + ";");
       sb.append("}");
     }
+    sb.append("public void set" + col.getMethodName() + "("+ colType+ " "+ col.getName()+ ") {");
+    sb.append("if (");
+    if (!col.isPrimitiveType()) {
+      sb.append("(" + col.getName() + " == null && _"+ col.getName()+ " != null) ||");
+      sb.append("(" + col.getName() + " != null && _"+ col.getName()+ " == null) ||");
+      sb.append("(" + col.getName() + " != null && _"+ col.getName()+ " != null && !"+ col.getName()+ ".equals(_"+ col.getName()+ "))");
+    }
+ else {
+      sb.append(col.getName() + " != _" + col.getName());
+    }
+    sb.append(") {");
+    if (colType.equals("String")) {
+      sb.append("if (!XSS_ALLOW_" + col.getName().toUpperCase() + ") {");
+      sb.append(col.getName() + " = XSSUtil.strip(" + col.getName()+ ");");
+      sb.append("}");
+    }
+    sb.append("_" + col.getName() + " = "+ col.getName()+ ";");
+    sb.append("}");
+    sb.append("}");
   }
   sb.append("public Object clone() {");
   sb.append(entity.getName() + " clone = new " + entity.getName()+ "();");
-  for (int i=0; i < columnList.size(); i++) {
-    EntityColumn col=(EntityColumn)columnList.get(i);
-    if (!col.isCollection()) {
-      sb.append("clone.set" + col.getMethodName() + "(");
-      if (col.getEJBName() == null) {
-        sb.append("get" + col.getMethodName() + "()");
-      }
- else {
-        sb.append("(" + col.getEJBName() + ")get"+ col.getMethodName()+ "().clone()");
-      }
-      sb.append(");");
+  for (int i=0; i < regularColList.size(); i++) {
+    EntityColumn col=(EntityColumn)regularColList.get(i);
+    sb.append("clone.set" + col.getMethodName() + "(");
+    if (col.getEJBName() == null) {
+      sb.append("get" + col.getMethodName() + "()");
     }
+ else {
+      sb.append("(" + col.getEJBName() + ")get"+ col.getMethodName()+ "().clone()");
+    }
+    sb.append(");");
   }
   sb.append("return clone;");
   sb.append("}");
@@ -186,11 +182,9 @@
   sb.append("public int hashCode() {");
   sb.append("return getPrimaryKey().hashCode();");
   sb.append("}");
-  for (int i=0; i < columnList.size(); i++) {
-    EntityColumn col=(EntityColumn)columnList.get(i);
-    if (!col.isCollection()) {
-      sb.append("private " + col.getType() + " _"+ col.getName()+ ";");
-    }
+  for (int i=0; i < regularColList.size(); i++) {
+    EntityColumn col=(EntityColumn)regularColList.get(i);
+    sb.append("private " + col.getType() + " _"+ col.getName()+ ";");
   }
   sb.append("}");
   File modelFile=new File(_outputPath + "/model/" + entity.getName()+ "Model.java");
