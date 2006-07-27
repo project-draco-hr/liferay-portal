@@ -1,3 +1,57 @@
 {
+  RenderRequestImpl reqImpl=(RenderRequestImpl)req;
+  HttpServletRequest httpReq=reqImpl.getHttpServletRequest();
+  HttpSession httpSes=httpReq.getSession();
+  String cmd=ParamUtil.getString(req,Constants.CMD);
+  String folderId=ParamUtil.getString(req,"folderId");
+  long messageId=ParamUtil.getLong(req,"messageId");
+  if (cmd.equals("forward") || cmd.startsWith("reply")) {
+    MailUtil.getFolder(httpSes,folderId);
+    MailMessage mailMessage=MailUtil.getMessage(httpReq,messageId);
+    if (cmd.equals("forward")) {
+      req.setAttribute(WebKeys.MAIL_MESSAGE_SUBJECT,"Fw: " + getSubject(mailMessage.getSubject(),"fw"));
+      req.setAttribute(WebKeys.MAIL_MESSAGE_ATTACHMENTS,mailMessage.getRemoteAttachments());
+    }
+ else {
+      String to=StringPool.BLANK;
+      String cc=StringPool.BLANK;
+      if (cmd.equals("replyAll")) {
+        User user=PortalUtil.getUser(req);
+        String emailAddress=user.getEmailAddress();
+        to=InternetAddressUtil.toString(InternetAddressUtil.removeEntry(mailMessage.getTo(),emailAddress));
+        cc=InternetAddressUtil.toString(InternetAddressUtil.removeEntry(mailMessage.getCc(),emailAddress));
+        String replyTo=InternetAddressUtil.toString(mailMessage.getReplyTo());
+        if (Validator.isNull(replyTo)) {
+          InternetAddress from=(InternetAddress)mailMessage.getFrom();
+          replyTo=from.toUnicodeString();
+        }
+        to=replyTo + StringPool.COMMA + StringPool.SPACE+ to;
+      }
+ else {
+        to=InternetAddressUtil.toString(mailMessage.getReplyTo());
+        if (Validator.isNull(to)) {
+          InternetAddress from=(InternetAddress)mailMessage.getFrom();
+          to=from.toUnicodeString();
+        }
+      }
+      String[] recipients=new String[]{Html.escape(to,true),Html.escape(cc,true),StringPool.BLANK};
+      req.setAttribute(WebKeys.MAIL_MESSAGE_RECIPIENTS,recipients);
+      req.setAttribute(WebKeys.MAIL_MESSAGE_SUBJECT,"Re: " + getSubject(mailMessage.getSubject(),"re"));
+    }
+    req.setAttribute(WebKeys.MAIL_MESSAGE_BODY,getBody(req,mailMessage));
+  }
+ else   if (cmd.equals(Constants.EDIT)) {
+    MailUtil.getFolder(httpSes,folderId);
+    MailMessage mailMessage=MailUtil.getMessage(httpReq,messageId);
+    String to=Html.escape(InternetAddressUtil.toString(mailMessage.getTo()));
+    String cc=Html.escape(InternetAddressUtil.toString(mailMessage.getCc()));
+    String bcc=Html.escape(InternetAddressUtil.toString(mailMessage.getBcc()));
+    String[] recipients=new String[]{to,cc,bcc};
+    req.setAttribute(WebKeys.MAIL_MESSAGE_DRAFT_ID,new Long(messageId));
+    req.setAttribute(WebKeys.MAIL_MESSAGE_RECIPIENTS,recipients);
+    req.setAttribute(WebKeys.MAIL_MESSAGE_SUBJECT,mailMessage.getSubject());
+    req.setAttribute(WebKeys.MAIL_MESSAGE_BODY,mailMessage.getHtmlBody());
+    req.setAttribute(WebKeys.MAIL_MESSAGE_ATTACHMENTS,mailMessage.getRemoteAttachments());
+  }
   return mapping.findForward("portlet.mail.edit_message");
 }
