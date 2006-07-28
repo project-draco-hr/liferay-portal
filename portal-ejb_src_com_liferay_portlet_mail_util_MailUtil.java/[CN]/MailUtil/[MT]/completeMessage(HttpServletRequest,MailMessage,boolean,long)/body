@@ -1,8 +1,6 @@
 {
+  HttpSession ses=req.getSession();
   try {
-    ActionRequestImpl actionReqImpl=(ActionRequestImpl)actionReq;
-    HttpServletRequest req=actionReqImpl.getHttpServletRequest();
-    HttpSession ses=req.getSession();
     if (send && Validator.isNull(mailMessage.getTo()) && Validator.isNull(mailMessage.getCc())&& Validator.isNull(mailMessage.getBcc())) {
       _log.error("A message with no recipients cannot be sent");
       throw new RecipientException();
@@ -50,20 +48,28 @@
     }
     message.setContent(multipart);
     message.setSentDate(new Date());
-    IMAPFolder folder=null;
     if (send) {
       Transport.send(message);
-      folder=_getFolder(ses,MAIL_SENT_NAME);
     }
+    try {
+      MailSessionLock.getInstance().lock(ses.getId());
+      IMAPFolder folder=null;
+      if (send) {
+        folder=_getFolder(ses,MAIL_SENT_NAME);
+      }
  else {
-      folder=_getFolder(ses,MAIL_DRAFTS_NAME);
+        folder=_getFolder(ses,MAIL_DRAFTS_NAME);
+      }
+      folder.appendMessages(new Message[]{message});
+      if (draftId > 0) {
+        folder=_getFolder(ses,MAIL_DRAFTS_NAME);
+        Message msg=folder.getMessageByUID(draftId);
+        folder.setFlags(new Message[]{msg},new Flags(Flags.Flag.DELETED),true);
+        folder.expunge();
+      }
     }
-    folder.appendMessages(new Message[]{message});
-    if (draftId > 0) {
-      folder=_getFolder(ses,MAIL_DRAFTS_NAME);
-      Message msg=folder.getMessageByUID(draftId);
-      folder.setFlags(new Message[]{msg},new Flags(Flags.Flag.DELETED),true);
-      folder.expunge();
+  finally {
+      MailSessionLock.getInstance().unlock(ses.getId());
     }
   }
  catch (  Exception e) {
