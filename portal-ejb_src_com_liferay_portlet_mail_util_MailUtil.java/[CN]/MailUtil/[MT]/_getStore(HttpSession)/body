@@ -1,15 +1,22 @@
 {
   try {
     Store store=(Store)ses.getAttribute(WebKeys.MAIL_STORE);
+    if (store != null && !store.isConnected()) {
+      _log.info("The store needs to be reconnected");
+      cleanUp(ses);
+      store=null;
+    }
     if (store == null) {
       Session session=MailEngine.getSession();
       String imapHost=session.getProperty("mail.imap.host");
       String userId=(String)ses.getAttribute(WebKeys.USER_ID);
+      String serviceName=userId + StringPool.COLON + WebKeys.MAIL_STORE;
       if (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.MAIL_USERNAME_REPLACE))) {
         userId=StringUtil.replace(userId,".","_");
       }
       String password=(String)ses.getAttribute(WebKeys.USER_PASSWORD);
       store=session.getStore("imap");
+      store.addConnectionListener(new ConnectionListener(serviceName));
       store.connect(imapHost,userId,password);
       ses.setAttribute(WebKeys.MAIL_STORE,store);
       List list=getFolders(ses);
