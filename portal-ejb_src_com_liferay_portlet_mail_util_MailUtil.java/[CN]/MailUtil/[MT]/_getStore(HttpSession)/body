@@ -9,29 +9,31 @@
       store=null;
     }
     if (store == null) {
+      Session session=MailEngine.getSession();
+      String imapHost=session.getProperty("mail.imap.host");
       String userId=(String)ses.getAttribute(WebKeys.USER_ID);
+      String serviceName=userId + StringPool.COLON + WebKeys.MAIL_STORE;
       if (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.MAIL_USERNAME_REPLACE))) {
         userId=StringUtil.replace(userId,".","_");
       }
-      String serviceName=userId + StringPool.COLON + WebKeys.MAIL_STORE;
-      Session session=MailEngine.getSession();
       String password=(String)ses.getAttribute(WebKeys.USER_PASSWORD);
-      String imapHost=session.getProperty("mail.imap.host");
       store=session.getStore("imap");
       store.addConnectionListener(new ConnectionListener(serviceName));
       store.connect(imapHost,userId,password);
       ses.setAttribute(WebKeys.MAIL_STORE,store);
       List list=getFolders(ses);
-      if (_log.isInfoEnabled()) {
-        _log.info("Store has " + list.size() + " folders");
-      }
       for (int i=0; i < DEFAULT_FOLDERS.length; i++) {
-        Folder folder=store.getFolder(DEFAULT_FOLDERS[i]);
-        if (!folder.exists()) {
-          folder.create(Folder.HOLDS_MESSAGES);
-          if (_log.isInfoEnabled()) {
-            _log.info("Created default folder " + DEFAULT_FOLDERS[i]);
+        boolean exists=false;
+        Iterator itr=list.iterator();
+        while (itr.hasNext()) {
+          MailFolder mailFolder=(MailFolder)itr.next();
+          if (DEFAULT_FOLDERS[i].equals(mailFolder.getName())) {
+            exists=true;
+            break;
           }
+        }
+        if (!exists) {
+          createFolder(ses,DEFAULT_FOLDERS[i]);
         }
       }
       if (ses.getAttribute(WebKeys.MAIL_FOLDER) == null) {
@@ -40,13 +42,10 @@
     }
     return store;
   }
- catch (  NoSuchProviderException pe) {
-    throw new StoreException(pe);
+ catch (  MessagingException me) {
+    throw new StoreException(me);
   }
 catch (  NamingException ne) {
     throw new StoreException(ne);
-  }
-catch (  MessagingException me) {
-    throw new StoreException(me);
   }
 }
