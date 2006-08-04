@@ -7,7 +7,7 @@
   MBCategory category=MBCategoryUtil.findByPrimaryKey(categoryId);
   Date now=new Date();
   validate(subject,body);
-  String messageId=Long.toString(CounterServiceUtil.increment(MBMessage.class.getName()));
+  String messageId=Long.toString(CounterLocalServiceUtil.increment(MBMessage.class.getName()));
   start=logAddMessage(messageId,start,1);
   MBMessage message=MBMessageUtil.create(new MBMessagePK(MBMessage.DEPRECATED_TOPIC_ID,messageId));
   message.setCompanyId(user.getCompanyId());
@@ -24,7 +24,7 @@
     thread=MBThreadUtil.fetchByPrimaryKey(threadId);
   }
   if (thread == null || parentMessageId.equals(MBMessage.DEFAULT_PARENT_MESSAGE_ID)) {
-    threadId=Long.toString(CounterServiceUtil.increment(MBThread.class.getName()));
+    threadId=Long.toString(CounterLocalServiceUtil.increment(MBThread.class.getName()));
     thread=MBThreadUtil.create(threadId);
     thread.setCategoryId(categoryId);
     thread.setTopicId(message.getTopicId());
@@ -53,20 +53,25 @@
     String repositoryId=Company.SYSTEM;
     String dirName=message.getAttachmentsDir();
     try {
-      DLServiceUtil.deleteDirectory(companyId,portletId,repositoryId,dirName);
-    }
- catch (    NoSuchDirectoryException nsde) {
-    }
-    DLServiceUtil.addDirectory(companyId,repositoryId,dirName);
-    for (int i=0; i < files.size(); i++) {
-      ObjectValuePair ovp=(ObjectValuePair)files.get(i);
-      String fileName=(String)ovp.getKey();
-      byte[] byteArray=(byte[])ovp.getValue();
       try {
-        DLServiceUtil.addFile(companyId,portletId,groupId,repositoryId,dirName + "/" + fileName,byteArray);
+        DLServiceUtil.deleteDirectory(companyId,portletId,repositoryId,dirName);
       }
- catch (      DuplicateFileException dfe) {
+ catch (      NoSuchDirectoryException nsde) {
       }
+      DLServiceUtil.addDirectory(companyId,repositoryId,dirName);
+      for (int i=0; i < files.size(); i++) {
+        ObjectValuePair ovp=(ObjectValuePair)files.get(i);
+        String fileName=(String)ovp.getKey();
+        byte[] byteArray=(byte[])ovp.getValue();
+        try {
+          DLServiceUtil.addFile(companyId,portletId,groupId,repositoryId,dirName + "/" + fileName,byteArray);
+        }
+ catch (        DuplicateFileException dfe) {
+        }
+      }
+    }
+ catch (    RemoteException re) {
+      throw new SystemException(re);
     }
   }
   start=logAddMessage(messageId,start,3);
