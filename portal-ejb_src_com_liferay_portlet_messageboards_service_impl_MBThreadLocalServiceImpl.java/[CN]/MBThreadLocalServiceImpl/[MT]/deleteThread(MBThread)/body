@@ -1,8 +1,34 @@
 {
-  List messages=MBMessageUtil.findByThreadId(thread.getThreadId());
-  Collections.sort(messages,new MessageThreadComparator());
-  for (int i=messages.size() - 1; i >= 0; i--) {
-    MBMessage message=(MBMessage)messages.get(i);
-    MBMessageLocalServiceUtil.deleteMessage(message);
+  MBMessage rootMessage=MBMessageUtil.findByPrimaryKey(new MBMessagePK(MBMessage.DEPRECATED_TOPIC_ID,thread.getRootMessageId()));
+  try {
+    Indexer.deleteMessages(rootMessage.getCompanyId(),thread.getThreadId());
   }
+ catch (  IOException ioe) {
+    _log.error(ioe.getMessage());
+  }
+catch (  ParseException pe) {
+    _log.error(pe.getMessage());
+  }
+  String companyId=rootMessage.getCompanyId();
+  String portletId=Company.SYSTEM;
+  String repositoryId=Company.SYSTEM;
+  String dirName=thread.getAttachmentsDir();
+  try {
+    DLServiceUtil.deleteDirectory(companyId,portletId,repositoryId,dirName);
+  }
+ catch (  NoSuchDirectoryException nsde) {
+  }
+catch (  RemoteException re) {
+    throw new SystemException(re);
+  }
+  Iterator itr=MBMessageUtil.findByThreadId(thread.getThreadId()).iterator();
+  while (itr.hasNext()) {
+    MBMessage message=(MBMessage)itr.next();
+    MBMessageFlagUtil.removeByT_M(message.getTopicId(),message.getMessageId());
+    if (!message.isDiscussion()) {
+      ResourceLocalServiceUtil.deleteResource(message.getCompanyId(),MBMessage.class.getName(),Resource.TYPE_CLASS,Resource.SCOPE_INDIVIDUAL,message.getPrimaryKey().toString());
+    }
+    MBMessageUtil.remove(message.getPrimaryKey());
+  }
+  MBThreadUtil.remove(thread.getThreadId());
 }
