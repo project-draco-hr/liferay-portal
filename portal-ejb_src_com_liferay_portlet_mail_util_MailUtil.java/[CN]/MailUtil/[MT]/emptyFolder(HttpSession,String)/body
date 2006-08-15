@@ -1,24 +1,28 @@
 {
   try {
     MailSessionLock.lock(ses.getId());
-    folderName=_getResolvedFolderName(folderName);
-    Store store=_getStore(ses);
-    IMAPFolder folder=(IMAPFolder)store.getFolder(folderName);
-    folder.open(IMAPFolder.READ_WRITE);
-    String curFolderName=_getResolvedFolderName(folder.getName());
-    if (folderName.equals(curFolderName)) {
-      Message[] messages=folder.getMessages();
-      long[] messageIds=new long[messages.length];
-      for (int i=0; i < messages.length; i++) {
-        messageIds[i]=folder.getUID(messages[i]);
+    String lastFolderName=getFolderName(ses);
+    IMAPFolder folder=_getFolder(ses,folderName);
+    long[] ids=new long[0];
+    try {
+      Message[] msgs=folder.getMessages();
+      FetchProfile fetchProfile=new FetchProfile();
+      fetchProfile.add(FetchProfile.Item.ENVELOPE);
+      folder.fetch(msgs,fetchProfile);
+      ids=new long[msgs.length];
+      for (int i=0; i < msgs.length; i++) {
+        ids[i]=folder.getUID(msgs[i]);
       }
-      deleteMessages(ses,messageIds);
+      deleteMessages(ses,ids,true);
+    }
+ catch (    MessagingException me) {
+      throw new FolderException(me);
+    }
+ finally {
+      setFolder(ses,lastFolderName);
     }
   }
- catch (  MessagingException me) {
-    throw new FolderException(me);
-  }
- finally {
+  finally {
     MailSessionLock.unlock(ses.getId());
   }
 }
