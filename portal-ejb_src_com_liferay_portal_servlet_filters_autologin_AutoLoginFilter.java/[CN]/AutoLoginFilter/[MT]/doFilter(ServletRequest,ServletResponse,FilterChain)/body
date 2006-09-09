@@ -3,14 +3,19 @@
   HttpServletResponse httpRes=(HttpServletResponse)res;
   HttpSession ses=httpReq.getSession();
   String userId=httpReq.getRemoteUser();
-  if ((userId == null) && (ses.getAttribute("j_username") == null)) {
+  String jUserName=(String)ses.getAttribute("j_username");
+  if ((userId == null) && (jUserName == null)) {
     req.setAttribute(WebKeys.COMPANY_ID,_companyId);
     String[] autoLogins=PropsUtil.getArray(PropsUtil.AUTO_LOGIN_HOOKS);
     for (int i=0; i < autoLogins.length; i++) {
       AutoLogin autoLogin=(AutoLogin)InstancePool.get(autoLogins[i]);
       try {
-        if (login(httpReq,httpRes,ses,autoLogin)) {
-          return;
+        String loginUserId=login(httpReq,httpRes,ses,autoLogin);
+        if (loginUserId != null) {
+          req=new ProtectedServletRequest(httpReq,loginUserId);
+          if (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.PORTAL_JAAS_ENABLE))) {
+            return;
+          }
         }
       }
  catch (      AutoLoginException ale) {
