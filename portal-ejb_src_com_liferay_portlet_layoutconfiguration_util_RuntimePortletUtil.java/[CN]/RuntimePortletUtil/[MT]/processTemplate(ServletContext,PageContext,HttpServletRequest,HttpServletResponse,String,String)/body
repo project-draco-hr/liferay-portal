@@ -5,11 +5,37 @@
   TemplateProcessor processor=new TemplateProcessor(ctx,req,res,portletId);
   VelocityContext context=new VelocityContext();
   context.put("processor",processor);
+  StringWriter sw=new StringWriter();
   try {
-    Velocity.evaluate(context,pageContext.getOut(),RuntimePortletUtil.class.getName(),content);
+    Velocity.evaluate(context,sw,RuntimePortletUtil.class.getName(),content);
   }
  catch (  Exception e) {
-    e.printStackTrace();
+    _log.error(StackTraceUtil.getStackTrace(e));
     throw e;
   }
+  String output=sw.toString();
+  Map columnsMap=processor.getColumnsMap();
+  Iterator itr=columnsMap.entrySet().iterator();
+  while (itr.hasNext()) {
+    Map.Entry entry=(Map.Entry)itr.next();
+    String key=(String)entry.getKey();
+    String value=(String)entry.getValue();
+    output=StringUtil.replace(output,key,value);
+  }
+  Map portletsMap=processor.getPortletsMap();
+  itr=portletsMap.entrySet().iterator();
+  while (itr.hasNext()) {
+    Map.Entry entry=(Map.Entry)itr.next();
+    Portlet portlet=(Portlet)entry.getKey();
+    Object[] value=(Object[])entry.getValue();
+    String rootPortletId=(String)value[0];
+    String instanceId=(String)value[1];
+    String columnId=(String)value[2];
+    Integer columnPos=(Integer)value[3];
+    Integer columnCount=(Integer)value[4];
+    StringBuffer sb=new StringBuffer();
+    RuntimePortletUtil.processPortlet(sb,ctx,req,res,null,null,rootPortletId,instanceId,columnId,columnPos,columnCount);
+    output=StringUtil.replace(output,"[$TEMPLATE_PORTLET_" + portlet.getPortletId() + "$]",sb.toString());
+  }
+  pageContext.getOut().print(output);
 }
