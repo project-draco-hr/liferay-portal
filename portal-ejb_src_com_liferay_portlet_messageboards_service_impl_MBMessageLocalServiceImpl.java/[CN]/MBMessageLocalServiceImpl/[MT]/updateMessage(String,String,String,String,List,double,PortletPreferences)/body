@@ -1,0 +1,69 @@
+{
+  MBMessage message=MBMessageUtil.findByPrimaryKey(new MBMessagePK(MBMessage.DEPRECATED_TOPIC_ID,messageId));
+  MBCategory category=getCategory(message,categoryId);
+  String oldCategoryId=message.getCategoryId();
+  Date now=new Date();
+  validate(subject,body);
+  if (files.size() > 0) {
+    String companyId=message.getCompanyId();
+    String portletId=Company.SYSTEM;
+    String groupId=Group.DEFAULT_PARENT_GROUP_ID;
+    String repositoryId=Company.SYSTEM;
+    String dirName=message.getAttachmentsDir();
+    try {
+      try {
+        DLServiceUtil.deleteDirectory(companyId,portletId,repositoryId,dirName);
+      }
+ catch (      NoSuchDirectoryException nsde) {
+      }
+      DLServiceUtil.addDirectory(companyId,repositoryId,dirName);
+      for (int i=0; i < files.size(); i++) {
+        ObjectValuePair ovp=(ObjectValuePair)files.get(i);
+        String fileName=(String)ovp.getKey();
+        byte[] byteArray=(byte[])ovp.getValue();
+        try {
+          DLServiceUtil.addFile(companyId,portletId,groupId,repositoryId,dirName + "/" + fileName,byteArray);
+        }
+ catch (        DuplicateFileException dfe) {
+        }
+      }
+    }
+ catch (    RemoteException re) {
+      throw new SystemException(re);
+    }
+  }
+  message.setModifiedDate(now);
+  message.setSubject(subject);
+  message.setBody(body);
+  message.setAttachments((files.size() > 0 ? true : false));
+  MBMessageUtil.update(message);
+  notifySubscribers(message,prefs,true);
+  MBThread thread=MBThreadUtil.findByPrimaryKey(message.getThreadId());
+  thread.setPriority(priority);
+  MBThreadUtil.update(thread);
+  category.setLastPostDate(now);
+  MBCategoryUtil.update(category);
+  if (!oldCategoryId.equals(category.getCategoryId())) {
+    Iterator itr=MBMessageUtil.findByCategoryId(oldCategoryId).iterator();
+    while (itr.hasNext()) {
+      MBMessage curMessage=(MBMessage)itr.next();
+      curMessage.setCategoryId(category.getCategoryId());
+      MBMessageUtil.update(curMessage);
+    }
+    itr=MBThreadUtil.findByCategoryId(oldCategoryId).iterator();
+    while (itr.hasNext()) {
+      MBThread curThread=(MBThread)itr.next();
+      curThread.setCategoryId(category.getCategoryId());
+      MBThreadUtil.update(curThread);
+    }
+  }
+  try {
+    if (!category.isDiscussion()) {
+      Indexer.updateMessage(message.getCompanyId(),category.getGroupId(),category.getCategoryId(),message.getThreadId(),messageId,subject,body);
+    }
+  }
+ catch (  IOException ioe) {
+    _log.error(ioe.getMessage());
+  }
+  return message;
+}
