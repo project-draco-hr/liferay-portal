@@ -1,0 +1,50 @@
+{
+  if (_log.isDebugEnabled()) {
+    if (USE_VIRTUAL_HOST_FILTER) {
+      _log.debug("Virtual host is enabled");
+    }
+ else {
+      _log.debug("Virtual host is disabled");
+    }
+  }
+  HttpServletRequest httpReq=(HttpServletRequest)req;
+  HttpServletResponse httpRes=(HttpServletResponse)res;
+  if (_log.isDebugEnabled()) {
+    _log.debug("Received " + httpReq.getRequestURL());
+  }
+  String friendlyURL=httpReq.getRequestURI().toLowerCase();
+  String redirect=null;
+  if (USE_VIRTUAL_HOST_FILTER && _isValidFriendlyURL(friendlyURL)) {
+    String host=PortalUtil.getHost(httpReq);
+    String servletPath=httpReq.getServletPath();
+    String mainPath=(String)_ctx.getAttribute(WebKeys.MAIN_PATH);
+    String friendlyURLPublicPath=(String)_ctx.getAttribute(WebKeys.FRIENDLY_URL_PUBLIC_PATH);
+    String friendlyURLPrivatePath=(String)_ctx.getAttribute(WebKeys.FRIENDLY_URL_PRIVATE_PATH);
+    if (Validator.isNotNull(host) && Validator.isNotNull(servletPath) && !servletPath.startsWith(mainPath)&& !servletPath.startsWith(friendlyURLPublicPath)&& !servletPath.startsWith(friendlyURLPrivatePath)) {
+      try {
+        LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(_companyId,host);
+        String ownerId=layoutSet.getOwnerId();
+        redirect=PortalUtil.getLayoutActualURL(ownerId,mainPath,friendlyURL);
+      }
+ catch (      NoSuchLayoutException nsle) {
+        _log.warn(nsle);
+      }
+catch (      NoSuchLayoutSetException nslse) {
+        _log.warn(nslse);
+      }
+catch (      Exception e) {
+        _log.error("Could not look up virtual host " + host,e);
+      }
+    }
+  }
+  if (redirect != null) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Redirect to " + redirect);
+    }
+    RequestDispatcher rd=_ctx.getRequestDispatcher(redirect);
+    rd.forward(req,res);
+  }
+ else {
+    chain.doFilter(req,res);
+  }
+}
