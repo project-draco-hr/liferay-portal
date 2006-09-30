@@ -1,4 +1,8 @@
 {
+  String userId=(String)ses.getAttribute(WebKeys.USER_ID);
+  if (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.MAIL_USERNAME_REPLACE))) {
+    userId=StringUtil.replace(userId,".","_");
+  }
   try {
     Store store=(Store)ses.getAttribute(WebKeys.MAIL_STORE);
     if (store != null && !store.isConnected()) {
@@ -11,12 +15,8 @@
     if (store == null) {
       Session session=MailEngine.getSession();
       String imapHost=session.getProperty("mail.imap.host");
-      String userId=(String)ses.getAttribute(WebKeys.USER_ID);
-      String serviceName=userId + StringPool.COLON + WebKeys.MAIL_STORE;
-      if (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.MAIL_USERNAME_REPLACE))) {
-        userId=StringUtil.replace(userId,".","_");
-      }
       String password=(String)ses.getAttribute(WebKeys.USER_PASSWORD);
+      String serviceName=userId + StringPool.COLON + WebKeys.MAIL_STORE;
       store=session.getStore("imap");
       store.addConnectionListener(new ConnectionListener(serviceName));
       store.connect(imapHost,userId,password);
@@ -42,7 +42,13 @@
     }
     return store;
   }
- catch (  MessagingException me) {
+ catch (  AuthenticationFailedException afe) {
+    if (_log.isErrorEnabled()) {
+      _log.error("Failed to authenticate the userId '" + userId + "'");
+    }
+    throw new StoreException(afe);
+  }
+catch (  MessagingException me) {
     throw new StoreException(me);
   }
 catch (  NamingException ne) {
