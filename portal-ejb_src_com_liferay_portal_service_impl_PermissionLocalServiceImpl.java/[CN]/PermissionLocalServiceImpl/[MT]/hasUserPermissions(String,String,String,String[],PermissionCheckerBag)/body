@@ -1,5 +1,6 @@
 {
   long start=0;
+  int block=1;
   if (_log.isDebugEnabled()) {
     start=System.currentTimeMillis();
   }
@@ -11,28 +12,29 @@
     return false;
   }
   String resourceId=resourceIds[0];
-  start=logHasUserPermissions(userId,actionId,resourceId,start,1);
-  List userGroups=new ArrayList();
-  if (Validator.isNotNull(groupId)) {
-    if (permissionCheckerBag.hasGroup(groupId)) {
-      userGroups.add(GroupUtil.findByPrimaryKey(groupId));
-    }
-  }
+  start=logHasUserPermissions(userId,actionId,resourceId,start,block++);
+  List userGroups=permissionCheckerBag.getUserGroups();
   List userOrgs=permissionCheckerBag.getUserOrgs();
   List userOrgGroups=permissionCheckerBag.getUserOrgGroups();
   List userUserGroupGroups=permissionCheckerBag.getUserUserGroupGroups();
-  List groups=new ArrayList(userGroups.size() + userOrgGroups.size() + userUserGroupGroups.size());
-  groups.addAll(userGroups);
-  groups.addAll(userOrgGroups);
-  groups.addAll(userUserGroupGroups);
-  start=logHasUserPermissions(userId,actionId,resourceId,start,3);
+  List groups=permissionCheckerBag.getGroups();
+  List roles=permissionCheckerBag.getRoles();
+  start=logHasUserPermissions(userId,actionId,resourceId,start,block++);
   if (checkOrgGroupPermission(userOrgs,userGroups,permissions)) {
     return true;
   }
-  start=logHasUserPermissions(userId,actionId,resourceId,start,4);
-  if (PermissionFinder.containsPermissions(permissions,userId,groups)) {
-    return true;
+  start=logHasUserPermissions(userId,actionId,resourceId,start,block++);
+  if (PermissionChecker.USER_CHECK_ALGORITHM == 1) {
+    return hasUserPermissions_1(userId,actionId,resourceId,permissions,groups,start,block);
   }
-  start=logHasUserPermissions(userId,actionId,resourceId,start,5);
+ else   if (PermissionChecker.USER_CHECK_ALGORITHM == 2) {
+    return hasUserPermissions_2(userId,actionId,resourceId,permissions,groups,start,block);
+  }
+ else   if (PermissionChecker.USER_CHECK_ALGORITHM == 3) {
+    return hasUserPermissions_3(userId,actionId,resourceId,permissions,groups,roles,start,block);
+  }
+ else   if (PermissionChecker.USER_CHECK_ALGORITHM == 4) {
+    return hasUserPermissions_4(userId,actionId,resourceId,permissions,groups,roles,start,block);
+  }
   return false;
 }
