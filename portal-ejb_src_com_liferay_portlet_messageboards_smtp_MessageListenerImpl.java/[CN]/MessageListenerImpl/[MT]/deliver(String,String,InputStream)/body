@@ -1,23 +1,25 @@
 {
-  String categoryId=recipient.substring(MBUtil.PORTLET_PREFIX.length(),recipient.indexOf('@'));
-  String companyId=recipient.substring(recipient.indexOf('@') + (PropsUtil.get(PropsUtil.SMTP_SERVER_SUBDOMAIN) + ".").length() + 1);
-  _log.debug("Deliver message from " + from + " to MB category "+ categoryId);
   try {
+    String companyId=_getCompanyId(recipient);
+    String categoryId=_getCategoryId(recipient);
+    if (_log.isDebugEnabled()) {
+      _log.debug("Deliver message from " + from + " to category "+ categoryId);
+    }
     Company company=CompanyLocalServiceUtil.getCompany(companyId);
-    User user=UserLocalServiceUtil.getUserByEmailAddress(company.getCompanyId(),from);
+    User user=UserLocalServiceUtil.getUserByEmailAddress(companyId,from);
     MimeMessage message=new MimeMessage(MailEngine.getSession(),data);
     String[] inReplyToHeaders=message.getHeader("In-Reply-To");
     MBMessage prevMessage=null;
     if ((inReplyToHeaders != null) && (inReplyToHeaders.length > 0)) {
-      int startIndex=inReplyToHeaders[0].indexOf("<") + 1;
-      int endIndex=inReplyToHeaders[0].indexOf("@");
+      int x=inReplyToHeaders[0].indexOf("<") + 1;
+      int y=inReplyToHeaders[0].indexOf("@");
       try {
-        if ((startIndex > 0) && (endIndex != -1)) {
-          String prevMessageId=inReplyToHeaders[0].substring(startIndex,endIndex);
+        if ((x > 0) && (y != -1)) {
+          String prevMessageId=inReplyToHeaders[0].substring(x,y);
           prevMessage=MBMessageLocalServiceUtil.getMessage(prevMessageId);
         }
       }
- catch (      NoSuchMessageException ignore) {
+ catch (      NoSuchMessageException nsme) {
       }
     }
     MBMailMessage collector=new MBMailMessage();
@@ -29,13 +31,8 @@
       MBMessageLocalServiceUtil.addMessage(user.getUserId(),categoryId,prevMessage.getThreadId(),prevMessage.getMessageId(),message.getSubject(),collector.getBody(),collector.getFiles(),false,0.0,null,true,true);
     }
   }
- catch (  FileNameException e) {
-    throw new MessageListenerException(e);
-  }
-catch (  Exception e) {
-    if (_log.isDebugEnabled()) {
-      _log.debug("MB Message not sent",e);
-    }
+ catch (  Exception e) {
+    _log.error(StackTraceUtil.getStackTrace(e));
     throw new MessageListenerException(e);
   }
 }
