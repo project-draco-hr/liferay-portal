@@ -11,11 +11,9 @@
     String[] inReplyToHeaders=message.getHeader("In-Reply-To");
     MBMessage prevMessage=null;
     if ((inReplyToHeaders != null) && (inReplyToHeaders.length > 0)) {
-      int x=inReplyToHeaders[0].indexOf("<") + 1;
-      int y=inReplyToHeaders[0].indexOf("@");
+      String prevMessageId=MBUtil.getMessageId(inReplyToHeaders[0]);
       try {
-        if ((x > 0) && (y != -1)) {
-          String prevMessageId=inReplyToHeaders[0].substring(x,y);
+        if (prevMessageId != null) {
           prevMessage=MBMessageLocalServiceUtil.getMessage(prevMessageId);
         }
       }
@@ -24,14 +22,21 @@
     }
     MBMailMessage collector=new MBMailMessage();
     _collectPartContent(message,collector);
+    PrincipalSessionBean.setThreadValues(user,true,false);
     if (prevMessage == null) {
-      MBMessageLocalServiceUtil.addMessage(user.getUserId(),categoryId,message.getSubject(),collector.getBody(),collector.getFiles(),false,0.0,null,true,true);
+      MBMessageServiceUtil.addMessage(categoryId,message.getSubject(),collector.getBody(),collector.getFiles(),false,0.0,null,true,true);
     }
  else {
-      MBMessageLocalServiceUtil.addMessage(user.getUserId(),categoryId,prevMessage.getThreadId(),prevMessage.getMessageId(),message.getSubject(),collector.getBody(),collector.getFiles(),false,0.0,null,true,true);
+      MBMessageServiceUtil.addMessage(categoryId,prevMessage.getThreadId(),prevMessage.getMessageId(),message.getSubject(),collector.getBody(),collector.getFiles(),false,0.0,null,true,true);
     }
   }
- catch (  Exception e) {
+ catch (  PrincipalException pe) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Prevented unauthorized post from " + from);
+    }
+    throw new MessageListenerException(pe);
+  }
+catch (  Exception e) {
     _log.error(StackTraceUtil.getStackTrace(e));
     throw new MessageListenerException(e);
   }
