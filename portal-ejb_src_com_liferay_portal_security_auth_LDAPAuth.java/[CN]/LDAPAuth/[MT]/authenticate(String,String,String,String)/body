@@ -10,7 +10,8 @@
   }
   Properties env=new Properties();
   env.put(Context.INITIAL_CONTEXT_FACTORY,PrefsPropsUtil.getString(PropsUtil.AUTH_IMPL_LDAP_FACTORY_INITIAL));
-  env.put(Context.PROVIDER_URL,PrefsPropsUtil.getString(PropsUtil.AUTH_IMPL_LDAP_PROVIDER_URL));
+  String completeProviderURL=PrefsPropsUtil.getString(PropsUtil.AUTH_IMPL_LDAP_PROVIDER_URL) + StringPool.SLASH + PrefsPropsUtil.getString(PropsUtil.AUTH_IMPL_LDAP_CONTEXT);
+  env.put(Context.PROVIDER_URL,completeProviderURL);
   env.put(Context.SECURITY_PRINCIPAL,PrefsPropsUtil.getString(PropsUtil.AUTH_IMPL_LDAP_SECURITY_PRINCIPAL));
   env.put(Context.SECURITY_CREDENTIALS,PrefsPropsUtil.getString(PropsUtil.AUTH_IMPL_LDAP_SECURITY_CREDENTIALS));
   if (_log.isDebugEnabled()) {
@@ -68,26 +69,10 @@
     String lastName=LDAPUtil.getAttributeValue(attrs,userMappings.getProperty("lastName"));
     if (Validator.isNull(firstName) || Validator.isNull(lastName)) {
       String fullName=LDAPUtil.getAttributeValue(attrs,userMappings.getProperty("fullName"));
-      if (Validator.isNotNull(fullName)) {
-        String[] name=StringUtil.split(fullName," ");
-        firstName=name[0];
-        lastName=name[name.length - 1];
-        if (name.length > 2) {
-          for (int i=1; i < name.length - 1; i++) {
-            if (Validator.isNull(name[i].trim())) {
-              continue;
-            }
-            if (i != 1) {
-              middleName+=" ";
-            }
-            middleName+=name[i].trim();
-          }
-        }
-      }
- else {
-        firstName=GetterUtil.getString(firstName,lastName);
-        lastName=firstName;
-      }
+      String names[]=LDAPUtil.splitFullName(fullName);
+      firstName=names[0];
+      middleName=names[1];
+      lastName=names[2];
     }
     String nickName=null;
     String prefixId=null;
@@ -124,13 +109,7 @@
         return FAILURE;
       }
     }
-    try {
-      User user=UserLocalServiceUtil.getUserByEmailAddress(companyId,emailAddress);
-      UserLocalServiceUtil.updatePassword(userId,password,password,user.isPasswordReset());
-    }
- catch (    NoSuchUserException nsue) {
-      UserLocalServiceUtil.addUser(creatorUserId,companyId,autoUserId,userId,autoPassword,password1,password2,passwordReset,emailAddress,locale,firstName,middleName,lastName,nickName,prefixId,suffixId,male,birthdayMonth,birthdayDay,birthdayYear,jobTitle,organizationId,locationId,sendEmail);
-    }
+    LDAPImportUtil.addOrUpdateUser(creatorUserId,companyId,autoUserId,userId,autoPassword,password1,password2,passwordReset,emailAddress,locale,firstName,middleName,lastName,nickName,prefixId,suffixId,male,birthdayMonth,birthdayDay,birthdayYear,jobTitle,organizationId,locationId,sendEmail,true,false);
   }
  else {
     if (_log.isDebugEnabled()) {
