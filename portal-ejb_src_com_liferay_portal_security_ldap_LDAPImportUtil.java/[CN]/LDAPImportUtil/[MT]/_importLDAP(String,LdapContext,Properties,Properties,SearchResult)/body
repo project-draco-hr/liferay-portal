@@ -1,0 +1,56 @@
+{
+  String userCN=result.getName();
+  if (_log.isDebugEnabled()) {
+    _log.debug("User CN " + userCN);
+  }
+  Attributes attrs=result.getAttributes();
+  String creatorUserId=null;
+  boolean autoUserId=false;
+  String userId=LDAPUtil.getAttributeValue(attrs,userMappings.getProperty("userId"));
+  boolean autoPassword=true;
+  String password1=StringPool.BLANK;
+  String password2=StringPool.BLANK;
+  boolean passwordReset=false;
+  String emailAddress=LDAPUtil.getAttributeValue(attrs,userMappings.getProperty("emailAddress"));
+  Locale locale=Locale.US;
+  String firstName=LDAPUtil.getAttributeValue(attrs,userMappings.getProperty("firstName"));
+  String middleName=LDAPUtil.getAttributeValue(attrs,userMappings.getProperty("middleName"));
+  String lastName=LDAPUtil.getAttributeValue(attrs,userMappings.getProperty("lastName"));
+  if (Validator.isNull(firstName) || Validator.isNull(lastName)) {
+    String fullName=LDAPUtil.getAttributeValue(attrs,userMappings.getProperty("fullName"));
+    String[] names=LDAPUtil.splitFullName(fullName);
+    firstName=names[0];
+    middleName=names[1];
+    lastName=names[2];
+  }
+  String nickName=null;
+  String prefixId=null;
+  String suffixId=null;
+  boolean male=true;
+  int birthdayMonth=Calendar.JANUARY;
+  int birthdayDay=1;
+  int birthdayYear=1970;
+  String jobTitle=LDAPUtil.getAttributeValue(attrs,userMappings.getProperty("jobTitle"));
+  String organizationId=null;
+  String locationId=null;
+  boolean sendEmail=false;
+  addOrUpdateUser(creatorUserId,companyId,autoUserId,userId,autoPassword,password1,password2,passwordReset,emailAddress,locale,firstName,middleName,lastName,nickName,prefixId,suffixId,male,birthdayMonth,birthdayDay,birthdayYear,jobTitle,organizationId,locationId,sendEmail,true,false);
+  Attribute attr=attrs.get(userMappings.getProperty("group"));
+  for (int i=0; i < attr.size(); i++) {
+    String groupDN=(String)attr.get(i);
+    Attributes groupAttrs=ctx.getAttributes(groupDN);
+    String groupName=LDAPUtil.getAttributeValue(groupAttrs,groupMappings.getProperty("groupName"));
+    String description=LDAPUtil.getAttributeValue(groupAttrs,groupMappings.getProperty("description"));
+    Group group=null;
+    try {
+      group=GroupLocalServiceUtil.getGroup(companyId,groupName);
+    }
+ catch (    NoSuchGroupException nsge) {
+      group=GroupLocalServiceUtil.addGroup(User.getDefaultUserId(companyId),StringPool.BLANK,StringPool.BLANK,groupName,description,StringPool.BLANK,StringPool.BLANK);
+    }
+    if (_log.isDebugEnabled()) {
+      _log.debug("Adding " + userCN + " to group "+ groupDN);
+    }
+    UserLocalServiceUtil.addGroupUsers(group.getGroupId(),new String[]{userId});
+  }
+}
