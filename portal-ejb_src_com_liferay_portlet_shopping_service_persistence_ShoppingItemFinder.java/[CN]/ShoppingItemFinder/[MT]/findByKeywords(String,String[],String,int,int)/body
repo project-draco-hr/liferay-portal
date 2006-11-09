@@ -3,46 +3,38 @@
   try {
     session=HibernateUtil.openSession();
     StringBuffer query=new StringBuffer();
-    query.append("SELECT shoppingItem FROM ");
-    query.append(ShoppingItem.class.getName());
-    query.append(" AS shoppingItem ");
+    query.append("SELECT {ShoppingItem.*} FROM ShoppingItem ");
+    query.append("INNER JOIN ShoppingCategory ON ");
+    query.append("ShoppingCategory.categoryId = ");
+    query.append("ShoppingItem.categoryId ");
     query.append("WHERE ");
+    query.append("ShoppingCategory.groupId = ? AND (");
     if ((categoryIds != null) && (categoryIds.length > 0)) {
       query.append("(");
       for (int i=0; i < categoryIds.length; i++) {
-        query.append("shoppingItem.categoryId = ? ");
+        query.append("ShoppingItem.categoryId = ? ");
         if (i + 1 < categoryIds.length) {
           query.append("OR ");
         }
       }
       query.append(") AND ");
     }
-    query.append("shoppingItem.groupId = ? AND (");
-    query.append("shoppingItem.name LIKE ? OR ");
-    query.append("shoppingItem.description LIKE ? OR ");
-    query.append("shoppingItem.properties LIKE ?)");
+    query.append("ShoppingItem.name LIKE ? OR ");
+    query.append("ShoppingItem.description LIKE ? OR ");
+    query.append("ShoppingItem.properties LIKE ?)");
     keywords='%' + keywords + '%';
-    Query q=session.createQuery(query.toString());
+    SQLQuery q=session.createSQLQuery(query.toString());
     q.setCacheable(false);
+    q.addEntity("ShoppingItem",ShoppingItem.class);
+    QueryPos qPos=QueryPos.getInstance(q);
+    qPos.add(groupId);
     for (int i=0; i < categoryIds.length; i++) {
-      q.setString(i,categoryIds[i]);
+      qPos.add(categoryIds[i]);
     }
-    q.setString(categoryIds.length,groupId);
-    q.setString(categoryIds.length + 1,keywords);
-    q.setString(categoryIds.length + 2,keywords);
-    q.setString(categoryIds.length + 3,keywords);
-    ScrollableResults sr=q.scroll();
-    List list=new ArrayList();
-    if (sr.first() && sr.scroll(begin)) {
-      for (int i=begin; i < end; i++) {
-        ShoppingItem item=(ShoppingItem)sr.get(0);
-        list.add(item);
-        if (!sr.next()) {
-          break;
-        }
-      }
-    }
-    return list;
+    qPos.add(keywords);
+    qPos.add(keywords);
+    qPos.add(keywords);
+    return QueryUtil.list(q,HibernateUtil.getDialect(),begin,end);
   }
  catch (  Exception e) {
     throw new SystemException(e);

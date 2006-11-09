@@ -1,48 +1,38 @@
 {
-  List list=new ArrayList(numOfItems);
   int countByFeatured=countByFeatured(groupId,categoryIds);
-  if (countByFeatured == 0) {
-    return list;
-  }
   Session session=null;
   try {
     session=HibernateUtil.openSession();
     StringBuffer query=new StringBuffer();
-    query.append("SELECT shoppingItem FROM ");
-    query.append(ShoppingItem.class.getName());
-    query.append(" AS shoppingItem ");
+    query.append("SELECT {ShoppingItem.*} FROM ShoppingItem ");
+    query.append("INNER JOIN ShoppingCategory ON ");
+    query.append("ShoppingCategory.categoryId = ");
+    query.append("ShoppingItem.categoryId ");
     query.append("WHERE ");
-    query.append("(");
-    for (int i=0; i < categoryIds.length; i++) {
-      query.append("shoppingItem.categoryId = ? ");
-      if (i + 1 < categoryIds.length) {
-        query.append("OR ");
-      }
-    }
-    query.append(") AND ");
-    query.append("shoppingItem.groupId = ? AND ");
-    query.append("shoppingItem.featured = ? AND ");
-    query.append("shoppingItem.smallImage = ?");
-    Query q=session.createQuery(query.toString());
-    q.setCacheable(false);
-    for (int i=0; i < categoryIds.length; i++) {
-      q.setString(i,categoryIds[i]);
-    }
-    q.setString(categoryIds.length,groupId);
-    q.setBoolean(categoryIds.length + 1,true);
-    q.setBoolean(categoryIds.length + 2,true);
-    ScrollableResults sr=q.scroll();
-    if (sr.first()) {
-      int[] scrollIds=Randomizer.getInstance().nextInt(countByFeatured,numOfItems);
-      for (int i=0; i < scrollIds.length; i++) {
-        if (sr.scroll(scrollIds[i])) {
-          ShoppingItem item=(ShoppingItem)sr.get(0);
-          list.add(item);
-          sr.first();
+    query.append("ShoppingCategory.groupId = ? AND (");
+    if ((categoryIds != null) && (categoryIds.length > 0)) {
+      query.append("(");
+      for (int i=0; i < categoryIds.length; i++) {
+        query.append("ShoppingItem.categoryId = ? ");
+        if (i + 1 < categoryIds.length) {
+          query.append("OR ");
         }
       }
+      query.append(") AND ");
     }
-    return list;
+    query.append("ShoppingItem.featured = ? AND ");
+    query.append("ShoppingItem.smallImage = ?");
+    SQLQuery q=session.createSQLQuery(query.toString());
+    q.setCacheable(false);
+    q.addEntity("ShoppingItem",ShoppingItem.class);
+    QueryPos qPos=QueryPos.getInstance(q);
+    qPos.add(groupId);
+    for (int i=0; i < categoryIds.length; i++) {
+      qPos.add(categoryIds[i]);
+    }
+    qPos.add(true);
+    qPos.add(true);
+    return QueryUtil.randomList(q,HibernateUtil.getDialect(),countByFeatured,numOfItems);
   }
  catch (  Exception e) {
     throw new SystemException(e);
