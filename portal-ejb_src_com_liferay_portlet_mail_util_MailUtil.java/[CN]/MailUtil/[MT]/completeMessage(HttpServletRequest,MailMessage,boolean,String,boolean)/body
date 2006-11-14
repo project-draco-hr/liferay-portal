@@ -19,7 +19,7 @@
       message.setRecipients(Message.RecipientType.BCC,_resolveAddresses(req,mailMessage.getBcc()));
     }
     message.setSubject(mailMessage.getSubject());
-    _replaceEmbeddedImages(ses,mailMessage,_getAttachmentURL(req));
+    _replaceEmbeddedImages(req,mailMessage,_getAttachmentURL(req));
     Multipart multipart=new MimeMultipart();
     BodyPart bodyPart=new MimeBodyPart();
     bodyPart.setContent(mailMessage.getHtmlBody(),Constants.TEXT_HTML);
@@ -41,7 +41,7 @@
     itr=remoteAttachments.iterator();
     while (itr.hasNext()) {
       RemoteMailAttachment remoteMailAttachment=(RemoteMailAttachment)itr.next();
-      Object[] parts=getAttachment(ses,remoteMailAttachment.getContentPath());
+      Object[] parts=getAttachment(req,remoteMailAttachment.getContentPath());
       DataSource dataSource=new ByteArrayDataSource((byte[])parts[0],(String)parts[1]);
       BodyPart attachment=new MimeBodyPart();
       attachment.setFileName(remoteMailAttachment.getFilename());
@@ -54,34 +54,34 @@
       Transport.send(message);
     }
     try {
-      MailSessionLock.lock(ses.getId());
-      String lastFolderName=getFolderName(ses);
+      MailSessionLock.lock(req);
+      String lastFolderName=getFolderName(req);
       IMAPFolder folder=null;
       if (send) {
-        folder=_getFolder(ses,MAIL_SENT_NAME);
+        folder=_getFolder(req,MAIL_SENT_NAME);
         message.setFlag(Flag.SEEN,true);
       }
  else {
-        folder=_getFolder(ses,MAIL_DRAFTS_NAME);
+        folder=_getFolder(req,MAIL_DRAFTS_NAME);
       }
       folder.appendMessages(new Message[]{message});
       long origId=GetterUtil.getLong(originalId);
       if (wasDraft) {
-        folder=_getFolder(ses,MAIL_DRAFTS_NAME);
+        folder=_getFolder(req,MAIL_DRAFTS_NAME);
         Message msg=folder.getMessageByUID(origId);
         folder.setFlags(new Message[]{msg},new Flags(Flags.Flag.DELETED),true);
         folder.expunge();
       }
  else       if (origId > 0L) {
-        folder=_getFolder(ses,lastFolderName);
+        folder=_getFolder(req,lastFolderName);
         Message msg=folder.getMessageByUID(origId);
         folder.setFlags(new Message[]{msg},new Flags(Flags.Flag.ANSWERED),true);
       }
       _closeFolder(ses);
-      setFolder(ses,lastFolderName);
+      setFolder(req,lastFolderName);
     }
   finally {
-      MailSessionLock.unlock(ses.getId());
+      MailSessionLock.unlock(req);
     }
   }
  catch (  MessagingException me) {

@@ -1,0 +1,38 @@
+{
+  HttpSession ses=req.getSession();
+  try {
+    folderName=_getResolvedFolderName(folderName);
+    IMAPFolder folder=(IMAPFolder)ses.getAttribute(WebKeys.MAIL_FOLDER);
+    if (folder != null) {
+      String currFolderName=_getResolvedFolderName(folder.getName());
+      if (!currFolderName.equals(folderName)) {
+        _closeFolder(ses);
+        folder=null;
+      }
+ else       if (!folder.isOpen()) {
+        if (_log.isInfoEnabled()) {
+          _log.info("The folder is closed and needs to be reopened");
+        }
+        _closeFolder(ses);
+        folder=null;
+      }
+    }
+    if (folder == null) {
+      String userId=(String)ses.getAttribute(WebKeys.USER_ID);
+      if (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.MAIL_USERNAME_REPLACE))) {
+        userId=StringUtil.replace(userId,".","_");
+      }
+      String serviceName=userId + StringPool.COLON + WebKeys.MAIL_FOLDER+ StringPool.PERIOD+ folderName;
+      Store store=_getStore(req);
+      folder=(IMAPFolder)store.getFolder(folderName);
+      folder.addConnectionListener(new ConnectionListener(serviceName));
+      folder.open(IMAPFolder.READ_WRITE);
+      ses.setAttribute(WebKeys.MAIL_FOLDER,folder);
+      ses.removeAttribute(WebKeys.MAIL_MESSAGE_ID);
+    }
+    return folder;
+  }
+ catch (  MessagingException me) {
+    throw new FolderException(me);
+  }
+}
