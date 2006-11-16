@@ -1,0 +1,37 @@
+{
+  if (Validator.isNull(doAsUserId)) {
+    return null;
+  }
+  HttpSession ses=req.getSession();
+  String realUserId=(String)ses.getAttribute(WebKeys.USER_ID);
+  if (realUserId == null) {
+    return null;
+  }
+  Company company=getCompany(req);
+  doAsUserId=Encryptor.decrypt(company.getKeyObj(),doAsUserId);
+  User doAsUser=UserLocalServiceUtil.getUserById(doAsUserId);
+  String organizationId=doAsUser.getOrganization().getOrganizationId();
+  String locationId=doAsUser.getLocation().getOrganizationId();
+  User realUser=UserLocalServiceUtil.getUserById(realUserId);
+  boolean signedIn=true;
+  boolean checkGuest=true;
+  PermissionCheckerImpl permissionChecker=null;
+  try {
+    permissionChecker=PermissionCheckerFactory.create(realUser,signedIn,checkGuest);
+    if (UserPermission.contains(permissionChecker,doAsUserId,organizationId,locationId,ActionKeys.IMPERSONATE)) {
+      req.setAttribute(WebKeys.USER_ID,doAsUserId);
+      return doAsUserId;
+    }
+ else {
+      _log.error("User " + realUserId + " does not have the permission to "+ "impersonate "+ doAsUserId);
+      return null;
+    }
+  }
+  finally {
+    try {
+      PermissionCheckerFactory.recycle(permissionChecker);
+    }
+ catch (    Exception e) {
+    }
+  }
+}
