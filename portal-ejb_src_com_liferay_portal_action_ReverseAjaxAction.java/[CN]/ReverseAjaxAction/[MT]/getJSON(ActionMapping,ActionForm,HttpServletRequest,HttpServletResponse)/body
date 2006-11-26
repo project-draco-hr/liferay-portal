@@ -1,0 +1,50 @@
+{
+  boolean release=ParamUtil.getBoolean(req,"release");
+  JSONObject jo=new JSONObject();
+  HttpSession ses=req.getSession();
+  ReverseAjax reverseAjax=(ReverseAjax)ses.getAttribute(WebKeys.REVERSE_AJAX);
+  if (release) {
+    release(reverseAjax);
+  }
+ else {
+    try {
+      RequestWait reqWait=reverseAjax.getRequestWait();
+      if (reqWait != null) {
+        reverseAjax.setRequestWait(null);
+        reqWait.expire();
+      }
+      if (!reverseAjax.pendingEvents()) {
+        reqWait=new RequestWait();
+        reqWait.setSessionId(ses.getId());
+        reverseAjax.setRequestWait(reqWait);
+        reqWait.waitForRequest();
+        reverseAjax=(ReverseAjax)ses.getAttribute(WebKeys.REVERSE_AJAX);
+        reqWait=reverseAjax.getRequestWait();
+      }
+      if (reverseAjax.pendingEvents()) {
+        if (reverseAjax.isPendingChatMessage()) {
+          jo.put("chatMessages",MessagingUtil.getChatMessages(req.getSession()));
+          reverseAjax.setPendingChatMessage(false);
+        }
+        if (reverseAjax.isPendingChatRoster()) {
+          jo.put("chatRoster",MessagingUtil.getRosterEntries(req.getSession()));
+          reverseAjax.setPendingChatRoster(false);
+        }
+        jo.put("status","success");
+      }
+ else       if (reqWait == null) {
+        jo.put("status","failure");
+      }
+ else       if (reqWait.isTimedOut()) {
+        jo.put("status","timedOut");
+      }
+    }
+ catch (    Exception e) {
+      jo.put("status","failure");
+    }
+ finally {
+      reverseAjax.setRequestWait(null);
+    }
+  }
+  return jo.toString();
+}
