@@ -1,0 +1,214 @@
+{
+  List pkList=entity.getPKList();
+  List regularColList=entity.getRegularColList();
+  StringBuffer sb=new StringBuffer();
+  sb.append("package " + _packagePath + ".model.impl;");
+  if (entity.hasCompoundPK()) {
+    sb.append("import " + _packagePath + ".service.persistence."+ entity.getName()+ "PK;");
+  }
+  sb.append("import com.liferay.portal.model.impl.BaseModelImpl;");
+  sb.append("import com.liferay.portal.util.PropsUtil;");
+  sb.append("import com.liferay.util.DateUtil;");
+  sb.append("import com.liferay.util.GetterUtil;");
+  sb.append("import com.liferay.util.XSSUtil;");
+  sb.append("import java.util.Date;");
+  sb.append("public class " + entity.getName() + "ModelImpl extends BaseModelImpl {");
+  sb.append("public static boolean XSS_ALLOW_BY_MODEL = GetterUtil.getBoolean(PropsUtil.get(\"xss.allow." + _packagePath + ".model."+ entity.getName()+ "\"), XSS_ALLOW);");
+  for (int i=0; i < regularColList.size(); i++) {
+    EntityColumn col=(EntityColumn)regularColList.get(i);
+    if (col.getType().equals("String")) {
+      sb.append("public static boolean XSS_ALLOW_" + col.getName().toUpperCase() + " = GetterUtil.getBoolean(PropsUtil.get(\"xss.allow."+ _packagePath+ ".model."+ entity.getName()+ "."+ col.getName()+ "\"), XSS_ALLOW_BY_MODEL);");
+    }
+  }
+  sb.append("public static long LOCK_EXPIRATION_TIME = GetterUtil.getLong(PropsUtil.get(\"lock.expiration.time." + _packagePath + ".model."+ entity.getName()+ "Model\"));");
+  sb.append("public " + entity.getName() + "ModelImpl() {");
+  sb.append("}");
+  sb.append("public " + entity.getPKClassName() + " getPrimaryKey() {");
+  if (entity.hasCompoundPK()) {
+    sb.append("return new " + entity.getPKClassName() + "(");
+    for (int i=0; i < pkList.size(); i++) {
+      EntityColumn col=(EntityColumn)pkList.get(i);
+      sb.append("_" + col.getName());
+      if ((i + 1) != (pkList.size())) {
+        sb.append(", ");
+      }
+    }
+    sb.append(");");
+  }
+ else {
+    EntityColumn col=(EntityColumn)pkList.get(0);
+    sb.append("return _" + col.getName() + ";");
+  }
+  sb.append("}");
+  sb.append("public void setPrimaryKey(" + entity.getPKClassName() + " pk) {");
+  if (entity.hasCompoundPK()) {
+    for (int i=0; i < pkList.size(); i++) {
+      EntityColumn col=(EntityColumn)pkList.get(i);
+      sb.append("set" + col.getMethodName() + "(pk."+ col.getName()+ ");");
+    }
+  }
+ else {
+    EntityColumn col=(EntityColumn)pkList.get(0);
+    sb.append("set" + col.getMethodName() + "(pk);");
+  }
+  sb.append("}");
+  for (int i=0; i < regularColList.size(); i++) {
+    EntityColumn col=(EntityColumn)regularColList.get(i);
+    String colType=col.getType();
+    sb.append("public " + colType + " get"+ col.getMethodName()+ "() {");
+    if (colType.equals("String") && col.isConvertNull()) {
+      sb.append("return GetterUtil.getString(_" + col.getName() + ");");
+    }
+ else {
+      sb.append("return _" + col.getName() + ";");
+    }
+    sb.append("}");
+    if (colType.equals("boolean")) {
+      sb.append("public " + colType + " is"+ col.getMethodName()+ "() {");
+      sb.append("return _" + col.getName() + ";");
+      sb.append("}");
+    }
+    sb.append("public void set" + col.getMethodName() + "("+ colType+ " "+ col.getName()+ ") {");
+    sb.append("if (");
+    if (!col.isPrimitiveType()) {
+      sb.append("(" + col.getName() + " == null && _"+ col.getName()+ " != null) ||");
+      sb.append("(" + col.getName() + " != null && _"+ col.getName()+ " == null) ||");
+      sb.append("(" + col.getName() + " != null && _"+ col.getName()+ " != null && !"+ col.getName()+ ".equals(_"+ col.getName()+ "))");
+    }
+ else {
+      sb.append(col.getName() + " != _" + col.getName());
+    }
+    sb.append(") {");
+    if (colType.equals("String")) {
+      sb.append("if (!XSS_ALLOW_" + col.getName().toUpperCase() + ") {");
+      sb.append(col.getName() + " = XSSUtil.strip(" + col.getName()+ ");");
+      sb.append("}");
+    }
+    sb.append("_" + col.getName() + " = "+ col.getName()+ ";");
+    sb.append("}");
+    sb.append("}");
+  }
+  sb.append("public Object clone() {");
+  sb.append(entity.getName() + "Impl clone = new " + entity.getName()+ "Impl();");
+  for (int i=0; i < regularColList.size(); i++) {
+    EntityColumn col=(EntityColumn)regularColList.get(i);
+    sb.append("clone.set" + col.getMethodName() + "(");
+    if (col.getEJBName() == null) {
+      sb.append("get" + col.getMethodName() + "()");
+    }
+ else {
+      sb.append("(" + col.getEJBName() + ")get"+ col.getMethodName()+ "().clone()");
+    }
+    sb.append(");");
+  }
+  sb.append("return clone;");
+  sb.append("}");
+  sb.append("public int compareTo(Object obj) {");
+  sb.append("if (obj == null) {");
+  sb.append("return -1;");
+  sb.append("}");
+  sb.append(entity.getName() + "Impl " + entity.getVarName()+ " = ("+ entity.getName()+ "Impl)obj;");
+  if (entity.isOrdered()) {
+    EntityOrder order=entity.getOrder();
+    List orderList=order.getColumns();
+    sb.append("int value = 0;");
+    for (int i=0; i < orderList.size(); i++) {
+      EntityColumn col=(EntityColumn)orderList.get(i);
+      String colType=col.getType();
+      if (!col.isPrimitiveType()) {
+        if (colType.equals("Date")) {
+          sb.append("value = DateUtil.compareTo(get" + col.getMethodName() + "(), "+ entity.getVarName()+ ".get"+ col.getMethodName()+ "());");
+        }
+ else {
+          if (col.isCaseSensitive()) {
+            sb.append("value = get" + col.getMethodName() + "().compareTo("+ entity.getVarName()+ ".get"+ col.getMethodName()+ "());");
+          }
+ else {
+            sb.append("value = get" + col.getMethodName() + "().toLowerCase().compareTo("+ entity.getVarName()+ ".get"+ col.getMethodName()+ "().toLowerCase());");
+          }
+        }
+      }
+ else {
+        String ltComparator="<";
+        String gtComparator=">";
+        if (colType.equals("boolean")) {
+          ltComparator="==";
+          gtComparator="!=";
+        }
+        sb.append("if (get" + col.getMethodName() + "() "+ ltComparator+ " "+ entity.getVarName()+ ".get"+ col.getMethodName()+ "()) {");
+        sb.append("value = -1;");
+        sb.append("}");
+        sb.append("else if (get" + col.getMethodName() + "() "+ gtComparator+ " "+ entity.getVarName()+ ".get"+ col.getMethodName()+ "()) {");
+        sb.append("value = 1;");
+        sb.append("}");
+        sb.append("else {");
+        sb.append("value = 0;");
+        sb.append("}");
+      }
+      if (!col.isOrderByAscending()) {
+        sb.append("value = value * -1;");
+      }
+      sb.append("if (value != 0) {");
+      sb.append("return value;");
+      sb.append("}");
+    }
+    sb.append("return 0;");
+  }
+ else {
+    sb.append(entity.getPKClassName() + " pk = " + entity.getVarName()+ ".getPrimaryKey();");
+    if (entity.hasPrimitivePK()) {
+      sb.append("if (getPrimaryKey() < pk) {");
+      sb.append("return -1;");
+      sb.append("}");
+      sb.append("else if (getPrimaryKey() > pk) {");
+      sb.append("return 1;");
+      sb.append("}");
+      sb.append("else {");
+      sb.append("return 0;");
+      sb.append("}");
+    }
+ else {
+      sb.append("return getPrimaryKey().compareTo(pk);");
+    }
+  }
+  sb.append("}");
+  sb.append("public boolean equals(Object obj) {");
+  sb.append("if (obj == null) {");
+  sb.append("return false;");
+  sb.append("}");
+  sb.append(entity.getName() + "Impl " + entity.getVarName()+ " = null;");
+  sb.append("try {");
+  sb.append(entity.getVarName() + " = (" + entity.getName()+ "Impl)obj;");
+  sb.append("}");
+  sb.append("catch (ClassCastException cce) {");
+  sb.append("return false;");
+  sb.append("}");
+  sb.append(entity.getPKClassName() + " pk = " + entity.getVarName()+ ".getPrimaryKey();");
+  if (entity.hasPrimitivePK()) {
+    sb.append("if (getPrimaryKey() == pk) {");
+  }
+ else {
+    sb.append("if (getPrimaryKey().equals(pk)) {");
+  }
+  sb.append("return true;");
+  sb.append("}");
+  sb.append("else {");
+  sb.append("return false;");
+  sb.append("}");
+  sb.append("}");
+  sb.append("public int hashCode() {");
+  if (entity.hasPrimitivePK()) {
+    sb.append("return (int)getPrimaryKey();");
+  }
+ else {
+    sb.append("return getPrimaryKey().hashCode();");
+  }
+  sb.append("}");
+  for (int i=0; i < regularColList.size(); i++) {
+    EntityColumn col=(EntityColumn)regularColList.get(i);
+    sb.append("private " + col.getType() + " _"+ col.getName()+ ";");
+  }
+  sb.append("}");
+  File modelFile=new File(_outputPath + "/model/impl/" + entity.getName()+ "ModelImpl.java");
+  writeFile(modelFile,sb.toString());
+}

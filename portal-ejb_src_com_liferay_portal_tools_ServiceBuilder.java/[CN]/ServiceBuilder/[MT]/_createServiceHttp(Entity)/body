@@ -1,11 +1,13 @@
 {
-  XClass xClass=_getXClass(_outputPath + "/service/impl/" + entity.getName()+ "ServiceImpl.java");
-  List methods=xClass.getMethods();
+  JavaClass javaClass=_getJavaClass(_outputPath + "/service/impl/" + entity.getName()+ "ServiceImpl.java");
+  JavaMethod[] methods=javaClass.getMethods();
   StringBuffer sb=new StringBuffer();
   sb.append("package " + _packagePath + ".service.http;");
-  if (_hasHttpMethods(xClass)) {
-    sb.append("import " + _packagePath + ".service.spring."+ entity.getName()+ "ServiceUtil;");
+  if (_hasHttpMethods(javaClass)) {
+    sb.append("import " + _packagePath + ".service."+ entity.getName()+ "ServiceUtil;");
   }
+  sb.append("import com.liferay.portal.kernel.log.Log;");
+  sb.append("import com.liferay.portal.kernel.log.LogFactoryUtil;");
   sb.append("import com.liferay.portal.kernel.util.BooleanWrapper;");
   sb.append("import com.liferay.portal.kernel.util.DoubleWrapper;");
   sb.append("import com.liferay.portal.kernel.util.FloatWrapper;");
@@ -16,35 +18,32 @@
   sb.append("import com.liferay.portal.kernel.util.ShortWrapper;");
   sb.append("import com.liferay.portal.kernel.util.StackTraceUtil;");
   sb.append("import com.liferay.portal.security.auth.HttpPrincipal;");
-  sb.append("import com.liferay.portal.servlet.TunnelUtil;");
-  sb.append("import com.liferay.util.ObjectValuePair;");
-  sb.append("import org.apache.commons.logging.Log;");
-  sb.append("import org.apache.commons.logging.LogFactory;");
+  sb.append("import com.liferay.portal.service.http.TunnelUtil;");
   sb.append("public class " + entity.getName() + "ServiceHttp {");
-  for (int i=0; i < methods.size(); i++) {
-    XMethod xMethod=(XMethod)methods.get(i);
-    String methodName=xMethod.getName();
-    if (_isCustomMethod(xMethod) && xMethod.isPublic()) {
-      XClass returnType=xMethod.getReturnType().getType();
-      String returnTypeName=returnType.getQualifiedName() + xMethod.getReturnType().getDimensionAsString();
+  for (int i=0; i < methods.length; i++) {
+    JavaMethod javaMethod=methods[i];
+    String methodName=javaMethod.getName();
+    if (!javaMethod.isConstructor() && javaMethod.isPublic() && _isCustomMethod(javaMethod)) {
+      Type returnType=javaMethod.getReturns();
+      String returnTypeName=returnType.getValue() + _getDimensions(returnType);
       sb.append("public static " + returnTypeName + " "+ methodName+ "(HttpPrincipal httpPrincipal");
-      List parameters=xMethod.getParameters();
-      for (int j=0; j < parameters.size(); j++) {
-        XParameter xParameter=(XParameter)parameters.get(j);
+      JavaParameter[] parameters=javaMethod.getParameters();
+      for (int j=0; j < parameters.length; j++) {
+        JavaParameter javaParameter=parameters[j];
         if (j == 0) {
           sb.append(", ");
         }
-        sb.append(xParameter.getType().getQualifiedName() + xParameter.getDimensionAsString() + " "+ xParameter.getName());
-        if ((j + 1) != parameters.size()) {
+        sb.append(javaParameter.getType().getValue() + _getDimensions(javaParameter.getType()) + " "+ javaParameter.getName());
+        if ((j + 1) != parameters.length) {
           sb.append(", ");
         }
       }
       sb.append(")");
-      List thrownExceptions=xMethod.getThrownExceptions();
+      Type[] thrownExceptions=javaMethod.getExceptions();
       Set newExceptions=new LinkedHashSet();
-      for (int j=0; j < thrownExceptions.size(); j++) {
-        XClass thrownException=(XClass)thrownExceptions.get(j);
-        newExceptions.add(thrownException.getQualifiedName());
+      for (int j=0; j < thrownExceptions.length; j++) {
+        Type thrownException=thrownExceptions[j];
+        newExceptions.add(thrownException.getValue());
       }
       newExceptions.add("com.liferay.portal.SystemException");
       if (newExceptions.size() > 0) {
@@ -59,46 +58,46 @@
       }
       sb.append("{");
       sb.append("try {");
-      for (int j=0; j < parameters.size(); j++) {
-        XParameter xParameter=(XParameter)parameters.get(j);
-        String parameterTypeName=xParameter.getType().getQualifiedName() + xParameter.getDimensionAsString();
+      for (int j=0; j < parameters.length; j++) {
+        JavaParameter javaParameter=parameters[j];
+        String parameterTypeName=javaParameter.getType().getValue() + _getDimensions(javaParameter.getType());
         sb.append("Object paramObj" + j + " = ");
         if (parameterTypeName.equals("boolean")) {
-          sb.append("new BooleanWrapper(" + xParameter.getName() + ");");
+          sb.append("new BooleanWrapper(" + javaParameter.getName() + ");");
         }
  else         if (parameterTypeName.equals("double")) {
-          sb.append("new DoubleWrapper(" + xParameter.getName() + ");");
+          sb.append("new DoubleWrapper(" + javaParameter.getName() + ");");
         }
  else         if (parameterTypeName.equals("float")) {
-          sb.append("new FloatWrapper(" + xParameter.getName() + ");");
+          sb.append("new FloatWrapper(" + javaParameter.getName() + ");");
         }
  else         if (parameterTypeName.equals("int")) {
-          sb.append("new IntegerWrapper(" + xParameter.getName() + ");");
+          sb.append("new IntegerWrapper(" + javaParameter.getName() + ");");
         }
  else         if (parameterTypeName.equals("long")) {
-          sb.append("new LongWrapper(" + xParameter.getName() + ");");
+          sb.append("new LongWrapper(" + javaParameter.getName() + ");");
         }
  else         if (parameterTypeName.equals("short")) {
-          sb.append("new ShortWrapper(" + xParameter.getName() + ");");
+          sb.append("new ShortWrapper(" + javaParameter.getName() + ");");
         }
  else {
-          sb.append(xParameter.getName() + ";");
-          sb.append("if (" + xParameter.getName() + " == null) {");
-          sb.append("paramObj" + j + " = new NullWrapper(\""+ _getClassName(xParameter)+ "\");");
+          sb.append(javaParameter.getName() + ";");
+          sb.append("if (" + javaParameter.getName() + " == null) {");
+          sb.append("paramObj" + j + " = new NullWrapper(\""+ _getClassName(javaParameter.getType())+ "\");");
           sb.append("}");
         }
       }
       sb.append("MethodWrapper methodWrapper = new MethodWrapper(");
       sb.append(entity.getName() + "ServiceUtil.class.getName(),");
       sb.append("\"" + methodName + "\",");
-      if (parameters.size() == 0) {
+      if (parameters.length == 0) {
         sb.append("new Object[0]);");
       }
  else {
         sb.append("new Object[] {");
-        for (int j=0; j < parameters.size(); j++) {
+        for (int j=0; j < parameters.length; j++) {
           sb.append("paramObj" + j);
-          if ((j + 1) != parameters.size()) {
+          if ((j + 1) != parameters.length) {
             sb.append(", ");
           }
         }
@@ -156,7 +155,7 @@
     }
   }
   if (sb.indexOf("_log.") != -1) {
-    sb.append("private static Log _log = LogFactory.getLog(" + entity.getName() + "ServiceHttp.class);");
+    sb.append("private static Log _log = LogFactoryUtil.getLog(" + entity.getName() + "ServiceHttp.class);");
   }
   sb.append("}");
   File ejbFile=new File(_outputPath + "/service/http/" + entity.getName()+ "ServiceHttp.java");

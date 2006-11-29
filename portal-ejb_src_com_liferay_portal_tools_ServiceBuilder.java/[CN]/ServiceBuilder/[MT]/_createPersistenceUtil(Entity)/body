@@ -1,6 +1,6 @@
 {
-  XClass xClass=_getXClass(_outputPath + "/service/persistence/" + entity.getName()+ "Persistence.java");
-  List methods=xClass.getMethods();
+  JavaClass javaClass=_getJavaClass(_outputPath + "/service/persistence/" + entity.getName()+ "Persistence.java");
+  JavaMethod[] methods=javaClass.getMethods();
   StringBuffer sb=new StringBuffer();
   sb.append("package " + _packagePath + ".service.persistence;");
   sb.append("import com.liferay.portal.model.ModelListener;");
@@ -11,97 +11,98 @@
   sb.append("import org.apache.commons.logging.Log;");
   sb.append("import org.apache.commons.logging.LogFactory;");
   sb.append("public class " + entity.getName() + "Util {");
-  for (int i=0; i < methods.size(); i++) {
-    XMethod xMethod=(XMethod)methods.get(i);
-    String methodName=xMethod.getName();
-    sb.append("public static " + xMethod.getReturnType().getType().getQualifiedName() + xMethod.getReturnType().getDimensionAsString()+ " "+ methodName+ "(");
-    List parameters=xMethod.getParameters();
-    String p0Name="";
-    if (parameters.size() > 0) {
-      p0Name=((XParameter)parameters.get(0)).getName();
-    }
-    for (int j=0; j < parameters.size(); j++) {
-      XParameter xParameter=(XParameter)parameters.get(j);
-      sb.append(xParameter.getType().getQualifiedName() + xParameter.getDimensionAsString() + " "+ xParameter.getName());
-      if ((j + 1) != parameters.size()) {
-        sb.append(", ");
+  for (int i=0; i < methods.length; i++) {
+    JavaMethod javaMethod=methods[i];
+    String methodName=javaMethod.getName();
+    if (!javaMethod.isConstructor()) {
+      sb.append("public static " + javaMethod.getReturns().getValue() + _getDimensions(javaMethod.getReturns())+ " "+ methodName+ "(");
+      JavaParameter[] parameters=javaMethod.getParameters();
+      String p0Name="";
+      if (parameters.length > 0) {
+        p0Name=parameters[0].getName();
       }
-    }
-    sb.append(")");
-    List thrownExceptions=xMethod.getThrownExceptions();
-    if (thrownExceptions.size() > 0) {
-      sb.append(" throws ");
-      Iterator itr=thrownExceptions.iterator();
-      while (itr.hasNext()) {
-        XClass thrownException=(XClass)itr.next();
-        sb.append(thrownException.getQualifiedName());
-        if (itr.hasNext()) {
+      for (int j=0; j < parameters.length; j++) {
+        JavaParameter javaParameter=parameters[j];
+        sb.append(javaParameter.getType().getValue() + _getDimensions(javaParameter.getType()) + " "+ javaParameter.getName());
+        if ((j + 1) != parameters.length) {
           sb.append(", ");
         }
       }
-    }
-    sb.append(" {");
-    if (methodName.equals("remove") || methodName.equals("update")) {
-      sb.append("ModelListener listener = _getListener();");
-      if (methodName.equals("update")) {
-        sb.append("boolean isNew = " + p0Name + ".isNew();");
-      }
-      sb.append("if (listener != null) {");
-      if (methodName.equals("remove")) {
-        if (entity.getVarName().equals(p0Name)) {
-          sb.append("listener.onBeforeRemove(" + p0Name + ");");
-        }
- else {
-          sb.append("listener.onBeforeRemove(findByPrimaryKey(" + p0Name + "));");
+      sb.append(")");
+      Type[] thrownExceptions=javaMethod.getExceptions();
+      if (thrownExceptions.length > 0) {
+        sb.append(" throws ");
+        for (int j=0; j < thrownExceptions.length; j++) {
+          Type thrownException=thrownExceptions[j];
+          sb.append(thrownException.getValue());
+          if ((j + 1) != thrownExceptions.length) {
+            sb.append(", ");
+          }
         }
       }
+      sb.append(" {");
+      if (methodName.equals("remove") || methodName.equals("update")) {
+        sb.append("ModelListener listener = _getListener();");
+        if (methodName.equals("update")) {
+          sb.append("boolean isNew = " + p0Name + ".isNew();");
+        }
+        sb.append("if (listener != null) {");
+        if (methodName.equals("remove")) {
+          if (entity.getVarName().equals(p0Name)) {
+            sb.append("listener.onBeforeRemove(" + p0Name + ");");
+          }
  else {
-        sb.append("if (isNew) {");
-        sb.append("listener.onBeforeCreate(" + p0Name + ");");
+            sb.append("listener.onBeforeRemove(findByPrimaryKey(" + p0Name + "));");
+          }
+        }
+ else {
+          sb.append("if (isNew) {");
+          sb.append("listener.onBeforeCreate(" + p0Name + ");");
+          sb.append("}");
+          sb.append("else {");
+          sb.append("listener.onBeforeUpdate(" + p0Name + ");");
+          sb.append("}");
+        }
         sb.append("}");
-        sb.append("else {");
-        sb.append("listener.onBeforeUpdate(" + p0Name + ");");
+        if (methodName.equals("remove") && !entity.getVarName().equals(p0Name)) {
+          sb.append(_packagePath + ".model." + entity.getName()+ " "+ entity.getVarName()+ " = ");
+        }
+ else {
+          sb.append(entity.getVarName() + " = ");
+        }
+      }
+ else {
+        if (!javaMethod.getReturns().getValue().equals("void")) {
+          sb.append("return ");
+        }
+      }
+      sb.append("getPersistence()." + methodName + "(");
+      for (int j=0; j < parameters.length; j++) {
+        JavaParameter javaParameter=parameters[j];
+        sb.append(javaParameter.getName());
+        if ((j + 1) != parameters.length) {
+          sb.append(", ");
+        }
+      }
+      sb.append(");");
+      if (methodName.equals("remove") || methodName.equals("update")) {
+        sb.append("if (listener != null) {");
+        if (methodName.equals("remove")) {
+          sb.append("listener.onAfterRemove(" + entity.getVarName() + ");");
+        }
+ else {
+          sb.append("if (isNew) {");
+          sb.append("listener.onAfterCreate(" + entity.getVarName() + ");");
+          sb.append("}");
+          sb.append("else {");
+          sb.append("listener.onAfterUpdate(" + entity.getVarName() + ");");
+          sb.append("}");
+        }
         sb.append("}");
+        sb.append("return " + entity.getVarName() + ";");
       }
       sb.append("}");
-      if (methodName.equals("remove") && !entity.getVarName().equals(p0Name)) {
-        sb.append(_packagePath + ".model." + entity.getName()+ " "+ entity.getVarName()+ " = ");
-      }
- else {
-        sb.append(entity.getVarName() + " = ");
-      }
     }
- else {
-      if (!xMethod.getReturnType().getType().getQualifiedName().equals("void")) {
-        sb.append("return ");
-      }
-    }
-    sb.append("getPersistence()." + methodName + "(");
-    for (int j=0; j < parameters.size(); j++) {
-      XParameter xParameter=(XParameter)parameters.get(j);
-      sb.append(xParameter.getName());
-      if ((j + 1) != parameters.size()) {
-        sb.append(", ");
-      }
-    }
-    sb.append(");");
-    if (methodName.equals("remove") || methodName.equals("update")) {
-      sb.append("if (listener != null) {");
-      if (methodName.equals("remove")) {
-        sb.append("listener.onAfterRemove(" + entity.getVarName() + ");");
-      }
- else {
-        sb.append("if (isNew) {");
-        sb.append("listener.onAfterCreate(" + entity.getVarName() + ");");
-        sb.append("}");
-        sb.append("else {");
-        sb.append("listener.onAfterUpdate(" + entity.getVarName() + ");");
-        sb.append("}");
-      }
-      sb.append("}");
-      sb.append("return " + entity.getVarName() + ";");
-    }
-    sb.append("}");
   }
   sb.append("public static " + entity.getName() + "Persistence getPersistence() {");
   sb.append("return _getUtil()._persistence;");

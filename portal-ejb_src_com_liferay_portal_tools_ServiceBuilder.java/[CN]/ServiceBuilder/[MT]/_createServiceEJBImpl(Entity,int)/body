@@ -1,11 +1,11 @@
 {
-  XClass xClass=_getXClass(_outputPath + "/service/spring/" + entity.getName()+ (sessionType != _REMOTE ? "Local" : "")+ "Service.java");
-  List methods=xClass.getMethods();
+  JavaClass javaClass=_getJavaClass(_serviceOutputPath + "/service/" + entity.getName()+ (sessionType != _REMOTE ? "Local" : "")+ "Service.java");
+  JavaMethod[] methods=javaClass.getMethods();
   StringBuffer sb=new StringBuffer();
   sb.append("package " + _packagePath + ".service.ejb;");
-  sb.append("import " + _packagePath + ".service.spring."+ entity.getName()+ _getSessionTypeName(sessionType)+ "Service;");
-  for (int i=0; i < methods.size(); i++) {
-    sb.append("import " + _packagePath + ".service.spring."+ entity.getName()+ _getSessionTypeName(sessionType)+ "ServiceFactory;");
+  sb.append("import " + _packagePath + ".service."+ entity.getName()+ _getSessionTypeName(sessionType)+ "Service;");
+  if (methods.length > 0) {
+    sb.append("import " + _packagePath + ".service."+ entity.getName()+ _getSessionTypeName(sessionType)+ "ServiceFactory;");
   }
   sb.append("import javax.ejb.CreateException;");
   sb.append("import javax.ejb.SessionContext;");
@@ -14,25 +14,25 @@
     sb.append("import com.liferay.portal.service.impl.PrincipalSessionBean;");
   }
   sb.append("public class " + entity.getName() + _getSessionTypeName(sessionType)+ "ServiceEJBImpl implements "+ entity.getName()+ _getSessionTypeName(sessionType)+ "Service, SessionBean {");
-  for (int i=0; i < methods.size(); i++) {
-    XMethod xMethod=(XMethod)methods.get(i);
-    String methodName=xMethod.getName();
-    if (_isCustomMethod(xMethod) && xMethod.isPublic()) {
-      sb.append("public " + xMethod.getReturnType().getType().getQualifiedName() + xMethod.getReturnType().getDimensionAsString()+ " "+ methodName+ "(");
-      List parameters=xMethod.getParameters();
-      for (int j=0; j < parameters.size(); j++) {
-        XParameter xParameter=(XParameter)parameters.get(j);
-        sb.append(xParameter.getType().getQualifiedName() + xParameter.getDimensionAsString() + " "+ xParameter.getName());
-        if ((j + 1) != parameters.size()) {
+  for (int i=0; i < methods.length; i++) {
+    JavaMethod javaMethod=methods[i];
+    String methodName=javaMethod.getName();
+    if (!javaMethod.isConstructor() && javaMethod.isPublic() && _isCustomMethod(javaMethod)) {
+      sb.append("public " + javaMethod.getReturns().getValue() + _getDimensions(javaMethod.getReturns())+ " "+ methodName+ "(");
+      JavaParameter[] parameters=javaMethod.getParameters();
+      for (int j=0; j < parameters.length; j++) {
+        JavaParameter javaParameter=parameters[j];
+        sb.append(javaParameter.getType().getValue() + _getDimensions(javaParameter.getType()) + " "+ javaParameter.getName());
+        if ((j + 1) != parameters.length) {
           sb.append(", ");
         }
       }
       sb.append(")");
-      List thrownExceptions=xMethod.getThrownExceptions();
+      Type[] thrownExceptions=javaMethod.getExceptions();
       Set newExceptions=new LinkedHashSet();
-      for (int j=0; j < thrownExceptions.size(); j++) {
-        XClass thrownException=(XClass)thrownExceptions.get(j);
-        newExceptions.add(thrownException.getQualifiedName());
+      for (int j=0; j < thrownExceptions.length; j++) {
+        Type thrownException=thrownExceptions[j];
+        newExceptions.add(thrownException.getValue());
       }
       if (newExceptions.size() > 0) {
         sb.append(" throws ");
@@ -48,14 +48,14 @@
       if (sessionType == _REMOTE) {
         sb.append("PrincipalSessionBean.setThreadValues(_sc);");
       }
-      if (!xMethod.getReturnType().getType().getQualifiedName().equals("void")) {
+      if (!javaMethod.getReturns().getValue().equals("void")) {
         sb.append("return ");
       }
       sb.append(entity.getName() + _getSessionTypeName(sessionType) + "ServiceFactory.getTxImpl()."+ methodName+ "(");
-      for (int j=0; j < parameters.size(); j++) {
-        XParameter xParameter=(XParameter)parameters.get(j);
-        sb.append(xParameter.getName());
-        if ((j + 1) != parameters.size()) {
+      for (int j=0; j < parameters.length; j++) {
+        JavaParameter javaParameter=parameters[j];
+        sb.append(javaParameter.getName());
+        if ((j + 1) != parameters.length) {
           sb.append(", ");
         }
       }
