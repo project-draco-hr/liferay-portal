@@ -10,19 +10,29 @@
       e.printStackTrace();
     }
     Runtime.getRuntime().addShutdownHook(new Thread(new ShutdownHook()));
+    CacheRegistry.setActive(false);
     int buildNumber=ReleaseLocalServiceUtil.getRelease().getBuildNumber();
     String[] upgradeProcesses=PropsUtil.getArray(PropsUtil.UPGRADE_PROCESSES);
     for (int i=0; i < upgradeProcesses.length; i++) {
-      _log.debug("Initializing upgrade " + upgradeProcesses[i]);
+      if (_log.isDebugEnabled()) {
+        _log.debug("Initializing upgrade " + upgradeProcesses[i]);
+      }
       try {
         UpgradeProcess upgradeProcess=(UpgradeProcess)Class.forName(upgradeProcesses[i]).newInstance();
         if ((upgradeProcess.getThreshold() == 0) || (upgradeProcess.getThreshold() >= buildNumber)) {
-          _log.debug("Running upgrade " + upgradeProcesses[i]);
+          if (_log.isInfoEnabled()) {
+            _log.info("Running upgrade " + upgradeProcesses[i]);
+          }
           upgradeProcess.upgrade();
-          _log.debug("Finished upgrade " + upgradeProcesses[i]);
+          if (_log.isInfoEnabled()) {
+            _log.info("Finished upgrade " + upgradeProcesses[i]);
+          }
         }
  else {
-          _log.debug("Skipping upgrade " + upgradeProcesses[i]);
+          if (_log.isDebugEnabled()) {
+            _log.debug("Upgrade threshold " + upgradeProcess.getThreshold() + " will not trigger upgrade");
+            _log.debug("Skipping upgrade " + upgradeProcesses[i]);
+          }
         }
       }
  catch (      ClassNotFoundException cnfe) {
@@ -33,6 +43,8 @@ catch (      InstantiationException ie) {
       }
     }
     ReleaseLocalServiceUtil.updateRelease();
+    CacheRegistry.setActive(true);
+    ClusterPool.clear();
     _deleteTempImages();
   }
  catch (  Exception e) {
