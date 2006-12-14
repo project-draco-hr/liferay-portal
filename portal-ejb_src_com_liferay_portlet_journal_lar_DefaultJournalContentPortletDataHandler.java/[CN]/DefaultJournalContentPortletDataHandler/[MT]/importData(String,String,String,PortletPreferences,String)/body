@@ -1,0 +1,88 @@
+{
+  try {
+    if (Validator.isNull(data)) {
+      return null;
+    }
+    NewJournalContentCreationStrategy creationStrategy=PortletDataHandlerUtils.getContentCreationStrategy();
+    SAXReader reader=SAXReaderFactory.getInstance();
+    XStream xStream=new XStream();
+    Document doc=reader.read(new StringReader(data));
+    Element root=doc.getRootElement();
+    if (!root.getName().equals("journal-content")) {
+      _log.warn("Unexpected portlet data while attempting to import portlet id " + portletId + " : expected <journal-content>, but was <"+ root.getName()+ ">");
+      return null;
+    }
+    Element el=root.element(JournalArticleImpl.class.getName());
+    Document tempDoc=DocumentHelper.createDocument();
+    tempDoc.content().add(el.createCopy());
+    JournalArticle article=(JournalArticle)xStream.fromXML(XMLFormatter.toString(tempDoc));
+    article.setGroupId(groupId);
+    JournalArticlePK pk=article.getPrimaryKey();
+    boolean exists=(JournalArticleUtil.fetchByPrimaryKey(pk) != null);
+    if (!exists) {
+      article.setNew(true);
+      article.setVersion(1.0);
+      String authorId=creationStrategy.getAuthorUserId(companyId,groupId,article);
+      if (authorId != null) {
+        article.setUserId(authorId);
+        article.setUserName(creationStrategy.getAuthorUserName(companyId,groupId,article));
+      }
+      String approvedById=creationStrategy.getApprovalUserId(companyId,groupId,article);
+      if (approvedById != null) {
+        article.setApprovedByUserId(approvedById);
+        article.setApprovedByUserName(creationStrategy.getApprovalUserName(companyId,groupId,article));
+        article.setApproved(true);
+      }
+ else {
+        article.setApprovedByUserId(null);
+        article.setApprovedByUserName(null);
+        article.setApproved(false);
+      }
+      article=JournalArticleUtil.update(article,true);
+      JournalArticleLocalServiceUtil.addArticleResources(article,creationStrategy.addCommunityPermissions(companyId,groupId,article),creationStrategy.addGuestPermissions(companyId,groupId,article));
+    }
+    el=root.element(JournalStructureImpl.class.getName());
+    if (el != null) {
+      tempDoc=DocumentHelper.createDocument();
+      tempDoc.content().add(el.createCopy());
+      JournalStructure structure=(JournalStructure)xStream.fromXML(XMLFormatter.toString(tempDoc));
+      structure.setGroupId(groupId);
+      JournalStructurePK structurePk=structure.getPrimaryKey();
+      exists=(JournalStructureUtil.fetchByPrimaryKey(structurePk) != null);
+      if (!exists) {
+        structure.setNew(true);
+        String authorId=creationStrategy.getAuthorUserId(companyId,groupId,structure);
+        if (authorId != null) {
+          structure.setUserId(authorId);
+          structure.setUserName(creationStrategy.getAuthorUserName(companyId,groupId,structure));
+        }
+        structure=JournalStructureUtil.update(structure,true);
+        JournalStructureLocalServiceUtil.addStructureResources(structure,creationStrategy.addCommunityPermissions(companyId,groupId,structure),creationStrategy.addGuestPermissions(companyId,groupId,structure));
+      }
+    }
+    el=root.element(JournalTemplateImpl.class.getName());
+    if (el != null) {
+      tempDoc=DocumentHelper.createDocument();
+      tempDoc.content().add(el.createCopy());
+      JournalTemplate template=(JournalTemplate)xStream.fromXML(XMLFormatter.toString(tempDoc));
+      template.setGroupId(groupId);
+      JournalTemplatePK templatePk=template.getPrimaryKey();
+      exists=(JournalTemplateUtil.fetchByPrimaryKey(templatePk) != null);
+      if (!exists) {
+        template.setNew(true);
+        String authorId=creationStrategy.getAuthorUserId(companyId,groupId,template);
+        if (authorId != null) {
+          template.setUserId(authorId);
+          template.setUserName(creationStrategy.getAuthorUserName(companyId,groupId,template));
+        }
+        template=JournalTemplateUtil.update(template,true);
+        JournalTemplateLocalServiceUtil.addTemplateResources(template,creationStrategy.addCommunityPermissions(companyId,groupId,template),creationStrategy.addGuestPermissions(companyId,groupId,template));
+      }
+    }
+    portletPreferences.setValue("group-id",groupId);
+    return portletPreferences;
+  }
+ catch (  Exception e) {
+    throw new PortletDataException(e);
+  }
+}

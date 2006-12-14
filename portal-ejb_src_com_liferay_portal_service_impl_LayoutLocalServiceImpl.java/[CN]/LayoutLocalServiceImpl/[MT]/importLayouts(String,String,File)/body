@@ -80,18 +80,29 @@
     String preferences=el.elementText("preferences");
     PortletPreferences prefs=PortletPreferencesUtil.create(new PortletPreferencesPK(portletId,layoutId,ownerId));
     prefs.setPreferences(preferences);
-    PortletPreferencesUtil.update(prefs);
-  }
-  itr=root.elements("portlet-data").iterator();
-  while (itr.hasNext()) {
-    Element el=(Element)itr.next();
-    String portletId=el.attributeValue("portlet-id");
-    String data=el.elementText("data");
-    Portlet portlet=PortletLocalServiceUtil.getPortletById(layoutSet.getCompanyId(),portletId);
-    PortletDataHandler portletDataHandler=portlet.getPortletDataHandler();
-    if (portletDataHandler != null) {
-      portletDataHandler.importData(layoutSet.getCompanyId(),layoutSet.getGroupId(),data);
+    Element portletData=el.element("portlet-data");
+    if (portletData != null) {
+      Portlet portlet=PortletLocalServiceUtil.getPortletById(layoutSet.getCompanyId(),portletId);
+      if (portlet != null) {
+        PortletDataHandler portletDataHandler=portlet.getPortletDataHandler();
+        if (portletDataHandler != null) {
+          try {
+            PortletPreferencesImpl prefsImpl=(PortletPreferencesImpl)PortletPreferencesSerializer.fromDefaultXML(preferences);
+            prefsImpl=(PortletPreferencesImpl)portletDataHandler.importData(layoutSet.getCompanyId(),layoutSet.getGroupId(),portletId,prefsImpl,portletData.getText());
+            if (prefsImpl != null) {
+              prefs.setPreferences(PortletPreferencesSerializer.toXML(prefsImpl));
+            }
+          }
+ catch (          PortletDataException pde) {
+            throw new PortalException(pde);
+          }
+        }
+ else {
+          _log.warn(".LAR contains custom <portlet-data> for portlet Id " + portletId + " but no matching PortletDataHandler found.");
+        }
+      }
     }
+    PortletPreferencesUtil.update(prefs);
   }
   LayoutSetLocalServiceUtil.updatePageCount(ownerId);
 }
