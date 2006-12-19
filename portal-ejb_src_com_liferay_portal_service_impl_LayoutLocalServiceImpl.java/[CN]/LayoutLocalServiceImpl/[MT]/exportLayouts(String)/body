@@ -1,6 +1,11 @@
 {
   LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(ownerId);
+  PortletDataContext context=new PortletDataContext(layoutSet.getCompanyId(),layoutSet.getGroupId(),CollectionFactory.getHashSet());
   Group guestGroup=GroupLocalServiceUtil.getGroup(layoutSet.getCompanyId(),GroupImpl.GUEST);
+  String guestPrefsOwnerId=null;
+  if (!layoutSet.isPrivateLayout()) {
+    guestPrefsOwnerId=ownerId + StringPool.PERIOD + PortletKeys.PREFS_OWNER_ID_USER+ StringPool.PERIOD+ UserImpl.getDefaultUserId(layoutSet.getCompanyId());
+  }
   Document doc=DocumentHelper.createDocument();
   Element root=doc.addElement("root");
   Element header=root.addElement("header");
@@ -9,9 +14,9 @@
   header.addAttribute("export-date",Time.getRFC822());
   header.addAttribute("theme-id",layoutSet.getThemeId());
   header.addAttribute("color-scheme-id",layoutSet.getColorSchemeId());
-  Iterator itr=getLayouts(ownerId).iterator();
-  while (itr.hasNext()) {
-    Layout layout=(Layout)itr.next();
+  Iterator itr1=getLayouts(ownerId).iterator();
+  while (itr1.hasNext()) {
+    Layout layout=(Layout)itr1.next();
     Element layoutEl=root.addElement("layout");
     layoutEl.addAttribute("layout-id",layout.getLayoutId());
     layoutEl.addElement("parent-layout-id").addText(layout.getParentLayoutId());
@@ -31,46 +36,27 @@
     }
     if (layout.getType().equals(LayoutImpl.TYPE_PORTLET)) {
       LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
-      List portletIds=layoutTypePortlet.getPortletIds();
-      for (int i=0; i < portletIds.size(); i++) {
-        String portletId=(String)portletIds.get(i);
-        Element portletEl=permissionsEl.addElement("portlet");
-        portletEl.addAttribute("portlet-id",portletId);
-        exportPortletPermissions(portletId,layout,layout.getGroupId(),portletEl,"community-actions");
-        if (!layout.getGroupId().equals(guestGroup.getGroupId())) {
-          exportPortletPermissions(portletId,layout,guestGroup.getGroupId(),portletEl,"guest-actions");
+      Iterator itr2=layoutTypePortlet.getPortletIds().iterator();
+      while (itr2.hasNext()) {
+        String portletId=(String)itr2.next();
+        if (layoutTypePortlet.hasPortletId(portletId)) {
+          Element portletEl=permissionsEl.addElement("portlet");
+          portletEl.addAttribute("portlet-id",portletId);
+          exportPortletPermissions(portletId,layout,layout.getGroupId(),portletEl,"community-actions");
+          if (!layout.getGroupId().equals(guestGroup.getGroupId())) {
+            exportPortletPermissions(portletId,layout,guestGroup.getGroupId(),portletEl,"guest-actions");
+          }
         }
       }
-    }
-  }
-  itr=PortletPreferencesLocalServiceUtil.getPortletPreferencesByOwnerId(ownerId).iterator();
-  while (itr.hasNext()) {
-    PortletPreferences prefs=(PortletPreferences)itr.next();
-    Element el=root.addElement("portlet-preferences");
-    String portletId=prefs.getPortletId();
-    String layoutId=prefs.getLayoutId();
-    el.addAttribute("portlet-id",portletId);
-    el.addAttribute("layout-id",layoutId);
-    el.addElement("preferences").addCDATA(prefs.getPreferences());
-    Portlet portlet=PortletLocalServiceUtil.getPortletById(layoutSet.getCompanyId(),portletId);
-    if (portlet != null) {
-      PortletDataHandler portletDataHandler=portlet.getPortletDataHandler();
-      if (portletDataHandler != null) {
-        String data=null;
-        try {
-          PortletPreferencesImpl prefsImpl=(PortletPreferencesImpl)PortletPreferencesSerializer.fromDefaultXML(prefs.getPreferences());
-          data=portletDataHandler.exportData(layoutSet.getCompanyId(),layoutSet.getGroupId(),portletId,prefsImpl);
-        }
- catch (        PortletDataException pde) {
-          throw new PortalException(pde);
-        }
-        Element el2=el.addElement("portlet-data");
-        if (data != null) {
-          el2.addCDATA(data);
-        }
+      exportPortletPreferences(layout.getLayoutId(),ownerId,layoutTypePortlet,layoutEl);
+      if (guestPrefsOwnerId != null) {
+        exportPortletPreferences(layout.getLayoutId(),guestPrefsOwnerId,layoutTypePortlet,layoutEl);
       }
+      exportPortletData(context,layout,layoutTypePortlet,layoutEl);
     }
   }
+  String groupPrefsOwnerId=PortletKeys.PREFS_OWNER_ID_GROUP + StringPool.PERIOD + layoutSet.getGroupId();
+  exportPortletPreferences(PortletKeys.PREFS_LAYOUT_ID_SHARED,groupPrefsOwnerId,root);
   try {
     ZipWriter zipWriter=new ZipWriter();
     zipWriter.addEntry("layouts.xml",XMLFormatter.toString(doc));

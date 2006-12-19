@@ -1,5 +1,6 @@
 {
   LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(ownerId);
+  PortletDataContext context=new PortletDataContext(layoutSet.getCompanyId(),layoutSet.getGroupId(),CollectionFactory.getHashSet());
   Group guestGroup=GroupLocalServiceUtil.getGroup(layoutSet.getCompanyId(),GroupImpl.GUEST);
   Element root=null;
   try {
@@ -23,9 +24,9 @@
   LayoutSetLocalServiceUtil.updateLookAndFeel(ownerId,themeId,colorSchemeId);
   User user=UserUtil.findByPrimaryKey(userId);
   List newLayoutPKs=new ArrayList();
-  Iterator itr=root.elements("layout").iterator();
-  while (itr.hasNext()) {
-    Element layoutEl=(Element)itr.next();
+  Iterator itr1=root.elements("layout").iterator();
+  while (itr1.hasNext()) {
+    Element layoutEl=(Element)itr1.next();
     String layoutId=layoutEl.attributeValue("layout-id");
     String parentLayoutId=layoutEl.elementText("parent-layout-id");
     String name=layoutEl.elementText("name");
@@ -60,49 +61,19 @@
     if (!layout.getGroupId().equals(guestGroup.getGroupId())) {
       importLayoutPermissions(layout,guestGroup.getGroupId(),permissionsEl,"guest-actions");
     }
-    List portlets=permissionsEl.elements("portlet");
-    for (int i=0; i < portlets.size(); i++) {
-      Element portletEl=(Element)portlets.get(i);
+    Iterator itr2=permissionsEl.elements("portlet").iterator();
+    while (itr2.hasNext()) {
+      Element portletEl=(Element)itr2.next();
       String portletId=portletEl.attributeValue("portlet-id");
       importPortletPermissions(portletId,layout,layout.getGroupId(),portletEl,"community-actions");
       if (!layout.getGroupId().equals(guestGroup.getGroupId())) {
         importPortletPermissions(portletId,layout,guestGroup.getGroupId(),portletEl,"guest-actions");
       }
     }
+    importPortletPreferences(layoutSet,layoutEl);
+    importPortletData(context,layout,layoutEl);
   }
+  importPortletPreferences(layoutSet,root);
   deleteMissingLayouts(ownerId,newLayoutPKs);
-  PortletPreferencesUtil.removeByOwnerId(ownerId);
-  itr=root.elements("portlet-preferences").iterator();
-  while (itr.hasNext()) {
-    Element el=(Element)itr.next();
-    String portletId=el.attributeValue("portlet-id");
-    String layoutId=el.attributeValue("layout-id");
-    String preferences=el.elementText("preferences");
-    PortletPreferences prefs=PortletPreferencesUtil.create(new PortletPreferencesPK(portletId,layoutId,ownerId));
-    prefs.setPreferences(preferences);
-    Element portletData=el.element("portlet-data");
-    if (portletData != null) {
-      Portlet portlet=PortletLocalServiceUtil.getPortletById(layoutSet.getCompanyId(),portletId);
-      if (portlet != null) {
-        PortletDataHandler portletDataHandler=portlet.getPortletDataHandler();
-        if (portletDataHandler != null) {
-          try {
-            PortletPreferencesImpl prefsImpl=(PortletPreferencesImpl)PortletPreferencesSerializer.fromDefaultXML(preferences);
-            prefsImpl=(PortletPreferencesImpl)portletDataHandler.importData(layoutSet.getCompanyId(),layoutSet.getGroupId(),portletId,prefsImpl,portletData.getText());
-            if (prefsImpl != null) {
-              prefs.setPreferences(PortletPreferencesSerializer.toXML(prefsImpl));
-            }
-          }
- catch (          PortletDataException pde) {
-            throw new PortalException(pde);
-          }
-        }
- else {
-          _log.warn(".LAR contains custom <portlet-data> for portlet Id " + portletId + " but no matching PortletDataHandler found.");
-        }
-      }
-    }
-    PortletPreferencesUtil.update(prefs);
-  }
   LayoutSetLocalServiceUtil.updatePageCount(ownerId);
 }

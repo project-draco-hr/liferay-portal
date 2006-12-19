@@ -1,0 +1,67 @@
+{
+  try {
+    String articleId=prefs.getValue("article-id",null);
+    if (articleId == null) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("No article id found in preferences of portlet " + portletId);
+      }
+      return StringPool.BLANK;
+    }
+    String articleGroupId=prefs.getValue("group-id",null);
+    if (articleGroupId == null) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("No group id found in preferences of portlet " + portletId);
+      }
+      return StringPool.BLANK;
+    }
+    JournalArticle article=null;
+    try {
+      article=JournalArticleLocalServiceUtil.getLatestArticle(context.getCompanyId(),articleGroupId,articleId);
+    }
+ catch (    NoSuchArticleException nsae) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("No article found with company id " + context.getCompanyId() + ", group id "+ articleGroupId+ " and article id "+ articleId);
+      }
+    }
+    if (article == null) {
+      return StringPool.BLANK;
+    }
+    if (article.getGroupId().equals(context.getGroupId()) && !context.checkPrimaryKey(JournalArticle.class,article.getPrimaryKey())) {
+      SAXReader reader=SAXReaderFactory.getInstance();
+      XStream xStream=new XStream();
+      Document doc=DocumentHelper.createDocument();
+      Element root=doc.addElement("journal-content");
+      String xml=xStream.toXML(article);
+      Document tempDoc=reader.read(new StringReader(xml));
+      List content=root.content();
+      content.add(tempDoc.getRootElement().createCopy());
+      String structureId=article.getStructureId();
+      if (Validator.isNotNull(structureId)) {
+        JournalStructurePK structurePK=new JournalStructurePK(context.getCompanyId(),article.getGroupId(),structureId);
+        if (!context.checkPrimaryKey(JournalStructure.class,structurePK)) {
+          JournalStructure structure=JournalStructureUtil.findByPrimaryKey(structurePK);
+          xml=xStream.toXML(structure);
+          tempDoc=reader.read(new StringReader(xml));
+          content.add(tempDoc.getRootElement().createCopy());
+        }
+      }
+      String templateId=article.getTemplateId();
+      if (Validator.isNotNull(templateId)) {
+        JournalTemplatePK templatePK=new JournalTemplatePK(context.getCompanyId(),article.getGroupId(),templateId);
+        if (!context.checkPrimaryKey(JournalTemplate.class,templatePK)) {
+          JournalTemplate template=JournalTemplateUtil.findByPrimaryKey(templatePK);
+          xml=xStream.toXML(template);
+          tempDoc=reader.read(new StringReader(xml));
+          content.add(tempDoc.getRootElement().createCopy());
+        }
+      }
+      return XMLFormatter.toString(doc);
+    }
+ else {
+      return StringPool.BLANK;
+    }
+  }
+ catch (  Exception e) {
+    throw new PortletDataException(e);
+  }
+}
