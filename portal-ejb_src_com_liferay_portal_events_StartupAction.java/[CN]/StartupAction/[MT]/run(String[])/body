@@ -11,7 +11,8 @@
     }
     Runtime.getRuntime().addShutdownHook(new Thread(new ShutdownHook()));
     CacheRegistry.setActive(false);
-    int buildNumber=ReleaseLocalServiceUtil.getRelease().getBuildNumber();
+    Release release=ReleaseLocalServiceUtil.getRelease();
+    int buildNumber=release.getBuildNumber();
     String[] upgradeProcesses=PropsUtil.getArray(PropsUtil.UPGRADE_PROCESSES);
     for (int i=0; i < upgradeProcesses.length; i++) {
       if (_log.isDebugEnabled()) {
@@ -42,10 +43,37 @@ catch (      InstantiationException ie) {
         _log.error(upgradeProcesses[i] + " cannot be initiated");
       }
     }
-    ReleaseLocalServiceUtil.updateRelease();
     CacheRegistry.setActive(true);
     ClusterPool.clear();
     _deleteTempImages();
+    int verifyFrequency=GetterUtil.getInteger(PropsUtil.get(PropsUtil.VERIFY_FREQUENCY));
+    boolean verified=release.isVerified();
+    if (verifyFrequency == VerifyProcess.ALWAYS || (verifyFrequency == VerifyProcess.ONCE && !verified)) {
+      String[] verifyProcesses=PropsUtil.getArray(PropsUtil.VERIFY_PROCESSES);
+      for (int i=0; i < verifyProcesses.length; i++) {
+        if (_log.isDebugEnabled()) {
+          _log.debug("Initializing verification " + verifyProcesses[i]);
+        }
+        try {
+          VerifyProcess verifyProcess=(VerifyProcess)Class.forName(verifyProcesses[i]).newInstance();
+          if (_log.isInfoEnabled()) {
+            _log.info("Running verification " + verifyProcesses[i]);
+          }
+          verifyProcess.verify();
+          if (_log.isInfoEnabled()) {
+            _log.info("Finished verification " + verifyProcesses[i]);
+          }
+          verified=true;
+        }
+ catch (        ClassNotFoundException cnfe) {
+          _log.error(verifyProcesses[i] + " cannot be found");
+        }
+catch (        InstantiationException ie) {
+          _log.error(verifyProcesses[i] + " cannot be initiated");
+        }
+      }
+    }
+    ReleaseLocalServiceUtil.updateRelease(verified);
   }
  catch (  Exception e) {
     throw new ActionException(e);
