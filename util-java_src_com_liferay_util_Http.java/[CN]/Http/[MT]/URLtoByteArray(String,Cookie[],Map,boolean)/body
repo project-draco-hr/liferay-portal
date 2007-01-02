@@ -1,0 +1,91 @@
+{
+  byte[] byteArray=null;
+  HttpMethod method=null;
+  try {
+    HttpClient client=new HttpClient(new SimpleHttpConnectionManager());
+    if (location == null) {
+      return byteArray;
+    }
+ else     if (!location.startsWith(HTTP_WITH_SLASH) && !location.startsWith(HTTPS_WITH_SLASH)) {
+      location=HTTP_WITH_SLASH + location;
+    }
+    HostConfiguration hostConfig=new HostConfiguration();
+    hostConfig.setHost(new URI(location));
+    if (Validator.isNotNull(PROXY_HOST) && PROXY_PORT > 0) {
+      hostConfig.setProxy(PROXY_HOST,PROXY_PORT);
+      if (Validator.isNotNull(PROXY_USERNAME)) {
+        Credentials credentials=null;
+        if (PROXY_AUTH_TYPE.equals("username-password")) {
+          credentials=new UsernamePasswordCredentials(PROXY_USERNAME,PROXY_PASSWORD);
+        }
+ else         if (PROXY_AUTH_TYPE.equals("ntlm")) {
+          credentials=new NTCredentials(PROXY_USERNAME,PROXY_PASSWORD,PROXY_NTLM_HOST,PROXY_NTLM_DOMAIN);
+          List authPrefs=new ArrayList();
+          authPrefs.add(AuthPolicy.NTLM);
+          authPrefs.add(AuthPolicy.BASIC);
+          authPrefs.add(AuthPolicy.DIGEST);
+          client.getParams().setParameter(AuthPolicy.AUTH_SCHEME_PRIORITY,authPrefs);
+        }
+        client.getState().setProxyCredentials(new AuthScope(PROXY_HOST,PROXY_PORT,null),credentials);
+      }
+    }
+    if (_log.isDebugEnabled()) {
+      _log.debug("Location is " + location);
+    }
+    client.setHostConfiguration(hostConfig);
+    client.setConnectionTimeout(TIMEOUT);
+    client.setTimeout(TIMEOUT);
+    if (cookies != null && cookies.length > 0) {
+      HttpState state=new HttpState();
+      state.addCookies(cookies);
+      state.setCookiePolicy(CookiePolicy.COMPATIBILITY);
+      client.setState(state);
+    }
+    if (post) {
+      method=new PostMethod(location);
+      if ((parts != null) && (parts.size() > 0)) {
+        List partsList=new ArrayList();
+        Iterator itr=parts.entrySet().iterator();
+        while (itr.hasNext()) {
+          Map.Entry entry=(Map.Entry)itr.next();
+          String key=(String)entry.getKey();
+          String value=(String)entry.getValue();
+          partsList.add(new StringPart(key,value));
+        }
+        PostMethod postMethod=(PostMethod)method;
+        RequestEntity requestEntity=new MultipartRequestEntity((StringPart[])partsList.toArray(new StringPart[0]),method.getParams());
+        postMethod.setRequestEntity(requestEntity);
+      }
+    }
+ else {
+      method=new GetMethod(location);
+    }
+    client.executeMethod(method);
+    Header locationHeader=method.getResponseHeader("location");
+    if (locationHeader != null) {
+      return URLtoByteArray(locationHeader.getValue(),cookies,post);
+    }
+    InputStream is=method.getResponseBodyAsStream();
+    if (is != null) {
+      ByteArrayOutputStream buffer=new ByteArrayOutputStream();
+      byte[] bytes=new byte[512];
+      for (int i=is.read(bytes,0,512); i != -1; i=is.read(bytes,0,512)) {
+        buffer.write(bytes,0,i);
+      }
+      byteArray=buffer.toByteArray();
+      is.close();
+      buffer.close();
+    }
+    return byteArray;
+  }
+  finally {
+    try {
+      if (method != null) {
+        method.releaseConnection();
+      }
+    }
+ catch (    Exception e) {
+      e.printStackTrace();
+    }
+  }
+}
