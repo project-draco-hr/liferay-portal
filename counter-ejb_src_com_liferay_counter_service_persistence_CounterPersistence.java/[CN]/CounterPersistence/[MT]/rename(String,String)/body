@@ -1,22 +1,31 @@
 {
-  Session session=null;
-  try {
-    session=openSession();
-    Counter counter=(Counter)session.load(Counter.class,oldName);
-    long currentId=counter.getCurrentId();
-    session.delete(counter);
-    counter=new Counter();
-    counter.setName(newName);
-    counter.setCurrentId(currentId);
-    session.save(counter);
-    session.flush();
-  }
- catch (  ObjectNotFoundException onfe) {
-  }
-catch (  HibernateException he) {
-    throw new SystemException(he);
-  }
+  CounterRegister register=getCounterRegister(oldName);
+synchronized (register) {
+    if (registerLookup.containsKey(newName)) {
+      throw new SystemException("Cannot rename " + oldName + " to "+ newName);
+    }
+    Session session=null;
+    try {
+      session=openSession();
+      Counter counter=(Counter)session.load(Counter.class,oldName);
+      long currentId=counter.getCurrentId();
+      session.delete(counter);
+      counter=new Counter();
+      counter.setName(newName);
+      counter.setCurrentId(currentId);
+      session.save(counter);
+      session.flush();
+    }
+ catch (    ObjectNotFoundException onfe) {
+    }
+catch (    HibernateException he) {
+      throw new SystemException(he);
+    }
  finally {
-    closeSession(session);
+      closeSession(session);
+    }
+    register.setName(newName);
+    registerLookup.put(newName,register);
+    registerLookup.remove(oldName);
   }
 }

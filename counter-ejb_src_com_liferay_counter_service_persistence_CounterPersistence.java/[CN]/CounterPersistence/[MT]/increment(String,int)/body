@@ -2,26 +2,32 @@
   if (size < _MINIMUM_INCREMENT_SIZE) {
     size=_MINIMUM_INCREMENT_SIZE;
   }
-  Session session=null;
-  try {
-    session=openSession();
-    Counter counter=(Counter)session.get(Counter.class,name);
-    if (counter == null) {
-      counter=new Counter();
-      counter.setName(name);
-      counter.setCurrentId(_DEFAULT_CURRENT_ID);
-      session.save(counter);
-      session.flush();
-    }
-    long currentId=counter.getCurrentId() + size;
-    counter.setCurrentId(currentId);
-    session.flush();
-    return currentId;
-  }
- catch (  HibernateException he) {
-    throw new SystemException(he);
-  }
+  CounterRegister register=getCounterRegister(name);
+synchronized (register) {
+    long newValue=register.getCurrentValue() + size;
+    if (newValue > register.getRangeMax()) {
+      Session session=null;
+      try {
+        session=openSession();
+        Counter counter=(Counter)session.get(Counter.class,register.getName(),LockMode.UPGRADE);
+        newValue=counter.getCurrentId() + 1;
+        long rangeMax=counter.getCurrentId() + register.getRangeSize();
+        counter.setCurrentId(rangeMax);
+        session.save(counter);
+        session.flush();
+        register.setCurrentValue(newValue);
+        register.setRangeMax(rangeMax);
+      }
+ catch (      HibernateException he) {
+        throw new SystemException(he);
+      }
  finally {
-    closeSession(session);
+        closeSession(session);
+      }
+    }
+ else {
+      register.setCurrentValue(newValue);
+    }
+    return newValue;
   }
 }
