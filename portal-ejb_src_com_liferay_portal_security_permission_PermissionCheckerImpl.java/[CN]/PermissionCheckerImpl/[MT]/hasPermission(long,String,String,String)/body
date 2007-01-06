@@ -1,0 +1,55 @@
+{
+  long start=0;
+  if (_log.isDebugEnabled()) {
+    start=System.currentTimeMillis();
+  }
+  PermissionCheckerBag bag=getBag(groupId);
+  if (signedIn && (bag == null)) {
+    try {
+      List userGroups=new ArrayList();
+      if (groupId > 0) {
+        if (GroupServiceUtil.hasUserGroup(user.getUserId(),groupId)) {
+          userGroups.add(GroupServiceUtil.getGroup(groupId));
+        }
+      }
+      List userOrgs=OrganizationServiceUtil.getUserOrganizations(user.getUserId());
+      List userOrgGroups=GroupServiceUtil.getOrganizationsGroups(userOrgs);
+      List userUserGroups=UserGroupServiceUtil.getUserUserGroups(user.getUserId());
+      List userUserGroupGroups=GroupServiceUtil.getUserGroupsGroups(userUserGroups);
+      List groups=new ArrayList(userGroups.size() + userOrgGroups.size() + userUserGroupGroups.size());
+      groups.addAll(userGroups);
+      groups.addAll(userOrgGroups);
+      groups.addAll(userUserGroupGroups);
+      List roles=null;
+      if ((USER_CHECK_ALGORITHM == 3) || (USER_CHECK_ALGORITHM == 4)) {
+        roles=RoleServiceUtil.getUserRelatedRoles(user.getUserId(),groups);
+      }
+ else {
+        roles=new ArrayList();
+      }
+      if (_log.isDebugEnabled()) {
+        long end=System.currentTimeMillis();
+        _log.debug("Creating bag for " + groupId + " "+ name+ " "+ primKey+ " "+ actionId+ " takes "+ (end - start)+ " ms");
+      }
+      bag=new PermissionCheckerBagImpl(user.getUserId(),userGroups,userOrgs,userOrgGroups,userUserGroupGroups,groups,roles);
+      putBag(groupId,bag);
+    }
+ catch (    Exception e) {
+      _log.error(e,e);
+    }
+  }
+  if (user == null) {
+    return false;
+  }
+  String resultsKey=getResultsKey(groupId,name,primKey,actionId);
+  Boolean resultsValue=(Boolean)results.get(resultsKey);
+  if (resultsValue == null) {
+    resultsValue=new Boolean(hasPermissionImpl(groupId,name,primKey,actionId));
+    results.put(resultsKey,resultsValue);
+    if (_log.isDebugEnabled()) {
+      long end=System.currentTimeMillis();
+      _log.debug("Checking permission for " + groupId + " "+ name+ " "+ primKey+ " "+ actionId+ " takes "+ (end - start)+ " ms");
+    }
+  }
+  return resultsValue.booleanValue();
+}

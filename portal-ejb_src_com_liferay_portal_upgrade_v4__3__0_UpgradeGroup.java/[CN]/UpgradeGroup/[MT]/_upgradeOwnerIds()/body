@@ -1,0 +1,38 @@
+{
+  _log.info("Upgrade owner IDs");
+  _ownerIdMap=LayoutSetLocalServiceUtil.renewOwnerIds();
+  Iterator itr=PortletPreferencesLocalServiceUtil.getPortletPreferences().iterator();
+  PortletPreferencesLocalServiceUtil.deletePortletPreferences();
+  while (itr.hasNext()) {
+    PortletPreferences prefs=(PortletPreferences)itr.next();
+    String portletId=prefs.getPortletId();
+    String layoutId=prefs.getLayoutId();
+    String ownerId=prefs.getOwnerId();
+    if (!layoutId.equals(PortletKeys.PREFS_LAYOUT_ID_SHARED)) {
+      ownerId=(String)_ownerIdMap.get(ownerId);
+    }
+ else     if (ownerId.startsWith(PortletKeys.PREFS_OWNER_ID_GROUP)) {
+      Long groupId=new Long(StringUtil.split(ownerId,StringPool.PERIOD)[1]);
+      ownerId=PortletKeys.PREFS_OWNER_ID_GROUP + StringPool.PERIOD + _groupIdMap.get(groupId);
+    }
+    PortletPreferencesPK pk=new PortletPreferencesPK(portletId,layoutId,ownerId);
+    PortletPreferencesImpl prefsImpl=(PortletPreferencesImpl)PortletPreferencesSerializer.fromDefaultXML(prefs.getPreferences());
+    long groupId=Long.parseLong(prefsImpl.getValue("group-id","-1"));
+    if (groupId > 0) {
+      prefsImpl.setValue("group-id",String.valueOf(_groupIdMap.get(new Long(groupId))));
+    }
+    PortletPreferencesLocalServiceUtil.updatePreferences(pk,prefsImpl);
+  }
+  itr=JournalContentSearchLocalServiceUtil.getArticleContentSearches().iterator();
+  JournalContentSearchLocalServiceUtil.deleteArticleContentSearches();
+  while (itr.hasNext()) {
+    JournalContentSearch articleContentSearch=(JournalContentSearch)itr.next();
+    String portletId=articleContentSearch.getPortletId();
+    String layoutId=articleContentSearch.getLayoutId();
+    String ownerId=(String)_ownerIdMap.get(articleContentSearch.getOwnerId());
+    String companyId=articleContentSearch.getCompanyId();
+    long groupId=articleContentSearch.getGroupId();
+    String articleId=articleContentSearch.getArticleId();
+    JournalContentSearchLocalServiceUtil.updateContentSearch(portletId,layoutId,ownerId,companyId,groupId,articleId);
+  }
+}

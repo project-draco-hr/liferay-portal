@@ -1,0 +1,53 @@
+{
+  if ((fileName.indexOf("\\\\") != -1) || (fileName.indexOf("//") != -1) || (fileName.indexOf(":") != -1)|| (fileName.indexOf("*") != -1)|| (fileName.indexOf("?") != -1)|| (fileName.indexOf("\"") != -1)|| (fileName.indexOf("<") != -1)|| (fileName.indexOf(">") != -1)|| (fileName.indexOf("|") != -1)|| (fileName.indexOf("&") != -1)|| (fileName.indexOf("[") != -1)|| (fileName.indexOf("]") != -1)|| (fileName.indexOf("'") != -1)) {
+    throw new FileNameException(fileName);
+  }
+  boolean validFileExtension=false;
+  String[] fileExtensions=PropsUtil.getArray(PropsUtil.DL_FILE_EXTENSIONS);
+  for (int i=0; i < fileExtensions.length; i++) {
+    if (StringPool.STAR.equals(fileExtensions[i]) || StringUtil.endsWith(fileName,fileExtensions[i])) {
+      validFileExtension=true;
+      break;
+    }
+  }
+  if (!validFileExtension) {
+    throw new FileNameException(fileName);
+  }
+  long fileMaxSize=GetterUtil.getLong(PropsUtil.get(PropsUtil.DL_FILE_MAX_SIZE));
+  if ((fileMaxSize > 0) && ((byteArray == null) || (byteArray.length > fileMaxSize))) {
+    throw new FileSizeException(fileName);
+  }
+  InputStream is=new BufferedInputStream(new ByteArrayInputStream(byteArray));
+  Session session=null;
+  try {
+    session=JCRFactoryUtil.createSession();
+    Node rootNode=DLUtil.getRootNode(session,companyId);
+    Node repositoryNode=DLUtil.getFolderNode(rootNode,repositoryId);
+    if (repositoryNode.hasNode(fileName)) {
+      throw new DuplicateFileException(fileName);
+    }
+ else {
+      Node fileNode=repositoryNode.addNode(fileName,JCRConstants.NT_FILE);
+      Node contentNode=fileNode.addNode(JCRConstants.JCR_CONTENT,JCRConstants.NT_RESOURCE);
+      contentNode.addMixin(JCRConstants.MIX_VERSIONABLE);
+      contentNode.setProperty(JCRConstants.JCR_MIME_TYPE,"text/plain");
+      contentNode.setProperty(JCRConstants.JCR_DATA,is);
+      contentNode.setProperty(JCRConstants.JCR_LAST_MODIFIED,Calendar.getInstance());
+      session.save();
+      Version version=contentNode.checkin();
+      contentNode.getVersionHistory().addVersionLabel(version.getName(),Double.toString(DEFAULT_VERSION),false);
+      Indexer.addFile(companyId,portletId,new Long(groupId),repositoryId,fileName);
+    }
+  }
+ catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+catch (  RepositoryException re) {
+    throw new SystemException(re);
+  }
+ finally {
+    if (session != null) {
+      session.logout();
+    }
+  }
+}

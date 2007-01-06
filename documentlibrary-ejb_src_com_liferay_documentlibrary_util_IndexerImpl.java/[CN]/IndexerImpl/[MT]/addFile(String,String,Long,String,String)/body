@@ -1,0 +1,94 @@
+{
+synchronized (IndexWriter.class) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Indexing document " + companyId + " "+ portletId+ " "+ groupId+ " "+ repositoryId+ " "+ fileName);
+    }
+    String fileExt=StringPool.BLANK;
+    int fileExtVersionPos=fileName.indexOf(DLServiceImpl.VERSION);
+    if (fileExtVersionPos != -1) {
+      int fileExtPos=fileName.lastIndexOf(StringPool.PERIOD,fileExtVersionPos);
+      if (fileExtPos != -1) {
+        fileExt=fileName.substring(fileExtPos,fileExtVersionPos);
+      }
+    }
+ else {
+      int fileExtPos=fileName.lastIndexOf(StringPool.PERIOD);
+      if (fileExtPos != -1) {
+        fileExt=fileName.substring(fileExtPos,fileName.length());
+      }
+    }
+    InputStream is=null;
+    Session session=null;
+    try {
+      session=JCRFactoryUtil.createSession();
+      Node contentNode=DLUtil.getFileContentNode(session,companyId,repositoryId,fileName,0);
+      is=contentNode.getProperty(JCRConstants.JCR_DATA).getStream();
+    }
+ catch (    Exception e) {
+    }
+ finally {
+      if (session != null) {
+        session.logout();
+      }
+    }
+    if (is == null) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Document " + companyId + " "+ portletId+ " "+ groupId+ " "+ repositoryId+ " "+ fileName+ " does not have any content");
+      }
+      return;
+    }
+    IndexWriter writer=LuceneUtil.getWriter(companyId);
+    Document doc=new Document();
+    doc.add(LuceneFields.getKeyword(LuceneFields.UID,LuceneFields.getUID(portletId,repositoryId,fileName)));
+    doc.add(LuceneFields.getKeyword(LuceneFields.COMPANY_ID,companyId));
+    doc.add(LuceneFields.getKeyword(LuceneFields.PORTLET_ID,portletId));
+    doc.add(LuceneFields.getKeyword(LuceneFields.GROUP_ID,groupId.longValue()));
+    doc.add(LuceneFields.getFile(LuceneFields.CONTENT,is,fileExt));
+    if (portletId.equals(PortletKeys.DOCUMENT_LIBRARY)) {
+      try {
+        DLFileEntry fileEntry=null;
+        for (int i=0; i < 5; i++) {
+          try {
+            fileEntry=DLFileEntryLocalServiceUtil.getFileEntry(repositoryId,fileName);
+            break;
+          }
+ catch (          NoSuchFileEntryException nsfe) {
+            try {
+              Thread.sleep(1000);
+            }
+ catch (            InterruptedException ie) {
+              throw nsfe;
+            }
+          }
+        }
+        StringBuffer sb=new StringBuffer();
+        sb.append(fileEntry.getTitle());
+        sb.append(StringPool.SPACE);
+        sb.append(fileEntry.getDescription());
+        sb.append(StringPool.SPACE);
+        Properties extraSettingsProps=fileEntry.getExtraSettingsProperties();
+        Iterator itr=(Iterator)extraSettingsProps.entrySet().iterator();
+        while (itr.hasNext()) {
+          Map.Entry entry=(Map.Entry)itr.next();
+          String value=GetterUtil.getString((String)entry.getValue());
+          sb.append(value);
+        }
+        doc.add(LuceneFields.getText(LuceneFields.PROPERTIES,sb));
+      }
+ catch (      PortalException pe) {
+        throw new IOException(pe.getMessage());
+      }
+catch (      SystemException se) {
+        throw new IOException(se.getMessage());
+      }
+    }
+    doc.add(LuceneFields.getDate(LuceneFields.MODIFIED));
+    doc.add(LuceneFields.getKeyword("repositoryId",repositoryId));
+    doc.add(LuceneFields.getKeyword("path",fileName));
+    writer.addDocument(doc);
+    LuceneUtil.write(writer);
+    if (_log.isDebugEnabled()) {
+      _log.debug("Document " + companyId + " "+ portletId+ " "+ groupId+ " "+ repositoryId+ " "+ fileName+ " indexed successfully");
+    }
+  }
+}
