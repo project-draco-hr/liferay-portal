@@ -1,56 +1,10 @@
 {
   ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
-  Company company=themeDisplay.getCompany();
-  Hits results=null;
-  int total=0;
-  int begin=(startPage * itemsPerPage) - itemsPerPage;
-  int end=startPage * itemsPerPage;
   Hits hits=CompanyLocalServiceUtil.search(themeDisplay.getCompanyId(),keywords);
-  total=hits.getLength();
-  if (end > total) {
-    end=total;
-  }
-  results=hits.subset(begin,end);
-  int totalPages=0;
-  if (total % itemsPerPage == 0) {
-    totalPages=total / itemsPerPage;
-  }
- else {
-    totalPages=(total / itemsPerPage) + 1;
-  }
-  int previousPage=startPage - 1;
-  int nextPage=startPage + 1;
-  SimpleDateFormat sdf=new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:sszzz");
-  org.dom4j.Document doc=DocumentHelper.createDocument();
-  Element root=doc.addElement("feed");
-  root.add(OpenSearchUtil.getNamespace(OpenSearchUtil.DEFAULT_NAMESPACE));
-  root.add(OpenSearchUtil.getNamespace(OpenSearchUtil.OS_NAMESPACE));
-  root.add(OpenSearchUtil.getNamespace(OpenSearchUtil.RELEVANCE_NAMESPACE));
-  OpenSearchUtil.addElement(root,"title",OpenSearchUtil.DEFAULT_NAMESPACE,"Liferay Search: " + keywords);
-  OpenSearchUtil.addElement(root,"updated",OpenSearchUtil.DEFAULT_NAMESPACE,sdf.format(new Date()));
-  Element author=OpenSearchUtil.addElement(root,"author",OpenSearchUtil.DEFAULT_NAMESPACE);
-  OpenSearchUtil.addElement(author,"name",OpenSearchUtil.DEFAULT_NAMESPACE,themeDisplay.getUserId());
-  OpenSearchUtil.addElement(root,"id",OpenSearchUtil.DEFAULT_NAMESPACE,"urn:uuid:" + UUID.timeUUID());
-  OpenSearchUtil.addElement(root,"totalResults",OpenSearchUtil.OS_NAMESPACE,String.valueOf(total));
-  OpenSearchUtil.addElement(root,"startIndex",OpenSearchUtil.OS_NAMESPACE,String.valueOf(begin + 1));
-  OpenSearchUtil.addElement(root,"itemsPerPage",OpenSearchUtil.OS_NAMESPACE,String.valueOf(itemsPerPage));
-  Element query=OpenSearchUtil.addElement(root,"Query",OpenSearchUtil.OS_NAMESPACE);
-  query.addAttribute("role","request");
-  query.addAttribute("searchTerms",keywords);
-  query.addAttribute("startPage",String.valueOf(startPage));
-  OpenSearchUtil.addLink(root,company.getPortalURL(),"self",keywords,startPage,itemsPerPage);
-  OpenSearchUtil.addLink(root,company.getPortalURL(),"first",keywords,1,itemsPerPage);
-  if (previousPage > 0) {
-    OpenSearchUtil.addLink(root,company.getPortalURL(),"previous",keywords,previousPage,itemsPerPage);
-  }
-  if (nextPage <= totalPages) {
-    OpenSearchUtil.addLink(root,company.getPortalURL(),"next",keywords,nextPage,itemsPerPage);
-  }
-  OpenSearchUtil.addLink(root,company.getPortalURL(),"last",keywords,totalPages,itemsPerPage);
-  Element link=OpenSearchUtil.addElement(root,"link",OpenSearchUtil.DEFAULT_NAMESPACE);
-  link.addAttribute("rel","search");
-  link.addAttribute("href",OpenSearchUtil.SEARCH_PATH + "/description.xml");
-  link.addAttribute("type","application/opensearchdescription+xml");
+  Object[] values=addSearchResults(keywords,startPage,itemsPerPage,hits,"Liferay Portal Search: " + keywords,SEARCH_PATH,themeDisplay);
+  Hits results=(Hits)values[0];
+  org.dom4j.Document doc=(org.dom4j.Document)values[1];
+  Element root=(Element)values[2];
   for (int i=0; i < results.getLength(); i++) {
     Document result=results.doc(i);
     String portletId=(String)result.get(LuceneFields.PORTLET_ID);
@@ -60,25 +14,17 @@
     }
     String portletTitle=PortalUtil.getPortletTitle(portletId,themeDisplay.getUser());
     String groupId=(String)result.get(LuceneFields.GROUP_ID);
-    String title=null;
-    String content=null;
-    String portletLayoutId=null;
-    if (themeDisplay.getLayout().isPrivateLayout()) {
-      portletLayoutId=LayoutImpl.PRIVATE + groupId + ".1";
-    }
- else {
-      portletLayoutId=LayoutImpl.PRIVATE + groupId + ".1";
-    }
-    PortletURL rowURL=new PortletURLImpl(req,portletId,portletLayoutId,false);
-    rowURL.setWindowState(WindowState.MAXIMIZED);
-    rowURL.setPortletMode(PortletMode.VIEW);
-    String url=rowURL.toString();
+    String title=StringPool.BLANK;
+    PortletURL portletURL=getPortletURL(req,portletId,groupId);
+    String url=portletURL.toString();
+    Date modifedDate=DateTools.stringToDate((String)result.get(LuceneFields.MODIFIED));
+    String content=StringPool.BLANK;
     if (Validator.isNotNull(portlet.getIndexerClass())) {
       Indexer indexer=(Indexer)InstancePool.get(portlet.getIndexerClass());
-      DocumentSummary docSummary=indexer.getDocumentSummary(result,rowURL);
+      DocumentSummary docSummary=indexer.getDocumentSummary(result,portletURL);
       title=docSummary.getTitle();
+      url=portletURL.toString();
       content=docSummary.getContent();
-      url=rowURL.toString();
       if (portlet.getPortletId().equals(PortletKeys.JOURNAL)) {
         String articleId=result.get("articleId");
         String version=result.get("version");
@@ -93,15 +39,8 @@
         url=sb.toString();
       }
     }
-    Element entry=OpenSearchUtil.addElement(root,"entry",OpenSearchUtil.DEFAULT_NAMESPACE);
-    OpenSearchUtil.addElement(entry,"title",OpenSearchUtil.DEFAULT_NAMESPACE,portletTitle + " &raquo; " + title);
-    Element entryLink=OpenSearchUtil.addElement(entry,"link",OpenSearchUtil.DEFAULT_NAMESPACE);
-    entryLink.addAttribute("href",url);
-    OpenSearchUtil.addElement(entry,"id",OpenSearchUtil.DEFAULT_NAMESPACE,"urn:uuid:" + UUID.timeUUID());
-    Date entryDate=DateTools.stringToDate((String)result.get(LuceneFields.MODIFIED));
-    OpenSearchUtil.addElement(entry,"updated",OpenSearchUtil.DEFAULT_NAMESPACE,sdf.format(entryDate));
-    OpenSearchUtil.addElement(entry,"summary",OpenSearchUtil.DEFAULT_NAMESPACE,content);
-    OpenSearchUtil.addElement(entry,"score",OpenSearchUtil.RELEVANCE_NAMESPACE,String.valueOf(hits.score(i)));
+    double score=hits.score(i);
+    addSearchResult(root,portletTitle + " &raquo; " + title,url,modifedDate,content,score);
   }
   if (_log.isDebugEnabled()) {
     _log.debug("Return\n" + doc.asXML());
