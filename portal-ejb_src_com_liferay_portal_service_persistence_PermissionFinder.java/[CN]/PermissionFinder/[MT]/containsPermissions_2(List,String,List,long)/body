@@ -1,0 +1,66 @@
+{
+  Session session=null;
+  try {
+    session=HibernateUtil.openSession();
+    String sql="";
+    if (groups.size() > 0) {
+      sql+="(";
+      sql+=CustomSQLUtil.get(COUNT_BY_GROUPS_ROLES);
+      sql+=") ";
+      sql=StringUtil.replace(sql,"[$PERMISSION_IDS$]",_getPermissionIds(permissions,"Roles_Permissions"));
+      sql=StringUtil.replace(sql,"[$GROUP_IDS$]",_getGroupIds(groups,"Groups_Roles"));
+      sql+="UNION ALL ";
+      sql+="(";
+      sql+=CustomSQLUtil.get(COUNT_BY_GROUPS_PERMISSIONS);
+      sql+=") ";
+      sql=StringUtil.replace(sql,"[$PERMISSION_IDS$]",_getPermissionIds(permissions,"Groups_Permissions"));
+      sql=StringUtil.replace(sql,"[$GROUP_IDS$]",_getGroupIds(groups,"Groups_Permissions"));
+      sql+="UNION ALL ";
+    }
+    sql+="(";
+    sql+=CustomSQLUtil.get(COUNT_BY_USERS_ROLES);
+    sql+=") ";
+    sql=StringUtil.replace(sql,"[$PERMISSION_IDS$]",_getPermissionIds(permissions,"Roles_Permissions"));
+    sql+="UNION ALL ";
+    sql+="(";
+    sql+=CustomSQLUtil.get(COUNT_BY_USERS_PERMISSIONS);
+    sql+=") ";
+    sql=StringUtil.replace(sql,"[$PERMISSION_IDS$]",_getPermissionIds(permissions,"Users_Permissions"));
+    sql+="UNION ALL ";
+    sql+="(";
+    sql+=CustomSQLUtil.get(COUNT_BY_USER_GROUP_ROLE);
+    sql+=") ";
+    sql=StringUtil.replace(sql,"[$PERMISSION_IDS$]",_getPermissionIds(permissions,"Roles_Permissions"));
+    SQLQuery q=session.createSQLQuery(sql);
+    q.setCacheable(false);
+    q.addScalar(HibernateUtil.getCountColumnName(),Hibernate.LONG);
+    QueryPos qPos=QueryPos.getInstance(q);
+    if (groups.size() > 0) {
+      _setPermissionIds(qPos,permissions);
+      _setGroupIds(qPos,groups);
+      _setPermissionIds(qPos,permissions);
+      _setGroupIds(qPos,groups);
+    }
+    _setPermissionIds(qPos,permissions);
+    qPos.add(userId);
+    _setPermissionIds(qPos,permissions);
+    qPos.add(userId);
+    qPos.add(groupId);
+    _setPermissionIds(qPos,permissions);
+    qPos.add(userId);
+    Iterator itr=q.list().iterator();
+    while (itr.hasNext()) {
+      Long count=(Long)itr.next();
+      if ((count != null) && (count.intValue() > 0)) {
+        return true;
+      }
+    }
+    return false;
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+ finally {
+    HibernateUtil.closeSession(session);
+  }
+}
