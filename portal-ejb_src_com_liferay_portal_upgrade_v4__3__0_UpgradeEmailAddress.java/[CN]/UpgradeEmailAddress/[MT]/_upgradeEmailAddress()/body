@@ -1,0 +1,56 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  String tempFilename="temp-db-EmailAddress-" + System.currentTimeMillis();
+  try {
+    con=HibernateUtil.getConnection();
+    ps=con.prepareStatement(_SELECT_EMAIL_ADDRESS);
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      Long emailAddressId=new Long(CounterLocalServiceUtil.increment(Counter.class.getName()));
+      String companyId=rs.getString("companyId");
+      String userId=rs.getString("userId");
+      String userName=rs.getString("userName");
+      Date createDate=rs.getDate("createDate");
+      Date modifiedDate=rs.getDate("modifiedDate");
+      String className=rs.getString("className");
+      String classPK=rs.getString("classPK");
+      String address=rs.getString("address");
+      Integer typeId=new Integer(rs.getInt("typeId"));
+      Boolean primary=getBoolean(rs,"primary_");
+      StringBuffer sb=new StringBuffer(_INSERT_EMAIL_ADDRESS);
+      appendWrappedColumn(sb,emailAddressId);
+      appendWrappedColumn(sb,companyId);
+      appendWrappedColumn(sb,userId);
+      appendWrappedColumn(sb,userName);
+      appendWrappedColumn(sb,createDate);
+      appendWrappedColumn(sb,modifiedDate);
+      appendWrappedColumn(sb,className);
+      appendWrappedColumn(sb,classPK);
+      appendWrappedColumn(sb,address);
+      appendWrappedColumn(sb,typeId);
+      appendWrappedColumn(sb,primary,true);
+      FileUtil.append(tempFilename,sb.toString());
+    }
+    _log.info("EmailAddress table backed up to file " + tempFilename);
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+  Statement stmt=null;
+  try {
+    con=HibernateUtil.getConnection();
+    stmt=con.createStatement();
+    stmt.executeUpdate(_DELETE_EMAIL_ADDRESS);
+    String[] sqlInserts=StringUtil.split(FileUtil.read(tempFilename),StringPool.NEW_LINE);
+    for (int i=0; i < sqlInserts.length; i++) {
+      stmt.executeUpdate(sqlInserts[i]);
+    }
+    FileUtil.delete(tempFilename);
+    _log.info("EmailAddress table repopulated with data");
+  }
+  finally {
+    DataAccess.cleanUp(con,stmt);
+  }
+}
