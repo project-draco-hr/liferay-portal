@@ -1,27 +1,35 @@
 {
-  if (userPassword != null) {
-    String ldapPassword=new String((byte[])userPassword.get());
-    String encryptedPassword=password;
-    String algorithm=PrefsPropsUtil.getString(companyId,PropsUtil.AUTH_IMPL_LDAP_PASSWORD_ENCRYPTION_ALGORITHM);
-    if (Validator.isNotNull(algorithm)) {
-      encryptedPassword="{" + algorithm + "}"+ Encryptor.digest(algorithm,password);
-    }
-    if (!ldapPassword.equals(encryptedPassword)) {
-      _log.error("LDAP password " + ldapPassword + " does not match with given password "+ encryptedPassword+ " for user id "+ userId);
-      return false;
-    }
-  }
- else {
+  boolean authenticated=false;
+  String authMethod=PrefsPropsUtil.getString(companyId,PropsUtil.AUTH_IMPL_LDAP_AUTH_METHOD);
+  if (authMethod.equals(AUTH_METHOD_BIND)) {
     try {
       String userDN=binding.getName() + StringPool.COMMA + baseDN;
       env.put(Context.SECURITY_PRINCIPAL,userDN);
       env.put(Context.SECURITY_CREDENTIALS,password);
       ctx=new InitialLdapContext(env,null);
+      authenticated=true;
     }
  catch (    Exception e) {
       _log.error("Failed to bind to the LDAP server with " + userId + " "+ password+ " "+ e.getMessage());
-      return false;
+      authenticated=false;
     }
   }
-  return true;
+ else   if (authMethod.equals(AUTH_METHOD_PASSWORD_COMPARE)) {
+    if (userPassword != null) {
+      String ldapPassword=new String((byte[])userPassword.get());
+      String encryptedPassword=password;
+      String algorithm=PrefsPropsUtil.getString(companyId,PropsUtil.AUTH_IMPL_LDAP_PASSWORD_ENCRYPTION_ALGORITHM);
+      if (Validator.isNotNull(algorithm)) {
+        encryptedPassword="{" + algorithm + "}"+ Encryptor.digest(algorithm,password);
+      }
+      if (ldapPassword.equals(encryptedPassword)) {
+        authenticated=true;
+      }
+ else {
+        authenticated=false;
+        _log.error("LDAP password " + ldapPassword + " does not match with given password "+ encryptedPassword+ " for user id "+ userId);
+      }
+    }
+  }
+  return authenticated;
 }
