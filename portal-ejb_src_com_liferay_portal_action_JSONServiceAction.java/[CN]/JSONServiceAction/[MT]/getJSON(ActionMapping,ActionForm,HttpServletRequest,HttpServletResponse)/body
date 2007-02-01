@@ -1,0 +1,49 @@
+{
+  String className=ParamUtil.getString(req,"serviceClassName");
+  String methodName=ParamUtil.getString(req,"serviceMethodName");
+  String[] parameters=StringUtil.split(ParamUtil.getString(req,"serviceParameters"));
+  Class classObj=Class.forName(className);
+  Object[] methodAndParameterTypes=getMethodAndParameterTypes(classObj,methodName,parameters.length);
+  if (methodAndParameterTypes != null) {
+    Method method=(Method)methodAndParameterTypes[0];
+    Class[] parameterTypes=(Class[])methodAndParameterTypes[1];
+    Object[] args=new Object[parameters.length];
+    for (int i=0; i < parameters.length; i++) {
+      args[i]=getArgValue(req,classObj,methodName,parameters[i],parameterTypes[i]);
+      if (args[i] == null) {
+        return null;
+      }
+    }
+    try {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Invoking class " + classObj + " on method "+ method.getName()+ " with args "+ args);
+      }
+      Object returnObj=method.invoke(classObj,args);
+      if (returnObj != null) {
+        if (returnObj instanceof JSONArray) {
+          JSONArray jsonArray=(JSONArray)returnObj;
+          return jsonArray.toString();
+        }
+ else         if (returnObj instanceof JSONObject) {
+          JSONObject jsonObj=(JSONObject)returnObj;
+          return jsonObj.toString();
+        }
+ else         if (returnObj instanceof Boolean || returnObj instanceof Integer || returnObj instanceof Long) {
+          JSONObject jsonObj=new JSONObject();
+          jsonObj.put("returnValue",returnObj.toString());
+          return jsonObj.toString();
+        }
+ else {
+          _log.error("Unsupported return type for class " + classObj + " and method "+ methodName);
+          return null;
+        }
+      }
+    }
+ catch (    InvocationTargetException ite) {
+      JSONObject jsonObj=new JSONObject();
+      jsonObj.put("exception",ite.getCause());
+      return jsonObj.toString();
+    }
+  }
+  return null;
+}
