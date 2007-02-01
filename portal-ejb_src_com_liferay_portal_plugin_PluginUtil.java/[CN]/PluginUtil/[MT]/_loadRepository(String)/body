@@ -3,10 +3,12 @@
   String pluginsXmlURL=repositoryURL + StringPool.SLASH + _PLUGINS_XML_FILENAME;
   try {
     HttpClient client=new HttpClient();
+    int timeout=GetterUtil.getInteger(PropsUtil.get(PropsUtil.PLUGIN_TIMEOUT_LIST));
+    client.getHttpConnectionManager().getParams().setConnectionTimeout(timeout);
     GetMethod getFile=new GetMethod(pluginsXmlURL);
     int responseCode=client.executeMethod(getFile);
     if (responseCode != 200) {
-      throw new RuntimeException("Cannot download file: " + pluginsXmlURL + " Response"+ " code: "+ responseCode);
+      throw new PluginException("Cannot download file: " + pluginsXmlURL + ". Response"+ " code: "+ responseCode);
     }
     byte[] bytes=getFile.getResponseBody();
     getFile.releaseConnection();
@@ -19,16 +21,19 @@
     }
  else {
       _lastUpdateDate=new Date();
-      throw new RuntimeException("Download error");
+      throw new PluginException("Download error");
     }
   }
  catch (  MalformedURLException mue) {
-    throw new RuntimeException("Invalid URL:" + pluginsXmlURL);
+    _repositoryCache.remove(repositoryURL);
+    throw new PluginException("Invalid URL:" + pluginsXmlURL,mue);
   }
 catch (  IOException ioe) {
-    throw new RuntimeException("Communication error: " + ioe);
+    _repositoryCache.remove(repositoryURL);
+    throw new PluginException("Communication error with repository " + repositoryURL,ioe);
   }
 catch (  DocumentException de) {
-    throw new RuntimeException("Parse Error: " + de);
+    _repositoryCache.remove(repositoryURL);
+    throw new PluginException("Parse error of plugin list for " + "repository " + repositoryURL,de);
   }
 }
