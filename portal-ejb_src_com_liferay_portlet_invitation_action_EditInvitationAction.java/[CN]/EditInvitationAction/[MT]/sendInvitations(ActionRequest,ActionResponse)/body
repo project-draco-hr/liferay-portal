@@ -1,0 +1,39 @@
+{
+  String redirect=ParamUtil.getString(req,"redirect");
+  Map errors=new HashMap();
+  List emails=new ArrayList();
+  for (int i=0; i < MAX_EMAILS; i++) {
+    String email=ParamUtil.getString(req,"email_" + i);
+    if (Validator.isEmailAddress(email)) {
+      emails.add(email);
+    }
+ else     if (!email.equals("")) {
+      errors.put("email_" + i,"invalid-email");
+    }
+  }
+  if (errors.size() > 0) {
+    SessionErrors.add(req,EditInvitationAction.class.getName(),errors);
+    setForward(req,"portlet.invitation.edit");
+    return;
+  }
+ else   if (emails.size() > 0) {
+    User user=PortalUtil.getUser(req);
+    String userFullName=user.getFullName();
+    String userEmailAddress=user.getEmailAddress();
+    ActionRequestImpl requestImpl=(ActionRequestImpl)req;
+    String portalURL=PortalUtil.getPortalURL(requestImpl.getHttpServletRequest());
+    String subject=ContentUtil.get(PropsUtil.get(PropsUtil.INVITATION_EMAIL_SUBJECT));
+    subject=StringUtil.replace(subject,new String[]{"[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PORTAL_URL$]"},new String[]{userEmailAddress,userFullName,portalURL});
+    String body=ContentUtil.get(PropsUtil.get(PropsUtil.INVITATION_EMAIL_BODY));
+    body=StringUtil.replace(body,new String[]{"[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PORTAL_URL$]"},new String[]{userEmailAddress,userFullName,portalURL});
+    InternetAddress from=new InternetAddress(userEmailAddress,userFullName);
+    for (int j=0; j < emails.size(); j++) {
+      String toAddress=(String)emails.get(j);
+      InternetAddress to=new InternetAddress(toAddress);
+      MailMessage message=new MailMessage(from,to,subject,body,true);
+      MailServiceUtil.sendEmail(message);
+    }
+    redirect+="&success=1";
+  }
+  res.sendRedirect(redirect);
+}

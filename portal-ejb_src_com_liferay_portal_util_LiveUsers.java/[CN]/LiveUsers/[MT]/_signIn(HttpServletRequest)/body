@@ -1,0 +1,30 @@
+{
+  HttpSession ses=req.getSession();
+  String companyId=CompanyThreadLocal.getCompanyId();
+  String userId=req.getRemoteUser();
+  Map liveUsers=_updateGroupStatus(req.getRemoteUser(),true);
+  Map sessionUsers=_getSessionUsers(liveUsers);
+  boolean simultaenousLogins=GetterUtil.getBoolean(PropsUtil.get(PropsUtil.AUTH_SIMULTANEOUS_LOGINS),true);
+  List userTrackers=_getUserTrackers(userId);
+  if (!simultaenousLogins) {
+    if (userTrackers != null) {
+      for (int i=0; i < userTrackers.size(); i++) {
+        UserTracker userTracker=(UserTracker)userTrackers.get(i);
+        userTracker.getHttpSession().setAttribute(WebKeys.STALE_SESSION,Boolean.TRUE);
+      }
+    }
+  }
+  UserTracker userTracker=(UserTracker)sessionUsers.get(ses.getId());
+  if ((userTracker == null) && (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.SESSION_TRACKER_MEMORY_ENABLED)))) {
+    userTracker=UserTrackerUtil.create(ses.getId());
+    userTracker.setCompanyId(companyId);
+    userTracker.setUserId(userId);
+    userTracker.setModifiedDate(new Date());
+    userTracker.setRemoteAddr(req.getRemoteAddr());
+    userTracker.setRemoteHost(req.getRemoteHost());
+    userTracker.setUserAgent(req.getHeader(HttpHeaders.USER_AGENT));
+    userTracker.setHttpSession(ses);
+    sessionUsers.put(ses.getId(),userTracker);
+    _addUserTracker(userId,userTracker);
+  }
+}
