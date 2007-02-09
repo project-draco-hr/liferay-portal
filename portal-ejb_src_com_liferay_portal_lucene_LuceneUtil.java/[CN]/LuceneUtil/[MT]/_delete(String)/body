@@ -1,8 +1,9 @@
 {
   if (PropsUtil.get(PropsUtil.LUCENE_STORE_TYPE).equals(_LUCENE_STORE_TYPE_JDBC)) {
+    String tableName=_getTableName(companyId);
     try {
       DataSource ds=HibernateUtil.getDataSource();
-      JdbcDirectory directory=new JdbcDirectory(ds,_dialect,_getTableName(companyId));
+      JdbcDirectory directory=new JdbcDirectory(ds,_dialect,tableName);
       if (directory.tableExists()) {
         directory.delete();
       }
@@ -11,7 +12,24 @@
       throw new RuntimeException(ioe);
     }
 catch (    UnsupportedOperationException uoe) {
-      throw new RuntimeException(uoe);
+      if (_log.isWarnEnabled()) {
+        _log.warn("Database doesn't support the ability to check " + "whether a table exists");
+      }
+      Connection con=null;
+      Statement s=null;
+      try {
+        con=HibernateUtil.getConnection();
+        s=con.createStatement();
+        s.executeUpdate("DELETE FROM " + tableName);
+      }
+ catch (      Exception e) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Could not truncate " + tableName);
+        }
+      }
+ finally {
+        DataAccess.cleanUp(con,s);
+      }
     }
   }
  else {
