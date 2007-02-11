@@ -1,0 +1,32 @@
+{
+  List validEmailAddresses=new ArrayList();
+  String[] emailAddresses=StringUtil.split(ParamUtil.getString(req,"emailAddresses"),"\n");
+  for (int i=0; i < emailAddresses.length; i++) {
+    String emailAddress=emailAddresses[i];
+    if (Validator.isEmailAddress(emailAddress)) {
+      validEmailAddresses.add(emailAddress);
+    }
+  }
+  if (validEmailAddresses.size() == 0) {
+    return;
+  }
+  ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
+  User user=themeDisplay.getUser();
+  String fromAddress=user.getEmailAddress();
+  String fromName=user.getFullName();
+  InternetAddress from=new InternetAddress(fromAddress,fromName);
+  Layout layout=themeDisplay.getLayout();
+  String pageURL=PortalUtil.getPortalURL(req) + PortalUtil.getLayoutURL(layout,themeDisplay);
+  PortletPreferences prefs=PortletPreferencesFactory.getPortletSetup(req,PortletKeys.INVITATION,true,true);
+  String subject=InvitationUtil.getEmailMessageSubject(prefs);
+  String body=InvitationUtil.getEmailMessageBody(prefs);
+  subject=StringUtil.replace(subject,new String[]{"[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PAGE_URL$]"},new String[]{fromAddress,fromName,pageURL});
+  body=StringUtil.replace(body,new String[]{"[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PAGE_URL$]"},new String[]{fromAddress,fromName,pageURL});
+  for (int i=0; i < validEmailAddresses.size(); i++) {
+    String emailAddress=(String)validEmailAddresses.get(i);
+    InternetAddress to=new InternetAddress(emailAddress);
+    MailMessage message=new MailMessage(from,to,subject,body,true);
+    MailServiceUtil.sendEmail(message);
+  }
+  SessionMessages.add(req,"invitationSent");
+}
