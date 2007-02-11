@@ -1,10 +1,11 @@
 {
   if (Validator.isNotNull(NON_PROXY_HOSTS)) {
-    _nonProxyHostsPattern=NON_PROXY_HOSTS;
-    _nonProxyHostsPattern=_nonProxyHostsPattern.replaceAll("\\.","\\\\.");
-    _nonProxyHostsPattern=_nonProxyHostsPattern.replaceAll("\\*",".*?");
-    _nonProxyHostsPattern=_nonProxyHostsPattern.replaceAll("\\|",")|(");
-    _nonProxyHostsPattern="(" + _nonProxyHostsPattern + ")";
+    String nonProxyHostsRegEx=NON_PROXY_HOSTS;
+    nonProxyHostsRegEx=nonProxyHostsRegEx.replaceAll("\\.","\\\\.");
+    nonProxyHostsRegEx=nonProxyHostsRegEx.replaceAll("\\*",".*?");
+    nonProxyHostsRegEx=nonProxyHostsRegEx.replaceAll("\\|",")|(");
+    nonProxyHostsRegEx="(" + nonProxyHostsRegEx + ")";
+    _nonProxyHostsPattern=Pattern.compile(nonProxyHostsRegEx);
   }
   MultiThreadedHttpConnectionManager connectionManager=new MultiThreadedHttpConnectionManager();
   HttpConnectionParams params=connectionManager.getParams();
@@ -13,20 +14,18 @@
   params.setConnectionTimeout(TIMEOUT);
   params.setSoTimeout(TIMEOUT);
   _client.setHttpConnectionManager(connectionManager);
-  if (Validator.isNotNull(PROXY_USERNAME)) {
-    Credentials credentials=null;
+  _proxyClient.setHttpConnectionManager(connectionManager);
+  if (hasProxyConfig() && Validator.isNotNull(PROXY_USERNAME)) {
     if (PROXY_AUTH_TYPE.equals("username-password")) {
-      credentials=new UsernamePasswordCredentials(PROXY_USERNAME,PROXY_PASSWORD);
+      _proxyCredentials=new UsernamePasswordCredentials(PROXY_USERNAME,PROXY_PASSWORD);
     }
  else     if (PROXY_AUTH_TYPE.equals("ntlm")) {
-      credentials=new NTCredentials(PROXY_USERNAME,PROXY_PASSWORD,PROXY_NTLM_HOST,PROXY_NTLM_DOMAIN);
+      _proxyCredentials=new NTCredentials(PROXY_USERNAME,PROXY_PASSWORD,PROXY_NTLM_HOST,PROXY_NTLM_DOMAIN);
       List authPrefs=new ArrayList();
       authPrefs.add(AuthPolicy.NTLM);
       authPrefs.add(AuthPolicy.BASIC);
       authPrefs.add(AuthPolicy.DIGEST);
-      _proxyClientParams.setParameter(AuthPolicy.AUTH_SCHEME_PRIORITY,authPrefs);
+      _proxyClient.getParams().setParameter(AuthPolicy.AUTH_SCHEME_PRIORITY,authPrefs);
     }
-    _proxyHostConfig.setProxy(PROXY_HOST,PROXY_PORT);
-    _proxyState.setProxyCredentials(new AuthScope(PROXY_HOST,PROXY_PORT,null),credentials);
   }
 }
