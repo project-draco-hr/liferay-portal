@@ -1,13 +1,18 @@
 {
   List validEmailAddresses=new ArrayList();
-  String[] emailAddresses=StringUtil.split(ParamUtil.getString(req,"emailAddresses"),"\n");
-  for (int i=0; i < emailAddresses.length; i++) {
-    String emailAddress=emailAddresses[i];
+  Set invalidEmailAddresses=CollectionFactory.getHashSet();
+  int emailMessageMaxRecipients=InvitationUtil.getEmailMessageMaxRecipients();
+  for (int i=0; i < emailMessageMaxRecipients; i++) {
+    String emailAddress=ParamUtil.getString(req,"emailAddress" + i);
     if (Validator.isEmailAddress(emailAddress)) {
       validEmailAddresses.add(emailAddress);
     }
+ else     if (Validator.isNotNull(emailAddress)) {
+      invalidEmailAddresses.add("emailAddress" + i);
+    }
   }
-  if (validEmailAddresses.size() == 0) {
+  if (invalidEmailAddresses.size() > 0) {
+    SessionErrors.add(req,"emailAddresses",invalidEmailAddresses);
     return;
   }
   ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
@@ -16,12 +21,13 @@
   String fromName=user.getFullName();
   InternetAddress from=new InternetAddress(fromAddress,fromName);
   Layout layout=themeDisplay.getLayout();
-  String pageURL=PortalUtil.getPortalURL(req) + PortalUtil.getLayoutURL(layout,themeDisplay);
+  String portalURL=PortalUtil.getPortalURL(req);
+  String pageURL=portalURL + PortalUtil.getLayoutURL(layout,themeDisplay);
   PortletPreferences prefs=PortletPreferencesFactory.getPortletSetup(req,PortletKeys.INVITATION,true,true);
   String subject=InvitationUtil.getEmailMessageSubject(prefs);
   String body=InvitationUtil.getEmailMessageBody(prefs);
-  subject=StringUtil.replace(subject,new String[]{"[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PAGE_URL$]"},new String[]{fromAddress,fromName,pageURL});
-  body=StringUtil.replace(body,new String[]{"[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PAGE_URL$]"},new String[]{fromAddress,fromName,pageURL});
+  subject=StringUtil.replace(subject,new String[]{"[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PAGE_URL$]","[$PORTAL_URL$]"},new String[]{fromAddress,fromName,pageURL,portalURL});
+  body=StringUtil.replace(body,new String[]{"[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PAGE_URL$]","[$PORTAL_URL$]"},new String[]{fromAddress,fromName,pageURL,portalURL});
   for (int i=0; i < validEmailAddresses.size(); i++) {
     String emailAddress=(String)validEmailAddresses.get(i);
     InternetAddress to=new InternetAddress(emailAddress);
@@ -29,4 +35,6 @@
     MailServiceUtil.sendEmail(message);
   }
   SessionMessages.add(req,"invitationSent");
+  String redirect=ParamUtil.getString(req,"redirect");
+  res.sendRedirect(redirect);
 }
