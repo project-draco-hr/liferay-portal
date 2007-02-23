@@ -1,80 +1,8 @@
 {
-  LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(ownerId);
-  PortletDataContext context=new PortletDataContext(layoutSet.getCompanyId(),layoutSet.getGroupId(),CollectionFactory.getHashSet());
-  Group guestGroup=GroupLocalServiceUtil.getGroup(layoutSet.getCompanyId(),GroupImpl.GUEST);
-  Element root=null;
   try {
-    ZipReader zipReader=new ZipReader(file);
-    String xml=zipReader.getEntryAsString("layouts.xml");
-    SAXReader reader=new SAXReader();
-    Document doc=reader.read(new StringReader(xml));
-    root=doc.getRootElement();
+    importLayouts(userId,ownerId,new FileInputStream(file));
   }
- catch (  Exception e) {
-    throw new SystemException(e);
+ catch (  FileNotFoundException fnfe) {
+    throw new SystemException(fnfe);
   }
-  Element header=(Element)root.element("header");
-  int buildNumber=ReleaseInfo.getBuildNumber();
-  int importBuildNumber=GetterUtil.getInteger(header.attributeValue("build-number"));
-  if (buildNumber != importBuildNumber) {
-    throw new LayoutImportException("LAR build number " + importBuildNumber + " does not match "+ "portal build number "+ buildNumber);
-  }
-  String themeId=header.attributeValue("theme-id");
-  String colorSchemeId=header.attributeValue("color-scheme-id");
-  LayoutSetLocalServiceUtil.updateLookAndFeel(ownerId,themeId,colorSchemeId);
-  User user=UserUtil.findByPrimaryKey(userId);
-  List newLayoutPKs=new ArrayList();
-  Iterator itr1=root.elements("layout").iterator();
-  while (itr1.hasNext()) {
-    Element layoutEl=(Element)itr1.next();
-    String layoutId=layoutEl.attributeValue("layout-id");
-    String parentLayoutId=layoutEl.elementText("parent-layout-id");
-    String name=layoutEl.elementText("name");
-    String title=layoutEl.elementText("title");
-    String type=layoutEl.elementText("type");
-    String typeSettings=layoutEl.elementText("type-settings");
-    boolean hidden=GetterUtil.getBoolean(layoutEl.elementText("hidden"));
-    String friendlyURL=layoutEl.elementText("friendly-url");
-    themeId=layoutEl.elementText("theme-id");
-    colorSchemeId=layoutEl.elementText("color-scheme-id");
-    int priority=GetterUtil.getInteger(layoutEl.elementText("priority"));
-    LayoutPK layoutPK=new LayoutPK(layoutId,ownerId);
-    newLayoutPKs.add(layoutPK);
-    Layout layout=LayoutUtil.fetchByPrimaryKey(layoutPK);
-    if (layout == null) {
-      layout=LayoutUtil.create(layoutPK);
-    }
-    layout.setCompanyId(user.getActualCompanyId());
-    layout.setParentLayoutId(parentLayoutId);
-    layout.setName(name);
-    layout.setTitle(title);
-    layout.setType(type);
-    layout.setTypeSettings(typeSettings);
-    layout.setHidden(hidden);
-    layout.setFriendlyURL(friendlyURL);
-    layout.setThemeId(themeId);
-    layout.setColorSchemeId(colorSchemeId);
-    layout.setPriority(priority);
-    fixTypeSettings(layout);
-    LayoutUtil.update(layout);
-    Element permissionsEl=layoutEl.element("permissions");
-    importLayoutPermissions(layout,layout.getGroupId(),permissionsEl,"community-actions");
-    if (layout.getGroupId() != guestGroup.getGroupId()) {
-      importLayoutPermissions(layout,guestGroup.getGroupId(),permissionsEl,"guest-actions");
-    }
-    Iterator itr2=permissionsEl.elements("portlet").iterator();
-    while (itr2.hasNext()) {
-      Element portletEl=(Element)itr2.next();
-      String portletId=portletEl.attributeValue("portlet-id");
-      importPortletPermissions(portletId,layout,layout.getGroupId(),portletEl,"community-actions");
-      if (layout.getGroupId() != guestGroup.getGroupId()) {
-        importPortletPermissions(portletId,layout,guestGroup.getGroupId(),portletEl,"guest-actions");
-      }
-    }
-    importPortletPreferences(layoutSet,layoutEl);
-    importPortletData(context,layout,layoutEl);
-  }
-  importPortletPreferences(layoutSet,root);
-  deleteMissingLayouts(ownerId,newLayoutPKs);
-  LayoutSetLocalServiceUtil.updatePageCount(ownerId);
 }
