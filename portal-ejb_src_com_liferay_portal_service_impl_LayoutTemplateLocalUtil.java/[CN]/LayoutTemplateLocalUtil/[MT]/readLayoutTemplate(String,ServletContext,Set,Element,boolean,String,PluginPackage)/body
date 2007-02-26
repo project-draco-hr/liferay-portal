@@ -1,0 +1,66 @@
+{
+  Map layoutTemplates=null;
+  if (themeId != null) {
+    if (standard) {
+      layoutTemplates=_getThemesStandard(themeId);
+    }
+ else {
+      layoutTemplates=_getThemesCustom(themeId);
+    }
+  }
+ else   if (servletContextName != null) {
+    if (standard) {
+      layoutTemplates=_warStandard;
+    }
+ else {
+      layoutTemplates=_warCustom;
+    }
+  }
+ else {
+    if (standard) {
+      layoutTemplates=_portalStandard;
+    }
+ else {
+      layoutTemplates=_portalCustom;
+    }
+  }
+  Iterator itr=el.elements("layout-template").iterator();
+  while (itr.hasNext()) {
+    Element layoutTemplate=(Element)itr.next();
+    String layoutTemplateId=layoutTemplate.attributeValue("id");
+    if (layoutTemplateIds != null) {
+      layoutTemplateIds.add(new ObjectValuePair(layoutTemplateId,new Boolean(standard)));
+    }
+    LayoutTemplate layoutTemplateModel=(LayoutTemplate)layoutTemplates.get(layoutTemplateId);
+    if (layoutTemplateModel == null) {
+      layoutTemplateModel=new LayoutTemplateImpl(layoutTemplateId);
+      layoutTemplates.put(layoutTemplateId,layoutTemplateModel);
+    }
+    PluginSetting pluginSetting=PluginSettingLocalServiceUtil.getDefaultPluginSetting();
+    layoutTemplateModel.setPluginPackage(pluginPackage);
+    if (servletContextName != null) {
+      layoutTemplateModel.setServletContextName(servletContextName);
+    }
+    layoutTemplateModel.setStandard(standard);
+    layoutTemplateModel.setName(GetterUtil.getString(layoutTemplate.attributeValue("name"),layoutTemplateModel.getName()));
+    layoutTemplateModel.setTemplatePath(GetterUtil.getString(layoutTemplate.elementText("template-path"),layoutTemplateModel.getTemplatePath()));
+    layoutTemplateModel.setThumbnailPath(GetterUtil.getString(layoutTemplate.elementText("thumbnail-path"),layoutTemplateModel.getThumbnailPath()));
+    String content=Http.URLtoString(ctx.getResource(layoutTemplateModel.getTemplatePath()));
+    if ((content == null) || (content.length() == 0)) {
+      _log.error("No content found at " + layoutTemplateModel.getTemplatePath());
+    }
+ else {
+      layoutTemplateModel.setContent(content);
+      layoutTemplateModel.setColumns(_getColumns(content));
+    }
+    Element rolesEl=layoutTemplate.element("roles");
+    if (rolesEl != null) {
+      Iterator itr2=rolesEl.elements("role-name").iterator();
+      while (itr2.hasNext()) {
+        Element roleNameEl=(Element)itr2.next();
+        pluginSetting.addRole(roleNameEl.getText());
+      }
+    }
+    layoutTemplateModel.setDefaultPluginSetting(pluginSetting);
+  }
+}

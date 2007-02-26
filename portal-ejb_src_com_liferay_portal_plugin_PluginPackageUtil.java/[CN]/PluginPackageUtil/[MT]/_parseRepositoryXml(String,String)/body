@@ -1,0 +1,39 @@
+{
+  List supportedPluginTypes=Arrays.asList(getSupportedTypes());
+  if (_log.isDebugEnabled()) {
+    _log.debug("Plugin Repository: " + xml);
+  }
+  PluginPackageRepository pluginPackageRepository=new PluginPackageRepository(repositoryURL);
+  if (xml == null) {
+    return pluginPackageRepository;
+  }
+  SAXReader reader=SAXReaderFactory.getInstance();
+  Document doc=reader.read(new XMLSafeReader(xml));
+  Element root=doc.getRootElement();
+  Properties settings=_readProperties(root.element("settings"),"setting");
+  pluginPackageRepository.setSettings(settings);
+  Iterator itr=root.elements("plugin-package").iterator();
+  while (itr.hasNext()) {
+    Element pluginPackageEl=(Element)itr.next();
+    PluginPackage pluginPackage=readPluginPackageXml(pluginPackageEl);
+    if (!_isCurrentVersionSupported(pluginPackage.getLiferayVersions())) {
+      continue;
+    }
+    Iterator iterator=pluginPackage.getTypes().iterator();
+    boolean containsSupportedTypes=false;
+    while (iterator.hasNext()) {
+      String type=(String)iterator.next();
+      if (supportedPluginTypes.contains(type)) {
+        containsSupportedTypes=true;
+        break;
+      }
+    }
+    if (!containsSupportedTypes) {
+      continue;
+    }
+    pluginPackage.setRepository(pluginPackageRepository);
+    pluginPackageRepository.addPluginPackage(pluginPackage);
+    _indexPluginPackage(pluginPackage);
+  }
+  return pluginPackageRepository;
+}

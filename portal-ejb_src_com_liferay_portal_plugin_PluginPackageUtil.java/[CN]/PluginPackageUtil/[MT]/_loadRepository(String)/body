@@ -1,0 +1,43 @@
+{
+  PluginPackageRepository repository=null;
+  String pluginsXmlURL=repositoryURL + StringPool.SLASH + _REPOSITORY_XML_FILENAME;
+  try {
+    HostConfiguration hostConfig=Http.getHostConfig(pluginsXmlURL);
+    HttpClient client=Http.getClient(hostConfig);
+    GetMethod getFileMethod=new GetMethod(pluginsXmlURL);
+    byte[] bytes=null;
+    try {
+      int responseCode=client.executeMethod(hostConfig,getFileMethod);
+      if (responseCode != 200) {
+        throw new PluginPackageException("Unable to download file " + pluginsXmlURL + " because of response code "+ responseCode);
+      }
+      bytes=getFileMethod.getResponseBody();
+    }
+  finally {
+      getFileMethod.releaseConnection();
+    }
+    if ((bytes != null) && (bytes.length > 0)) {
+      repository=_parseRepositoryXml(new String(bytes),repositoryURL);
+      _repositoryCache.put(repositoryURL,repository);
+      _availableTagsCache.addAll(repository.getTags());
+      _lastUpdateDate=new Date();
+      return repository;
+    }
+ else {
+      _lastUpdateDate=new Date();
+      throw new PluginPackageException("Download returned 0 bytes");
+    }
+  }
+ catch (  MalformedURLException mue) {
+    _repositoryCache.remove(repositoryURL);
+    throw new PluginPackageException("Invalid URL " + pluginsXmlURL,mue);
+  }
+catch (  IOException ioe) {
+    _repositoryCache.remove(repositoryURL);
+    throw new PluginPackageException("Unable to communicate with repository " + repositoryURL,ioe);
+  }
+catch (  DocumentException de) {
+    _repositoryCache.remove(repositoryURL);
+    throw new PluginPackageException("Unable to parse plugin list for repository " + repositoryURL,de);
+  }
+}
