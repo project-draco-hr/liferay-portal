@@ -11,19 +11,68 @@
         }
       }
       if (deploy) {
+        PluginPackage pluginPackage=_readPluginPackage(srcFile);
         System.out.println("\nDeploying " + srcFile.getName());
-        String deployDir=srcFile.getName();
+        String deployDir=null;
+        String displayName=null;
+        boolean overwrite=false;
+        String preliminaryContext=null;
+        if (srcFile.getName().startsWith(Constants.DEPLOY_TO_PREFIX)) {
+          displayName=srcFile.getName().substring(Constants.DEPLOY_TO_PREFIX.length(),srcFile.getName().length() - 4);
+          preliminaryContext=displayName;
+          overwrite=true;
+        }
+        if (preliminaryContext == null) {
+          preliminaryContext=getDisplayName(srcFile);
+        }
+        if (pluginPackage != null) {
+          if (!PluginPackageUtil.isCurrentVersionSupported(pluginPackage.getLiferayVersions())) {
+            throw new AutoDeployException(srcFile.getName() + " does not support this " + "version of Liferay");
+          }
+          if (displayName == null) {
+            displayName=pluginPackage.getRecommendedDeploymentContext();
+          }
+          if (Validator.isNull(displayName)) {
+            displayName=getDisplayName(srcFile);
+          }
+          pluginPackage.setContext(displayName);
+          PluginPackageUtil.updateInstallingPluginPackage(preliminaryContext,pluginPackage);
+        }
+        if (displayName != null) {
+          deployDir=displayName + ".war";
+        }
+ else {
+          deployDir=srcFile.getName();
+        }
         if (appServerType.equals("jetty") || appServerType.equals("oc4j") || appServerType.equals("orion")|| appServerType.equals("resin")|| appServerType.equals("tomcat")) {
           if (unpackWar) {
             deployDir=deployDir.substring(0,deployDir.length() - 4);
           }
         }
         deployDir=destDir + "/" + deployDir;
-        if (srcFile.isDirectory()) {
-          deployDirectory(srcFile,new File(deployDir),getDisplayName(srcFile));
-        }
+        try {
+          PluginPackage previousPluginPackage=_readPreviousPluginPackage(deployDir);
+          if (previousPluginPackage != null) {
+            System.out.println("Updating " + pluginPackage.getName() + " from "+ "version "+ previousPluginPackage.getVersion()+ " to version "+ pluginPackage.getVersion());
+            if (pluginPackage.isLaterVersionThan(previousPluginPackage)) {
+              overwrite=true;
+            }
+          }
+          if (srcFile.isDirectory()) {
+            deployDirectory(srcFile,new File(deployDir),displayName,overwrite);
+          }
  else {
-          deployFile(srcFile,new File(deployDir));
+            boolean deployed=deployFile(srcFile,new File(deployDir),displayName,overwrite);
+            if (!deployed) {
+              PluginPackageUtil.endPluginPackageInstallation(pluginPackage.getContext());
+            }
+          }
+        }
+ catch (        Exception e) {
+          if (pluginPackage != null) {
+            PluginPackageUtil.endPluginPackageInstallation(pluginPackage.getContext());
+          }
+          throw e;
         }
       }
     }
