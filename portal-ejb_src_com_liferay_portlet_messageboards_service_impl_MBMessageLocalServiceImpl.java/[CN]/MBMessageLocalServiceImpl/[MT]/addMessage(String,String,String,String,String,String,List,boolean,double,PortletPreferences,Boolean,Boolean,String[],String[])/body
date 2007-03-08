@@ -1,7 +1,8 @@
 {
-  long start=0;
+  StopWatch stopWatch=null;
   if (_log.isDebugEnabled()) {
-    start=System.currentTimeMillis();
+    stopWatch=new StopWatch();
+    stopWatch.start();
   }
   User user=UserUtil.findByPrimaryKey(userId);
   MBCategory category=MBCategoryUtil.findByPrimaryKey(categoryId);
@@ -9,7 +10,7 @@
   Date now=new Date();
   validate(subject,body);
   String messageId=String.valueOf(CounterLocalServiceUtil.increment(MBMessage.class.getName()));
-  start=logAddMessage(messageId,start,1);
+  logAddMessage(messageId,stopWatch,1);
   MBMessage message=MBMessageUtil.create(new MBMessagePK(MBMessageImpl.DEPRECATED_TOPIC_ID,messageId));
   message.setCompanyId(user.getCompanyId());
   message.setUserId(user.getUserId());
@@ -42,7 +43,7 @@
   if (priority != MBThreadImpl.PRIORITY_NOT_GIVEN) {
     thread.setPriority(priority);
   }
-  start=logAddMessage(messageId,start,2);
+  logAddMessage(messageId,stopWatch,2);
   message.setCategoryId(categoryId);
   message.setThreadId(threadId);
   message.setParentMessageId(parentMessageId);
@@ -78,10 +79,10 @@
       throw new SystemException(re);
     }
   }
-  start=logAddMessage(messageId,start,3);
+  logAddMessage(messageId,stopWatch,3);
   MBThreadUtil.update(thread);
   MBMessageUtil.update(message);
-  start=logAddMessage(messageId,start,4);
+  logAddMessage(messageId,stopWatch,4);
   if (!category.isDiscussion()) {
     if ((addCommunityPermissions != null) && (addGuestPermissions != null)) {
       addMessageResources(category,message,addCommunityPermissions.booleanValue(),addGuestPermissions.booleanValue());
@@ -90,16 +91,16 @@
       addMessageResources(category,message,communityPermissions,guestPermissions);
     }
   }
-  start=logAddMessage(messageId,start,5);
+  logAddMessage(messageId,stopWatch,5);
   if (!category.isDiscussion()) {
     MBStatsUserLocalServiceUtil.updateStatsUser(category.getGroupId(),userId);
   }
-  start=logAddMessage(messageId,start,6);
+  logAddMessage(messageId,stopWatch,6);
   notifySubscribers(category,message,prefs,false);
-  start=logAddMessage(messageId,start,7);
+  logAddMessage(messageId,stopWatch,7);
   category.setLastPostDate(now);
   MBCategoryUtil.update(category);
-  start=logAddMessage(messageId,start,8);
+  logAddMessage(messageId,stopWatch,8);
   try {
     if (!category.isDiscussion()) {
       Indexer.addMessage(message.getCompanyId(),new Long(category.getGroupId()),user.getFullName(),category.getCategoryId(),threadId,messageId,subject,body);
@@ -108,6 +109,6 @@
  catch (  IOException ioe) {
     _log.error("Indexing " + messageId,ioe);
   }
-  start=logAddMessage(messageId,start,9);
+  logAddMessage(messageId,stopWatch,9);
   return message;
 }
