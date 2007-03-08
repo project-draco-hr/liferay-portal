@@ -1,0 +1,52 @@
+{
+  if (_log.isDebugEnabled()) {
+    if (USE_DOUBLE_CLICK_FILTER) {
+      _log.debug("Double click prevention is enabled");
+    }
+ else {
+      _log.debug("Double click prevention is disabled");
+    }
+  }
+  if (USE_DOUBLE_CLICK_FILTER) {
+    HttpServletRequest httpReq=(HttpServletRequest)req;
+    HttpServletResponse httpRes=(HttpServletResponse)res;
+    StopWatch stopWatch=null;
+    if (_log.isDebugEnabled()) {
+      stopWatch=new StopWatch();
+      stopWatch.start();
+    }
+    HttpSession ses=httpReq.getSession(false);
+    if (ses == null) {
+      chain.doFilter(req,res);
+    }
+ else {
+      DoubleClickController controller=null;
+synchronized (ses) {
+        controller=(DoubleClickController)ses.getAttribute(_CONTROLLER_KEY);
+        if (controller == null) {
+          controller=new DoubleClickController();
+          ses.setAttribute(_CONTROLLER_KEY,controller);
+        }
+      }
+      boolean ok=false;
+      try {
+        controller.control(httpReq,httpRes,chain);
+        ok=true;
+      }
+  finally {
+        if (_log.isDebugEnabled()) {
+          String completeURL=Http.getCompleteURL(httpReq);
+          if (ok) {
+            _log.debug("Double click prevention succeded in " + stopWatch.getTime() + " ms for "+ completeURL);
+          }
+ else {
+            _log.debug("Double click prevention failed in " + stopWatch.getTime() + " ms for "+ completeURL);
+          }
+        }
+      }
+    }
+  }
+ else {
+    chain.doFilter(req,res);
+  }
+}

@@ -1,0 +1,60 @@
+{
+  boolean firstRequest=false;
+  CacheResponse cacheResponse=null;
+synchronized (this) {
+    if (_cacheResponse == null) {
+      firstRequest=true;
+      _cacheResponse=new CacheResponse(res,DoubleClickFilter.ENCODING);
+      _throwable=null;
+    }
+    cacheResponse=_cacheResponse;
+  }
+  if (firstRequest) {
+    try {
+      chain.doFilter(req,_cacheResponse);
+    }
+ catch (    Throwable t) {
+      _throwable=t;
+    }
+ finally {
+synchronized (this) {
+        _cacheResponse=null;
+        notifyAll();
+      }
+    }
+  }
+ else {
+synchronized (this) {
+      while (_cacheResponse != null) {
+        try {
+          wait();
+        }
+ catch (        InterruptedException ie) {
+          Thread.currentThread().interrupt();
+        }
+      }
+    }
+  }
+  if (_throwable != null) {
+    try {
+      throw _throwable;
+    }
+ catch (    IOException ioe) {
+      throw ioe;
+    }
+catch (    ServletException se) {
+      throw se;
+    }
+catch (    RuntimeException re) {
+      throw re;
+    }
+catch (    Error e) {
+      throw e;
+    }
+catch (    Throwable t) {
+      throw new RuntimeException(t);
+    }
+  }
+  CacheResponseData data=new CacheResponseData(cacheResponse.getData(),cacheResponse.getContentType(),cacheResponse.getHeaders());
+  CacheResponseUtil.write(res,data);
+}

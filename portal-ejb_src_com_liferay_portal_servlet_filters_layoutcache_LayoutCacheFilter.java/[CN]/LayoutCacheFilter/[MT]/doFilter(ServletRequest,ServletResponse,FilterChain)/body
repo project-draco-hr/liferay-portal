@@ -13,7 +13,7 @@
   if (USE_LAYOUT_CACHE_FILTER && !isPortletRequest(httpReq) && isLayout(httpReq)&& !isSignedIn(httpReq)&& !isInclude(httpReq)&& !isAlreadyFiltered(httpReq)) {
     httpReq.setAttribute(_ALREADY_FILTERED,Boolean.TRUE);
     String key=getCacheKey(httpReq);
-    LayoutCacheResponseData data=LayoutCacheUtil.getLayoutCacheResponseData(_companyId,key);
+    CacheResponseData data=LayoutCacheUtil.getCacheResponseData(_companyId,key);
     if (data == null) {
       if (!isCacheable(httpReq)) {
         if (_log.isDebugEnabled()) {
@@ -25,34 +25,14 @@
       if (_log.isInfoEnabled()) {
         _log.info("Caching layout " + key);
       }
-      LayoutCacheResponse layoutCacheResponse=new LayoutCacheResponse(httpRes);
-      chain.doFilter(req,layoutCacheResponse);
-      data=new LayoutCacheResponseData(layoutCacheResponse.getData(),layoutCacheResponse.getContentType(),layoutCacheResponse.getHeaders());
+      CacheResponse cacheResponse=new CacheResponse(httpRes,ENCODING);
+      chain.doFilter(req,cacheResponse);
+      data=new CacheResponseData(cacheResponse.getData(),cacheResponse.getContentType(),cacheResponse.getHeaders());
       if (data.getData().length > 0) {
-        LayoutCacheUtil.putLayoutCacheResponseData(_companyId,key,data);
+        LayoutCacheUtil.putCacheResponseData(_companyId,key,data);
       }
     }
-    Map headers=data.getHeaders();
-    Iterator itr=headers.keySet().iterator();
-    while (itr.hasNext()) {
-      String headerKey=(String)itr.next();
-      List headerValues=(List)headers.get(headerKey);
-      for (int i=0; i < headerValues.size(); i++) {
-        Header header=(Header)headerValues.get(i);
-        int type=header.getType();
-        if (type == Header.DATE_TYPE) {
-          httpRes.addDateHeader(headerKey,header.getDateValue());
-        }
- else         if (type == Header.INTEGER_TYPE) {
-          httpRes.addIntHeader(headerKey,header.getIntValue());
-        }
- else         if (type == Header.STRING_TYPE) {
-          httpRes.addHeader(headerKey,header.getStringValue());
-        }
-      }
-    }
-    httpRes.setContentType(data.getContentType());
-    ServletResponseUtil.write(httpRes,data.getData());
+    CacheResponseUtil.write(httpRes,data);
   }
  else {
     if (_log.isDebugEnabled()) {
