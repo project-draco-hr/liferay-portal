@@ -1,27 +1,31 @@
 {
-  String primKey=(String)oldValue;
-  if (_scopeColumn.isScopeIndividual() && primKey.startsWith(StringPool.OPEN_CURLY_BRACE) && primKey.endsWith(StringPool.CLOSE_CURLY_BRACE)) {
-    String[] parts=StringUtil.split(primKey.substring(1,primKey.length() - 1),StringPool.COMMA + StringPool.SPACE);
-    for (int i=0; i < parts.length; i++) {
-      String[] kvp=StringUtil.split(parts[i],StringPool.EQUAL);
-      Iterator itr=_keyMapperList.iterator();
-      while (itr.hasNext()) {
-        Object[] keyMapper=(Object[])itr.next();
-        if (kvp[0].equals(keyMapper[0])) {
-          ValueMapper vm=(ValueMapper)keyMapper[1];
-          Object value=null;
-          if (Validator.isNumber(kvp[1])) {
-            value=new Long(kvp[1]);
-          }
- else {
-            value=(String)kvp[1];
-          }
-          kvp[1]=String.valueOf(vm.getNewValue(value));
-          parts[i]=StringUtil.merge(kvp,StringPool.EQUAL);
+  Object newValue=oldValue;
+  if (_upgradeColumn.isScopeGroup()) {
+    newValue=_groupIdMapper.getNewValue(new Long((String)oldValue));
+  }
+ else   if (_upgradeColumn.isScopeIndividual()) {
+    String primKey=(String)oldValue;
+    if (primKey.startsWith(LayoutImpl.PUBLIC) || primKey.startsWith(LayoutImpl.PRIVATE)) {
+      String[] keyParts=StringUtil.split(primKey,StringPool.PERIOD);
+      Long groupId=(Long)_groupIdMapper.getNewValue(new Long(keyParts[1]));
+      keyParts[1]=String.valueOf(groupId);
+      newValue=StringUtil.merge(keyParts,StringPool.PERIOD);
+    }
+ else     if (primKey.indexOf("groupId=") != -1 || primKey.indexOf("ownerId=") != -1) {
+      String[] keyParts=StringUtil.split(primKey.substring(1,primKey.length() - 1),StringPool.COMMA + StringPool.SPACE);
+      for (int i=0; i < keyParts.length; i++) {
+        String[] kvp=StringUtil.split(keyParts[i],StringPool.EQUAL);
+        if (kvp[0].equals("groupId")) {
+          kvp[1]=String.valueOf(_groupIdMapper.getNewValue(new Long(kvp[1])));
+          keyParts[i]=StringUtil.merge(kvp,StringPool.EQUAL);
+        }
+ else         if (kvp[0].equals("ownerId")) {
+          kvp[1]=(String)_ownerIdMapper.getNewValue(kvp[1]);
+          keyParts[i]=StringUtil.merge(kvp,StringPool.EQUAL);
         }
       }
+      newValue=StringPool.OPEN_CURLY_BRACE + StringUtil.merge(keyParts,StringPool.COMMA + StringPool.SPACE) + StringPool.CLOSE_CURLY_BRACE;
     }
-    primKey=StringPool.OPEN_CURLY_BRACE + StringUtil.merge(parts,StringPool.COMMA + StringPool.SPACE) + StringPool.CLOSE_CURLY_BRACE;
   }
-  return primKey;
+  return newValue;
 }
