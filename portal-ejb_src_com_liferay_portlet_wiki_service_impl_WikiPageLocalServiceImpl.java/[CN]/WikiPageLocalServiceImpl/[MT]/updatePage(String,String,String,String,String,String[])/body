@@ -1,0 +1,33 @@
+{
+  User user=UserUtil.findByPrimaryKey(userId);
+  Date now=new Date();
+  validate(nodeId,content,format);
+  WikiPage page=getPage(nodeId,title);
+  page.setHead(false);
+  WikiPageUtil.update(page);
+  double oldVersion=page.getVersion();
+  double newVersion=MathUtil.format(oldVersion + 0.1,1,1);
+  WikiPagePK pk=new WikiPagePK(nodeId,title,newVersion);
+  page=WikiPageUtil.create(pk);
+  page.setCompanyId(user.getCompanyId());
+  page.setUserId(user.getUserId());
+  page.setUserName(user.getFullName());
+  page.setCreateDate(now);
+  page.setContent(content);
+  page.setFormat(format);
+  page.setHead(true);
+  WikiPageUtil.update(page);
+  WikiNode node=WikiNodeUtil.findByPrimaryKey(nodeId);
+  node.setLastPostDate(now);
+  WikiNodeUtil.update(node);
+  if (tagsEntries != null) {
+    TagsAssetLocalServiceUtil.updateAsset(userId,WikiPage.class.getName(),page.getResourcePK().toString(),tagsEntries);
+  }
+  try {
+    Indexer.updatePage(node.getCompanyId(),node.getGroupId(),nodeId,title,content);
+  }
+ catch (  IOException ioe) {
+    _log.error("Indexing " + page.getPrimaryKey(),ioe);
+  }
+  return page;
+}

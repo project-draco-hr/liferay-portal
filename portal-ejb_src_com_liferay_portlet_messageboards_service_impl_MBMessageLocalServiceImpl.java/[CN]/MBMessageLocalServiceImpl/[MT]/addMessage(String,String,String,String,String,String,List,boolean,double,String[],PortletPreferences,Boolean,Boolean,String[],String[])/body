@@ -1,0 +1,118 @@
+{
+  StopWatch stopWatch=null;
+  if (_log.isDebugEnabled()) {
+    stopWatch=new StopWatch();
+    stopWatch.start();
+  }
+  User user=UserUtil.findByPrimaryKey(userId);
+  MBCategory category=MBCategoryUtil.findByPrimaryKey(categoryId);
+  subject=ModelHintsUtil.trimString(MBMessage.class.getName(),"subject",subject);
+  Date now=new Date();
+  validate(subject,body);
+  String messageId=String.valueOf(CounterLocalServiceUtil.increment(MBMessage.class.getName()));
+  logAddMessage(messageId,stopWatch,1);
+  MBMessage message=MBMessageUtil.create(new MBMessagePK(MBMessageImpl.DEPRECATED_TOPIC_ID,messageId));
+  message.setCompanyId(user.getCompanyId());
+  message.setUserId(user.getUserId());
+  message.setUserName(user.getFullName());
+  message.setCreateDate(now);
+  message.setModifiedDate(now);
+  MBMessage parentMessage=MBMessageUtil.fetchByPrimaryKey(new MBMessagePK(message.getTopicId(),parentMessageId));
+  if (parentMessage == null) {
+    parentMessageId=MBMessageImpl.DEFAULT_PARENT_MESSAGE_ID;
+  }
+  MBThread thread=null;
+  if (threadId != null) {
+    thread=MBThreadUtil.fetchByPrimaryKey(threadId);
+  }
+  if (thread == null || parentMessageId.equals(MBMessageImpl.DEFAULT_PARENT_MESSAGE_ID)) {
+    threadId=String.valueOf(CounterLocalServiceUtil.increment(MBThread.class.getName()));
+    thread=MBThreadUtil.create(threadId);
+    thread.setCategoryId(categoryId);
+    thread.setTopicId(message.getTopicId());
+    thread.setRootMessageId(messageId);
+  }
+  thread.setMessageCount(thread.getMessageCount() + 1);
+  if (anonymous) {
+    thread.setLastPostByUserId(null);
+  }
+ else {
+    thread.setLastPostByUserId(userId);
+  }
+  thread.setLastPostDate(now);
+  if (priority != MBThreadImpl.PRIORITY_NOT_GIVEN) {
+    thread.setPriority(priority);
+  }
+  logAddMessage(messageId,stopWatch,2);
+  message.setCategoryId(categoryId);
+  message.setThreadId(threadId);
+  message.setParentMessageId(parentMessageId);
+  message.setSubject(subject);
+  message.setBody(body);
+  message.setAttachments((files.size() > 0 ? true : false));
+  message.setAnonymous(anonymous);
+  if (files.size() > 0) {
+    String companyId=message.getCompanyId();
+    String portletId=CompanyImpl.SYSTEM;
+    long groupId=GroupImpl.DEFAULT_PARENT_GROUP_ID;
+    String repositoryId=CompanyImpl.SYSTEM;
+    String dirName=message.getAttachmentsDir();
+    try {
+      try {
+        DLServiceUtil.deleteDirectory(companyId,portletId,repositoryId,dirName);
+      }
+ catch (      NoSuchDirectoryException nsde) {
+      }
+      DLServiceUtil.addDirectory(companyId,repositoryId,dirName);
+      for (int i=0; i < files.size(); i++) {
+        ObjectValuePair ovp=(ObjectValuePair)files.get(i);
+        String fileName=(String)ovp.getKey();
+        byte[] byteArray=(byte[])ovp.getValue();
+        try {
+          DLServiceUtil.addFile(companyId,portletId,groupId,repositoryId,dirName + "/" + fileName,byteArray);
+        }
+ catch (        DuplicateFileException dfe) {
+        }
+      }
+    }
+ catch (    RemoteException re) {
+      throw new SystemException(re);
+    }
+  }
+  logAddMessage(messageId,stopWatch,3);
+  MBThreadUtil.update(thread);
+  MBMessageUtil.update(message);
+  logAddMessage(messageId,stopWatch,4);
+  if (!category.isDiscussion()) {
+    if ((addCommunityPermissions != null) && (addGuestPermissions != null)) {
+      addMessageResources(category,message,addCommunityPermissions.booleanValue(),addGuestPermissions.booleanValue());
+    }
+ else {
+      addMessageResources(category,message,communityPermissions,guestPermissions);
+    }
+  }
+  logAddMessage(messageId,stopWatch,5);
+  if (!category.isDiscussion()) {
+    MBStatsUserLocalServiceUtil.updateStatsUser(category.getGroupId(),userId);
+  }
+  logAddMessage(messageId,stopWatch,6);
+  notifySubscribers(category,message,prefs,false);
+  logAddMessage(messageId,stopWatch,7);
+  category.setLastPostDate(now);
+  MBCategoryUtil.update(category);
+  logAddMessage(messageId,stopWatch,8);
+  if (tagsEntries != null) {
+    TagsAssetLocalServiceUtil.updateAsset(userId,MBMessage.class.getName(),message.getPrimaryKey().toString(),tagsEntries);
+  }
+  logAddMessage(messageId,stopWatch,9);
+  try {
+    if (!category.isDiscussion()) {
+      Indexer.addMessage(message.getCompanyId(),new Long(category.getGroupId()),user.getFullName(),category.getCategoryId(),threadId,messageId,subject,body);
+    }
+  }
+ catch (  IOException ioe) {
+    _log.error("Indexing " + messageId,ioe);
+  }
+  logAddMessage(messageId,stopWatch,9);
+  return message;
+}
