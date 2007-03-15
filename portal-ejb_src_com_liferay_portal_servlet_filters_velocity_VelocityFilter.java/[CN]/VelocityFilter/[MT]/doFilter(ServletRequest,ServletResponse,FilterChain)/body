@@ -20,24 +20,40 @@
     VelocityContext context=new VelocityContext();
     StringReader reader=new StringReader(new String(cacheResponse.getData()));
     StringWriter writer=new StringWriter();
+    ThemeDisplay themeDisplay=null;
     try {
-      EventsProcessor.process(PropsUtil.getArray(PropsUtil.SERVLET_SERVICE_EVENTS_PRE),httpReq,httpRes);
-    }
- catch (    Exception e) {
-      _log.error(e,e);
-    }
-    try {
+      String companyId=ParamUtil.getString(req,"companyId");
+      Company company=CompanyLocalServiceUtil.getCompany(companyId);
+      String contextPath=PrefsPropsUtil.getString(companyId,PropsUtil.PORTAL_CTX);
+      if (contextPath.equals(StringPool.SLASH)) {
+        contextPath=StringPool.BLANK;
+      }
+      String languageId=ParamUtil.getString(req,"languageId");
+      Locale locale=LanguageUtil.getLocale(languageId);
+      String themeId=ParamUtil.getString(req,"themeId");
+      String colorSchemeId=ParamUtil.getString(req,"colorSchemeId");
+      Theme theme=ThemeLocalUtil.getTheme(companyId,themeId);
+      ColorScheme colorScheme=ThemeLocalUtil.getColorScheme(companyId,theme.getThemeId(),colorSchemeId);
+      themeDisplay=ThemeDisplayFactory.create();
+      themeDisplay.setCompany(company);
+      themeDisplay.setLocale(locale);
+      themeDisplay.setLookAndFeel(contextPath,theme,colorScheme);
+      themeDisplay.setPathContext(contextPath);
+      req.setAttribute(WebKeys.THEME_DISPLAY,themeDisplay);
       VelocityVariables.insertVariables(context,httpReq);
       Velocity.evaluate(context,writer,VelocityFilter.class.getName(),reader);
     }
  catch (    Exception e) {
       _log.error(e,e);
     }
-    try {
-      EventsProcessor.process(PropsUtil.getArray(PropsUtil.SERVLET_SERVICE_EVENTS_POST),httpReq,httpRes);
-    }
- catch (    Exception e) {
-      _log.error(e,e);
+ finally {
+      try {
+        if (themeDisplay != null) {
+          ThemeDisplayFactory.recycle(themeDisplay);
+        }
+      }
+ catch (      Exception e) {
+      }
     }
     CacheResponseData data=new CacheResponseData(writer.toString().getBytes(ENCODING),cacheResponse.getContentType(),cacheResponse.getHeaders());
     CacheResponseUtil.write(httpRes,data);
