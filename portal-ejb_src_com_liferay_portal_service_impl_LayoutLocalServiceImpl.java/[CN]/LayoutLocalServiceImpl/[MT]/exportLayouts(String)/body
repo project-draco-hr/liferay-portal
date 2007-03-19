@@ -1,10 +1,12 @@
 {
   LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(ownerId);
-  PortletDataContext context=new PortletDataContext(layoutSet.getCompanyId(),layoutSet.getGroupId(),CollectionFactory.getHashSet());
-  Group guestGroup=GroupLocalServiceUtil.getGroup(layoutSet.getCompanyId(),GroupImpl.GUEST);
+  String companyId=layoutSet.getCompanyId();
+  long groupId=layoutSet.getGroupId();
+  PortletDataContext context=new PortletDataContext(companyId,groupId,CollectionFactory.getHashSet());
+  Group guestGroup=GroupLocalServiceUtil.getGroup(companyId,GroupImpl.GUEST);
   String guestPrefsOwnerId=null;
   if (!layoutSet.isPrivateLayout()) {
-    guestPrefsOwnerId=ownerId + StringPool.PERIOD + PortletKeys.PREFS_OWNER_ID_USER+ StringPool.PERIOD+ UserImpl.getDefaultUserId(layoutSet.getCompanyId());
+    guestPrefsOwnerId=ownerId + StringPool.PERIOD + PortletKeys.PREFS_OWNER_ID_USER+ StringPool.PERIOD+ UserImpl.getDefaultUserId(companyId);
   }
   Document doc=DocumentHelper.createDocument();
   Element root=doc.addElement("root");
@@ -14,6 +16,7 @@
   header.addAttribute("export-date",Time.getRFC822());
   header.addAttribute("theme-id",layoutSet.getThemeId());
   header.addAttribute("color-scheme-id",layoutSet.getColorSchemeId());
+  Set portletIds=new LinkedHashSet();
   Iterator itr1=getLayouts(ownerId).iterator();
   while (itr1.hasNext()) {
     Layout layout=(Layout)itr1.next();
@@ -29,23 +32,38 @@
     layoutEl.addElement("theme-id").addText(layout.getThemeId());
     layoutEl.addElement("color-scheme-id").addText(layout.getColorSchemeId());
     layoutEl.addElement("priority").addText(String.valueOf(layout.getPriority()));
+    String resourceName=Layout.class.getName();
+    String resourcePrimKey=layout.getPrimaryKey().toString();
     Element permissionsEl=layoutEl.addElement("permissions");
-    exportLayoutPermissions(layout,layout.getGroupId(),permissionsEl,"community-actions");
-    if (layout.getGroupId() != guestGroup.getGroupId()) {
-      exportLayoutPermissions(layout,guestGroup.getGroupId(),permissionsEl,"guest-actions");
+    exportGroupPermissions(companyId,groupId,resourceName,resourcePrimKey,permissionsEl,"community-actions");
+    if (groupId != guestGroup.getGroupId()) {
+      exportGroupPermissions(companyId,guestGroup.getGroupId(),resourceName,resourcePrimKey,permissionsEl,"guest-actions");
     }
+    exportUserPermissions(companyId,groupId,resourceName,resourcePrimKey,permissionsEl);
+    exportInheritedPermissions(companyId,resourceName,resourcePrimKey,permissionsEl,"organization");
+    exportInheritedPermissions(companyId,resourceName,resourcePrimKey,permissionsEl,"location");
+    exportInheritedPermissions(companyId,resourceName,resourcePrimKey,permissionsEl,"user-group");
     if (layout.getType().equals(LayoutImpl.TYPE_PORTLET)) {
       LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
       Iterator itr2=layoutTypePortlet.getPortletIds().iterator();
       while (itr2.hasNext()) {
         String portletId=(String)itr2.next();
+        if (!portletIds.contains(portletId)) {
+          portletIds.add(portletId);
+        }
         if (layoutTypePortlet.hasPortletId(portletId)) {
+          resourceName=PortletImpl.getRootPortletId(portletId);
+          resourcePrimKey=PortletPermission.getPrimaryKey(layout.getPlid(),portletId);
           Element portletEl=permissionsEl.addElement("portlet");
           portletEl.addAttribute("portlet-id",portletId);
-          exportPortletPermissions(portletId,layout,layout.getGroupId(),portletEl,"community-actions");
-          if (layout.getGroupId() != guestGroup.getGroupId()) {
-            exportPortletPermissions(portletId,layout,guestGroup.getGroupId(),portletEl,"guest-actions");
+          exportGroupPermissions(companyId,groupId,resourceName,resourcePrimKey,portletEl,"community-actions");
+          if (groupId != guestGroup.getGroupId()) {
+            exportGroupPermissions(companyId,guestGroup.getGroupId(),resourceName,resourcePrimKey,portletEl,"guest-actions");
           }
+          exportUserPermissions(companyId,groupId,resourceName,resourcePrimKey,portletEl);
+          exportInheritedPermissions(companyId,resourceName,resourcePrimKey,portletEl,"organization");
+          exportInheritedPermissions(companyId,resourceName,resourcePrimKey,portletEl,"location");
+          exportInheritedPermissions(companyId,resourceName,resourcePrimKey,portletEl,"user-group");
         }
       }
       exportPortletPreferences(layout.getLayoutId(),ownerId,layoutTypePortlet,layoutEl);
@@ -55,7 +73,32 @@
       exportPortletData(context,layout,layoutTypePortlet,layoutEl);
     }
   }
-  String groupPrefsOwnerId=PortletKeys.PREFS_OWNER_ID_GROUP + StringPool.PERIOD + layoutSet.getGroupId();
+  Element rolesEl=root.addElement("roles");
+  String resourceName=Layout.class.getName();
+  exportGroupRoles(companyId,groupId,resourceName,"community",rolesEl);
+  exportUserRoles(companyId,groupId,resourceName,rolesEl);
+  exportInheritedRoles(companyId,groupId,resourceName,"organization",rolesEl);
+  exportInheritedRoles(companyId,groupId,resourceName,"location",rolesEl);
+  exportInheritedRoles(companyId,groupId,resourceName,"user-group",rolesEl);
+  itr1=portletIds.iterator();
+  while (itr1.hasNext()) {
+    String portletId=(String)itr1.next();
+    resourceName=PortletImpl.getRootPortletId(portletId);
+    Element portletEl=rolesEl.addElement("portlet");
+    portletEl.addAttribute("portlet-id",portletId);
+    exportGroupRoles(companyId,groupId,resourceName,"community",portletEl);
+    exportUserRoles(companyId,groupId,resourceName,portletEl);
+    exportInheritedRoles(companyId,groupId,resourceName,"organization",portletEl);
+    exportInheritedRoles(companyId,groupId,resourceName,"location",portletEl);
+    exportInheritedRoles(companyId,groupId,resourceName,"user-group",portletEl);
+    if (portletEl.elements().isEmpty()) {
+      rolesEl.remove(portletEl);
+    }
+  }
+  if (rolesEl.elements().isEmpty()) {
+    root.remove(rolesEl);
+  }
+  String groupPrefsOwnerId=PortletKeys.PREFS_OWNER_ID_GROUP + StringPool.PERIOD + groupId;
   exportPortletPreferences(PortletKeys.PREFS_LAYOUT_ID_SHARED,groupPrefsOwnerId,root);
   try {
     ZipWriter zipWriter=new ZipWriter();

@@ -1,7 +1,9 @@
 {
   LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(ownerId);
-  PortletDataContext context=new PortletDataContext(layoutSet.getCompanyId(),layoutSet.getGroupId(),CollectionFactory.getHashSet());
-  Group guestGroup=GroupLocalServiceUtil.getGroup(layoutSet.getCompanyId(),GroupImpl.GUEST);
+  String companyId=layoutSet.getCompanyId();
+  long groupId=layoutSet.getGroupId();
+  PortletDataContext context=new PortletDataContext(companyId,groupId,CollectionFactory.getHashSet());
+  Group guestGroup=GroupLocalServiceUtil.getGroup(companyId,GroupImpl.GUEST);
   Element root=null;
   try {
     ZipReader zipReader=new ZipReader(is);
@@ -57,22 +59,68 @@
     layout.setPriority(priority);
     fixTypeSettings(layout);
     LayoutUtil.update(layout);
+    String resourceName=Layout.class.getName();
+    String resourcePrimKey=layout.getPrimaryKey().toString();
     Element permissionsEl=layoutEl.element("permissions");
-    importLayoutPermissions(layout,layout.getGroupId(),permissionsEl,"community-actions");
-    if (layout.getGroupId() != guestGroup.getGroupId()) {
-      importLayoutPermissions(layout,guestGroup.getGroupId(),permissionsEl,"guest-actions");
+    importGroupPermissions(companyId,groupId,resourceName,resourcePrimKey,permissionsEl,"community-actions",false);
+    if (groupId != guestGroup.getGroupId()) {
+      importGroupPermissions(companyId,guestGroup.getGroupId(),resourceName,resourcePrimKey,permissionsEl,"guest-actions",false);
     }
+    importUserPermissions(companyId,groupId,resourceName,resourcePrimKey,permissionsEl,false);
+    importInheritedPermissions(companyId,resourceName,resourcePrimKey,permissionsEl,"organization",false);
+    importInheritedPermissions(companyId,resourceName,resourcePrimKey,permissionsEl,"location",false);
+    importInheritedPermissions(companyId,resourceName,resourcePrimKey,permissionsEl,"user-group",false);
     Iterator itr2=permissionsEl.elements("portlet").iterator();
     while (itr2.hasNext()) {
       Element portletEl=(Element)itr2.next();
       String portletId=portletEl.attributeValue("portlet-id");
-      importPortletPermissions(portletId,layout,layout.getGroupId(),portletEl,"community-actions");
-      if (layout.getGroupId() != guestGroup.getGroupId()) {
-        importPortletPermissions(portletId,layout,guestGroup.getGroupId(),portletEl,"guest-actions");
+      resourceName=PortletImpl.getRootPortletId(portletId);
+      resourcePrimKey=PortletPermission.getPrimaryKey(layout.getPlid(),portletId);
+      Portlet portlet=PortletLocalServiceUtil.getPortletById(companyId,resourceName);
+      if (portlet == null) {
+        if (_log.isDebugEnabled()) {
+          _log.debug("Do not import portlet permissions for " + portletId + " because the portlet does not exist");
+        }
+      }
+ else {
+        importGroupPermissions(companyId,groupId,resourceName,resourcePrimKey,portletEl,"community-actions",true);
+        if (groupId != guestGroup.getGroupId()) {
+          importGroupPermissions(companyId,guestGroup.getGroupId(),resourceName,resourcePrimKey,portletEl,"guest-actions",true);
+        }
+        importUserPermissions(companyId,groupId,resourceName,resourcePrimKey,portletEl,true);
+        importInheritedPermissions(companyId,resourceName,resourcePrimKey,portletEl,"organization",true);
+        importInheritedPermissions(companyId,resourceName,resourcePrimKey,portletEl,"location",true);
+        importInheritedPermissions(companyId,resourceName,resourcePrimKey,portletEl,"user-group",true);
       }
     }
     importPortletPreferences(layoutSet,layoutEl);
     importPortletData(context,layout,layoutEl);
+  }
+  Element rolesEl=(Element)root.element("roles");
+  String resourceName=Layout.class.getName();
+  importGroupRoles(companyId,groupId,resourceName,"community",rolesEl);
+  importUserRoles(companyId,groupId,resourceName,rolesEl);
+  importInheritedRoles(companyId,groupId,resourceName,"organization",rolesEl);
+  importInheritedRoles(companyId,groupId,resourceName,"location",rolesEl);
+  importInheritedRoles(companyId,groupId,resourceName,"user-group",rolesEl);
+  itr1=rolesEl.elements("portlet").iterator();
+  while (itr1.hasNext()) {
+    Element portletEl=(Element)itr1.next();
+    String portletId=portletEl.attributeValue("portlet-id");
+    resourceName=PortletImpl.getRootPortletId(portletId);
+    Portlet portlet=PortletLocalServiceUtil.getPortletById(companyId,resourceName);
+    if (portlet == null) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Do not import portlet roles for " + portletId + " because the portlet does not exist");
+      }
+    }
+ else {
+      importGroupRoles(companyId,groupId,resourceName,"community",portletEl);
+      importUserRoles(companyId,groupId,resourceName,portletEl);
+      importInheritedRoles(companyId,groupId,resourceName,"organization",portletEl);
+      importInheritedRoles(companyId,groupId,resourceName,"location",portletEl);
+      importInheritedRoles(companyId,groupId,resourceName,"user-group",portletEl);
+    }
   }
   importPortletPreferences(layoutSet,root);
   deleteMissingLayouts(ownerId,newLayoutPKs);
