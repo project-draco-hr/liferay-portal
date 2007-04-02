@@ -1,0 +1,95 @@
+{
+  StopWatch stopWatch=null;
+  if (_log.isDebugEnabled()) {
+    stopWatch=new StopWatch();
+    stopWatch.start();
+  }
+  LayoutCache layoutCache=new LayoutCache();
+  LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(ownerId);
+  String companyId=layoutSet.getCompanyId();
+  long groupId=layoutSet.getGroupId();
+  PortletDataContext context=new PortletDataContext(companyId,groupId,CollectionFactory.getHashSet());
+  Group guestGroup=GroupLocalServiceUtil.getGroup(companyId,GroupImpl.GUEST);
+  String guestPrefsOwnerId=null;
+  if (!layoutSet.isPrivateLayout()) {
+    guestPrefsOwnerId=ownerId + StringPool.PERIOD + PortletKeys.PREFS_OWNER_ID_USER+ StringPool.PERIOD+ UserImpl.getDefaultUserId(companyId);
+  }
+  Document doc=DocumentHelper.createDocument();
+  Element root=doc.addElement("root");
+  Element header=root.addElement("header");
+  header.addAttribute("build-number",String.valueOf(ReleaseInfo.getBuildNumber()));
+  header.addAttribute("owner-id",ownerId);
+  header.addAttribute("export-date",Time.getRFC822());
+  header.addAttribute("theme-id",layoutSet.getThemeId());
+  header.addAttribute("color-scheme-id",layoutSet.getColorSchemeId());
+  Set portletIds=new LinkedHashSet();
+  Iterator itr=getLayouts(ownerId).iterator();
+  while (itr.hasNext()) {
+    Layout layout=(Layout)itr.next();
+    Element layoutEl=root.addElement("layout");
+    layoutEl.addAttribute("layout-id",layout.getLayoutId());
+    layoutEl.addElement("parent-layout-id").addText(layout.getParentLayoutId());
+    layoutEl.addElement("name").addCDATA(layout.getName());
+    layoutEl.addElement("title").addCDATA(layout.getTitle());
+    layoutEl.addElement("type").addText(layout.getType());
+    layoutEl.addElement("type-settings").addCDATA(layout.getTypeSettings());
+    layoutEl.addElement("hidden").addText(String.valueOf(layout.getHidden()));
+    layoutEl.addElement("friendly-url").addText(layout.getFriendlyURL());
+    layoutEl.addElement("theme-id").addText(layout.getThemeId());
+    layoutEl.addElement("color-scheme-id").addText(layout.getColorSchemeId());
+    layoutEl.addElement("priority").addText(String.valueOf(layout.getPriority()));
+    Element permissionsEl=layoutEl.addElement("permissions");
+    if (exportPermissions) {
+      exportLayoutPermissions(layoutCache,companyId,groupId,guestGroup,layout,permissionsEl);
+    }
+    if (layout.getType().equals(LayoutImpl.TYPE_PORTLET)) {
+      LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
+      if (exportPortletPreferences) {
+        exportPortletPreferences(layout.getLayoutId(),ownerId,layoutTypePortlet,layoutEl);
+        if (guestPrefsOwnerId != null) {
+          exportPortletPreferences(layout.getLayoutId(),guestPrefsOwnerId,layoutTypePortlet,layoutEl);
+        }
+      }
+      if (exportPortletData) {
+        exportPortletData(context,layout,layoutTypePortlet,layoutEl);
+      }
+      if (exportPermissions) {
+        exportPortletPermissions(layoutCache,companyId,groupId,guestGroup,layout,layoutTypePortlet,portletIds,permissionsEl);
+      }
+    }
+  }
+  if (exportPortletPreferences) {
+    String groupPrefsOwnerId=PortletKeys.PREFS_OWNER_ID_GROUP + StringPool.PERIOD + groupId;
+    exportPortletPreferences(PortletKeys.PREFS_LAYOUT_ID_SHARED,groupPrefsOwnerId,root);
+  }
+  Element rolesEl=root.addElement("roles");
+  if (exportPermissions) {
+    exportLayoutRoles(layoutCache,companyId,groupId,rolesEl);
+  }
+  if (exportPermissions) {
+    exportPortletRoles(layoutCache,companyId,groupId,portletIds,rolesEl);
+  }
+  byte[] themeZip=null;
+  try {
+    if (exportTheme) {
+      themeZip=exportTheme(layoutSet);
+    }
+  }
+ catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Exporting layouts takes " + stopWatch.getTime() + " ms");
+  }
+  try {
+    ZipWriter zipWriter=new ZipWriter();
+    zipWriter.addEntry("layouts.xml",XMLFormatter.toString(doc));
+    if (themeZip != null) {
+      zipWriter.addEntry("theme.zip",themeZip);
+    }
+    return zipWriter.finish();
+  }
+ catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+}
