@@ -9,28 +9,49 @@
   Document doc=docFactory.createDocument();
   Element multistatus=docFactory.createElement(new QName("multistatus",new Namespace("D","DAV:")));
   doc.setRootElement(multistatus);
-  if (Validator.isNotNull(companyId)) {
-    if (groupId == 0) {
-      addResponse(new BaseResourceImpl(storage.getRootPath() + StringPool.SLASH + companyId,companyId,true),props,multistatus,createDateFormat,modifiedDateFormat);
-      if (props.size() > 0) {
-        Iterator itr=storage.getCommunities(webDavReq).iterator();
-        while (itr.hasNext()) {
-          Resource resource=(Resource)itr.next();
-          addResponse(resource,props,multistatus,createDateFormat,modifiedDateFormat);
-        }
-      }
-    }
- else {
-      Iterator itr=storage.getResources(webDavReq).iterator();
+  if (Validator.isNull(companyId)) {
+    return getResponseXML(doc);
+  }
+  if (groupId == 0) {
+    addResponse(new BaseResourceImpl(storage.getRootPath() + StringPool.SLASH + companyId,companyId,true),props,multistatus,createDateFormat,modifiedDateFormat);
+    if (props.size() > 0) {
+      Iterator itr=storage.getCommunities(webDavReq).iterator();
       while (itr.hasNext()) {
         Resource resource=(Resource)itr.next();
         addResponse(resource,props,multistatus,createDateFormat,modifiedDateFormat);
       }
     }
+    return getResponseXML(doc);
   }
-  String xml=XMLFormatter.toString(doc,"    ");
-  if (_log.isDebugEnabled()) {
-    _log.debug("Response XML\n" + xml);
+  Resource resource=storage.getResource(webDavReq);
+  if ((resource == null) && !webDavReq.isGroupPath()) {
+    String href=storage.getRootPath() + webDavReq.getPath();
+    if (_log.isWarnEnabled()) {
+      _log.warn("No resource found for " + webDavReq.getPath());
+    }
+    addResponse(href,multistatus);
+    return getResponseXML(doc);
   }
-  return xml;
+  if (resource != null) {
+    addResponse(resource,props,multistatus,createDateFormat,modifiedDateFormat);
+  }
+ else   if (webDavReq.isGroupPath()) {
+    try {
+      Group group=GroupLocalServiceUtil.getGroup(groupId);
+      addResponse(new BaseResourceImpl(storage.getRootPath() + StringPool.SLASH + companyId+ StringPool.SLASH+ groupId,group.getName(),true),props,multistatus,createDateFormat,modifiedDateFormat);
+    }
+ catch (    NoSuchGroupException nsge) {
+      String href=storage.getRootPath() + webDavReq.getPath();
+      if (_log.isWarnEnabled()) {
+        _log.warn("No group found for " + href);
+      }
+      addResponse(href,multistatus);
+    }
+  }
+  Iterator itr=storage.getResources(webDavReq).iterator();
+  while (itr.hasNext()) {
+    resource=(Resource)itr.next();
+    addResponse(resource,props,multistatus,createDateFormat,modifiedDateFormat);
+  }
+  return getResponseXML(doc);
 }
