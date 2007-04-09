@@ -1,0 +1,26 @@
+{
+  String companyId=user.getCompanyId();
+  if (!isAuthEnabled(companyId)) {
+    return;
+  }
+  LdapContext ctx=getContext(companyId);
+  if (ctx == null) {
+    return;
+  }
+  Properties userMappings=getUserMappings(companyId);
+  String name=userMappings.getProperty("userId") + StringPool.EQUAL + user.getUserId()+ StringPool.COMMA+ getUsersDN(companyId);
+  if (!hasUser(companyId,user.getUserId())) {
+    LDAPUser ldapUser=(LDAPUser)Class.forName(PropsUtil.get(PropsUtil.LDAP_USER_IMPL)).newInstance();
+    ldapUser.setUser(user);
+    ctx.bind(name,ldapUser);
+  }
+ else {
+    Modifications mods=Modifications.getInstance();
+    if (Validator.isNotNull(user.getPasswordUnencrypted())) {
+      mods.addItem(userMappings.getProperty("password"),user.getPasswordUnencrypted());
+    }
+    mods.addItem(userMappings.getProperty("emailAddress"),user.getEmailAddress());
+    ModificationItem[] modItems=mods.getItems();
+    ctx.modifyAttributes(name,modItems);
+  }
+}
