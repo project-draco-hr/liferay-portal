@@ -1,0 +1,56 @@
+{
+  if (!PortalInstances.matches()) {
+    return;
+  }
+  String path=req.getPathInfo();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Path " + path);
+  }
+  if (Validator.isNotNull(path) && path.startsWith(StringPool.SLASH)) {
+    path=path.substring(1,path.length());
+  }
+  String[] pathArray=StringUtil.split(path,StringPool.SLASH);
+  if (pathArray.length == 0) {
+    _log.error("Language id is not specified");
+    return;
+  }
+  if (pathArray.length == 1) {
+    _log.error("Language key is not specified");
+    return;
+  }
+  Locale locale=LocaleUtil.fromLanguageId(pathArray[0]);
+  String key=pathArray[1];
+  Object[] arguments=null;
+  if (pathArray.length > 2) {
+    arguments=new Object[pathArray.length - 2];
+    System.arraycopy(pathArray,2,arguments,0,arguments.length);
+  }
+  String value=key;
+  try {
+    if ((arguments == null) || (arguments.length == 0)) {
+      value=LanguageUtil.get(getCompanyId(),locale,key);
+    }
+ else {
+      value=LanguageUtil.format(getCompanyId(),locale,key,arguments);
+    }
+  }
+ catch (  Exception e) {
+    if (_log.isWarnEnabled()) {
+      _log.warn(e,e);
+    }
+  }
+  long lastModified=getLastModified();
+  if (lastModified > 0) {
+    long ifModifiedSince=req.getDateHeader(HttpHeaders.IF_MODIFIED_SINCE);
+    if ((ifModifiedSince > 0) && (ifModifiedSince == lastModified)) {
+      res.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
+      return;
+    }
+  }
+  res.addHeader(HttpHeaders.CACHE_CONTROL,_maxAge);
+  if (lastModified > 0) {
+    res.setDateHeader(HttpHeaders.LAST_MODIFIED,lastModified);
+  }
+  res.setContentType(_CONTENT_TYPE);
+  ServletResponseUtil.write(res,value.getBytes());
+}
