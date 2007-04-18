@@ -1,10 +1,30 @@
 {
+  PermissionCheckerImpl permissionChecker=null;
   String remoteUser=req.getRemoteUser();
   if (_log.isDebugEnabled()) {
     _log.debug("Remote user " + remoteUser);
   }
-  if (remoteUser != null) {
-    PrincipalThreadLocal.setName(remoteUser);
+  CompanyThreadLocal.setCompanyId(_companyId);
+  try {
+    if (remoteUser != null) {
+      PrincipalThreadLocal.setName(remoteUser);
+      User user=UserLocalServiceUtil.getUserById(remoteUser);
+      permissionChecker=PermissionCheckerFactory.create(user,true,true);
+      PermissionThreadLocal.setPermissionChecker(permissionChecker);
+    }
+ else {
+      _log.warn("User id not provided. An exception will be thrown if " + "a protected service is accessed");
+    }
+    super.service(req,res);
   }
-  super.service(req,res);
+ catch (  Exception e) {
+    throw new ServletException(e);
+  }
+ finally {
+    try {
+      PermissionCheckerFactory.recycle(permissionChecker);
+    }
+ catch (    Exception e) {
+    }
+  }
 }
