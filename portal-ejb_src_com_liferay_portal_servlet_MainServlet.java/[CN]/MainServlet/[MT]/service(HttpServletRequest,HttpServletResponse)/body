@@ -155,7 +155,7 @@
     completeURL=mainPath;
   }
   req.setAttribute(WebKeys.CURRENT_URL,completeURL);
-  String userId=PortalUtil.getUserId(req);
+  long userId=PortalUtil.getUserId(req);
   String remoteUser=req.getRemoteUser();
   if (!GetterUtil.getBoolean(PropsUtil.get(PropsUtil.PORTAL_JAAS_ENABLE))) {
     String jRemoteUser=(String)ses.getAttribute("j_remoteuser");
@@ -164,30 +164,24 @@
       ses.removeAttribute("j_remoteuser");
     }
   }
-  if ((userId != null) && (remoteUser == null)) {
-    remoteUser=userId;
+  if ((userId > 0) && (remoteUser == null)) {
+    remoteUser=String.valueOf(userId);
   }
   req=new ProtectedServletRequest(req,remoteUser);
-  if ((userId != null) || (remoteUser != null)) {
-    String name=userId;
+  if ((userId > 0) || (remoteUser != null)) {
+    String name=String.valueOf(userId);
     if (remoteUser != null) {
       name=remoteUser;
     }
     PrincipalThreadLocal.setName(name);
   }
-  if ((userId == null) && (remoteUser != null)) {
+  if ((userId <= 0) && (remoteUser != null)) {
     try {
-      userId=remoteUser;
-      try {
-        PrincipalFinder principalFinder=(PrincipalFinder)InstancePool.get(PropsUtil.get(PropsUtil.PRINCIPAL_FINDER));
-        userId=principalFinder.toLiferay(userId);
-      }
- catch (      Exception e) {
-      }
+      userId=GetterUtil.getLong(remoteUser);
       EventsProcessor.process(PropsUtil.getArray(PropsUtil.LOGIN_EVENTS_PRE),req,res);
       User user=UserLocalServiceUtil.getUserById(userId);
       UserLocalServiceUtil.updateLastLogin(userId,req.getRemoteAddr());
-      ses.setAttribute(WebKeys.USER_ID,userId);
+      ses.setAttribute(WebKeys.USER_ID,new Long(userId));
       ses.setAttribute(Globals.LOCALE_KEY,user.getLocale());
       EventsProcessor.process(PropsUtil.getArray(PropsUtil.LOGIN_EVENTS_POST),req,res);
     }
