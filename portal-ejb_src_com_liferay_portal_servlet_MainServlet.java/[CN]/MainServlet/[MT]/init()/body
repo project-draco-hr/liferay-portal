@@ -13,14 +13,8 @@ synchronized (MainServlet.class) {
  catch (    Exception e) {
       _log.error(e,e);
     }
-    if (_log.isDebugEnabled()) {
-      _log.debug("Company id");
-    }
     ServletContext ctx=getServletContext();
     String servletContextName=GetterUtil.getString(ctx.getServletContextName());
-    _companyId=ctx.getInitParameter("company_id");
-    ctx.setAttribute(WebKeys.COMPANY_ID,_companyId);
-    CompanyThreadLocal.setCompanyId(_companyId);
     if (_log.isDebugEnabled()) {
       _log.debug("Paths");
     }
@@ -55,17 +49,31 @@ synchronized (MainServlet.class) {
       _log.error(e,e);
     }
     if (_log.isDebugEnabled()) {
+      _log.debug("Company id");
+    }
+    String webId=GetterUtil.getString(ctx.getInitParameter("company_web_id"));
+    try {
+      Company company=CompanyLocalServiceUtil.checkCompany(webId);
+      _companyId=company.getCompanyId();
+      _companyIdString=String.valueOf(_companyId);
+    }
+ catch (    Exception e) {
+      _log.error(e,e);
+    }
+    ctx.setAttribute(WebKeys.COMPANY_ID,new Long(_companyId));
+    CompanyThreadLocal.setCompanyId(_companyId);
+    if (_log.isDebugEnabled()) {
       _log.debug("Initialize display");
     }
     try {
       String xml=Http.URLtoString(ctx.getResource("/WEB-INF/liferay-display.xml"));
-      PortletCategory portletCategory=(PortletCategory)WebAppPool.get(_companyId,WebKeys.PORTLET_CATEGORY);
+      PortletCategory portletCategory=(PortletCategory)WebAppPool.get(_companyIdString,WebKeys.PORTLET_CATEGORY);
       if (portletCategory == null) {
         portletCategory=new PortletCategory();
       }
       PortletCategory newPortletCategory=PortletLocalServiceUtil.getEARDisplay(xml);
       portletCategory.merge(newPortletCategory);
-      WebAppPool.put(_companyId,WebKeys.PORTLET_CATEGORY,portletCategory);
+      WebAppPool.put(_companyIdString,WebKeys.PORTLET_CATEGORY,portletCategory);
     }
  catch (    Exception e) {
       _log.error(e,e);
@@ -92,18 +100,9 @@ synchronized (MainServlet.class) {
       _log.error(e,e);
     }
     if (_log.isDebugEnabled()) {
-      _log.debug("Check company");
-    }
-    try {
-      CompanyLocalServiceUtil.checkCompany(_companyId);
-    }
- catch (    Exception e) {
-      _log.error(e,e);
-    }
-    if (_log.isDebugEnabled()) {
       _log.debug("Check journal content search");
     }
-    if (GetterUtil.getBoolean(PropsUtil.get(null,PropsUtil.JOURNAL_SYNC_CONTENT_SEARCH_ON_STARTUP))) {
+    if (GetterUtil.getBoolean(PropsUtil.get(0,PropsUtil.JOURNAL_SYNC_CONTENT_SEARCH_ON_STARTUP))) {
       try {
         JournalContentSearchLocalServiceUtil.checkContentSearches(_companyId);
       }
@@ -171,7 +170,7 @@ catch (    Exception e) {
     }
     MultiMessageResources messageResources=(MultiMessageResources)ctx.getAttribute(Globals.MESSAGES_KEY);
     messageResources.setServletContext(ctx);
-    WebAppPool.put(_companyId,Globals.MESSAGES_KEY,messageResources);
+    WebAppPool.put(_companyIdString,Globals.MESSAGES_KEY,messageResources);
     if (_log.isDebugEnabled()) {
       _log.debug("Last modified paths");
     }
@@ -192,7 +191,7 @@ catch (    Exception e) {
     }
     try {
       EventsProcessor.process(PropsUtil.getArray(PropsUtil.GLOBAL_STARTUP_EVENTS),true);
-      EventsProcessor.process(PropsUtil.getArray(PropsUtil.APPLICATION_STARTUP_EVENTS),new String[]{_companyId});
+      EventsProcessor.process(PropsUtil.getArray(PropsUtil.APPLICATION_STARTUP_EVENTS),new String[]{_companyIdString});
     }
  catch (    Exception e) {
       _log.error(e,e);
