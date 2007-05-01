@@ -1,0 +1,37 @@
+{
+  if (Validator.isNull(doAsUserIdString)) {
+    return 0;
+  }
+  HttpSession ses=req.getSession();
+  Long realUserIdObj=(Long)ses.getAttribute(WebKeys.USER_ID);
+  if (realUserIdObj == null) {
+    return 0;
+  }
+  Company company=getCompany(req);
+  long doAsUserId=GetterUtil.getLong(Encryptor.decrypt(company.getKeyObj(),doAsUserIdString));
+  User doAsUser=UserLocalServiceUtil.getUserById(doAsUserId);
+  String organizationId=doAsUser.getOrganization().getOrganizationId();
+  String locationId=doAsUser.getLocation().getOrganizationId();
+  User realUser=UserLocalServiceUtil.getUserById(realUserIdObj.longValue());
+  boolean signedIn=true;
+  boolean checkGuest=true;
+  PermissionCheckerImpl permissionChecker=null;
+  try {
+    permissionChecker=PermissionCheckerFactory.create(realUser,signedIn,checkGuest);
+    if (doAsUser.isDefaultUser() || UserPermission.contains(permissionChecker,doAsUserId,organizationId,locationId,ActionKeys.IMPERSONATE)) {
+      req.setAttribute(WebKeys.USER_ID,new Long(doAsUserId));
+      return doAsUserId;
+    }
+ else {
+      _log.error("User " + realUserIdObj + " does not have the permission "+ "to impersonate "+ doAsUserId);
+      return 0;
+    }
+  }
+  finally {
+    try {
+      PermissionCheckerFactory.recycle(permissionChecker);
+    }
+ catch (    Exception e) {
+    }
+  }
+}
