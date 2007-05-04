@@ -1,26 +1,20 @@
 {
-  int passwordsRecycle=GetterUtil.getInteger(PropsUtil.get(PropsUtil.PASSWORDS_RECYCLE));
-  if (passwordsRecycle > 0) {
-    String newEncPwd=PwdEncryptor.encrypt(password);
-    User user=UserUtil.findByPrimaryKey(userId);
-    String oldEncPwd=user.getPassword();
-    if (!user.isPasswordEncrypted()) {
-      oldEncPwd=PwdEncryptor.encrypt(user.getPassword());
+  String newEncPwd=PwdEncryptor.encrypt(password);
+  PasswordPolicy passwordPolicy=PasswordPolicyLocalServiceUtil.getPasswordPolicyByUserId(userId);
+  if (!passwordPolicy.getHistory()) {
+    return true;
+  }
+  int historyCount=1;
+  Iterator itr=PasswordTrackerUtil.findByUserId(userId).iterator();
+  while (itr.hasNext()) {
+    if (historyCount > passwordPolicy.getHistoryCount()) {
+      break;
     }
-    if (oldEncPwd.equals(newEncPwd)) {
+    PasswordTracker passwordTracker=(PasswordTracker)itr.next();
+    if (passwordTracker.getPassword().equals(newEncPwd)) {
       return false;
     }
-    Date now=new Date();
-    Iterator itr=PasswordTrackerUtil.findByUserId(userId).iterator();
-    while (itr.hasNext()) {
-      PasswordTracker passwordTracker=(PasswordTracker)itr.next();
-      Date recycleDate=new Date(passwordTracker.getCreateDate().getTime() + Time.DAY * passwordsRecycle);
-      if (recycleDate.after(now)) {
-        if (passwordTracker.getPassword().equals(newEncPwd)) {
-          return false;
-        }
-      }
-    }
+    historyCount++;
   }
   return true;
 }
