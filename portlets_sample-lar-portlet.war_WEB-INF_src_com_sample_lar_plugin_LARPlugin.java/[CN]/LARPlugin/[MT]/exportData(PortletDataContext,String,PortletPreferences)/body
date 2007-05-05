@@ -1,4 +1,17 @@
 {
+  Map parameterMap=context.getParameterMap();
+  boolean exportData=MapUtil.getBoolean(parameterMap,_EXPORT_SAMPLE_LAR_DATA,_enableExport.getDefaultState());
+  if (_log.isDebugEnabled()) {
+    if (exportData) {
+      _log.debug("Exporting data is enabled");
+    }
+ else {
+      _log.debug("Exporting data is disabled");
+    }
+  }
+  if (!exportData) {
+    return null;
+  }
   try {
     long exportDate=System.currentTimeMillis();
     if (_log.isInfoEnabled()) {
@@ -6,16 +19,42 @@
     }
     prefs.setValue("last-export-date",String.valueOf(exportDate));
     prefs.store();
-    String data=LARPlugin.class.getName() + " " + new Date(exportDate);
-    if (_log.isInfoEnabled()) {
-      _log.info("Exporting data " + data);
-    }
+    String data="<data-file />";
     ZipWriter zipWriter=context.getZipWriter();
     if (zipWriter != null) {
-      if (_log.isInfoEnabled()) {
-        _log.info("Writing to zip");
+      boolean createReadMe=MapUtil.getBoolean(parameterMap,_CREATE_README,_createReadme.getDefaultState());
+      if (createReadMe) {
+        if (_log.isInfoEnabled()) {
+          _log.info("Writing to zip");
+        }
+        zipWriter.addEntry(portletId + "/README.txt","Test writing to zip.");
       }
-      zipWriter.addEntry(portletId + "/README.txt","test writing to zip");
+      String dataType=MapUtil.getString(parameterMap,_DATA_TYPE,_dataType.getDefaultChoice());
+      if (Validator.equals(dataType,_TYPE_CSV)) {
+        StringMaker csv=new StringMaker();
+        csv.append("data 1," + new Date() + "\n");
+        csv.append("data 2," + new Date() + "\n");
+        String filePath=portletId + "/data.csv";
+        data="<data-file>" + filePath + "</data-file>";
+        zipWriter.addEntry(filePath,csv.toString());
+      }
+ else       if (Validator.equals(dataType,_TYPE_XML)) {
+        StringMaker xml=new StringMaker();
+        xml.append("<?xml version=\"1.0\"?>\n\n");
+        xml.append("<records>\n");
+        xml.append("\t<record>\n");
+        xml.append("\t\t<field>data 1</field>\n");
+        xml.append("\t\t<field>" + new Date() + "</field>\n");
+        xml.append("\t</record>\n");
+        xml.append("\t<record>\n");
+        xml.append("\t\t<field>data 2</field>\n");
+        xml.append("\t\t<field>" + new Date() + "</field>\n");
+        xml.append("\t</record>\n");
+        xml.append("</records>");
+        String filePath=portletId + "/data.xml";
+        data="<data-file>" + filePath + "</data-file>";
+        zipWriter.addEntry(filePath,xml.toString());
+      }
     }
     return data;
   }
