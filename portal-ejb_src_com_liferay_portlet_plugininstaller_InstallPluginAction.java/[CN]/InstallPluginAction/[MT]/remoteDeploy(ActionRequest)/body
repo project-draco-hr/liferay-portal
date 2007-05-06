@@ -1,9 +1,9 @@
 {
   GetMethod getMethod=null;
+  String fileName=null;
+  String url=ParamUtil.getString(req,"url");
+  String deploymentContext=ParamUtil.getString(req,"deploymentContext");
   try {
-    String fileName=null;
-    String url=ParamUtil.getString(req,"url");
-    String deploymentContext=ParamUtil.getString(req,"deploymentContext");
     if (Validator.isNotNull(deploymentContext)) {
       fileName=Constants.DEPLOY_TO_PREFIX + deploymentContext + ".war";
     }
@@ -11,15 +11,16 @@
       fileName=url.substring(url.lastIndexOf(StringPool.SLASH) + 1);
       deploymentContext=fileName.substring(0,fileName.length() - 4);
     }
-    PluginPackageUtil.registerInstallingPluginPackage(deploymentContext);
     URL urlObj=new URL(url);
     String progressId=ParamUtil.getString(req,Constants.PROGRESS_ID);
     HostConfiguration hostConfig=Http.getHostConfig(url.toString());
     HttpClient client=Http.getClient(hostConfig);
     getMethod=new GetMethod(url);
+    PluginPackageUtil.registerInstallingPluginPackage(deploymentContext);
     int responseCode=client.executeMethod(hostConfig,getMethod);
     if (responseCode != 200) {
       SessionErrors.add(req,"errorResponseFromServer",new Object[]{String.valueOf(responseCode)});
+      PluginPackageUtil.endPluginPackageInstallation(deploymentContext);
       return;
     }
     long contentLength=getMethod.getResponseContentLength();
@@ -66,5 +67,14 @@ catch (  IOException ioe) {
       getMethod.releaseConnection();
     }
     SessionErrors.add(req,"errorConnectingToServer",ioe);
+    if (Validator.isNotNull(deploymentContext)) {
+      PluginPackageUtil.endPluginPackageInstallation(deploymentContext);
+    }
+  }
+catch (  Exception e) {
+    if (Validator.isNotNull(deploymentContext)) {
+      PluginPackageUtil.endPluginPackageInstallation(deploymentContext);
+    }
+    throw e;
   }
 }
