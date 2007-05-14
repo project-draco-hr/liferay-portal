@@ -1,18 +1,20 @@
 {
   StringMaker sm=new StringMaker();
-  List layouts=LayoutLocalServiceUtil.getLayouts(LayoutImpl.PUBLIC + siteGroupId);
+  List layouts=LayoutLocalServiceUtil.getLayouts(siteGroupId,false);
   Collections.sort(layouts,new LayoutComparator(true));
   Iterator itr=layouts.iterator();
   while (itr.hasNext()) {
     Layout layout=(Layout)itr.next();
     sm.append("insert into Layout (");
-    sm.append("layoutId, ownerId, companyId, parentLayoutId, name, ");
-    sm.append("title, type_, typeSettings, hidden_, friendlyURL, ");
-    sm.append("themeId, colorSchemeId, priority");
+    sm.append("plid, groupId, companyId, privateLayout, layoutId, ");
+    sm.append("parentLayoutId, name, title, type_, typeSettings, ");
+    sm.append("hidden_, friendlyURL, themeId, colorSchemeId, priority");
     sm.append(") values (");
-    addColumn(sm,layout.getLayoutId());
-    addColumn(sm,layout.getOwnerId());
+    addColumn(sm,layout.getPlid());
+    addColumn(sm,layout.getGroupId());
     addColumn(sm,layout.getCompanyId());
+    addColumn(sm,layout.isPrivateLayout());
+    addColumn(sm,layout.getLayoutId());
     addColumn(sm,layout.getParentLayoutId());
     addColumn(sm,layout.getName());
     addColumn(sm,layout.getTitle());
@@ -36,7 +38,7 @@
     for (int i=0; i < portletIds.size(); i++) {
       String portletId=(String)portletIds.get(i);
       try {
-        PortletPreferences portletPreferences=PortletPreferencesLocalServiceUtil.getPortletPreferences(layout.getOwnerId(),layout.getLayoutId(),portletId);
+        PortletPreferences portletPreferences=PortletPreferencesLocalServiceUtil.getPortletPreferences(PortletKeys.PREFS_OWNER_ID_DEFAULT,PortletKeys.PREFS_OWNER_TYPE_LAYOUT,layout.getPlid(),portletId);
         String prefsXml=portletPreferences.getPreferences();
         PortletPreferencesImpl prefs=(PortletPreferencesImpl)PortletPreferencesSerializer.fromDefaultXML(portletPreferences.getPreferences());
         String articleId=prefs.getValue("article-id",StringPool.BLANK);
@@ -44,21 +46,27 @@
         if (Validator.isNotNull(articleId)) {
           prefs.setValue("article-id",articleId);
           prefsXml=PortletPreferencesSerializer.toXML(prefs);
-          JournalContentSearch journalContentSearch=new JournalContentSearchImpl();
-          journalContentSearch.setPortletId(portletId);
-          journalContentSearch.setLayoutId(layout.getLayoutId());
-          journalContentSearch.setOwnerId(layout.getOwnerId());
-          journalContentSearch.setArticleId(articleId);
+          long contentSearchId=CounterLocalServiceUtil.increment();
+          JournalContentSearch journalContentSearch=JournalContentSearchUtil.create(contentSearchId);
+          journalContentSearch.setContentSearchId(contentSearchId);
           journalContentSearch.setCompanyId(layout.getCompanyId());
           journalContentSearch.setGroupId(layout.getGroupId());
+          journalContentSearch.setPrivateLayout(layout.isPrivateLayout());
+          journalContentSearch.setPortletId(portletId);
+          journalContentSearch.setLayoutId(layout.getLayoutId());
+          journalContentSearch.setPortletId(portletId);
+          journalContentSearch.setArticleId(articleId);
           journalContentSearches.add(journalContentSearch);
         }
         sm.append("insert into PortletPreferences (");
-        sm.append("portletId, layoutId, ownerId, preferences");
+        sm.append("portletPreferencesId, ownerId, ownerType, ");
+        sm.append("plid, portletId, preferences");
         sm.append(") values (");
-        addColumn(sm,portletId);
-        addColumn(sm,portletPreferences.getLayoutId());
+        addColumn(sm,portletPreferences.getPortletPreferencesId());
         addColumn(sm,portletPreferences.getOwnerId());
+        addColumn(sm,portletPreferences.getOwnerType());
+        addColumn(sm,portletPreferences.getPlid());
+        addColumn(sm,portletId);
         addColumn(sm,prefsXml);
         removeTrailingComma(sm);
         sm.append(");\n");
