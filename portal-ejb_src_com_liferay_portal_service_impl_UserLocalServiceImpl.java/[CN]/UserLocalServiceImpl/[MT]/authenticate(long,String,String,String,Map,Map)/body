@@ -49,15 +49,33 @@
     _log.error("The default user should never be allowed to authenticate");
     return Authenticator.DNE;
   }
+  checkLockout(user);
   if (!user.isPasswordEncrypted()) {
     user.setPassword(PwdEncryptor.encrypt(user.getPassword()));
     user.setPasswordEncrypted(true);
-    user.setPasswordReset(GetterUtil.getBoolean(PropsUtil.get(PropsUtil.PASSWORDS_CHANGE_ON_FIRST_USE)));
     UserUtil.update(user);
   }
- else   if (user.isPasswordExpired()) {
-    user.setPasswordReset(true);
-    UserUtil.update(user);
+  PasswordPolicy passwordPolicy=user.getPasswordPolicy();
+  if (isPasswordExpired(user)) {
+    int graceLoginCount=user.getGraceLoginCount();
+    if (graceLoginCount < passwordPolicy.getGraceLimit()) {
+      user.setGraceLoginCount(++graceLoginCount);
+      UserUtil.update(user);
+    }
+ else {
+      user.setPasswordReset(true);
+      UserUtil.update(user);
+    }
+  }
+  if (passwordPolicy.getChangeable() && passwordPolicy.getChangeRequired()) {
+    if (user.getLastLoginDate() == null) {
+      boolean passwordReset=false;
+      if (passwordPolicy.getChangeable() && passwordPolicy.getChangeRequired()) {
+        passwordReset=true;
+      }
+      user.setPasswordReset(passwordReset);
+      UserUtil.update(user);
+    }
   }
   if (authResult == Authenticator.SUCCESS) {
     if (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.AUTH_PIPELINE_ENABLE_LIFERAY_CHECK))) {
@@ -115,9 +133,7 @@ catch (        UnsupportedEncodingException uee) {
         AuthPipeline.onFailureByUserId(authFailure,companyId,userId,headerMap,parameterMap);
       }
       int failedLoginAttempts=user.getFailedLoginAttempts();
-      user.setFailedLoginAttempts(++failedLoginAttempts);
-      UserUtil.update(user);
-      int maxFailures=GetterUtil.getInteger(PropsUtil.get(PropsUtil.AUTH_MAX_FAILURES_LIMIT));
+      int maxFailures=passwordPolicy.getMaxFailure();
       if ((failedLoginAttempts >= maxFailures) && (maxFailures != 0)) {
         String[] authMaxFailures=PropsUtil.getArray(PropsUtil.AUTH_MAX_FAILURES);
         if (authType.equals(CompanyImpl.AUTH_TYPE_EA)) {
