@@ -1,0 +1,58 @@
+{
+  HttpSession ses=req.getSession();
+  ConsumerManager manager=OpenIdUtil.getConsumerManager();
+  ParameterList params=new ParameterList(req.getParameterMap());
+  DiscoveryInformation discovered=(DiscoveryInformation)ses.getAttribute("openid-disco");
+  if (discovered == null) {
+    return null;
+  }
+  StringBuffer receivingURL=req.getRequestURL();
+  String queryString=req.getQueryString();
+  if (queryString != null && queryString.length() > 0) {
+    receivingURL.append("?").append(req.getQueryString());
+  }
+  VerificationResult verification=manager.verify(receivingURL.toString(),params,discovered);
+  Identifier verified=verification.getVerifiedId();
+  if (verified == null) {
+    return null;
+  }
+  AuthSuccess authSuccess=(AuthSuccess)verification.getAuthResponse();
+  String firstName=null;
+  String lastName=null;
+  String email=null;
+  if (authSuccess.hasExtension(SRegMessage.OPENID_NS_SREG)) {
+    MessageExtension ext=authSuccess.getExtension(SRegMessage.OPENID_NS_SREG);
+    if (ext instanceof SRegResponse) {
+      SRegResponse sregResp=(SRegResponse)ext;
+      String fullName=sregResp.getAttributeValue("fullname");
+      firstName=fullName.substring(0,fullName.indexOf(StringPool.SPACE));
+      lastName=fullName.substring(fullName.indexOf(StringPool.SPACE) + 1);
+      email=sregResp.getAttributeValue("email");
+    }
+  }
+  if (authSuccess.hasExtension(AxMessage.OPENID_NS_AX)) {
+    MessageExtension ext=authSuccess.getExtension(AxMessage.OPENID_NS_AX);
+    if (ext instanceof FetchResponse) {
+      FetchResponse fetchResp=(FetchResponse)ext;
+      firstName=_getFirstValue(fetchResp.getAttributeValues("firstName"));
+      lastName=_getFirstValue(fetchResp.getAttributeValues("lastName"));
+      email=_getFirstValue(fetchResp.getAttributeValues("email"));
+    }
+  }
+  String screenName=OpenIdUtil.getScreenName(authSuccess.getIdentity());
+  long companyId=PortalUtil.getCompanyId(req);
+  Locale locale=req.getLocale();
+  User user=null;
+  try {
+    user=UserLocalServiceUtil.getUserByScreenName(companyId,screenName);
+  }
+ catch (  NoSuchUserException nsue) {
+    if ((Validator.isNull(firstName) || Validator.isNull(lastName) || Validator.isNull(email))) {
+      _log.error("The OpenID provider did not send the required " + "attributes to create an account");
+      return null;
+    }
+    user=createUserAccount(companyId,firstName,lastName,email,screenName,locale);
+  }
+  ses.setAttribute(WebKeys.OPEN_ID_LOGIN,new Long(user.getUserId()));
+  return user;
+}
