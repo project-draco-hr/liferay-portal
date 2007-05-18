@@ -1,0 +1,42 @@
+{
+  InputStream is=getPortletContext().getResourceAsStream(path);
+  if (is == null) {
+    _log.error(path + " is not a valid ruby file");
+    return;
+  }
+  try {
+    String script=_getGlobalScript() + _readAll(is);
+    _manager.declareBean("portletConfig",getPortletConfig(),PortletConfig.class);
+    _manager.declareBean("portletContext",getPortletContext(),PortletContext.class);
+    _manager.declareBean("userInfo",req.getAttribute(PortletRequest.USER_INFO),Map.class);
+    _manager.declareBean("preferences",req.getPreferences(),PortletPreferences.class);
+    if (req instanceof ActionRequest) {
+      _manager.declareBean("actionRequest",req,ActionRequest.class);
+    }
+ else     if (req instanceof RenderRequest) {
+      _manager.declareBean("renderRequest",req,RenderRequest.class);
+    }
+    if (res instanceof ActionResponse) {
+      _manager.declareBean("actionResponse",res,ActionResponse.class);
+    }
+ else     if (res instanceof RenderResponse) {
+      _manager.declareBean("renderResponse",res,RenderResponse.class);
+    }
+    _manager.exec("ruby","(java)",1,1,script);
+  }
+ catch (  BSFException e) {
+    String message="The script at " + path + " or one of the global files has "+ "errors: ";
+    if (e.getTargetException() instanceof RaiseException) {
+      RubyException re=((RaiseException)e.getTargetException()).getException();
+      message+=re.message + " (" + re.getMetaClass().toString()+ ")";
+      _log.error(message);
+      _log.debug("Ruby exception:",e.getTargetException());
+    }
+ else {
+      _log.error(message,e.getTargetException());
+    }
+  }
+ finally {
+    is.close();
+  }
+}
