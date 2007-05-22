@@ -1,199 +1,91 @@
 {
-synchronized (MainServlet.class) {
-    if (_log.isDebugEnabled()) {
-      _log.debug("Initialize");
+  if (_log.isDebugEnabled()) {
+    _log.debug("Initialize");
+  }
+  super.init();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Process startup events");
+  }
+  try {
+    EventsProcessor.process(new String[]{StartupAction.class.getName()},true);
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+  String contextPath=PortalUtil.getPathContext();
+  ServletContext ctx=getServletContext();
+  VelocityContextPool.put(contextPath,ctx);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Initialize plugin package");
+  }
+  PluginPackage pluginPackage=null;
+  try {
+    pluginPackage=PluginPackageHotDeployListener.readPluginPackage(ctx);
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Initialize portlets");
+  }
+  try {
+    String[] xmls=new String[]{Http.URLtoString(ctx.getResource("/WEB-INF/" + PortalUtil.PORTLET_XML_FILE_NAME_CUSTOM)),Http.URLtoString(ctx.getResource("/WEB-INF/portlet-ext.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-portlet.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-portlet-ext.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/web.xml"))};
+    PortletLocalServiceUtil.initEAR(xmls,pluginPackage);
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Initialize layout templates");
+  }
+  try {
+    String[] xmls=new String[]{Http.URLtoString(ctx.getResource("/WEB-INF/liferay-layout-templates.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-layout-templates-ext.xml"))};
+    LayoutTemplateLocalUtil.init(ctx,xmls,pluginPackage);
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Initialize look and feel");
+  }
+  try {
+    String[] xmls=new String[]{Http.URLtoString(ctx.getResource("/WEB-INF/liferay-look-and-feel.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-look-and-feel-ext.xml"))};
+    ThemeLocalUtil.init(ctx,true,xmls,pluginPackage);
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Check web settings");
+  }
+  try {
+    String xml=Http.URLtoString(ctx.getResource("/WEB-INF/web.xml"));
+    checkWebSettings(xml);
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Last modified paths");
+  }
+  if (_lastModifiedPaths == null) {
+    _lastModifiedPaths=CollectionFactory.getHashSet();
+    String[] pathsArray=PropsUtil.getArray(PropsUtil.LAST_MODIFIED_PATHS);
+    for (int i=0; i < pathsArray.length; i++) {
+      _lastModifiedPaths.add(pathsArray[i]);
     }
-    super.init();
-    if (_log.isDebugEnabled()) {
-      _log.debug("Process startup events");
-    }
-    try {
-      EventsProcessor.process(new String[]{StartupAction.class.getName()},true);
-    }
- catch (    Exception e) {
-      _log.error(e,e);
-    }
-    ServletContext ctx=getServletContext();
-    String servletContextName=GetterUtil.getString(ctx.getServletContextName());
-    if (_log.isDebugEnabled()) {
-      _log.debug("Paths");
-    }
-    String rootPath=GetterUtil.getString(ctx.getInitParameter("root_path"),StringPool.SLASH);
-    if (rootPath.equals(StringPool.SLASH)) {
-      rootPath=StringPool.BLANK;
-    }
-    ctx.setAttribute(WebKeys.ROOT_PATH,rootPath);
-    ctx.setAttribute(WebKeys.MAIN_PATH,rootPath + DEFAULT_MAIN_PATH);
-    String friendlyURLPrivateGroupPath=rootPath + PropsUtil.get(PropsUtil.LAYOUT_FRIENDLY_URL_PRIVATE_GROUP_SERVLET_MAPPING);
-    ctx.setAttribute(WebKeys.FRIENDLY_URL_PRIVATE_GROUP_PATH,friendlyURLPrivateGroupPath);
-    String friendlyURLPrivateUserPath=rootPath + PropsUtil.get(PropsUtil.LAYOUT_FRIENDLY_URL_PRIVATE_USER_SERVLET_MAPPING);
-    ctx.setAttribute(WebKeys.FRIENDLY_URL_PRIVATE_USER_PATH,friendlyURLPrivateUserPath);
-    String friendlyURLPublicPath=rootPath + PropsUtil.get(PropsUtil.LAYOUT_FRIENDLY_URL_PUBLIC_SERVLET_MAPPING);
-    ctx.setAttribute(WebKeys.FRIENDLY_URL_PUBLIC_PATH,friendlyURLPublicPath);
-    ctx.setAttribute(WebKeys.IMAGE_PATH,rootPath + "/image");
-    PluginPackage pluginPackage=null;
-    try {
-      pluginPackage=PluginPackageHotDeployListener.readPluginPackage(ctx);
-    }
- catch (    Exception e) {
-      _log.error(e,e);
-    }
-    if (_log.isDebugEnabled()) {
-      _log.debug("Initialize portlets");
-    }
-    try {
-      String[] xmls=new String[]{Http.URLtoString(ctx.getResource("/WEB-INF/" + PortalUtil.PORTLET_XML_FILE_NAME_CUSTOM)),Http.URLtoString(ctx.getResource("/WEB-INF/portlet-ext.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-portlet.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-portlet-ext.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/web.xml"))};
-      PortletLocalServiceUtil.initEAR(xmls,pluginPackage);
-    }
- catch (    Exception e) {
-      _log.error(e,e);
-    }
-    if (_log.isDebugEnabled()) {
-      _log.debug("Company id");
-    }
-    String webId=GetterUtil.getString(ctx.getInitParameter("company_web_id"));
-    try {
-      Company company=CompanyLocalServiceUtil.checkCompany(webId);
-      _companyId=company.getCompanyId();
-      _companyIdString=String.valueOf(_companyId);
-    }
- catch (    Exception e) {
-      _log.error(e,e);
-    }
-    ctx.setAttribute(WebKeys.COMPANY_ID,new Long(_companyId));
-    CompanyThreadLocal.setCompanyId(_companyId);
-    if (_log.isDebugEnabled()) {
-      _log.debug("Initialize display");
-    }
-    try {
-      String xml=Http.URLtoString(ctx.getResource("/WEB-INF/liferay-display.xml"));
-      PortletCategory portletCategory=(PortletCategory)WebAppPool.get(_companyIdString,WebKeys.PORTLET_CATEGORY);
-      if (portletCategory == null) {
-        portletCategory=new PortletCategory();
-      }
-      PortletCategory newPortletCategory=PortletLocalServiceUtil.getEARDisplay(xml);
-      portletCategory.merge(newPortletCategory);
-      WebAppPool.put(_companyIdString,WebKeys.PORTLET_CATEGORY,portletCategory);
-    }
- catch (    Exception e) {
-      _log.error(e,e);
-    }
-    if (_log.isDebugEnabled()) {
-      _log.debug("Initialize layout templates");
-    }
-    try {
-      String[] xmls=new String[]{Http.URLtoString(ctx.getResource("/WEB-INF/liferay-layout-templates.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-layout-templates-ext.xml"))};
-      LayoutTemplateLocalUtil.init(ctx,xmls,pluginPackage);
-    }
- catch (    Exception e) {
-      _log.error(e,e);
-    }
-    if (_log.isDebugEnabled()) {
-      _log.debug("Initialize look and feel");
-    }
-    try {
-      String[] xmls=new String[]{Http.URLtoString(ctx.getResource("/WEB-INF/liferay-look-and-feel.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-look-and-feel-ext.xml"))};
-      ThemeLocalUtil.init(ctx,true,xmls,pluginPackage);
-      VelocityContextPool.put(servletContextName,ctx);
-    }
- catch (    Exception e) {
-      _log.error(e,e);
-    }
-    if (_log.isDebugEnabled()) {
-      _log.debug("Check journal content search");
-    }
-    if (GetterUtil.getBoolean(PropsUtil.get(0,PropsUtil.JOURNAL_SYNC_CONTENT_SEARCH_ON_STARTUP))) {
-      try {
-        JournalContentSearchLocalServiceUtil.checkContentSearches(_companyId);
-      }
- catch (      Exception e) {
-        _log.error(e,e);
-      }
-    }
-    if (_log.isDebugEnabled()) {
-      _log.debug("Check web settings");
-    }
-    try {
-      String xml=Http.URLtoString(ctx.getResource("/WEB-INF/web.xml"));
-      _checkWebSettings(xml);
-    }
- catch (    Exception e) {
-      _log.error(e,e);
-    }
-    if (_log.isDebugEnabled()) {
-      _log.debug("Scheduler");
-    }
-    try {
-      Iterator itr=PortletLocalServiceUtil.getPortlets(_companyId).iterator();
-      while (itr.hasNext()) {
-        Portlet portlet=(Portlet)itr.next();
-        String className=portlet.getSchedulerClass();
-        if (portlet.isActive() && Validator.isNotNull(className)) {
-          Scheduler scheduler=(Scheduler)InstancePool.get(className);
-          scheduler.schedule();
-        }
-      }
-    }
- catch (    ObjectAlreadyExistsException oaee) {
-    }
-catch (    Exception e) {
-      _log.error(e,e);
-    }
-    if (_log.isDebugEnabled()) {
-      _log.debug("SMTP message listener");
-    }
-    try {
-      Iterator itr=PortletLocalServiceUtil.getPortlets(_companyId).iterator();
-      while (itr.hasNext()) {
-        Portlet portlet=(Portlet)itr.next();
-        MessageListener smtpMessageListener=portlet.getSmtpMessageListener();
-        if (portlet.isActive() && (smtpMessageListener != null)) {
-          SMTPServerUtil.addListener(smtpMessageListener);
-        }
-      }
-    }
- catch (    ObjectAlreadyExistsException oaee) {
-    }
-catch (    Exception e) {
-      _log.error(e,e);
-    }
-    try {
-      if (PortalLDAPUtil.isImportOnStartup(_companyId)) {
-        PortalLDAPUtil.importFromLDAP(_companyId);
-      }
-    }
- catch (    Exception e) {
-      _log.error(e,e);
-    }
-    if (_log.isDebugEnabled()) {
-      _log.debug("Message resources");
-    }
-    MultiMessageResources messageResources=(MultiMessageResources)ctx.getAttribute(Globals.MESSAGES_KEY);
-    messageResources.setServletContext(ctx);
-    WebAppPool.put(_companyIdString,Globals.MESSAGES_KEY,messageResources);
-    if (_log.isDebugEnabled()) {
-      _log.debug("Last modified paths");
-    }
-    if (_lastModifiedPaths == null) {
-      _lastModifiedPaths=CollectionFactory.getHashSet();
-      String[] pathsArray=PropsUtil.getArray(PropsUtil.LAST_MODIFIED_PATHS);
-      for (int i=0; i < pathsArray.length; i++) {
-        _lastModifiedPaths.add(pathsArray[i]);
-      }
-    }
-    if (_log.isDebugEnabled()) {
-      _log.debug("Process startup events");
-    }
-    try {
-      EventsProcessor.process(PropsUtil.getArray(PropsUtil.GLOBAL_STARTUP_EVENTS),true);
-      EventsProcessor.process(PropsUtil.getArray(PropsUtil.APPLICATION_STARTUP_EVENTS),new String[]{_companyIdString});
-    }
- catch (    Exception e) {
-      _log.error(e,e);
-    }
-    if (_log.isDebugEnabled()) {
-      _log.debug("Portal instance " + _companyId);
-    }
-    PortalInstances.init(_companyId);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Process global startup events");
+  }
+  try {
+    EventsProcessor.process(PropsUtil.getArray(PropsUtil.GLOBAL_STARTUP_EVENTS),true);
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+  String[] webIds=PortalInstances.getWebIds();
+  for (int i=0; i < webIds.length; i++) {
+    PortalInstances.initCompany(ctx,webIds[i]);
   }
 }

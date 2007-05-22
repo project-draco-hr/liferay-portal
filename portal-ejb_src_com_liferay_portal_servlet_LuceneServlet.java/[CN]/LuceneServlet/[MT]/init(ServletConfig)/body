@@ -1,21 +1,23 @@
 {
-synchronized (LuceneServlet.class) {
-    super.init(config);
-    ServletContext ctx=getServletContext();
-    _companyId=PortalUtil.getCompanyIdByWebId(ctx);
+  super.init(config);
+  long[] companyIds=PortalInstances.getCompanyIds();
+  for (int i=0; i < companyIds.length; i++) {
+    long companyId=companyIds[0];
     if (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.INDEX_ON_STARTUP))) {
-      _indexer=new LuceneIndexer(_companyId);
+      LuceneIndexer indexer=new LuceneIndexer(companyId);
+      Thread indexerThread=null;
       if (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.INDEX_WITH_THREAD)) || ServerDetector.isOrion()) {
-        _indexerThread=new Thread(_indexer,THREAD_NAME + "." + _companyId);
-        _indexerThread.setPriority(THREAD_PRIORITY);
-        _indexerThread.start();
+        indexerThread=new Thread(indexer,THREAD_NAME + "." + companyId);
+        indexerThread.setPriority(THREAD_PRIORITY);
+        indexerThread.start();
       }
  else {
-        _indexer.reIndex();
+        indexer.reIndex();
       }
+      _indexers.add(new ObjectValuePair(indexer,indexerThread));
     }
  else {
-      Directory luceneDir=LuceneUtil.getLuceneDir(_companyId);
+      Directory luceneDir=LuceneUtil.getLuceneDir(companyId);
       IndexWriter writer=null;
       try {
         if (luceneDir.fileExists("segments")) {
