@@ -1,0 +1,34 @@
+{
+  try {
+    HttpServletRequest httpReq=(HttpServletRequest)req;
+    HttpServletResponse httpRes=(HttpServletResponse)res;
+    long companyId=PortalInstances.getCompanyId(httpReq);
+    if (PortalLDAPUtil.isNtlmEnabled(companyId)) {
+      String domainController=PrefsPropsUtil.getString(companyId,PropsUtil.LDAP_BASE_PROVIDER_URL);
+      domainController=domainController.substring(7,domainController.lastIndexOf(":"));
+      Config.setProperty("jcifs.http.domainController",domainController);
+      if (_log.isDebugEnabled()) {
+        _log.debug("Host " + domainController);
+      }
+      NtlmPasswordAuthentication ntlm=negotiate(httpReq,httpRes,false);
+      if (ntlm == null) {
+        return;
+      }
+      String remoteUser=ntlm.getName();
+      int pos=remoteUser.indexOf(StringPool.BACK_SLASH);
+      if (pos != -1) {
+        remoteUser=remoteUser.substring(pos + 1);
+      }
+      if (_log.isDebugEnabled()) {
+        _log.debug("NTLM remote user " + remoteUser);
+      }
+      req.setAttribute(WebKeys.NTLM_REMOTE_USER,remoteUser);
+    }
+  }
+ catch (  Exception e) {
+    _log.error(e);
+  }
+ finally {
+    chain.doFilter(req,res);
+  }
+}
