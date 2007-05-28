@@ -1,0 +1,98 @@
+{
+  User user=UserUtil.findByPrimaryKey(userId);
+  DLFolder folder=DLFolderUtil.findByPrimaryKey(folderId);
+  if (Validator.isNull(title)) {
+    title=name;
+  }
+  DLFileEntry fileEntry=DLFileEntryUtil.findByF_N(folderId,name);
+  fileEntry.setTitle(title);
+  fileEntry.setDescription(description);
+  fileEntry.setExtraSettings(extraSettings);
+  DLFileEntryUtil.update(fileEntry);
+  if ((newFolderId > 0) && (folderId != newFolderId)) {
+    DLFolder newFolder=DLFolderUtil.findByPrimaryKey(newFolderId);
+    if (folder.getGroupId() != newFolder.getGroupId()) {
+      throw new NoSuchFolderException();
+    }
+    if (DLLocalServiceUtil.hasFileContentNode(user.getCompanyId(),newFolderId,name,0)) {
+      throw new DuplicateFileException(name);
+    }
+    long newFileEntryId=CounterLocalServiceUtil.increment();
+    DLFileEntry newFileEntry=DLFileEntryUtil.create(newFileEntryId);
+    newFileEntry.setCompanyId(fileEntry.getCompanyId());
+    newFileEntry.setUserId(fileEntry.getUserId());
+    newFileEntry.setUserName(fileEntry.getUserName());
+    newFileEntry.setVersionUserId(fileEntry.getVersionUserId());
+    newFileEntry.setVersionUserName(fileEntry.getVersionUserName());
+    newFileEntry.setCreateDate(fileEntry.getCreateDate());
+    newFileEntry.setModifiedDate(fileEntry.getModifiedDate());
+    newFileEntry.setFolderId(newFolderId);
+    newFileEntry.setName(name);
+    newFileEntry.setTitle(fileEntry.getTitle());
+    newFileEntry.setDescription(fileEntry.getDescription());
+    newFileEntry.setVersion(fileEntry.getVersion());
+    newFileEntry.setSize(fileEntry.getSize());
+    newFileEntry.setReadCount(fileEntry.getReadCount());
+    newFileEntry.setExtraSettings(extraSettings);
+    DLFileEntryUtil.update(newFileEntry);
+    DLFileEntryUtil.remove(fileEntry);
+    fileEntry=newFileEntry;
+    Iterator itr=DLFileVersionUtil.findByF_N(folderId,name).iterator();
+    while (itr.hasNext()) {
+      DLFileVersion fileVersion=(DLFileVersion)itr.next();
+      long newFileVersionId=CounterLocalServiceUtil.increment();
+      DLFileVersion newFileVersion=DLFileVersionUtil.create(newFileVersionId);
+      newFileVersion.setCompanyId(fileVersion.getCompanyId());
+      newFileVersion.setUserId(fileVersion.getUserId());
+      newFileVersion.setUserName(fileVersion.getUserName());
+      newFileVersion.setCreateDate(fileVersion.getCreateDate());
+      newFileVersion.setFolderId(newFolderId);
+      newFileVersion.setName(name);
+      newFileVersion.setVersion(fileVersion.getVersion());
+      newFileVersion.setSize(fileVersion.getSize());
+      DLFileVersionUtil.update(newFileVersion);
+      DLFileVersionUtil.remove(fileVersion);
+    }
+    DLFileShortcutLocalServiceUtil.updateFileShortcuts(folderId,name,newFolderId,name);
+    try {
+      DLServiceUtil.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,folder.getGroupId(),folderId,newFolderId,name);
+    }
+ catch (    RemoteException re) {
+      throw new SystemException(re);
+    }
+    folderId=newFolderId;
+    folder=newFolder;
+  }
+  TagsAssetLocalServiceUtil.updateAsset(userId,DLFileEntry.class.getName(),String.valueOf(fileEntry.getFileEntryId()),tagsEntries);
+  if (is == null) {
+    return fileEntry;
+  }
+  double oldVersion=fileEntry.getVersion();
+  double newVersion=MathUtil.format(oldVersion + 0.1,1,1);
+  long fileVersionId=CounterLocalServiceUtil.increment();
+  DLFileVersion fileVersion=DLFileVersionUtil.create(fileVersionId);
+  long versionUserId=fileEntry.getVersionUserId();
+  if (versionUserId <= 0) {
+    versionUserId=fileEntry.getUserId();
+  }
+  String versionUserName=GetterUtil.getString(fileEntry.getVersionUserName(),fileEntry.getUserName());
+  fileVersion.setCompanyId(fileEntry.getCompanyId());
+  fileVersion.setUserId(versionUserId);
+  fileVersion.setUserName(versionUserName);
+  fileVersion.setCreateDate(fileEntry.getModifiedDate());
+  fileVersion.setFolderId(folderId);
+  fileVersion.setName(name);
+  fileVersion.setVersion(oldVersion);
+  fileVersion.setSize(fileEntry.getSize());
+  DLFileVersionUtil.update(fileVersion);
+  fileEntry.setVersionUserId(user.getUserId());
+  fileEntry.setVersionUserName(user.getFullName());
+  fileEntry.setModifiedDate(new Date());
+  fileEntry.setVersion(newVersion);
+  fileEntry.setSize((int)size);
+  DLFileEntryUtil.update(fileEntry);
+  DLLocalServiceUtil.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,folder.getGroupId(),folderId,name,newVersion,sourceFileName,is);
+  folder.setLastPostDate(fileEntry.getModifiedDate());
+  DLFolderUtil.update(folder);
+  return fileEntry;
+}
