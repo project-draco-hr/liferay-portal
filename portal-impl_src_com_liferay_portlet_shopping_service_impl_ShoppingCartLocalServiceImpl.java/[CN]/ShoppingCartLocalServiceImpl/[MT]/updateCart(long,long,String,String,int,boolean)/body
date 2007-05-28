@@ -1,0 +1,76 @@
+{
+  List badItemIds=new ArrayList();
+  Map items=getItems(groupId,itemIds);
+  Iterator itr=items.entrySet().iterator();
+  while (itr.hasNext()) {
+    Map.Entry entry=(Map.Entry)itr.next();
+    ShoppingCartItem cartItem=(ShoppingCartItem)entry.getKey();
+    Integer count=(Integer)entry.getValue();
+    ShoppingItem item=cartItem.getItem();
+    int minQuantity=ShoppingUtil.getMinQuantity(item);
+    if (minQuantity > 0) {
+      if ((count.intValue() % minQuantity) > 0) {
+        badItemIds.add(new Long(item.getItemId()));
+      }
+    }
+  }
+  if (badItemIds.size() > 0) {
+    throw new CartMinQuantityException(StringUtil.merge((Long[])badItemIds.toArray(new Long[0])));
+  }
+  String[] couponCodesArray=StringUtil.split(couponCodes);
+  for (int i=0; i < couponCodesArray.length; i++) {
+    try {
+      ShoppingCoupon coupon=ShoppingCouponUtil.findByCode(couponCodesArray[i]);
+      if (coupon.getGroupId() != groupId) {
+        throw new NoSuchCouponException(couponCodesArray[i]);
+      }
+ else       if (!coupon.isActive()) {
+        throw new CouponActiveException(couponCodesArray[i]);
+      }
+ else       if (!coupon.hasValidStartDate()) {
+        throw new CouponStartDateException(couponCodesArray[i]);
+      }
+ else       if (!coupon.hasValidEndDate()) {
+        throw new CouponEndDateException(couponCodesArray[i]);
+      }
+    }
+ catch (    NoSuchCouponException nsce) {
+      throw new NoSuchCouponException(couponCodesArray[i]);
+    }
+    break;
+  }
+  User user=UserUtil.findByPrimaryKey(userId);
+  Date now=new Date();
+  ShoppingCart cart=null;
+  if (user.isDefaultUser()) {
+    cart=ShoppingCartUtil.create(0);
+    cart.setGroupId(groupId);
+    cart.setCompanyId(user.getCompanyId());
+    cart.setUserId(userId);
+    cart.setUserName(user.getFullName());
+    cart.setCreateDate(now);
+  }
+ else {
+    try {
+      cart=ShoppingCartUtil.findByG_U(groupId,userId);
+    }
+ catch (    NoSuchCartException nsce) {
+      long cartId=CounterLocalServiceUtil.increment();
+      cart=ShoppingCartUtil.create(cartId);
+      cart.setGroupId(groupId);
+      cart.setCompanyId(user.getCompanyId());
+      cart.setUserId(userId);
+      cart.setUserName(user.getFullName());
+      cart.setCreateDate(now);
+    }
+  }
+  cart.setModifiedDate(now);
+  cart.setItemIds(checkItemIds(groupId,itemIds));
+  cart.setCouponCodes(couponCodes);
+  cart.setAltShipping(altShipping);
+  cart.setInsure(insure);
+  if (!user.isDefaultUser()) {
+    ShoppingCartUtil.update(cart);
+  }
+  return cart;
+}
