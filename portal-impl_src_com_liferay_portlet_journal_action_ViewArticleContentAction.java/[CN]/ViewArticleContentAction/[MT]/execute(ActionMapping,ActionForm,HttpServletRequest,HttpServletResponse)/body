@@ -1,4 +1,5 @@
 {
+  UploadServletRequest uploadReq=null;
   try {
     String cmd=ParamUtil.getString(req,Constants.CMD);
     ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
@@ -8,19 +9,20 @@
     String languageId=LanguageUtil.getLanguageId(req);
     String output=null;
     if (cmd.equals(Constants.PREVIEW)) {
-      String title=ParamUtil.getString(req,"title");
-      String description=ParamUtil.getString(req,"description");
+      uploadReq=new UploadServletRequest(req);
+      String title=ParamUtil.getString(uploadReq,"title");
+      String description=ParamUtil.getString(uploadReq,"description");
       Date now=new Date();
       Date createDate=now;
       Date modifiedDate=now;
       Date displayDate=now;
-      User user=PortalUtil.getUser(req);
-      String xml=ParamUtil.getString(req,"xml");
+      User user=PortalUtil.getUser(uploadReq);
+      String xml=ParamUtil.getString(uploadReq,"xml");
       SAXReader reader=new SAXReader();
       Document doc=reader.read(new StringReader(xml));
       Element root=doc.getRootElement();
       String previewArticleId="PREVIEW_" + PwdGenerator.getPassword(PwdGenerator.KEY3,10);
-      format(groupId,articleId,version,previewArticleId,root,PortalUtil.getUploadServletRequest(req));
+      format(groupId,articleId,version,previewArticleId,root,uploadReq);
       Map tokens=JournalUtil.getTokens(groupId,themeDisplay);
       JournalUtil.addReservedEl(root,tokens,JournalStructureImpl.RESERVED_ARTICLE_ID,articleId);
       JournalUtil.addReservedEl(root,tokens,JournalStructureImpl.RESERVED_ARTICLE_VERSION,Double.toString(version));
@@ -33,7 +35,7 @@
       JournalUtil.addReservedEl(root,tokens,JournalStructureImpl.RESERVED_ARTICLE_AUTHOR_NAME,user.getFullName());
       JournalUtil.addReservedEl(root,tokens,JournalStructureImpl.RESERVED_ARTICLE_AUTHOR_EMAIL_ADDRESS,user.getEmailAddress());
       xml=JournalUtil.formatXML(doc);
-      String templateId=ParamUtil.getString(req,"templateId");
+      String templateId=ParamUtil.getString(uploadReq,"templateId");
       JournalTemplate template=JournalTemplateLocalServiceUtil.getTemplate(groupId,templateId);
       String langType=template.getLangType();
       String script=template.getXsl();
@@ -48,5 +50,10 @@
  catch (  Exception e) {
     req.setAttribute(PageContext.EXCEPTION,e);
     return mapping.findForward(Constants.COMMON_ERROR);
+  }
+ finally {
+    if (uploadReq != null) {
+      uploadReq.cleanUp();
+    }
   }
 }
