@@ -1,0 +1,34 @@
+{
+  String name=StringPool.BLANK;
+  String description=StringPool.BLANK;
+  List messages=new ArrayList();
+  boolean rssPermission=true;
+  try {
+    MBCategory category=MBCategoryServiceUtil.getCategory(categoryId);
+    name=category.getName();
+    description=category.getDescription();
+    int messageCount=MBMessageLocalServiceUtil.getCategoryMessagesCount(categoryId);
+    List tempMessages=MBMessageLocalServiceUtil.getCategoryMessages(categoryId,0,messageCount,new MessageCreateDateComparator(false));
+    Iterator itr=tempMessages.iterator();
+    while (itr.hasNext() && messages.size() < max) {
+      MBMessage message=(MBMessage)itr.next();
+      try {
+        long messageId=message.getMessageId();
+        MBMessagePermission.check(getPermissionChecker(),messageId,ActionKeys.VIEW);
+        messages.add(message);
+      }
+ catch (      PrincipalException pe) {
+        rssPermission=false;
+      }
+    }
+  }
+ catch (  PrincipalException pe) {
+    rssPermission=false;
+  }
+catch (  RemoteException re) {
+  }
+  if (!rssPermission && messages.size() == 0) {
+    name=_RSS_PERMISSIONS_ERROR;
+  }
+  return exportToRSS(name,description,type,version,feedURL,entryURL,messages);
+}
