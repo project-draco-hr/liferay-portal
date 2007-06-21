@@ -1,0 +1,57 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  String insertSQL=getInsertSQL();
+  BufferedReader br=new BufferedReader(new FileReader(tempFileName));
+  String line=null;
+  try {
+    con=HibernateUtil.getConnection();
+    boolean useBatch=con.getMetaData().supportsBatchUpdates();
+    if (!useBatch) {
+      if (_log.isInfoEnabled()) {
+        _log.info("Database does not support batch updates");
+      }
+    }
+    int count=0;
+    while ((line=br.readLine()) != null) {
+      String[] values=StringUtil.split(line);
+      if (values.length != _columns.length) {
+        throw new UpgradeException("Columns differ between temp file and schema. " + "Attempted to insert row " + line + ".");
+      }
+      if (count == 0) {
+        ps=con.prepareStatement(insertSQL);
+      }
+      for (int i=0; i < _columns.length; i++) {
+        setColumn(ps,i,(Integer)_columns[i][1],values[i]);
+      }
+      if (useBatch) {
+        ps.addBatch();
+        if (count == _BATCH_SIZE) {
+          ps.executeBatch();
+          ps.close();
+          count=0;
+        }
+ else {
+          count++;
+        }
+      }
+ else {
+        ps.executeUpdate();
+        ps.close();
+      }
+    }
+    if (useBatch) {
+      if (count != 0) {
+        ps.executeBatch();
+        ps.close();
+      }
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps);
+    br.close();
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info(_tableName + " table repopulated with data");
+  }
+}

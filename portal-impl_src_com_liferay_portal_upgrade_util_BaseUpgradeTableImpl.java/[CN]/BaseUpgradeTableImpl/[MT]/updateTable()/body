@@ -1,105 +1,20 @@
 {
   _calledUpdateTable=true;
-  Connection con=null;
-  PreparedStatement ps=null;
-  ResultSet rs=null;
-  boolean isEmpty=true;
-  String tempFilename="temp-db-" + _tableName + "-"+ System.currentTimeMillis();
-  String selectSQL=getSelectSQL();
-  BufferedWriter bw=new BufferedWriter(new FileWriter(tempFilename));
+  String tempFileName=getTempFileName();
   try {
-    con=HibernateUtil.getConnection();
-    ps=con.prepareStatement(selectSQL);
-    rs=ps.executeQuery();
-    while (rs.next()) {
-      String data=null;
-      try {
-        data=getExportedData(rs);
-        bw.write(data);
-        isEmpty=false;
-      }
- catch (      StagnantRowException sre) {
-        if (_log.isWarnEnabled()) {
-          _log.warn("Skipping stagnant data in " + _tableName + ": "+ sre.getMessage());
-        }
-      }
-    }
-    if (_log.isInfoEnabled()) {
-      _log.info(_tableName + " table backed up to file " + tempFilename);
-    }
-  }
-  finally {
-    DataAccess.cleanUp(con,ps,rs);
-    bw.close();
-  }
-  if (Validator.isNotNull(_createSQL)) {
     DBUtil dbUtil=DBUtil.getInstance();
-    dbUtil.runSQL("drop table " + _tableName);
-    dbUtil.runSQL(_createSQL);
-  }
-  if (!isEmpty) {
-    Statement stmt=null;
-    try {
-      con=HibernateUtil.getConnection();
-      stmt=con.createStatement();
-      stmt.executeUpdate(getDeleteSQL());
+    if (Validator.isNotNull(_createSQL)) {
+      dbUtil.runSQL("drop table " + _tableName);
+      dbUtil.runSQL(_createSQL);
     }
-  finally {
-      DataAccess.cleanUp(con,stmt);
-    }
-    String insertSQL=getInsertSQL();
-    BufferedReader br=new BufferedReader(new FileReader(tempFilename));
-    String line=null;
-    try {
-      con=HibernateUtil.getConnection();
-      boolean useBatch=con.getMetaData().supportsBatchUpdates();
-      if (!useBatch) {
-        if (_log.isInfoEnabled()) {
-          _log.info("Database does not support batch updates");
-        }
-      }
-      int count=0;
-      while ((line=br.readLine()) != null) {
-        String[] values=StringUtil.split(line);
-        if (values.length != _columns.length) {
-          throw new UpgradeException("Columns differ between temp file and schema. " + "Attempted to insert row " + line + ".");
-        }
-        if (count == 0) {
-          ps=con.prepareStatement(insertSQL);
-        }
-        for (int i=0; i < _columns.length; i++) {
-          setColumn(ps,i,(Integer)_columns[i][1],values[i]);
-        }
-        if (useBatch) {
-          ps.addBatch();
-          if (count == _BATCH_SIZE) {
-            ps.executeBatch();
-            ps.close();
-            count=0;
-          }
- else {
-            count++;
-          }
-        }
- else {
-          ps.executeUpdate();
-          ps.close();
-        }
-      }
-      if (useBatch) {
-        if (count != 0) {
-          ps.executeBatch();
-          ps.close();
-        }
-      }
-    }
-  finally {
-      DataAccess.cleanUp(con,ps);
-      br.close();
+    if (Validator.isNotNull(tempFileName)) {
+      dbUtil.runSQL(getDeleteSQL());
+      repopulateTable(tempFileName);
     }
   }
-  FileUtil.delete(tempFilename);
-  if (_log.isInfoEnabled()) {
-    _log.info(_tableName + " table repopulated with data");
+  finally {
+    if (Validator.isNotNull(tempFileName)) {
+      FileUtil.delete(tempFileName);
+    }
   }
 }
