@@ -1,0 +1,30 @@
+{
+  if (PortalLDAPUtil.isPasswordPolicyEnabled(user.getCompanyId())) {
+    return;
+  }
+  PasswordPolicy passwordPolicy=user.getPasswordPolicy();
+  if (isPasswordExpired(user)) {
+    int graceLoginCount=user.getGraceLoginCount();
+    if (graceLoginCount < passwordPolicy.getGraceLimit()) {
+      user.setGraceLoginCount(++graceLoginCount);
+      UserUtil.update(user);
+    }
+ else {
+      throw new PasswordExpiredException();
+    }
+  }
+  if (isPasswordExpiringSoon(user)) {
+    user.setPasswordReset(true);
+    UserUtil.update(user);
+  }
+  if (passwordPolicy.isChangeable() && passwordPolicy.isChangeRequired()) {
+    if (user.getLastLoginDate() == null) {
+      boolean passwordReset=false;
+      if (passwordPolicy.isChangeable() && passwordPolicy.isChangeRequired()) {
+        passwordReset=true;
+      }
+      user.setPasswordReset(passwordReset);
+      UserUtil.update(user);
+    }
+  }
+}
