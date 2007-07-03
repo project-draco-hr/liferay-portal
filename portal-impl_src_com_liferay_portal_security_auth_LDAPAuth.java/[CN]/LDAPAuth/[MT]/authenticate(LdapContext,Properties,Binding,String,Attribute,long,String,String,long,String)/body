@@ -1,17 +1,20 @@
 {
-  boolean authenticated=false;
+  LDAPAuthResult ldapAuthResult=new LDAPAuthResult();
   String authMethod=PrefsPropsUtil.getString(companyId,PropsUtil.LDAP_AUTH_METHOD);
+  String userDN=binding.getName() + StringPool.COMMA + baseDN;
   if (authMethod.equals(AUTH_METHOD_BIND)) {
     try {
-      String userDN=binding.getName() + StringPool.COMMA + baseDN;
       env.put(Context.SECURITY_PRINCIPAL,userDN);
       env.put(Context.SECURITY_CREDENTIALS,password);
       ctx=new InitialLdapContext(env,null);
-      authenticated=true;
+      Control[] responseControls=ctx.getResponseControls();
+      ldapAuthResult.setAuthenticated(true);
+      ldapAuthResult.setResponseControl(responseControls);
     }
  catch (    Exception e) {
-      _log.error("Failed to bind to the LDAP server with " + userId + " "+ password+ " "+ e.getMessage());
-      authenticated=false;
+      _log.error("Failed to bind to the LDAP server with userDN " + userDN + " and password "+ password+ ": "+ e.getMessage());
+      ldapAuthResult.setAuthenticated(false);
+      ldapAuthResult.setErrorMessage(e.getMessage());
     }
   }
  else   if (authMethod.equals(AUTH_METHOD_PASSWORD_COMPARE)) {
@@ -23,13 +26,13 @@
         encryptedPassword="{" + algorithm + "}"+ PwdEncryptor.encrypt(algorithm,password,ldapPassword);
       }
       if (ldapPassword.equals(encryptedPassword)) {
-        authenticated=true;
+        ldapAuthResult.setAuthenticated(true);
       }
  else {
-        authenticated=false;
+        ldapAuthResult.setAuthenticated(false);
         _log.error("LDAP password " + ldapPassword + " does not match with given password "+ encryptedPassword+ " for user id "+ userId);
       }
     }
   }
-  return authenticated;
+  return ldapAuthResult;
 }
