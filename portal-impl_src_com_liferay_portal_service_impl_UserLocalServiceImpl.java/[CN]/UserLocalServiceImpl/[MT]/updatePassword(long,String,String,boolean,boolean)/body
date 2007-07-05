@@ -1,0 +1,32 @@
+{
+  User user=UserUtil.findByPrimaryKey(userId);
+  validatePassword(user.getCompanyId(),userId,password1,password2);
+  String oldEncPwd=user.getPassword();
+  if (!user.isPasswordEncrypted()) {
+    oldEncPwd=PwdEncryptor.encrypt(user.getPassword());
+  }
+  String newEncPwd=PwdEncryptor.encrypt(password1);
+  if (user.hasCompanyMx()) {
+    try {
+      MailServiceUtil.updatePassword(userId,password1);
+    }
+ catch (    RemoteException re) {
+      throw new SystemException(re);
+    }
+  }
+  user.setPassword(newEncPwd);
+  user.setPasswordUnencrypted(password1);
+  user.setPasswordEncrypted(true);
+  user.setPasswordReset(passwordReset);
+  user.setPasswordModifiedDate(new Date());
+  user.setGraceLoginCount(0);
+  if (!isSilentUpdate) {
+    user.setPasswordModified(true);
+  }
+  UserUtil.update(user);
+  if (!isSilentUpdate) {
+    user.setPasswordModified(false);
+  }
+  PasswordTrackerLocalServiceUtil.trackPassword(userId,oldEncPwd);
+  return user;
+}
