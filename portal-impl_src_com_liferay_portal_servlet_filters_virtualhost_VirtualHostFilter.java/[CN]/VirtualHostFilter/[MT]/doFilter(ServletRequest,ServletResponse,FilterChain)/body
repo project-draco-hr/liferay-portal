@@ -8,12 +8,21 @@
     }
   }
   HttpServletRequest httpReq=(HttpServletRequest)req;
-  if (_log.isDebugEnabled()) {
-    _log.debug("Received " + httpReq.getRequestURL());
-  }
   long companyId=PortalInstances.getCompanyId(httpReq);
   if (_log.isDebugEnabled()) {
     _log.debug("Company id " + companyId);
+  }
+  if (!USE_VIRTUAL_HOST_FILTER) {
+    chain.doFilter(req,res);
+    return;
+  }
+  String requestURL=httpReq.getRequestURL().toString();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Received " + requestURL);
+  }
+  if (!isValidRequestURL(requestURL)) {
+    chain.doFilter(req,res);
+    return;
   }
   String contextPath=PortalUtil.getPathContext();
   String friendlyURL=httpReq.getRequestURI().toLowerCase();
@@ -24,27 +33,31 @@
   if (_log.isDebugEnabled()) {
     _log.debug("Friendly URL " + friendlyURL);
   }
-  String redirect=null;
-  if (USE_VIRTUAL_HOST_FILTER && isValidFriendlyURL(friendlyURL)) {
-    String mainPath=PortalUtil.PATH_MAIN;
-    LayoutSet layoutSet=(LayoutSet)req.getAttribute(WebKeys.VIRTUAL_HOST_LAYOUT_SET);
-    if (layoutSet != null) {
-      try {
-        redirect=PortalUtil.getLayoutActualURL(layoutSet.getGroupId(),layoutSet.isPrivateLayout(),mainPath,friendlyURL);
-      }
- catch (      Exception e) {
-        _log.error(e,e);
-      }
-    }
-  }
-  if (redirect != null) {
-    if (_log.isDebugEnabled()) {
-      _log.debug("Redirect to " + redirect);
-    }
-    RequestDispatcher rd=_ctx.getRequestDispatcher(redirect);
-    rd.forward(req,res);
-  }
- else {
+  if (!isValidFriendlyURL(friendlyURL)) {
     chain.doFilter(req,res);
+    return;
   }
+  LayoutSet layoutSet=(LayoutSet)req.getAttribute(WebKeys.VIRTUAL_HOST_LAYOUT_SET);
+  if (layoutSet != null) {
+    try {
+      String mainPath=PortalUtil.PATH_MAIN;
+      String redirect=PortalUtil.getLayoutActualURL(layoutSet.getGroupId(),layoutSet.isPrivateLayout(),mainPath,friendlyURL);
+      if (_log.isDebugEnabled()) {
+        _log.debug("Redirect to " + redirect);
+      }
+      RequestDispatcher rd=_ctx.getRequestDispatcher(redirect);
+      rd.forward(req,res);
+      return;
+    }
+ catch (    NoSuchLayoutException nsle) {
+      nsle.printStackTrace();
+      if (_log.isWarnEnabled()) {
+        _log.warn(nsle.getMessage());
+      }
+    }
+catch (    Exception e) {
+      _log.error(e,e);
+    }
+  }
+  chain.doFilter(req,res);
 }
