@@ -5,11 +5,10 @@
     return _getContent(groupId,articleId,templateId,languageId,themeDisplay);
   }
   String content=null;
+  String groupKey=_encodeKey(groupId,articleId,templateId);
   String key=_encodeKey(groupId,articleId,templateId,languageId);
-  try {
-    content=(String)_cache.getFromCache(key,_REFRESH_TIME);
-  }
- catch (  NeedsRefreshException nre) {
+  content=(String)ClusterPool.get(_cache,key);
+  if (content == null) {
     try {
       content=JournalArticleLocalServiceUtil.getArticleContent(groupId,articleId,templateId,languageId,themeDisplay);
     }
@@ -19,14 +18,8 @@
       }
     }
     if (content != null) {
-      String articleGroupKey=_encodeKey(groupId,articleId,templateId);
-      String[] groups=ArrayUtil.append(GROUP_NAME_ARRAY,articleGroupKey);
-      _cache.putInCache(key,content,groups);
-    }
-  }
- finally {
-    if (content == null) {
-      _cache.cancelUpdate(key);
+      _updateGroup(groupKey,key);
+      ClusterPool.put(_cache,key,content);
     }
   }
   return content;
