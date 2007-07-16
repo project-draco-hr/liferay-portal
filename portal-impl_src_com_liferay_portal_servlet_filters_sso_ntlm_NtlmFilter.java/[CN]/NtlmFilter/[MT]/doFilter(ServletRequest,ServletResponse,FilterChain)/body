@@ -4,35 +4,55 @@
     HttpServletResponse httpRes=(HttpServletResponse)res;
     long companyId=PortalInstances.getCompanyId(httpReq);
     if (PortalLDAPUtil.isNtlmEnabled(companyId)) {
-      String domainController=PrefsPropsUtil.getString(companyId,PropsUtil.LDAP_BASE_PROVIDER_URL);
-      domainController=domainController.substring(7,domainController.length());
-      int pos=domainController.lastIndexOf(StringPool.COLON);
-      if (pos != -1) {
-        domainController=domainController.substring(0,pos);
+      if ((_config.getInitParameter("jcifs.http.domainController") == null) && (_config.getInitParameter("jcifs.smb.client.domain") == null)) {
+        String domainController=PrefsPropsUtil.getString(companyId,PropsUtil.LDAP_BASE_PROVIDER_URL);
+        domainController=domainController.substring(7,domainController.length());
+        int pos=domainController.lastIndexOf(StringPool.COLON);
+        if (pos != -1) {
+          domainController=domainController.substring(0,pos);
+        }
+        _config.addInitParameter("jcifs.http.domainController",domainController);
+        super.init(_config);
+        if (_log.isDebugEnabled()) {
+          _log.debug("Host " + domainController);
+        }
       }
-      Config.setProperty("jcifs.http.domainController",domainController);
-      if (_log.isDebugEnabled()) {
-        _log.debug("Host " + domainController);
+      String msg=httpReq.getHeader("Authorization");
+      if (msg != null && msg.startsWith("NTLM")) {
+        byte[] src=Base64.decode(msg.substring(5));
+        if (src[8] == 1) {
+          UniAddress dc=UniAddress.getByName(Config.getProperty("jcifs.http.domainController"),true);
+          byte[] challenge=SmbSession.getChallenge(dc);
+          Type1Message type1=new Type1Message(src);
+          Type2Message type2=new Type2Message(type1,challenge,null);
+          msg=Base64.encode(type2.toByteArray());
+          httpRes.setHeader("WWW-Authenticate","NTLM " + msg);
+          httpRes.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+          httpRes.setContentLength(0);
+          httpRes.flushBuffer();
+          return;
+        }
       }
-      NtlmPasswordAuthentication ntlm=negotiate(httpReq,httpRes,false);
-      if (ntlm == null) {
-        return;
+      String path=httpReq.getPathInfo();
+      if (path != null && path.endsWith("/login")) {
+        NtlmPasswordAuthentication ntlm=negotiate(httpReq,httpRes,false);
+        if (ntlm == null) {
+          return;
+        }
+        String remoteUser=ntlm.getName();
+        int pos=remoteUser.indexOf(StringPool.BACK_SLASH);
+        if (pos != -1) {
+          remoteUser=remoteUser.substring(pos + 1);
+        }
+        if (_log.isDebugEnabled()) {
+          _log.debug("NTLM remote user " + remoteUser);
+        }
+        req.setAttribute(WebKeys.NTLM_REMOTE_USER,remoteUser);
       }
-      String remoteUser=ntlm.getName();
-      pos=remoteUser.indexOf(StringPool.BACK_SLASH);
-      if (pos != -1) {
-        remoteUser=remoteUser.substring(pos + 1);
-      }
-      if (_log.isDebugEnabled()) {
-        _log.debug("NTLM remote user " + remoteUser);
-      }
-      req.setAttribute(WebKeys.NTLM_REMOTE_USER,remoteUser);
     }
   }
  catch (  Exception e) {
     _log.error(e);
   }
- finally {
-    chain.doFilter(req,res);
-  }
+  chain.doFilter(req,res);
 }
