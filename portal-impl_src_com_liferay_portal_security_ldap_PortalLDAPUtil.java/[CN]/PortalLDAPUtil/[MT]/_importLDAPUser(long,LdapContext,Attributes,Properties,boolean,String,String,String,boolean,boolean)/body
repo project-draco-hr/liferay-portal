@@ -1,13 +1,10 @@
 {
   LogUtil.debug(_log,userMappings);
-  User user=null;
+  User defaultUser=UserLocalServiceUtil.getDefaultUser(companyId);
   long creatorUserId=0;
   boolean passwordReset=false;
   boolean autoScreenName=false;
-  String userLanguage=SystemProperties.get("user.language");
-  String userCountry=SystemProperties.get("user.country");
-  String userVariant=SystemProperties.get("user.variant");
-  Locale locale=new Locale(userLanguage,userCountry,userVariant);
+  Locale locale=defaultUser.getLocale();
   String firstName=LDAPUtil.getAttributeValue(attrs,userMappings.getProperty("firstName"));
   String middleName=LDAPUtil.getAttributeValue(attrs,userMappings.getProperty("middleName"));
   String lastName=LDAPUtil.getAttributeValue(attrs,userMappings.getProperty("lastName"));
@@ -35,19 +32,18 @@
     if (_log.isWarnEnabled()) {
       _log.warn("Cannot add user because screen name and email address " + "are required");
     }
-    return user;
+    return null;
   }
-  boolean create=true;
+  User user=null;
   try {
     user=UserLocalServiceUtil.getUserByEmailAddress(companyId,emailAddress);
     if (updatePassword) {
       UserLocalServiceUtil.updatePassword(user.getUserId(),password,password,passwordReset,true);
     }
-    create=false;
   }
  catch (  NoSuchUserException nsue) {
   }
-  if (create) {
+  if (user != null) {
     try {
       user=UserLocalServiceUtil.addUser(creatorUserId,companyId,autoPassword,password,password,autoScreenName,screenName,emailAddress,locale,firstName,middleName,lastName,prefixId,suffixId,male,birthdayMonth,birthdayDay,birthdayYear,jobTitle,organizationId,locationId,sendEmail);
     }
@@ -55,7 +51,7 @@
       _log.error("Problem adding user with screen name " + screenName + " and email address "+ emailAddress,e);
     }
   }
-  if (importGroupMembership && user != null) {
+  if (importGroupMembership && (user != null)) {
     Attribute attr=attrs.get(userMappings.getProperty("group"));
     if (attr != null) {
       _importGroupsAndMembershipFromLDAPUser(companyId,ctx,user.getUserId(),attr);
