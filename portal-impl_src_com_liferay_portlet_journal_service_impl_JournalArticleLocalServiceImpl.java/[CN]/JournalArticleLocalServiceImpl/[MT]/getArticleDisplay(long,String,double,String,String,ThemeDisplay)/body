@@ -1,0 +1,84 @@
+{
+  String content=null;
+  JournalArticle article=JournalArticleUtil.findByG_A_V(groupId,articleId,version);
+  if (article.isExpired()) {
+    Date expirationDate=article.getExpirationDate();
+    if ((expirationDate != null) && expirationDate.before(new Date())) {
+      return null;
+    }
+  }
+  Map tokens=JournalUtil.getTokens(groupId,themeDisplay);
+  String xml=article.getContent();
+  try {
+    Document doc=null;
+    Element root=null;
+    if (article.isTemplateDriven()) {
+      SAXReader reader=new SAXReader();
+      doc=reader.read(new StringReader(xml));
+      root=doc.getRootElement();
+    }
+    JournalUtil.addReservedEl(root,tokens,JournalStructureImpl.RESERVED_ARTICLE_ID,article.getArticleId());
+    JournalUtil.addReservedEl(root,tokens,JournalStructureImpl.RESERVED_ARTICLE_VERSION,Double.toString(article.getVersion()));
+    JournalUtil.addReservedEl(root,tokens,JournalStructureImpl.RESERVED_ARTICLE_TITLE,article.getTitle());
+    JournalUtil.addReservedEl(root,tokens,JournalStructureImpl.RESERVED_ARTICLE_DESCRIPTION,article.getDescription());
+    JournalUtil.addReservedEl(root,tokens,JournalStructureImpl.RESERVED_ARTICLE_CREATE_DATE,article.getCreateDate().toString());
+    JournalUtil.addReservedEl(root,tokens,JournalStructureImpl.RESERVED_ARTICLE_MODIFIED_DATE,article.getModifiedDate().toString());
+    if (article.getDisplayDate() != null) {
+      JournalUtil.addReservedEl(root,tokens,JournalStructureImpl.RESERVED_ARTICLE_DISPLAY_DATE,article.getDisplayDate().toString());
+    }
+    JournalUtil.addReservedEl(root,tokens,JournalStructureImpl.RESERVED_ARTICLE_AUTHOR_ID,String.valueOf(article.getUserId()));
+    String userName=StringPool.BLANK;
+    String userEmailAddress=StringPool.BLANK;
+    User user=null;
+    try {
+      user=UserLocalServiceUtil.getUserById(article.getUserId());
+      userName=user.getFullName();
+      userEmailAddress=user.getEmailAddress();
+    }
+ catch (    NoSuchUserException nsue) {
+    }
+    JournalUtil.addReservedEl(root,tokens,JournalStructureImpl.RESERVED_ARTICLE_AUTHOR_NAME,userName);
+    JournalUtil.addReservedEl(root,tokens,JournalStructureImpl.RESERVED_ARTICLE_AUTHOR_EMAIL_ADDRESS,userEmailAddress);
+    if (article.isTemplateDriven()) {
+      xml=JournalUtil.formatXML(doc);
+    }
+  }
+ catch (  DocumentException de) {
+    throw new SystemException(de);
+  }
+catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+  try {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Transforming " + articleId + " "+ version+ " "+ languageId);
+    }
+    String script=null;
+    String langType=null;
+    if (article.isTemplateDriven()) {
+      String defaultTemplateId=article.getTemplateId();
+      if (Validator.isNull(templateId)) {
+        templateId=defaultTemplateId;
+      }
+      JournalTemplate template=null;
+      try {
+        template=JournalTemplateUtil.findByG_T(groupId,templateId);
+      }
+ catch (      NoSuchTemplateException nste) {
+        if (!defaultTemplateId.equals(templateId)) {
+          template=JournalTemplateUtil.findByG_T(groupId,defaultTemplateId);
+        }
+ else {
+          throw nste;
+        }
+      }
+      script=template.getXsl();
+      langType=template.getLangType();
+    }
+    content=JournalUtil.transform(tokens,languageId,xml,script,langType);
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+  return new JournalArticleDisplayImpl(article.getAvailableLocales(),content);
+}
