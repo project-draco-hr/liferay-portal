@@ -1,12 +1,28 @@
 {
   ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
   User user=themeDisplay.getUser();
+  PermissionChecker permissionChecker=themeDisplay.getPermissionChecker();
   long groupId=ParamUtil.getLong(req,"groupId");
   Group group=GroupLocalServiceUtil.getGroup(groupId);
-  GroupPermission.check(themeDisplay.getPermissionChecker(),group.getGroupId(),ActionKeys.MANAGE_LAYOUTS);
-  if (group.isUser()) {
+  if (group.isCommunity()) {
+    GroupPermission.check(permissionChecker,group.getGroupId(),ActionKeys.MANAGE_LAYOUTS);
+  }
+ else   if (group.isOrganization()) {
+    Organization organization=OrganizationLocalServiceUtil.getOrganization(group.getClassPK());
+    if (!organization.isLocation()) {
+      OrganizationPermission.check(permissionChecker,organization.getOrganizationId(),ActionKeys.UPDATE);
+    }
+ else {
+      LocationPermission.check(permissionChecker,organization.getOrganizationId(),ActionKeys.UPDATE);
+    }
+  }
+ else   if (group.isUser()) {
     long groupUserId=group.getClassPK();
-    if ((groupUserId == user.getUserId()) && !user.isLayoutsRequired()) {
+    User groupUser=UserLocalServiceUtil.getUserById(groupUserId);
+    long organizationId=groupUser.getOrganization().getOrganizationId();
+    long locationId=groupUser.getLocation().getOrganizationId();
+    UserPermission.check(permissionChecker,groupUserId,organizationId,locationId,ActionKeys.UPDATE);
+    if (!groupUser.isLayoutsRequired()) {
       throw new PrincipalException();
     }
   }
