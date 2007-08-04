@@ -1,0 +1,33 @@
+{
+  HttpServletRequest req=(HttpServletRequest)renderRequest.getAttribute(PortletServlet.PORTLET_SERVLET_REQUEST);
+  HttpServletResponse res=(HttpServletResponse)renderRequest.getAttribute(PortletServlet.PORTLET_SERVLET_RESPONSE);
+  String portletName=getPortletConfig().getPortletName();
+  String friendlyURL=(String)req.getAttribute("FRIENDLY_URL");
+  int pos=friendlyURL.indexOf(_MAPPING);
+  StringMaker contextPath=new StringMaker();
+  contextPath.append(friendlyURL.substring(0,pos + _MAPPING.length()));
+  contextPath.append(StringPool.SLASH);
+  contextPath.append(portletName);
+  pos=friendlyURL.indexOf(portletName);
+  String pathInfo=friendlyURL.substring(pos + portletName.length());
+  Map params=new HashMap(req.getParameterMap());
+  params.remove(_APP_URL);
+  String queryString=HttpUtil.parameterMapToString(params,false);
+  String appUrl=ParamUtil.get(renderRequest,_APP_URL,StringPool.SLASH);
+  if (_connector.equals(CONNECTOR_IFRAME)) {
+    req.setAttribute(_APP_URL,renderRequest.getContextPath() + appUrl);
+    String iframeExtraHeight=GetterUtil.get(getPortletConfig().getInitParameter("wai.connector.iframe.height.extra"),"40");
+    renderRequest.setAttribute("wai.connector.iframe.height.extra",iframeExtraHeight);
+    _forward(req,res,_JSP_IFRAME);
+  }
+ else   if (_connector.equals(CONNECTOR_INCLUDE)) {
+    HttpServletRequest reqWrapper=new WAIHttpServletRequest(req,contextPath.toString(),pathInfo,queryString,params);
+    RequestDispatcher rd=req.getRequestDispatcher(appUrl);
+    try {
+      rd.forward(reqWrapper,res);
+    }
+ catch (    ServletException se) {
+      throw new PortletException(se);
+    }
+  }
+}
