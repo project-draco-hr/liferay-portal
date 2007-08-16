@@ -7,25 +7,27 @@
     HostConfiguration hostConfig=Http.getHostConfig(url.toString());
     HttpClient client=Http.getClient(hostConfig);
     getMethod=new GetMethod(url);
-    PluginPackageUtil.registerInstallingPluginPackage(deploymentContext);
-    int responseCode=client.executeMethod(hostConfig,getMethod);
-    if (responseCode != 200) {
-      SessionErrors.add(req,"errorResponseFromServer",new Object[]{String.valueOf(responseCode)});
-      PluginPackageUtil.endPluginPackageInstallation(deploymentContext);
-      return;
-    }
-    long contentLength=getMethod.getResponseContentLength();
-    String progressId=ParamUtil.getString(req,Constants.PROGRESS_ID);
-    ProgressInputStream pis=new ProgressInputStream(req,getMethod.getResponseBodyAsStream(),contentLength,progressId);
-    String deployDir=PrefsPropsUtil.getString(PropsUtil.AUTO_DEPLOY_DEPLOY_DIR);
     String fileName=null;
     if (Validator.isNotNull(deploymentContext)) {
       fileName=Constants.DEPLOY_TO_PREFIX + deploymentContext + ".war";
     }
  else {
       fileName=url.substring(url.lastIndexOf(StringPool.SLASH) + 1);
-      deploymentContext=fileName.substring(0,fileName.length() - 4);
+      int pos=fileName.lastIndexOf(StringPool.PERIOD);
+      if (pos != -1) {
+        deploymentContext=fileName.substring(0,pos);
+      }
     }
+    PluginPackageUtil.registerInstallingPluginPackage(deploymentContext);
+    int responseCode=client.executeMethod(hostConfig,getMethod);
+    if (responseCode != 200) {
+      SessionErrors.add(req,"errorConnectingToUrl",new Object[]{String.valueOf(responseCode)});
+      return;
+    }
+    long contentLength=getMethod.getResponseContentLength();
+    String progressId=ParamUtil.getString(req,Constants.PROGRESS_ID);
+    ProgressInputStream pis=new ProgressInputStream(req,getMethod.getResponseBodyAsStream(),contentLength,progressId);
+    String deployDir=PrefsPropsUtil.getString(PropsUtil.AUTO_DEPLOY_DEPLOY_DIR);
     String tmpFilePath=deployDir + StringPool.SLASH + _DOWNLOAD_DIR+ StringPool.SLASH+ fileName;
     File tmpFile=new File(tmpFilePath);
     if (!tmpFile.getParentFile().exists()) {
@@ -57,24 +59,15 @@
     }
   }
  catch (  MalformedURLException murle) {
-    if (getMethod != null) {
-      getMethod.releaseConnection();
-    }
     SessionErrors.add(req,"invalidUrl",murle);
   }
 catch (  IOException ioe) {
+    SessionErrors.add(req,"errorConnectingToUrl",ioe);
+  }
+ finally {
     if (getMethod != null) {
       getMethod.releaseConnection();
     }
-    SessionErrors.add(req,"errorConnectingToServer",ioe);
-    if (Validator.isNotNull(deploymentContext)) {
-      PluginPackageUtil.endPluginPackageInstallation(deploymentContext);
-    }
-  }
-catch (  Exception e) {
-    if (Validator.isNotNull(deploymentContext)) {
-      PluginPackageUtil.endPluginPackageInstallation(deploymentContext);
-    }
-    throw e;
+    PluginPackageUtil.endPluginPackageInstallation(deploymentContext);
   }
 }
