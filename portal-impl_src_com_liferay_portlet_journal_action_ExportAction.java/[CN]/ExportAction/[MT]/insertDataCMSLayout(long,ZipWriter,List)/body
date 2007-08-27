@@ -1,6 +1,13 @@
 {
   StringMaker sm=new StringMaker();
   List layouts=LayoutLocalServiceUtil.getLayouts(siteGroupId,false);
+  sm.append("update LayoutSet ");
+  sm.append("set themeId = 'liferaynoir_WAR_liferaynoirtheme', ");
+  sm.append("pageCount = ");
+  sm.append(layouts.size());
+  sm.append(" where groupId = ");
+  sm.append(siteGroupId);
+  sm.append(" and privateLayout = FALSE;\n\n");
   Collections.sort(layouts,new LayoutComparator(true));
   Iterator itr=layouts.iterator();
   while (itr.hasNext()) {
@@ -9,10 +16,9 @@
     sm.append("plid, groupId, companyId, privateLayout, layoutId, ");
     sm.append("parentLayoutId, name, title, type_, typeSettings, ");
     sm.append("hidden_, friendlyURL, iconImage, iconImageId, ");
-    sm.append("themeId, colorSchemeId, wapThemeId, wapColorSchemeId, ");
     sm.append("css, priority");
     sm.append(") values (");
-    addColumn(sm,layout.getPlid());
+    addPKColumn(sm,layout.getPlid());
     addColumn(sm,layout.getGroupId());
     addColumn(sm,layout.getCompanyId());
     addColumn(sm,layout.isPrivateLayout());
@@ -22,14 +28,10 @@
     addColumn(sm,layout.getTitle());
     addColumn(sm,layout.getType());
     addColumn(sm,layout.getTypeSettings());
-    addColumn(sm,layout.getHidden());
+    addColumn(sm,layout.isHidden());
     addColumn(sm,layout.getFriendlyURL());
     addColumn(sm,layout.isIconImage());
     addColumn(sm,layout.getIconImageId());
-    addColumn(sm,layout.getThemeId());
-    addColumn(sm,layout.getColorSchemeId());
-    addColumn(sm,layout.getWapThemeId());
-    addColumn(sm,layout.getWapColorSchemeId());
     addColumn(sm,layout.getCss());
     addColumn(sm,layout.getPriority());
     removeTrailingComma(sm);
@@ -51,7 +53,10 @@
         String articleId=prefs.getValue("article-id",StringPool.BLANK);
         articleId=articleId.toUpperCase();
         if (Validator.isNotNull(articleId)) {
-          prefs.setValue("article-id",articleId);
+          if (!JournalArticleLocalServiceUtil.hasArticle(layout.getGroupId(),articleId)) {
+            continue;
+          }
+          prefs.setValue("article-id",getNewPrimaryKey(articleId));
           prefsXml=PortletPreferencesSerializer.toXML(prefs);
           long contentSearchId=CounterLocalServiceUtil.increment();
           JournalContentSearch journalContentSearch=JournalContentSearchUtil.create(contentSearchId);
@@ -62,17 +67,17 @@
           journalContentSearch.setPortletId(portletId);
           journalContentSearch.setLayoutId(layout.getLayoutId());
           journalContentSearch.setPortletId(portletId);
-          journalContentSearch.setArticleId(articleId);
+          journalContentSearch.setArticleId(getNewPrimaryKey(articleId));
           journalContentSearches.add(journalContentSearch);
         }
         sm.append("insert into PortletPreferences (");
         sm.append("portletPreferencesId, ownerId, ownerType, ");
         sm.append("plid, portletId, preferences");
         sm.append(") values (");
-        addColumn(sm,portletPreferences.getPortletPreferencesId());
+        addPKColumn(sm,portletPreferences.getPortletPreferencesId());
         addColumn(sm,portletPreferences.getOwnerId());
         addColumn(sm,portletPreferences.getOwnerType());
-        addColumn(sm,portletPreferences.getPlid());
+        addPKColumn(sm,portletPreferences.getPlid());
         addColumn(sm,portletId);
         addColumn(sm,prefsXml);
         removeTrailingComma(sm);
