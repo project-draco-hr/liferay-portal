@@ -1,98 +1,34 @@
 {
-  if (_log.isDebugEnabled()) {
-    _log.debug("Indexing document " + companyId + " "+ portletId+ " "+ groupId+ " "+ repositoryId+ " "+ fileName);
-  }
-  String fileExt=StringPool.BLANK;
-  int fileExtVersionPos=fileName.indexOf(DLServiceImpl.VERSION);
-  if (fileExtVersionPos != -1) {
-    int fileExtPos=fileName.lastIndexOf(StringPool.PERIOD,fileExtVersionPos);
-    if (fileExtPos != -1) {
-      fileExt=fileName.substring(fileExtPos,fileExtVersionPos);
-    }
-  }
- else {
-    int fileExtPos=fileName.lastIndexOf(StringPool.PERIOD);
-    if (fileExtPos != -1) {
-      fileExt=fileName.substring(fileExtPos,fileName.length());
-    }
-  }
-  InputStream is=null;
   try {
-    Hook hook=HookFactory.getInstance();
-    is=hook.getFileAsStream(companyId,repositoryId,fileName);
-  }
- catch (  Exception e) {
-  }
-  if (is == null) {
-    if (_log.isDebugEnabled()) {
-      _log.debug("Document " + companyId + " "+ portletId+ " "+ groupId+ " "+ repositoryId+ " "+ fileName+ " does not have any content");
-    }
-    return;
-  }
-  Document doc=new Document();
-  doc.add(LuceneFields.getKeyword(LuceneFields.UID,LuceneFields.getUID(portletId,repositoryId,fileName)));
-  doc.add(LuceneFields.getKeyword(LuceneFields.COMPANY_ID,companyId));
-  doc.add(LuceneFields.getKeyword(LuceneFields.PORTLET_ID,portletId));
-  doc.add(LuceneFields.getKeyword(LuceneFields.GROUP_ID,groupId));
-  doc.add(LuceneFields.getFile(LuceneFields.CONTENT,is,fileExt));
-  if (portletId.equals(PortletKeys.DOCUMENT_LIBRARY)) {
+    DLFileEntry fileEntry=null;
     try {
-      DLFileEntry fileEntry=null;
-      for (int i=0; i < 5; i++) {
-        try {
-          fileEntry=DLFileEntryLocalServiceUtil.getFileEntry(repositoryId,fileName);
-          break;
-        }
- catch (        NoSuchFileEntryException nsfe) {
-          try {
-            Thread.sleep(1000);
-          }
- catch (          InterruptedException ie) {
-            throw nsfe;
-          }
-        }
+      fileEntry=DLFileEntryLocalServiceUtil.getFileEntry(repositoryId,fileName);
+    }
+ catch (    NoSuchFileEntryException nsfe) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("File " + fileName + " in repository "+ repositoryId+ " exists in the JCR but does "+ "not exist in the database");
       }
-      if (fileEntry == null) {
-        if (_log.isWarnEnabled()) {
-          _log.warn("File " + fileName + " in repository "+ repositoryId+ " exists in the JCR but does "+ "not exist in the database");
-        }
-        return;
-      }
-      StringMaker sm=new StringMaker();
-      sm.append(fileEntry.getTitle());
-      sm.append(StringPool.SPACE);
-      sm.append(fileEntry.getDescription());
-      sm.append(StringPool.SPACE);
-      Properties extraSettingsProps=fileEntry.getExtraSettingsProperties();
-      Iterator itr=(Iterator)extraSettingsProps.entrySet().iterator();
-      while (itr.hasNext()) {
-        Map.Entry entry=(Map.Entry)itr.next();
-        String value=GetterUtil.getString((String)entry.getValue());
-        sm.append(value);
-      }
-      doc.add(LuceneFields.getText(LuceneFields.PROPERTIES,sm));
+      return;
     }
- catch (    PortalException pe) {
-      throw new IOException(pe.getMessage());
+    StringMaker sm=new StringMaker();
+    sm.append(fileEntry.getTitle());
+    sm.append(StringPool.SPACE);
+    sm.append(fileEntry.getDescription());
+    sm.append(StringPool.SPACE);
+    Properties extraSettingsProps=fileEntry.getExtraSettingsProperties();
+    Iterator itr=(Iterator)extraSettingsProps.entrySet().iterator();
+    while (itr.hasNext()) {
+      Map.Entry entry=(Map.Entry)itr.next();
+      String value=GetterUtil.getString((String)entry.getValue());
+      sm.append(value);
     }
-catch (    SystemException se) {
-      throw new IOException(se.getMessage());
-    }
+    String properties=sm.toString();
+    addFile(companyId,portletId,groupId,repositoryId,fileName,properties);
   }
-  doc.add(LuceneFields.getDate(LuceneFields.MODIFIED));
-  doc.add(LuceneFields.getKeyword("repositoryId",repositoryId));
-  doc.add(LuceneFields.getKeyword("path",fileName));
-  IndexWriter writer=null;
-  try {
-    writer=LuceneUtil.getWriter(companyId);
-    writer.addDocument(doc);
+ catch (  PortalException pe) {
+    throw new IOException(pe.getMessage());
   }
-  finally {
-    if (writer != null) {
-      LuceneUtil.write(companyId);
-    }
-  }
-  if (_log.isDebugEnabled()) {
-    _log.debug("Document " + companyId + " "+ portletId+ " "+ groupId+ " "+ repositoryId+ " "+ fileName+ " indexed successfully");
+catch (  SystemException se) {
+    throw new IOException(se.getMessage());
   }
 }
