@@ -5,10 +5,17 @@
   InputStream is=null;
   ZipFile zipFile=null;
   try {
+    boolean parseProps=false;
     if (file.isDirectory()) {
-      File pluginPackageXmlFile=new File(file.getPath() + "/WEB-INF/liferay-plugin-package.xml");
+      String path=file.getPath();
+      File pluginPackageXmlFile=new File(path + "/WEB-INF/liferay-plugin-package.xml");
       if (pluginPackageXmlFile.exists()) {
         is=new FileInputStream(pluginPackageXmlFile);
+      }
+      File pluginPackagePropsFile=new File(path + "/WEB-INF/liferay-plugin-package.properties");
+      if (pluginPackagePropsFile.exists()) {
+        is=new FileInputStream(pluginPackagePropsFile);
+        parseProps=true;
       }
     }
  else {
@@ -17,16 +24,29 @@
       if (zipEntry != null) {
         is=zipFile.getInputStream(zipEntry);
       }
+      zipEntry=zipFile.getEntry("WEB-INF/liferay-plugin-package.properties");
+      if (zipEntry != null) {
+        is=zipFile.getInputStream(zipEntry);
+        parseProps=true;
+      }
     }
     if (is == null) {
       if (_log.isInfoEnabled()) {
-        _log.info(file.getPath() + " does not have " + "WEB-INF/liferay-plugin-package.xml");
+        _log.info(file.getPath() + " does not have a " + "WEB-INF/liferay-plugin-package.xml or "+ "WEB-INF/liferay-plugin-package.properties");
       }
       return null;
     }
-    String xml=StringUtil.read(is);
-    xml=XMLFormatter.fixProlog(xml);
-    return PluginPackageUtil.readPluginPackageXml(xml);
+    if (parseProps) {
+      String displayName=getDisplayName(file);
+      String propsString=StringUtil.read(is);
+      Properties props=getPluginPackageProperties(propsString);
+      return PluginPackageUtil.readPluginPackageProps(displayName,props);
+    }
+ else {
+      String xml=StringUtil.read(is);
+      xml=XMLFormatter.fixProlog(xml);
+      return PluginPackageUtil.readPluginPackageXml(xml);
+    }
   }
  catch (  Exception e) {
     System.err.println(file.getPath() + ": " + e.toString());
