@@ -11,9 +11,11 @@
     _jsonFileName=jsonFileName;
     _sqlDir=sqlDir;
     _sqlFileName=sqlFileName;
+    _autoNamespaceTables=autoNamespaceTables;
     _baseModelImplPackage=baseModelImplPackage;
     _basePersistencePackage=basePersistencePackage;
     _beanLocatorUtilPackage=beanLocatorUtilPackage;
+    _principalBeanPackage=principalBeanPackage;
     _propsUtilPackage=propsUtilPackage;
     _springHibernatePackage=springHibernatePackage;
     _springUtilPackage=springUtilPackage;
@@ -21,12 +23,22 @@
     Document doc=reader.read(new File(fileName));
     Element root=doc.getRootElement();
     String packagePath=root.attributeValue("package-path");
-    _portletName=root.element("portlet").attributeValue("name");
-    _portletShortName=root.element("portlet").attributeValue("short-name");
-    _portletPackageName=TextFormatter.format(_portletName,TextFormatter.B);
-    _outputPath=_implDir + "/" + StringUtil.replace(packagePath,".","/")+ "/"+ _portletPackageName;
-    _serviceOutputPath=_apiDir + "/" + StringUtil.replace(packagePath,".","/")+ "/"+ _portletPackageName;
-    _packagePath=packagePath + "." + _portletPackageName;
+    _outputPath=_implDir + "/" + StringUtil.replace(packagePath,".","/");
+    _serviceOutputPath=_apiDir + "/" + StringUtil.replace(packagePath,".","/");
+    _packagePath=packagePath;
+    Element portlet=root.element("portlet");
+    Element namespace=root.element("namespace");
+    if (portlet != null) {
+      _portletName=portlet.attributeValue("name");
+      _portletShortName=portlet.attributeValue("short-name");
+      _portletPackageName=TextFormatter.format(_portletName,TextFormatter.B);
+      _outputPath+="/" + _portletPackageName;
+      _serviceOutputPath+="/" + _portletPackageName;
+      _packagePath+="." + _portletPackageName;
+    }
+ else {
+      _portletShortName=namespace.getText();
+    }
     _ejbList=new ArrayList();
     List entities=root.elements("entity");
     Iterator itr1=entities.iterator();
@@ -39,6 +51,9 @@
         if (_badTableNames.contains(ejbName)) {
           table+="_";
         }
+      }
+      if (_autoNamespaceTables) {
+        table=_portletShortName + "_" + table;
       }
       boolean localService=GetterUtil.getBoolean(entityEl.attributeValue("local-service"),false);
       boolean remoteService=GetterUtil.getBoolean(entityEl.attributeValue("remote-service"),true);
@@ -195,20 +210,24 @@
             _createService(entity,_REMOTE);
             _createServiceFactory(entity,_REMOTE);
             _createServiceUtil(entity,_REMOTE);
-            _createServiceHttp(entity);
-            _createServiceJSON(entity);
-            if (entity.hasColumns()) {
-              _createServiceJSONSerializer(entity);
+            if (Validator.isNotNull(_jsonFileName)) {
+              _createServiceHttp(entity);
+              _createServiceJSON(entity);
+              if (entity.hasColumns()) {
+                _createServiceJSONSerializer(entity);
+              }
+              _createServiceSoap(entity);
             }
-            _createServiceSoap(entity);
           }
         }
       }
       _createHBMXML();
-      _createJSONJS();
       _createModelHintsXML();
-      _createSpringXML();
-      _createRemotingXML();
+      if (Validator.isNotNull(_jsonFileName)) {
+        _createJSONJS();
+        _createSpringXML();
+        _createRemotingXML();
+      }
       _createSQLIndexes();
       _createSQLTables();
       _createSQLSequences();
@@ -220,6 +239,7 @@
       _createFinderCache();
       _createHibernateConfiguration();
       _createHibernateUtil();
+      _createPrincipalBean();
       _createProps();
       _createPropsUtil();
       _createSpringDataSourceXML();
