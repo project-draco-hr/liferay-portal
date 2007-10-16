@@ -1,0 +1,27 @@
+{
+  try {
+    long membershipRequestId=ParamUtil.getLong(req,"membershipRequestId");
+    int statusId=ParamUtil.getInteger(req,"statusId");
+    String replyComments=ParamUtil.getString(req,"replyComments");
+    MembershipRequest membershipRequest=MembershipRequestServiceUtil.getMembershipRequest(membershipRequestId);
+    MembershipRequestServiceUtil.updateStatus(membershipRequestId,replyComments,statusId);
+    if (statusId == MembershipRequestImpl.STATUS_APPROVED) {
+      LiveUsers.joinGroup(new long[]{membershipRequest.getUserId()},membershipRequest.getGroupId());
+    }
+    SessionMessages.add(req,"membership_reply_sent");
+    sendRedirect(req,res);
+  }
+ catch (  Exception e) {
+    if (e instanceof NoSuchGroupException || e instanceof PrincipalException) {
+      SessionErrors.add(req,e.getClass().getName());
+      setForward(req,"portlet.communities.error");
+    }
+ else     if (e instanceof MembershipRequestCommentsException) {
+      SessionErrors.add(req,e.getClass().getName());
+      setForward(req,"portlet.communities.reply_membership_request");
+    }
+ else {
+      throw e;
+    }
+  }
+}
