@@ -1,0 +1,54 @@
+{
+  Map parameterMap=context.getParameterMap();
+  boolean exportData=MapUtil.getBoolean(parameterMap,_EXPORT_BOOKMARKS_DATA,_enableExport.getDefaultState());
+  if (_log.isDebugEnabled()) {
+    if (exportData) {
+      _log.debug("Exporting data is enabled");
+    }
+ else {
+      _log.debug("Exporting data is disabled");
+    }
+  }
+  if (!exportData) {
+    return null;
+  }
+  try {
+    SAXReader reader=SAXReaderFactory.getInstance();
+    XStream xStream=new XStream();
+    Document doc=DocumentHelper.createDocument();
+    Element root=doc.addElement("bookmarks-data");
+    root.addAttribute("group-id",String.valueOf(context.getGroupId()));
+    List folders=BookmarksFolderUtil.findByGroupId(context.getGroupId());
+    List entries=new ArrayList();
+    Iterator itr=folders.iterator();
+    while (itr.hasNext()) {
+      BookmarksFolder folder=(BookmarksFolder)itr.next();
+      if (context.addPrimaryKey(BookmarksFolder.class,Long.valueOf(folder.getFolderId()))) {
+        itr.remove();
+      }
+ else {
+        List folderEntries=BookmarksEntryUtil.findByFolderId(folder.getFolderId());
+        entries.addAll(folderEntries);
+      }
+    }
+    String xml=xStream.toXML(folders);
+    Element el=root.addElement("bookmark-folders");
+    Document tempDoc=reader.read(new StringReader(xml));
+    el.content().add(tempDoc.getRootElement().createCopy());
+    itr=entries.iterator();
+    while (itr.hasNext()) {
+      BookmarksEntry entry=(BookmarksEntry)itr.next();
+      if (context.addPrimaryKey(BookmarksFolder.class,Long.valueOf(entry.getEntryId()))) {
+        itr.remove();
+      }
+    }
+    xml=xStream.toXML(entries);
+    el=root.addElement("bookmark-entries");
+    tempDoc=reader.read(new StringReader(xml));
+    el.content().add(tempDoc.getRootElement().createCopy());
+    return XMLFormatter.toString(doc);
+  }
+ catch (  Exception e) {
+    throw new PortletDataException(e);
+  }
+}

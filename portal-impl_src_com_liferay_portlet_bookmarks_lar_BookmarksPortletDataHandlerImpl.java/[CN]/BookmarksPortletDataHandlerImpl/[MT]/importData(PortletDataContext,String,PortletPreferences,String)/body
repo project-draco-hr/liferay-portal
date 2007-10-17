@@ -1,0 +1,59 @@
+{
+  Map parameterMap=context.getParameterMap();
+  boolean importData=MapUtil.getBoolean(parameterMap,_IMPORT_BOOKMARKS_DATA,_enableImport.getDefaultState());
+  if (_log.isDebugEnabled()) {
+    if (importData) {
+      _log.debug("Importing data is enabled");
+    }
+ else {
+      _log.debug("Importing data is disabled");
+    }
+  }
+  if (!importData) {
+    return null;
+  }
+  try {
+    SAXReader reader=SAXReaderFactory.getInstance();
+    XStream xStream=new XStream();
+    Document doc=reader.read(new StringReader(data));
+    Element root=doc.getRootElement();
+    Element el=root.element("bookmark-folders").element("list");
+    Document tempDoc=DocumentHelper.createDocument();
+    tempDoc.content().add(el.createCopy());
+    List folders=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
+    Iterator itr=folders.iterator();
+    while (itr.hasNext()) {
+      BookmarksFolder folder=(BookmarksFolder)itr.next();
+      folder.setGroupId(context.getGroupId());
+      if (BookmarksFolderUtil.fetchByPrimaryKey(folder.getPrimaryKey()) == null) {
+        boolean addCommunityPermissions=true;
+        boolean addGuestPermissions=true;
+        long plid=context.getPlid();
+        BookmarksFolderLocalServiceUtil.addFolder(folder.getUserId(),plid,folder.getFolderId(),folder.getName(),folder.getDescription(),addCommunityPermissions,addGuestPermissions);
+      }
+ else {
+        BookmarksFolderUtil.update(folder,true);
+      }
+    }
+    el=root.element("bookmark-entries").element("list");
+    tempDoc=DocumentHelper.createDocument();
+    tempDoc.content().add(el.createCopy());
+    List entries=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
+    itr=entries.iterator();
+    while (itr.hasNext()) {
+      BookmarksEntry entry=(BookmarksEntry)itr.next();
+      if (JournalStructureUtil.fetchByPrimaryKey(entry.getPrimaryKey()) == null) {
+        boolean addCommunityPermissions=true;
+        boolean addGuestPermissions=true;
+        BookmarksEntryLocalServiceUtil.addEntry(entry.getUserId(),entry.getFolderId(),entry.getName(),entry.getUrl(),entry.getComments(),new String[0],addCommunityPermissions,addGuestPermissions);
+      }
+ else {
+        BookmarksEntryUtil.update(entry,true);
+      }
+    }
+    return null;
+  }
+ catch (  Exception e) {
+    throw new PortletDataException(e);
+  }
+}
