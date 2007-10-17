@@ -1,0 +1,72 @@
+{
+  Map parameterMap=context.getParameterMap();
+  boolean exportData=MapUtil.getBoolean(parameterMap,_EXPORT_IG_DATA,_enableExport.getDefaultState());
+  if (_log.isDebugEnabled()) {
+    if (exportData) {
+      _log.debug("Exporting data is enabled");
+    }
+ else {
+      _log.debug("Exporting data is disabled");
+    }
+  }
+  if (!exportData) {
+    return null;
+  }
+  try {
+    SAXReader reader=SAXReaderFactory.getInstance();
+    XStream xStream=new XStream();
+    Document doc=DocumentHelper.createDocument();
+    Element root=doc.addElement("image-gallery");
+    root.addAttribute("group-id",String.valueOf(context.getGroupId()));
+    List folders=IGFolderUtil.findByGroupId(context.getGroupId());
+    List igImages=new ArrayList();
+    Iterator itr=folders.iterator();
+    while (itr.hasNext()) {
+      IGFolder folder=(IGFolder)itr.next();
+      if (context.addPrimaryKey(IGFolder.class,new Long(folder.getFolderId()))) {
+        itr.remove();
+      }
+ else {
+        List folderIGImages=IGImageUtil.findByFolderId(folder.getFolderId());
+        igImages.addAll(folderIGImages);
+      }
+    }
+    String xml=xStream.toXML(folders);
+    Element el=root.addElement("ig-folders");
+    Document tempDoc=reader.read(new StringReader(xml));
+    el.content().add(tempDoc.getRootElement().createCopy());
+    List images=new ArrayList();
+    itr=igImages.iterator();
+    while (itr.hasNext()) {
+      IGImage igImage=(IGImage)itr.next();
+      if (context.addPrimaryKey(IGImage.class,new Long(igImage.getImageId()))) {
+        itr.remove();
+      }
+ else {
+        Image smallImage=ImageUtil.fetchByPrimaryKey(igImage.getSmallImageId());
+        images.add(smallImage);
+        Image largeImage=ImageUtil.fetchByPrimaryKey(igImage.getLargeImageId());
+        images.add(largeImage);
+      }
+    }
+    xml=xStream.toXML(igImages);
+    el=root.addElement("ig-images");
+    tempDoc=reader.read(new StringReader(xml));
+    el.content().add(tempDoc.getRootElement().createCopy());
+    itr=images.iterator();
+    while (itr.hasNext()) {
+      Image image=(Image)itr.next();
+      if (context.addPrimaryKey(Image.class,new Long(image.getImageId()))) {
+        itr.remove();
+      }
+    }
+    xml=xStream.toXML(images);
+    el=root.addElement("images");
+    tempDoc=reader.read(new StringReader(xml));
+    el.content().add(tempDoc.getRootElement().createCopy());
+    return XMLFormatter.toString(doc);
+  }
+ catch (  Exception e) {
+    throw new PortletDataException(e);
+  }
+}
