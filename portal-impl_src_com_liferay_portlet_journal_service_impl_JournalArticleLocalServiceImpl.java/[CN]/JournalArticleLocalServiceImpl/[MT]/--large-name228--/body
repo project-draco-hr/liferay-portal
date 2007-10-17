@@ -1,0 +1,58 @@
+{
+  User user=UserUtil.findByPrimaryKey(userId);
+  articleId=articleId.trim().toUpperCase();
+  Date now=new Date();
+  Date displayDate=PortalUtil.getDate(displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,user.getTimeZone(),new ArticleDisplayDateException());
+  Date expirationDate=null;
+  if (!neverExpire) {
+    expirationDate=PortalUtil.getDate(expirationDateMonth,expirationDateDay,expirationDateYear,expirationDateHour,expirationDateMinute,user.getTimeZone(),new ArticleExpirationDateException());
+  }
+  Date reviewDate=null;
+  if (!neverReview) {
+    reviewDate=PortalUtil.getDate(reviewDateMonth,reviewDateDay,reviewDateYear,reviewDateHour,reviewDateMinute,user.getTimeZone(),new ArticleReviewDateException());
+  }
+  validate(groupId,articleId,autoArticleId,title,content,type,structureId,templateId);
+  if (autoArticleId) {
+    articleId=String.valueOf(CounterLocalServiceUtil.increment());
+  }
+  long id=CounterLocalServiceUtil.increment();
+  long resourcePrimKey=JournalArticleResourceLocalServiceUtil.getArticleResourcePrimKey(groupId,articleId);
+  JournalArticle article=JournalArticleUtil.create(id);
+  content=format(groupId,articleId,article.getVersion(),false,content,structureId,images);
+  article.setResourcePrimKey(resourcePrimKey);
+  article.setGroupId(groupId);
+  article.setCompanyId(user.getCompanyId());
+  article.setUserId(user.getUserId());
+  article.setUserName(user.getFullName());
+  article.setCreateDate(now);
+  article.setModifiedDate(now);
+  article.setArticleId(articleId);
+  article.setVersion(JournalArticleImpl.DEFAULT_VERSION);
+  article.setTitle(title);
+  article.setDescription(description);
+  article.setContent(content);
+  article.setType(type);
+  article.setStructureId(structureId);
+  article.setTemplateId(templateId);
+  article.setDisplayDate(displayDate);
+  article.setApproved(false);
+  if ((expirationDate == null) || expirationDate.after(now)) {
+    article.setExpired(false);
+  }
+ else {
+    article.setExpired(true);
+  }
+  article.setExpirationDate(expirationDate);
+  article.setReviewDate(reviewDate);
+  article.setIndexable(indexable);
+  JournalArticleUtil.update(article);
+  if ((addCommunityPermissions != null) && (addGuestPermissions != null)) {
+    addArticleResources(article,addCommunityPermissions.booleanValue(),addGuestPermissions.booleanValue());
+  }
+ else {
+    addArticleResources(article,communityPermissions,guestPermissions);
+  }
+  updateTagsAsset(userId,article,tagsEntries);
+  sendEmail(article,articleURL,prefs,"requested");
+  return article;
+}
