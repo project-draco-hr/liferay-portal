@@ -12,6 +12,8 @@
   String type=ParamUtil.getString(req,"type");
   String structureId=ParamUtil.getString(req,"structureId");
   String templateId=ParamUtil.getString(req,"templateId");
+  String lastLanguageId=ParamUtil.getString(req,"lastLanguageId");
+  String defaultLanguageId=ParamUtil.getString(req,"defaultLanguageId");
   int displayDateMonth=ParamUtil.getInteger(req,"displayDateMonth");
   int displayDateDay=ParamUtil.getInteger(req,"displayDateDay");
   int displayDateYear=ParamUtil.getInteger(req,"displayDateYear");
@@ -50,13 +52,21 @@
   boolean approve=ParamUtil.getBoolean(req,"approve");
   JournalArticle article=null;
   if (cmd.equals(Constants.ADD)) {
+    if (Validator.isNull(structureId)) {
+      content=LocalizationUtil.updateLocalization(StringPool.BLANK,"static-content",content);
+    }
     article=JournalArticleServiceUtil.addArticle(articleId,autoArticleId,layout.getPlid(),title,description,content,type,structureId,templateId,displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,expirationDateMonth,expirationDateDay,expirationDateYear,expirationDateHour,expirationDateMinute,neverExpire,reviewDateMonth,reviewDateDay,reviewDateYear,reviewDateHour,reviewDateMinute,neverReview,indexable,images,articleURL,req.getPreferences(),tagsEntries,communityPermissions,guestPermissions);
     AssetPublisherUtil.addAndStoreSelection(req,JournalArticle.class.getName(),article.getPrimaryKey(),-1);
   }
  else {
-    if (Validator.isNotNull(structureId)) {
-      JournalArticle curArticle=JournalArticleServiceUtil.getArticle(groupId,articleId,version);
-      if (Validator.isNotNull(curArticle.getStructureId())) {
+    JournalArticle curArticle=JournalArticleServiceUtil.getArticle(groupId,articleId,version);
+    if (Validator.isNull(structureId)) {
+      if (!curArticle.isTemplateDriven()) {
+        content=LocalizationUtil.updateLocalization(curArticle.getContent(),"static-content",content,lastLanguageId,defaultLanguageId);
+      }
+    }
+ else {
+      if (curArticle.isTemplateDriven()) {
         JournalStructure structure=JournalStructureLocalServiceUtil.getStructure(groupId,structureId);
         content=JournalUtil.mergeLocaleContent(curArticle.getContent(),content,structure.getXsd());
         content=JournalUtil.removeOldContent(content,structure.getXsd());
