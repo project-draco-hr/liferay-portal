@@ -22,10 +22,26 @@
     tempDoc.content().add(el.createCopy());
     List folders=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
     Iterator itr=folders.iterator();
+    Map foldersPKs=new HashMap();
     while (itr.hasNext()) {
       BookmarksFolder folder=(BookmarksFolder)itr.next();
-      folder.setGroupId(context.getGroupId());
-      BookmarksFolderUtil.update(folder,true);
+      BookmarksFolder existingFolder=BookmarksFolderUtil.fetchByPrimaryKey(folder.getPrimaryKey());
+      if (existingFolder == null || existingFolder.getGroupId() != context.getGroupId()) {
+        Long newParentFolderId=(Long)foldersPKs.get(new Long(folder.getParentFolderId()));
+        if (newParentFolderId == null) {
+          _log.error("Couldn't find the parent folder for " + folder.getFolderId());
+          newParentFolderId=new Long(folder.getParentFolderId());
+        }
+        long plid=context.getPlid();
+        boolean addCommunityPermissions=true;
+        boolean addGuestPermissions=true;
+        BookmarksFolder newFolder=BookmarksFolderLocalServiceUtil.addFolder(folder.getUserId(),plid,newParentFolderId.longValue(),folder.getName(),folder.getDescription(),addCommunityPermissions,addGuestPermissions);
+        foldersPKs.put(folder.getPrimaryKeyObj(),newFolder.getPrimaryKeyObj());
+      }
+ else {
+        BookmarksFolderUtil.update(folder,true);
+        foldersPKs.put(folder.getPrimaryKeyObj(),folder.getPrimaryKeyObj());
+      }
     }
     el=root.element("bookmark-entries").element("list");
     tempDoc=DocumentHelper.createDocument();
@@ -34,7 +50,15 @@
     itr=entries.iterator();
     while (itr.hasNext()) {
       BookmarksEntry entry=(BookmarksEntry)itr.next();
-      BookmarksEntryUtil.update(entry,true);
+      Long parentFolderId=(Long)foldersPKs.get(new Long(entry.getFolderId()));
+      if (BookmarksEntryUtil.fetchByPrimaryKey(entry.getPrimaryKey()) == null || parentFolderId != null) {
+        boolean addCommunityPermissions=true;
+        boolean addGuestPermissions=true;
+        BookmarksEntryLocalServiceUtil.addEntry(entry.getUserId(),parentFolderId.longValue(),entry.getName(),entry.getUrl(),entry.getComments(),new String[0],addCommunityPermissions,addGuestPermissions);
+      }
+ else {
+        BookmarksEntryUtil.update(entry,true);
+      }
     }
     return null;
   }
