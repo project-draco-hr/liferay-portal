@@ -1,18 +1,26 @@
 {
   BookmarksFolder existingFolder=BookmarksFolderUtil.fetchByPrimaryKey(folder.getPrimaryKey());
-  Long newParentFolderId=(Long)folderPKs.get(new Long(folder.getParentFolderId()));
-  if (newParentFolderId == null) {
-    newParentFolderId=new Long(folder.getParentFolderId());
+  Long parentFolderId=(Long)folderPKs.get(new Long(folder.getParentFolderId()));
+  if (parentFolderId == null) {
+    parentFolderId=new Long(folder.getParentFolderId());
   }
-  if ((existingFolder == null) || (existingFolder.getGroupId() != context.getGroupId())) {
-    long plid=context.getPlid();
-    boolean addCommunityPermissions=true;
-    boolean addGuestPermissions=true;
-    BookmarksFolder newFolder=BookmarksFolderLocalServiceUtil.addFolder(folder.getUserId(),plid,newParentFolderId.longValue(),folder.getName(),folder.getDescription(),addCommunityPermissions,addGuestPermissions);
-    folderPKs.put(folder.getPrimaryKeyObj(),newFolder.getPrimaryKeyObj());
-  }
+  try {
+    if (parentFolderId.longValue() != BookmarksFolderImpl.DEFAULT_PARENT_FOLDER_ID) {
+      BookmarksFolderUtil.findByPrimaryKey(parentFolderId.longValue());
+    }
+    if ((existingFolder == null) || (existingFolder.getGroupId() != context.getGroupId())) {
+      long plid=context.getPlid();
+      boolean addCommunityPermissions=true;
+      boolean addGuestPermissions=true;
+      BookmarksFolder newFolder=BookmarksFolderLocalServiceUtil.addFolder(folder.getUserId(),plid,parentFolderId.longValue(),folder.getName(),folder.getDescription(),addCommunityPermissions,addGuestPermissions);
+      folderPKs.put(folder.getPrimaryKeyObj(),newFolder.getPrimaryKeyObj());
+    }
  else {
-    folder.setParentFolderId(newParentFolderId.longValue());
-    BookmarksFolderUtil.update(folder,true);
+      folder.setParentFolderId(parentFolderId.longValue());
+      BookmarksFolderUtil.update(folder,true);
+    }
+  }
+ catch (  NoSuchFolderException nsfe) {
+    _log.error("Couldn't find the parent folder for folder " + folder.getName());
   }
 }
