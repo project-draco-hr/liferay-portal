@@ -1,6 +1,8 @@
 {
+  long companyId=GetterUtil.getLong(ids[0]);
+  IndexWriter writer=null;
   try {
-    long companyId=GetterUtil.getLong(ids[0]);
+    writer=LuceneUtil.getWriter(companyId);
     Iterator itr=JournalArticleUtil.findByCompanyId(companyId).iterator();
     while (itr.hasNext()) {
       JournalArticle article=(JournalArticle)itr.next();
@@ -14,10 +16,11 @@
       Date displayDate=article.getDisplayDate();
       if (article.isApproved() && article.isIndexable()) {
         try {
-          Indexer.addArticle(companyId,groupId,articleId,version,title,description,content,type,displayDate);
+          org.apache.lucene.document.Document doc=Indexer.getAddArticleDocument(companyId,groupId,articleId,version,title,description,content,type,displayDate);
+          writer.addDocument(doc);
         }
  catch (        Exception e1) {
-          _log.error("Reindexing " + article.getPrimaryKey(),e1);
+          _log.error("Reindexing " + article.getId(),e1);
         }
       }
     }
@@ -27,5 +30,15 @@
   }
 catch (  Exception e2) {
     throw new SystemException(e2);
+  }
+ finally {
+    try {
+      if (writer != null) {
+        LuceneUtil.write(companyId);
+      }
+    }
+ catch (    Exception e) {
+      _log.error(e);
+    }
   }
 }
