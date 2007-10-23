@@ -1,0 +1,64 @@
+{
+  Map parameterMap=context.getParameterMap();
+  boolean importData=MapUtil.getBoolean(parameterMap,_IMPORT_BLOGS_DATA,_enableImport.getDefaultState());
+  if (_log.isDebugEnabled()) {
+    if (importData) {
+      _log.debug("Importing data is enabled");
+    }
+ else {
+      _log.debug("Importing data is disabled");
+    }
+  }
+  if (!importData) {
+    return null;
+  }
+  try {
+    SAXReader reader=SAXReaderFactory.getInstance();
+    XStream xStream=new XStream();
+    Document doc=reader.read(new StringReader(data));
+    Element root=doc.getRootElement();
+    Element el=root.element("blog-entries").element("list");
+    Document tempDoc=DocumentHelper.createDocument();
+    tempDoc.content().add(el.createCopy());
+    List entries=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
+    Iterator itr=entries.iterator();
+    while (itr.hasNext()) {
+      BlogsEntry entry=(BlogsEntry)itr.next();
+      String[] entryNames=context.getTagsEntries(BlogsEntry.class,entry.getPrimaryKeyObj());
+      BlogsEntry existingEntry=BlogsEntryUtil.fetchByPrimaryKey(entry.getPrimaryKey());
+      if ((existingEntry == null) || (existingEntry.getGroupId() != context.getGroupId())) {
+        long plid=context.getPlid();
+        boolean addCommunityPermissions=true;
+        boolean addGuestPermissions=true;
+        Date displayDate=entry.getDisplayDate();
+        BlogsEntryLocalServiceUtil.addEntry(entry.getUserId(),plid,entry.getCategoryId(),entry.getTitle(),entry.getContent(),displayDate.getMonth(),displayDate.getDay(),displayDate.getYear(),displayDate.getHours(),displayDate.getMinutes(),entryNames,addCommunityPermissions,addGuestPermissions);
+      }
+ else {
+        TagsAssetLocalServiceUtil.updateAsset(entry.getUserId(),BlogsEntry.class.getName(),entry.getPrimaryKey(),entryNames);
+        BlogsEntryUtil.update(entry,true);
+      }
+    }
+    el=root.element("blog-stats-users").element("list");
+    tempDoc=DocumentHelper.createDocument();
+    tempDoc.content().add(el.createCopy());
+    List statsUsers=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
+    itr=statsUsers.iterator();
+    while (itr.hasNext()) {
+      BlogsStatsUser statsUser=(BlogsStatsUser)itr.next();
+      BlogsStatsUser existingStatsUser=BlogsStatsUserUtil.fetchByPrimaryKey(statsUser.getPrimaryKey());
+      if ((existingStatsUser == null) || (existingStatsUser.getGroupId() != context.getGroupId())) {
+        long groupId=context.getGroupId();
+        boolean addCommunityPermissions=true;
+        boolean addGuestPermissions=true;
+        BlogsStatsUserLocalServiceUtil.updateStatsUser(groupId,statsUser.getUserId(),statsUser.getLastPostDate());
+      }
+ else {
+        BlogsStatsUserUtil.update(statsUser,true);
+      }
+    }
+    return null;
+  }
+ catch (  Exception e) {
+    throw new PortletDataException(e);
+  }
+}

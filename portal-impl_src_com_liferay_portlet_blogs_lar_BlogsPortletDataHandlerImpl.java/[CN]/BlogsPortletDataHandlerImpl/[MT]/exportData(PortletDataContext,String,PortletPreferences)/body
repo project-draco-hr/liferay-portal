@@ -1,0 +1,51 @@
+{
+  Map parameterMap=context.getParameterMap();
+  boolean exportData=MapUtil.getBoolean(parameterMap,_EXPORT_BLOGS_DATA,_enableExport.getDefaultState());
+  if (_log.isDebugEnabled()) {
+    if (exportData) {
+      _log.debug("Exporting data is enabled");
+    }
+ else {
+      _log.debug("Exporting data is disabled");
+    }
+  }
+  if (!exportData) {
+    return null;
+  }
+  try {
+    SAXReader reader=SAXReaderFactory.getInstance();
+    XStream xStream=new XStream();
+    Document doc=DocumentHelper.createDocument();
+    Element root=doc.addElement("blogs-data");
+    root.addAttribute("group-id",String.valueOf(context.getGroupId()));
+    List entries=BlogsEntryUtil.findByGroupId(context.getGroupId());
+    Iterator itr=entries.iterator();
+    while (itr.hasNext()) {
+      BlogsEntry entry=(BlogsEntry)itr.next();
+      context.addTagsEntries(BlogsEntry.class,entry.getPrimaryKeyObj());
+      if (context.addPrimaryKey(BlogsEntry.class,new Long(entry.getEntryId()))) {
+        itr.remove();
+      }
+    }
+    String xml=xStream.toXML(entries);
+    Element el=root.addElement("blog-entries");
+    Document tempDoc=reader.read(new StringReader(xml));
+    el.content().add(tempDoc.getRootElement().createCopy());
+    List statsUsers=BlogsStatsUserUtil.findByGroupId(context.getGroupId());
+    itr=statsUsers.iterator();
+    while (itr.hasNext()) {
+      BlogsStatsUser statsUser=(BlogsStatsUser)itr.next();
+      if (context.addPrimaryKey(BlogsStatsUser.class,new Long(statsUser.getStatsUserId()))) {
+        itr.remove();
+      }
+    }
+    xml=xStream.toXML(statsUsers);
+    el=root.addElement("blog-stats-users");
+    tempDoc=reader.read(new StringReader(xml));
+    el.content().add(tempDoc.getRootElement().createCopy());
+    return XMLFormatter.toString(doc);
+  }
+ catch (  Exception e) {
+    throw new PortletDataException(e);
+  }
+}
