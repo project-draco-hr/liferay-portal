@@ -1,81 +1,18 @@
 {
-  Directory directory=null;
   String storeType=PropsUtil.get(PropsUtil.LUCENE_STORE_TYPE);
   if (_log.isDebugEnabled()) {
     _log.debug("Lucene store type " + storeType);
   }
   if (storeType.equals(_LUCENE_STORE_TYPE_FILE)) {
-    String path=PropsUtil.get(PropsUtil.LUCENE_DIR) + companyId + StringPool.SLASH;
-    try {
-      directory=FSDirectory.getDirectory(path,false);
-    }
- catch (    IOException ioe1) {
-      try {
-        if (directory != null) {
-          directory.close();
-        }
-        directory=FSDirectory.getDirectory(path,true);
-      }
- catch (      IOException ioe2) {
-        throw new RuntimeException(ioe2);
-      }
-    }
+    return _getLuceneDirFile(companyId);
   }
  else   if (storeType.equals(_LUCENE_STORE_TYPE_JDBC)) {
-    String tableName=_getTableName(companyId);
-    JdbcDirectory jdbcDir=null;
-    try {
-      DataSource ds=HibernateUtil.getDataSource();
-      directory=new JdbcDirectory(ds,_dialect,tableName);
-      jdbcDir=(JdbcDirectory)directory;
-      if (!jdbcDir.tableExists()) {
-        jdbcDir.create();
-      }
-    }
- catch (    IOException ioe) {
-      throw new RuntimeException(ioe);
-    }
-catch (    UnsupportedOperationException uoe) {
-      if (_log.isWarnEnabled()) {
-        _log.warn("Database doesn't support the ability to check " + "whether a table exists");
-      }
-      Connection con=null;
-      ResultSet rs=null;
-      try {
-        con=HibernateUtil.getConnection();
-        DatabaseMetaData metaData=con.getMetaData();
-        rs=metaData.getTables(null,null,tableName,null);
-        if (!rs.next()) {
-          JdbcTemplate jdbcTemplate=jdbcDir.getJdbcTemplate();
-          jdbcTemplate.executeUpdate(jdbcDir.getTable().sqlCreate());
-          Class lockClass=jdbcDir.getSettings().getLockClass();
-          JdbcLock jdbcLock=null;
-          try {
-            jdbcLock=(JdbcLock)lockClass.newInstance();
-          }
- catch (          Exception e) {
-            throw new JdbcStoreException("Failed to create lock class " + lockClass);
-          }
-          jdbcLock.initializeDatabase(jdbcDir);
-        }
-      }
- catch (      Exception e) {
-        if (_log.isWarnEnabled()) {
-          _log.warn("Could not create " + tableName);
-        }
-      }
- finally {
-        DataAccess.cleanUp(con,null,rs);
-      }
-    }
+    return _getLuceneDirJdbc(companyId);
   }
  else   if (storeType.equals(_LUCENE_STORE_TYPE_RAM)) {
-    String path=PropsUtil.get(PropsUtil.LUCENE_DIR) + companyId + StringPool.SLASH;
-    directory=(Directory)_ramDirectories.get(path);
-    if (directory == null) {
-      directory=new RAMDirectory();
-      _ramDirectories.put(path,directory);
-    }
+    return _getLuceneDirRam(companyId);
   }
-  return directory;
+ else {
+    throw new RuntimeException("Invalid store type " + storeType);
+  }
 }
