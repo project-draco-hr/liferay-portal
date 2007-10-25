@@ -1,0 +1,54 @@
+{
+  Map parameterMap=context.getParameterMap();
+  boolean importData=MapUtil.getBoolean(parameterMap,_IMPORT_POLLS_DATA,_enableImport.getDefaultState());
+  if (_log.isDebugEnabled()) {
+    if (importData) {
+      _log.debug("Importing data is enabled");
+    }
+ else {
+      _log.debug("Importing data is disabled");
+    }
+  }
+  if (!importData) {
+    return null;
+  }
+  try {
+    SAXReader reader=SAXReaderFactory.getInstance();
+    XStream xStream=new XStream();
+    Document doc=reader.read(new StringReader(data));
+    Element root=doc.getRootElement();
+    Element el=root.element("poll-questions").element("list");
+    Document tempDoc=DocumentHelper.createDocument();
+    tempDoc.content().add(el.createCopy());
+    Map questionPKs=CollectionFactory.getHashMap();
+    List questions=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
+    Iterator itr=questions.iterator();
+    while (itr.hasNext()) {
+      PollsQuestion question=(PollsQuestion)itr.next();
+      importQuestion(context,questionPKs,question);
+    }
+    el=root.element("poll-choices").element("list");
+    tempDoc=DocumentHelper.createDocument();
+    tempDoc.content().add(el.createCopy());
+    Map choicePKs=CollectionFactory.getHashMap();
+    List choices=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
+    itr=choices.iterator();
+    while (itr.hasNext()) {
+      PollsChoice choice=(PollsChoice)itr.next();
+      importChoice(context,questionPKs,choicePKs,choice);
+    }
+    el=root.element("poll-votes").element("list");
+    tempDoc=DocumentHelper.createDocument();
+    tempDoc.content().add(el.createCopy());
+    List votes=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
+    itr=votes.iterator();
+    while (itr.hasNext()) {
+      PollsVote vote=(PollsVote)itr.next();
+      importVote(context,questionPKs,choicePKs,vote);
+    }
+    return null;
+  }
+ catch (  Exception e) {
+    throw new PortletDataException(e);
+  }
+}
