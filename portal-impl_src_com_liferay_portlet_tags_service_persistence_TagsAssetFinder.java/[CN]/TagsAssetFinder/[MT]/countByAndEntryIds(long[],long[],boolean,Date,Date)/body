@@ -1,0 +1,62 @@
+{
+  if (entryIds.length == 0) {
+    return 0;
+  }
+  Session session=null;
+  try {
+    session=HibernateUtil.openSession();
+    StringMaker sm=new StringMaker();
+    sm.append("SELECT COUNT(DISTINCT assetId) AS COUNT_VALUE ");
+    sm.append("FROM TagsAsset WHERE TagsAsset.assetId IN (");
+    for (int i=0; i < entryIds.length; i++) {
+      sm.append(CustomSQLUtil.get(FIND_BY_AND_ENTRY_IDS));
+      if ((i + 1) < entryIds.length) {
+        sm.append(" AND TagsAsset.assetId IN (");
+      }
+    }
+    for (int i=0; i < entryIds.length; i++) {
+      if ((i + 1) < entryIds.length) {
+        sm.append(StringPool.CLOSE_PARENTHESIS);
+      }
+    }
+    if (excludeZeroViewCount) {
+      sm.append(" AND (TagsAsset.viewCount > 0)");
+    }
+    sm.append(StringPool.CLOSE_PARENTHESIS);
+    if (notEntryIds.length > 0) {
+      sm.append(" AND (");
+      for (int i=0; i < notEntryIds.length; i++) {
+        sm.append("TagsAsset.assetId NOT IN (");
+        sm.append(CustomSQLUtil.get(FIND_BY_AND_ENTRY_IDS));
+        sm.append(StringPool.CLOSE_PARENTHESIS);
+        if ((i + 1) < notEntryIds.length) {
+          sm.append(" OR ");
+        }
+      }
+      sm.append(StringPool.CLOSE_PARENTHESIS);
+    }
+    sm.append("[$DATES$]");
+    String sql=sm.toString();
+    sql=_getDates(sql,publishDate,expirationDate);
+    SQLQuery q=session.createSQLQuery(sql);
+    q.addScalar(HibernateUtil.getCountColumnName(),Hibernate.LONG);
+    QueryPos qPos=QueryPos.getInstance(q);
+    _setEntryIds(qPos,entryIds);
+    _setEntryIds(qPos,notEntryIds);
+    _setDates(qPos,publishDate,expirationDate);
+    Iterator itr=q.list().iterator();
+    if (itr.hasNext()) {
+      Long count=(Long)itr.next();
+      if (count != null) {
+        return count.intValue();
+      }
+    }
+    return 0;
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+ finally {
+    HibernateUtil.closeSession(session);
+  }
+}
