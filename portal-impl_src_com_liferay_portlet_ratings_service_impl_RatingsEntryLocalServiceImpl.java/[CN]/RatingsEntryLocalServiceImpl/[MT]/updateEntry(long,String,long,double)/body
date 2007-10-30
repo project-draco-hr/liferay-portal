@@ -1,10 +1,12 @@
 {
+  boolean newEntry=false;
   long classNameId=PortalUtil.getClassNameId(className);
+  double oldScore=0;
   Date now=new Date();
   RatingsEntry entry=null;
   try {
     entry=RatingsEntryUtil.findByU_C_C(userId,classNameId,classPK);
-    double oldScore=entry.getScore();
+    oldScore=entry.getScore();
     entry.setModifiedDate(now);
     entry.setScore(score);
     RatingsEntryUtil.update(entry);
@@ -14,6 +16,7 @@
     RatingsStatsUtil.update(stats);
   }
  catch (  NoSuchEntryException nsee) {
+    newEntry=true;
     User user=UserUtil.findByPrimaryKey(userId);
     long entryId=CounterLocalServiceUtil.increment();
     entry=RatingsEntryUtil.create(entryId);
@@ -31,6 +34,25 @@
     stats.setTotalScore(stats.getTotalScore() + score);
     stats.setAverageScore(stats.getTotalScore() / stats.getTotalEntries());
     RatingsStatsUtil.update(stats);
+  }
+  if (className.equals(BlogsEntry.class.getName())) {
+    BlogsEntry blogsEntry=BlogsEntryUtil.findByPrimaryKey(classPK);
+    BlogsStatsUser blogsStasUser=BlogsStatsUserLocalServiceUtil.getStatsUser(blogsEntry.getGroupId(),blogsEntry.getUserId());
+    int ratingsTotalEntries=blogsStasUser.getRatingsTotalEntries();
+    double ratingsTotalScore=blogsStasUser.getRatingsTotalScore();
+    double ratingsAverageScore=blogsStasUser.getRatingsAverageScore();
+    if (newEntry) {
+      ratingsTotalEntries++;
+      ratingsTotalScore+=score;
+    }
+ else {
+      ratingsTotalScore=ratingsTotalScore - oldScore + score;
+    }
+    ratingsAverageScore=ratingsTotalScore / ratingsTotalEntries;
+    blogsStasUser.setRatingsTotalEntries(ratingsTotalEntries);
+    blogsStasUser.setRatingsTotalScore(ratingsTotalScore);
+    blogsStasUser.setRatingsAverageScore(ratingsAverageScore);
+    BlogsStatsUserUtil.update(blogsStasUser);
   }
   return entry;
 }
