@@ -5,9 +5,6 @@
   boolean privateLayout=ParamUtil.getBoolean(req,"privateLayout");
   long layoutId=ParamUtil.getLong(req,"layoutId");
   long parentLayoutId=ParamUtil.getLong(uploadReq,"parentLayoutId");
-  String name=ParamUtil.getString(uploadReq,"name");
-  String title=ParamUtil.getString(uploadReq,"title");
-  String languageId=ParamUtil.getString(uploadReq,"curLanguageId");
   String description=ParamUtil.getString(uploadReq,"description");
   String type=ParamUtil.getString(uploadReq,"type");
   boolean hidden=ParamUtil.getBoolean(uploadReq,"hidden");
@@ -16,14 +13,22 @@
   byte[] iconBytes=FileUtil.getBytes(uploadReq.getFile("iconFileName"));
   boolean inheritFromParentLayoutId=ParamUtil.getBoolean(uploadReq,"inheritFromParentLayoutId");
   long copyLayoutId=ParamUtil.getLong(uploadReq,"copyLayoutId");
+  Locale[] locales=LanguageUtil.getAvailableLocales();
+  Map localeNameMap=new HashMap();
+  Map localeTitleMap=new HashMap();
+  for (int i=0; i < locales.length; i++) {
+    String languageId=LocaleUtil.toLanguageId(locales[i]);
+    localeNameMap.put(locales[i],ParamUtil.getString(uploadReq,"name_" + languageId));
+    localeTitleMap.put(locales[i],ParamUtil.getString(uploadReq,"title_" + languageId));
+  }
   if (cmd.equals(Constants.ADD)) {
     if (inheritFromParentLayoutId && (parentLayoutId > 0)) {
       Layout parentLayout=LayoutLocalServiceUtil.getLayout(groupId,privateLayout,parentLayoutId);
-      Layout layout=LayoutServiceUtil.addLayout(groupId,privateLayout,parentLayoutId,name,title,description,parentLayout.getType(),parentLayout.isHidden(),friendlyURL);
+      Layout layout=LayoutServiceUtil.addLayout(groupId,privateLayout,parentLayoutId,localeNameMap,localeTitleMap,description,parentLayout.getType(),parentLayout.isHidden(),friendlyURL);
       LayoutServiceUtil.updateLayout(layout.getGroupId(),layout.isPrivateLayout(),layout.getLayoutId(),parentLayout.getTypeSettings());
     }
  else {
-      Layout layout=LayoutServiceUtil.addLayout(groupId,privateLayout,parentLayoutId,name,title,description,type,hidden,friendlyURL);
+      Layout layout=LayoutServiceUtil.addLayout(groupId,privateLayout,parentLayoutId,localeNameMap,localeTitleMap,description,type,hidden,friendlyURL);
       if (type.equals(LayoutImpl.TYPE_PORTLET)) {
         LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
         layoutTypePortlet.setLayoutTemplateId(0,PropsUtil.get(PropsUtil.LAYOUT_DEFAULT_TEMPLATE_ID),false);
@@ -33,7 +38,7 @@
   }
  else {
     Layout layout=LayoutLocalServiceUtil.getLayout(groupId,privateLayout,layoutId);
-    layout=LayoutServiceUtil.updateLayout(groupId,privateLayout,layoutId,layout.getParentLayoutId(),name,title,languageId,description,type,hidden,friendlyURL,Boolean.valueOf(iconImage),iconBytes);
+    layout=LayoutServiceUtil.updateLayout(groupId,privateLayout,layoutId,layout.getParentLayoutId(),localeNameMap,localeTitleMap,description,type,hidden,friendlyURL,Boolean.valueOf(iconImage),iconBytes);
     if (type.equals(LayoutImpl.TYPE_PORTLET)) {
       if ((copyLayoutId > 0) && (copyLayoutId != layout.getLayoutId())) {
         try {

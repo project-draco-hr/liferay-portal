@@ -1,0 +1,51 @@
+{
+  friendlyURL=friendlyURL.toLowerCase();
+  boolean firstLayout=false;
+  if (parentLayoutId == LayoutImpl.DEFAULT_PARENT_LAYOUT_ID) {
+    List layouts=LayoutUtil.findByG_P_P(groupId,privateLayout,parentLayoutId,0,1);
+    if (layouts.size() == 0) {
+      firstLayout=true;
+    }
+ else {
+      long firstLayoutId=((Layout)layouts.get(0)).getLayoutId();
+      if (firstLayoutId == layoutId) {
+        firstLayout=true;
+      }
+    }
+  }
+  if (firstLayout) {
+    validateFirstLayout(type,hidden);
+  }
+  if (!PortalUtil.isLayoutParentable(type)) {
+    if (LayoutUtil.countByG_P_P(groupId,privateLayout,layoutId) > 0) {
+      throw new LayoutTypeException(LayoutTypeException.NOT_PARENTABLE);
+    }
+  }
+  if (Validator.isNotNull(friendlyURL)) {
+    int exceptionType=LayoutImpl.validateFriendlyURL(friendlyURL);
+    if (exceptionType != -1) {
+      throw new LayoutFriendlyURLException(exceptionType);
+    }
+    try {
+      Layout layout=LayoutUtil.findByG_P_F(groupId,privateLayout,friendlyURL);
+      if (layout.getLayoutId() != layoutId) {
+        throw new LayoutFriendlyURLException(LayoutFriendlyURLException.DUPLICATE);
+      }
+    }
+ catch (    NoSuchLayoutException nsle) {
+    }
+    LayoutImpl.validateFriendlyURLKeyword(friendlyURL);
+    Map friendlyURLMappers=PortletLocalServiceUtil.getFriendlyURLMappers();
+    Iterator itr=friendlyURLMappers.entrySet().iterator();
+    while (itr.hasNext()) {
+      Map.Entry entry=(Map.Entry)itr.next();
+      String className=(String)entry.getValue();
+      FriendlyURLMapper friendlyURLMapper=(FriendlyURLMapper)InstancePool.get(className);
+      if (friendlyURL.indexOf(friendlyURLMapper.getMapping()) != -1) {
+        LayoutFriendlyURLException lfurle=new LayoutFriendlyURLException(LayoutFriendlyURLException.KEYWORD_CONFLICT);
+        lfurle.setKeywordConflict(friendlyURLMapper.getMapping());
+        throw lfurle;
+      }
+    }
+  }
+}
