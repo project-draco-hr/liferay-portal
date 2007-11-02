@@ -1,6 +1,6 @@
 {
   Date now=new Date();
-  Company company=CompanyUtil.fetchByWebId(webId);
+  Company company=companyPersistence.fetchByWebId(webId);
   if (company == null) {
     String virtualHost=webId;
     if (webId.equals(CompanyImpl.DEFAULT_WEB_ID)) {
@@ -16,7 +16,7 @@
     String type=null;
     String size=null;
     long companyId=counterLocalService.increment();
-    company=CompanyUtil.create(companyId);
+    company=companyPersistence.create(companyId);
     try {
       company.setKeyObj(Encryptor.generateKey());
     }
@@ -26,12 +26,12 @@
     company.setWebId(webId);
     company.setVirtualHost(virtualHost);
     company.setMx(mx);
-    CompanyUtil.update(company);
+    companyPersistence.update(company);
     updateCompany(companyId,virtualHost,mx,name,legalName,legalId,legalType,sicCode,tickerSymbol,industry,type,size);
     if (webId.equals("liferay.net")) {
-      company=CompanyUtil.findByWebId(webId);
+      company=companyPersistence.findByWebId(webId);
       company.setVirtualHost("demo.liferay.net");
-      CompanyUtil.update(company);
+      companyPersistence.update(company);
       updateSecurity(companyId,CompanyImpl.AUTH_TYPE_EA,true,true,true,true,false,true);
       PortletPreferences prefs=PrefsPropsUtil.getPreferences(companyId);
       try {
@@ -51,20 +51,20 @@ catch (      PortletException pe) {
   checkCompanyKey(companyId);
   User defaultUser=null;
   try {
-    defaultUser=UserLocalServiceUtil.getDefaultUser(companyId);
+    defaultUser=userLocalService.getDefaultUser(companyId);
     if (!defaultUser.isAgreedToTermsOfUse()) {
       defaultUser.setAgreedToTermsOfUse(true);
-      UserUtil.update(defaultUser);
+      userPersistence.update(defaultUser);
     }
   }
  catch (  NoSuchUserException nsue) {
     long userId=counterLocalService.increment();
-    defaultUser=UserUtil.create(userId);
+    defaultUser=userPersistence.create(userId);
     defaultUser.setCompanyId(companyId);
     defaultUser.setCreateDate(now);
     defaultUser.setModifiedDate(now);
     defaultUser.setDefaultUser(true);
-    defaultUser.setContactId(CounterLocalServiceUtil.increment());
+    defaultUser.setContactId(counterLocalService.increment());
     defaultUser.setPassword("password");
     defaultUser.setScreenName(String.valueOf(defaultUser.getUserId()));
     defaultUser.setEmailAddress("default@" + company.getMx());
@@ -75,8 +75,8 @@ catch (      PortletException pe) {
     defaultUser.setFailedLoginAttempts(0);
     defaultUser.setAgreedToTermsOfUse(true);
     defaultUser.setActive(true);
-    UserUtil.update(defaultUser);
-    Contact defaultContact=ContactUtil.create(defaultUser.getContactId());
+    userPersistence.update(defaultUser);
+    Contact defaultContact=contactPersistence.create(defaultUser.getContactId());
     defaultContact.setCompanyId(defaultUser.getCompanyId());
     defaultContact.setUserId(defaultUser.getUserId());
     defaultContact.setUserName(StringPool.BLANK);
@@ -89,14 +89,14 @@ catch (      PortletException pe) {
     defaultContact.setLastName(StringPool.BLANK);
     defaultContact.setMale(true);
     defaultContact.setBirthday(now);
-    ContactUtil.update(defaultContact);
+    contactPersistence.update(defaultContact);
   }
-  GroupLocalServiceUtil.checkSystemGroups(companyId);
-  PasswordPolicyLocalServiceUtil.checkDefaultPasswordPolicy(companyId);
-  RoleLocalServiceUtil.checkSystemRoles(companyId);
-  Role guestRole=RoleLocalServiceUtil.getRole(companyId,RoleImpl.GUEST);
-  RoleLocalServiceUtil.setUserRoles(defaultUser.getUserId(),new long[]{guestRole.getRoleId()});
-  if (UserUtil.countByCompanyId(companyId) == 1) {
+  groupLocalService.checkSystemGroups(companyId);
+  passwordPolicyLocalService.checkDefaultPasswordPolicy(companyId);
+  roleLocalService.checkSystemRoles(companyId);
+  Role guestRole=roleLocalService.getRole(companyId,RoleImpl.GUEST);
+  roleLocalService.setUserRoles(defaultUser.getUserId(),new long[]{guestRole.getRoleId()});
+  if (userPersistence.countByCompanyId(companyId) == 1) {
     long creatorUserId=0;
     boolean autoPassword=false;
     String password1=PropsUtil.get(PropsUtil.DEFAULT_ADMIN_PASSWORD);
@@ -116,18 +116,18 @@ catch (      PortletException pe) {
     int birthdayYear=1970;
     String jobTitle=StringPool.BLANK;
     long[] organizationIds=new long[0];
-    User user=UserLocalServiceUtil.addUser(creatorUserId,companyId,autoPassword,password1,password2,autoScreenName,screenName,emailAddress,locale,firstName,middleName,lastName,prefixId,suffixId,male,birthdayMonth,birthdayDay,birthdayYear,jobTitle,organizationIds,false);
-    Group guestGroup=GroupLocalServiceUtil.getGroup(companyId,GroupImpl.GUEST);
+    User user=userLocalService.addUser(creatorUserId,companyId,autoPassword,password1,password2,autoScreenName,screenName,emailAddress,locale,firstName,middleName,lastName,prefixId,suffixId,male,birthdayMonth,birthdayDay,birthdayYear,jobTitle,organizationIds,false);
+    Group guestGroup=groupLocalService.getGroup(companyId,GroupImpl.GUEST);
     long[] groupIds=new long[]{guestGroup.getGroupId()};
-    GroupLocalServiceUtil.setUserGroups(user.getUserId(),groupIds);
-    Role adminRole=RoleLocalServiceUtil.getRole(companyId,RoleImpl.ADMINISTRATOR);
-    Role powerUserRole=RoleLocalServiceUtil.getRole(companyId,RoleImpl.POWER_USER);
+    groupLocalService.setUserGroups(user.getUserId(),groupIds);
+    Role adminRole=roleLocalService.getRole(companyId,RoleImpl.ADMINISTRATOR);
+    Role powerUserRole=roleLocalService.getRole(companyId,RoleImpl.POWER_USER);
     long[] roleIds=new long[]{adminRole.getRoleId(),powerUserRole.getRoleId()};
-    RoleLocalServiceUtil.setUserRoles(user.getUserId(),roleIds);
-    Organization organization=OrganizationLocalServiceUtil.addOrganization(user.getUserId(),OrganizationImpl.DEFAULT_PARENT_ORGANIZATION_ID,"Test Organization",OrganizationImpl.TYPE_REGULAR,true,RegionImpl.DEFAULT_REGION_ID,CountryImpl.DEFAULT_COUNTRY_ID,ListTypeImpl.ORGANIZATION_STATUS_DEFAULT);
-    UserUtil.addOrganization(user.getUserId(),organization.getOrganizationId());
-    Organization location=OrganizationLocalServiceUtil.addOrganization(user.getUserId(),organization.getOrganizationId(),"Test Location",OrganizationImpl.TYPE_LOCATION,true,RegionImpl.DEFAULT_REGION_ID,CountryImpl.DEFAULT_COUNTRY_ID,ListTypeImpl.ORGANIZATION_STATUS_DEFAULT);
-    UserUtil.addOrganization(user.getUserId(),location.getOrganizationId());
+    roleLocalService.setUserRoles(user.getUserId(),roleIds);
+    Organization organization=organizationLocalService.addOrganization(user.getUserId(),OrganizationImpl.DEFAULT_PARENT_ORGANIZATION_ID,"Test Organization",OrganizationImpl.TYPE_REGULAR,true,RegionImpl.DEFAULT_REGION_ID,CountryImpl.DEFAULT_COUNTRY_ID,ListTypeImpl.ORGANIZATION_STATUS_DEFAULT);
+    userPersistence.addOrganization(user.getUserId(),organization.getOrganizationId());
+    Organization location=organizationLocalService.addOrganization(user.getUserId(),organization.getOrganizationId(),"Test Location",OrganizationImpl.TYPE_LOCATION,true,RegionImpl.DEFAULT_REGION_ID,CountryImpl.DEFAULT_COUNTRY_ID,ListTypeImpl.ORGANIZATION_STATUS_DEFAULT);
+    userPersistence.addOrganization(user.getUserId(),location.getOrganizationId());
   }
   return company;
 }
