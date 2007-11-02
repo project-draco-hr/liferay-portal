@@ -11,7 +11,7 @@
     long repositoryId=CompanyImpl.SYSTEM;
     String dirName=message.getAttachmentsDir();
     try {
-      DLServiceUtil.deleteDirectory(companyId,portletId,repositoryId,dirName);
+      dlService.deleteDirectory(companyId,portletId,repositoryId,dirName);
     }
  catch (    NoSuchDirectoryException nsde) {
     }
@@ -19,56 +19,56 @@ catch (    RemoteException re) {
       throw new SystemException(re);
     }
   }
-  int count=MBMessageUtil.countByThreadId(message.getThreadId());
+  int count=mbMessagePersistence.countByThreadId(message.getThreadId());
   if (count == 1) {
     long companyId=message.getCompanyId();
     String portletId=CompanyImpl.SYSTEM_STRING;
     long repositoryId=CompanyImpl.SYSTEM;
     String dirName=message.getThreadAttachmentsDir();
     try {
-      DLServiceUtil.deleteDirectory(companyId,portletId,repositoryId,dirName);
+      dlService.deleteDirectory(companyId,portletId,repositoryId,dirName);
     }
  catch (    NoSuchDirectoryException nsde) {
     }
 catch (    RemoteException re) {
       throw new SystemException(re);
     }
-    SubscriptionLocalServiceUtil.deleteSubscriptions(message.getCompanyId(),MBThread.class.getName(),message.getThreadId());
-    MBThreadUtil.remove(message.getThreadId());
+    subscriptionLocalService.deleteSubscriptions(message.getCompanyId(),MBThread.class.getName(),message.getThreadId());
+    mbThreadPersistence.remove(message.getThreadId());
   }
  else   if (count > 1) {
-    MBThread thread=MBThreadUtil.findByPrimaryKey(message.getThreadId());
+    MBThread thread=mbThreadPersistence.findByPrimaryKey(message.getThreadId());
     if (thread.getRootMessageId() == message.getMessageId()) {
-      List childrenMessages=MBMessageUtil.findByT_P(message.getThreadId(),message.getMessageId());
+      List childrenMessages=mbMessagePersistence.findByT_P(message.getThreadId(),message.getMessageId());
       if (childrenMessages.size() > 1) {
         throw new RequiredMessageException(String.valueOf(message.getMessageId()));
       }
  else       if (childrenMessages.size() == 1) {
         MBMessage childMessage=(MBMessage)childrenMessages.get(0);
         childMessage.setParentMessageId(MBMessageImpl.DEFAULT_PARENT_MESSAGE_ID);
-        MBMessageUtil.update(childMessage);
+        mbMessagePersistence.update(childMessage);
         thread.setRootMessageId(childMessage.getMessageId());
-        MBThreadUtil.update(thread);
+        mbThreadPersistence.update(thread);
       }
     }
  else {
-      List childrenMessages=MBMessageUtil.findByT_P(message.getThreadId(),message.getMessageId());
+      List childrenMessages=mbMessagePersistence.findByT_P(message.getThreadId(),message.getMessageId());
       if (childrenMessages.size() > 0) {
         Iterator itr=childrenMessages.iterator();
         while (itr.hasNext()) {
           MBMessage childMessage=(MBMessage)itr.next();
           childMessage.setParentMessageId(message.getParentMessageId());
-          MBMessageUtil.update(childMessage);
+          mbMessagePersistence.update(childMessage);
         }
       }
     }
     thread.setMessageCount(count - 1);
-    MBThreadUtil.update(thread);
+    mbThreadPersistence.update(thread);
   }
-  TagsAssetLocalServiceUtil.deleteAsset(MBMessage.class.getName(),message.getMessageId());
-  MBMessageFlagUtil.removeByMessageId(message.getMessageId());
+  tagsAssetLocalService.deleteAsset(MBMessage.class.getName(),message.getMessageId());
+  mbMessageFlagPersistence.removeByMessageId(message.getMessageId());
   if (!message.isDiscussion()) {
-    ResourceLocalServiceUtil.deleteResource(message.getCompanyId(),MBMessage.class.getName(),ResourceImpl.SCOPE_INDIVIDUAL,message.getMessageId());
+    resourceLocalService.deleteResource(message.getCompanyId(),MBMessage.class.getName(),ResourceImpl.SCOPE_INDIVIDUAL,message.getMessageId());
   }
-  MBMessageUtil.remove(message.getPrimaryKey());
+  mbMessagePersistence.remove(message.getPrimaryKey());
 }

@@ -1,5 +1,5 @@
 {
-  MBMessage message=MBMessageUtil.findByPrimaryKey(messageId);
+  MBMessage message=mbMessagePersistence.findByPrimaryKey(messageId);
   MBCategory category=getCategory(message,categoryId);
   long oldCategoryId=message.getCategoryId();
   subject=ModelHintsUtil.trimString(MBMessage.class.getName(),"subject",subject);
@@ -13,17 +13,17 @@
     String dirName=message.getAttachmentsDir();
     try {
       try {
-        DLServiceUtil.deleteDirectory(companyId,portletId,repositoryId,dirName);
+        dlService.deleteDirectory(companyId,portletId,repositoryId,dirName);
       }
  catch (      NoSuchDirectoryException nsde) {
       }
-      DLServiceUtil.addDirectory(companyId,repositoryId,dirName);
+      dlService.addDirectory(companyId,repositoryId,dirName);
       for (int i=0; i < files.size(); i++) {
         ObjectValuePair ovp=(ObjectValuePair)files.get(i);
         String fileName=(String)ovp.getKey();
         byte[] byteArray=(byte[])ovp.getValue();
         try {
-          DLServiceUtil.addFile(companyId,portletId,groupId,repositoryId,dirName + "/" + fileName,StringPool.BLANK,byteArray);
+          dlService.addFile(companyId,portletId,groupId,repositoryId,dirName + "/" + fileName,StringPool.BLANK,byteArray);
         }
  catch (        DuplicateFileException dfe) {
         }
@@ -37,21 +37,21 @@
   message.setSubject(subject);
   message.setBody(body);
   message.setAttachments((files.size() > 0 ? true : false));
-  MBMessageUtil.update(message);
+  mbMessagePersistence.update(message);
   notifySubscribers(category,message,prefs,true);
-  MBThread thread=MBThreadUtil.findByPrimaryKey(message.getThreadId());
+  MBThread thread=mbThreadPersistence.findByPrimaryKey(message.getThreadId());
   if (priority != MBThreadImpl.PRIORITY_NOT_GIVEN) {
     thread.setPriority(priority);
   }
-  MBThreadUtil.update(thread);
+  mbThreadPersistence.update(thread);
   category.setLastPostDate(now);
-  MBCategoryUtil.update(category);
+  mbCategoryPersistence.update(category);
   if (oldCategoryId != category.getCategoryId()) {
-    Iterator itr=MBMessageUtil.findByC_T(oldCategoryId,thread.getThreadId()).iterator();
+    Iterator itr=mbMessagePersistence.findByC_T(oldCategoryId,thread.getThreadId()).iterator();
     while (itr.hasNext()) {
       MBMessage curMessage=(MBMessage)itr.next();
       curMessage.setCategoryId(category.getCategoryId());
-      MBMessageUtil.update(curMessage);
+      mbMessagePersistence.update(curMessage);
       try {
         if (!category.isDiscussion()) {
           Indexer.updateMessage(curMessage.getCompanyId(),category.getGroupId(),curMessage.getUserName(),category.getCategoryId(),curMessage.getThreadId(),curMessage.getMessageId(),curMessage.getSubject(),curMessage.getBody());
@@ -62,7 +62,7 @@
       }
     }
     thread.setCategoryId(category.getCategoryId());
-    MBThreadUtil.update(thread);
+    mbThreadPersistence.update(thread);
   }
   updateTagsAsset(userId,message,tagsEntries);
   try {
