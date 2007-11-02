@@ -1,24 +1,24 @@
 {
-  User user=UserUtil.findByPrimaryKey(userId);
-  DLFolder folder=DLFolderUtil.findByPrimaryKey(folderId);
+  User user=userPersistence.findByPrimaryKey(userId);
+  DLFolder folder=dlFolderPersistence.findByPrimaryKey(folderId);
   if (Validator.isNull(title)) {
     title=name;
   }
-  DLFileEntry fileEntry=DLFileEntryUtil.findByF_N(folderId,name);
+  DLFileEntry fileEntry=dlFileEntryPersistence.findByF_N(folderId,name);
   fileEntry.setTitle(title);
   fileEntry.setDescription(description);
   fileEntry.setExtraSettings(extraSettings);
-  DLFileEntryUtil.update(fileEntry);
+  dlFileEntryPersistence.update(fileEntry);
   if ((newFolderId > 0) && (folderId != newFolderId)) {
-    DLFolder newFolder=DLFolderUtil.findByPrimaryKey(newFolderId);
+    DLFolder newFolder=dlFolderPersistence.findByPrimaryKey(newFolderId);
     if (folder.getGroupId() != newFolder.getGroupId()) {
       throw new NoSuchFolderException();
     }
-    if (DLLocalServiceUtil.hasFile(user.getCompanyId(),newFolderId,name,0)) {
+    if (dlLocalService.hasFile(user.getCompanyId(),newFolderId,name,0)) {
       throw new DuplicateFileException(name);
     }
-    long newFileEntryId=CounterLocalServiceUtil.increment();
-    DLFileEntry newFileEntry=DLFileEntryUtil.create(newFileEntryId);
+    long newFileEntryId=counterLocalService.increment();
+    DLFileEntry newFileEntry=dlFileEntryPersistence.create(newFileEntryId);
     newFileEntry.setCompanyId(fileEntry.getCompanyId());
     newFileEntry.setUserId(fileEntry.getUserId());
     newFileEntry.setUserName(fileEntry.getUserName());
@@ -34,14 +34,14 @@
     newFileEntry.setSize(fileEntry.getSize());
     newFileEntry.setReadCount(fileEntry.getReadCount());
     newFileEntry.setExtraSettings(extraSettings);
-    DLFileEntryUtil.update(newFileEntry);
-    DLFileEntryUtil.remove(fileEntry);
+    dlFileEntryPersistence.update(newFileEntry);
+    dlFileEntryPersistence.remove(fileEntry);
     fileEntry=newFileEntry;
-    Iterator itr=DLFileVersionUtil.findByF_N(folderId,name).iterator();
+    Iterator itr=dlFileVersionPersistence.findByF_N(folderId,name).iterator();
     while (itr.hasNext()) {
       DLFileVersion fileVersion=(DLFileVersion)itr.next();
-      long newFileVersionId=CounterLocalServiceUtil.increment();
-      DLFileVersion newFileVersion=DLFileVersionUtil.create(newFileVersionId);
+      long newFileVersionId=counterLocalService.increment();
+      DLFileVersion newFileVersion=dlFileVersionPersistence.create(newFileVersionId);
       newFileVersion.setCompanyId(fileVersion.getCompanyId());
       newFileVersion.setUserId(fileVersion.getUserId());
       newFileVersion.setUserName(fileVersion.getUserName());
@@ -50,12 +50,12 @@
       newFileVersion.setName(name);
       newFileVersion.setVersion(fileVersion.getVersion());
       newFileVersion.setSize(fileVersion.getSize());
-      DLFileVersionUtil.update(newFileVersion);
-      DLFileVersionUtil.remove(fileVersion);
+      dlFileVersionPersistence.update(newFileVersion);
+      dlFileVersionPersistence.remove(fileVersion);
     }
-    DLFileShortcutLocalServiceUtil.updateFileShortcuts(folderId,name,newFolderId,name);
+    dlFileShortcutLocalService.updateFileShortcuts(folderId,name,newFolderId,name);
     try {
-      DLServiceUtil.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,folder.getGroupId(),folderId,newFolderId,name);
+      dlService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,folder.getGroupId(),folderId,newFolderId,name);
     }
  catch (    RemoteException re) {
       throw new SystemException(re);
@@ -69,8 +69,8 @@
   }
   double oldVersion=fileEntry.getVersion();
   double newVersion=MathUtil.format(oldVersion + 0.1,1,1);
-  long fileVersionId=CounterLocalServiceUtil.increment();
-  DLFileVersion fileVersion=DLFileVersionUtil.create(fileVersionId);
+  long fileVersionId=counterLocalService.increment();
+  DLFileVersion fileVersion=dlFileVersionPersistence.create(fileVersionId);
   long versionUserId=fileEntry.getVersionUserId();
   if (versionUserId <= 0) {
     versionUserId=fileEntry.getUserId();
@@ -84,15 +84,15 @@
   fileVersion.setName(name);
   fileVersion.setVersion(oldVersion);
   fileVersion.setSize(fileEntry.getSize());
-  DLFileVersionUtil.update(fileVersion);
+  dlFileVersionPersistence.update(fileVersion);
   fileEntry.setVersionUserId(user.getUserId());
   fileEntry.setVersionUserName(user.getFullName());
   fileEntry.setModifiedDate(new Date());
   fileEntry.setVersion(newVersion);
   fileEntry.setSize((int)size);
-  DLFileEntryUtil.update(fileEntry);
-  DLLocalServiceUtil.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,folder.getGroupId(),folderId,name,newVersion,sourceFileName,fileEntry.getLuceneProperties(),is);
+  dlFileEntryPersistence.update(fileEntry);
+  dlLocalService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,folder.getGroupId(),folderId,name,newVersion,sourceFileName,fileEntry.getLuceneProperties(),is);
   folder.setLastPostDate(fileEntry.getModifiedDate());
-  DLFolderUtil.update(folder);
+  dlFolderPersistence.update(folder);
   return fileEntry;
 }
