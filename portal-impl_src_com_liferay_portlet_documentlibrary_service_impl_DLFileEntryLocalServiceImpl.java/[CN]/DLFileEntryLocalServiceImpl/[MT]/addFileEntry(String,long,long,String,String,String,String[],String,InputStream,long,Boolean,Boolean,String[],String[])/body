@@ -1,0 +1,44 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  folderId=getFolderId(user.getCompanyId(),folderId);
+  DLFolder folder=dlFolderPersistence.findByPrimaryKey(folderId);
+  Date now=new Date();
+  if (Validator.isNull(title)) {
+    title=name;
+  }
+  dlLocalService.validate(name,is);
+  name=getName(name);
+  if (dlLocalService.hasFile(user.getCompanyId(),folderId,name,0)) {
+    throw new DuplicateFileException(name);
+  }
+  long fileEntryId=counterLocalService.increment();
+  DLFileEntry fileEntry=dlFileEntryPersistence.create(fileEntryId);
+  fileEntry.setUuid(uuid);
+  fileEntry.setCompanyId(user.getCompanyId());
+  fileEntry.setUserId(user.getUserId());
+  fileEntry.setUserName(user.getFullName());
+  fileEntry.setVersionUserId(user.getUserId());
+  fileEntry.setVersionUserName(user.getFullName());
+  fileEntry.setCreateDate(now);
+  fileEntry.setModifiedDate(now);
+  fileEntry.setFolderId(folderId);
+  fileEntry.setName(name);
+  fileEntry.setTitle(title);
+  fileEntry.setDescription(description);
+  fileEntry.setVersion(DLFileEntryImpl.DEFAULT_VERSION);
+  fileEntry.setSize((int)size);
+  fileEntry.setReadCount(DLFileEntryImpl.DEFAULT_READ_COUNT);
+  fileEntry.setExtraSettings(extraSettings);
+  dlFileEntryPersistence.update(fileEntry);
+  dlLocalService.addFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,folder.getGroupId(),folderId,name,fileEntry.getLuceneProperties(),is);
+  if ((addCommunityPermissions != null) && (addGuestPermissions != null)) {
+    addFileEntryResources(folder,fileEntry,addCommunityPermissions.booleanValue(),addGuestPermissions.booleanValue());
+  }
+ else {
+    addFileEntryResources(folder,fileEntry,communityPermissions,guestPermissions);
+  }
+  updateTagsAsset(userId,fileEntry,tagsEntries);
+  folder.setLastPostDate(fileEntry.getModifiedDate());
+  dlFolderPersistence.update(folder);
+  return fileEntry;
+}

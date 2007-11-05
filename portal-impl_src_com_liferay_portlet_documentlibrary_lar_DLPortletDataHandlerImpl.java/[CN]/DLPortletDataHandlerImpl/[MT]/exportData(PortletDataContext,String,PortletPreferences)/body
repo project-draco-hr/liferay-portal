@@ -1,0 +1,93 @@
+{
+  Map parameterMap=context.getParameterMap();
+  boolean exportData=MapUtil.getBoolean(parameterMap,_EXPORT_DL_DATA,_enableExport.getDefaultState());
+  if (_log.isDebugEnabled()) {
+    if (exportData) {
+      _log.debug("Exporting data is enabled");
+    }
+ else {
+      _log.debug("Exporting data is disabled");
+    }
+  }
+  if (!exportData) {
+    return null;
+  }
+  boolean exportRanks=MapUtil.getBoolean(parameterMap,_EXPORT_DL_RANKS,_enableRanksExport.getDefaultState());
+  boolean exportShortcuts=MapUtil.getBoolean(parameterMap,_EXPORT_DL_SHORTCUTS,_enableShortcutsExport.getDefaultState());
+  try {
+    SAXReader reader=SAXReaderFactory.getInstance();
+    XStream xStream=new XStream();
+    Document doc=DocumentHelper.createDocument();
+    Element root=doc.addElement("documentlibrary-data");
+    root.addAttribute("group-id",String.valueOf(context.getGroupId()));
+    List folders=DLFolderUtil.findByGroupId(context.getGroupId());
+    List entries=new ArrayList();
+    List shortcuts=new ArrayList();
+    Iterator itr=folders.iterator();
+    while (itr.hasNext()) {
+      DLFolder folder=(DLFolder)itr.next();
+      if (context.addPrimaryKey(DLFolder.class,folder.getPrimaryKeyObj())) {
+        itr.remove();
+      }
+ else {
+        List folderEntries=DLFileEntryUtil.findByFolderId(folder.getFolderId());
+        entries.addAll(folderEntries);
+        if (exportShortcuts) {
+          List folderShortcuts=DLFileShortcutUtil.findByFolderId(folder.getFolderId());
+          shortcuts.addAll(folderShortcuts);
+        }
+      }
+    }
+    String xml=xStream.toXML(folders);
+    Element el=root.addElement("documentlibrary-folders");
+    Document tempDoc=reader.read(new StringReader(xml));
+    el.content().add(tempDoc.getRootElement().createCopy());
+    List ranks=new ArrayList();
+    itr=entries.iterator();
+    while (itr.hasNext()) {
+      DLFileEntry entry=(DLFileEntry)itr.next();
+      if (context.addPrimaryKey(DLFileEntry.class,entry.getPrimaryKeyObj())) {
+        itr.remove();
+      }
+ else {
+        context.addTagsEntries(DLFileEntry.class,entry.getPrimaryKeyObj());
+        InputStream in=DLFileEntryLocalServiceUtil.getFileAsStream(entry.getCompanyId(),entry.getUserId(),entry.getFolderId(),entry.getName());
+        context.getZipWriter().addEntry(_ZIP_FOLDER + entry.getName(),FileUtil.getBytes(in));
+        if (exportRanks) {
+          List entryRanks=DLFileRankUtil.findByF_N(entry.getFolderId(),entry.getName());
+          ranks.addAll(entryRanks);
+        }
+      }
+    }
+    xml=xStream.toXML(entries);
+    el=root.addElement("documentlibrary-entries");
+    tempDoc=reader.read(new StringReader(xml));
+    el.content().add(tempDoc.getRootElement().createCopy());
+    itr=shortcuts.iterator();
+    while (itr.hasNext()) {
+      DLFileShortcut shortcut=(DLFileShortcut)itr.next();
+      if (context.addPrimaryKey(DLFileShortcut.class,shortcut.getPrimaryKeyObj())) {
+        itr.remove();
+      }
+    }
+    xml=xStream.toXML(shortcuts);
+    el=root.addElement("documentlibrary-shortcuts");
+    tempDoc=reader.read(new StringReader(xml));
+    el.content().add(tempDoc.getRootElement().createCopy());
+    itr=ranks.iterator();
+    while (itr.hasNext()) {
+      DLFileRank rank=(DLFileRank)itr.next();
+      if (context.addPrimaryKey(DLFileRank.class,rank.getPrimaryKeyObj())) {
+        itr.remove();
+      }
+    }
+    xml=xStream.toXML(ranks);
+    el=root.addElement("documentlibrary-ranks");
+    tempDoc=reader.read(new StringReader(xml));
+    el.content().add(tempDoc.getRootElement().createCopy());
+    return XMLFormatter.toString(doc);
+  }
+ catch (  Exception e) {
+    throw new PortletDataException(e);
+  }
+}

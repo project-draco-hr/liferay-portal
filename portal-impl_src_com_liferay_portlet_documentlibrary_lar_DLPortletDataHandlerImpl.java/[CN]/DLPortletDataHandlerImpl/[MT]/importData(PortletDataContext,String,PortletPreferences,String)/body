@@ -1,0 +1,70 @@
+{
+  Map parameterMap=context.getParameterMap();
+  boolean importData=MapUtil.getBoolean(parameterMap,_IMPORT_DL_DATA,_enableImport.getDefaultState());
+  if (_log.isDebugEnabled()) {
+    if (importData) {
+      _log.debug("Importing data is enabled");
+    }
+ else {
+      _log.debug("Importing data is disabled");
+    }
+  }
+  if (!importData) {
+    return null;
+  }
+  boolean mergeData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.MERGE_DATA,false);
+  boolean importRanks=MapUtil.getBoolean(parameterMap,_IMPORT_DL_RANKS,_enableRanksImport.getDefaultState());
+  boolean importShortcuts=MapUtil.getBoolean(parameterMap,_IMPORT_DL_SHORTCUTS,_enableShortcutsImport.getDefaultState());
+  try {
+    SAXReader reader=SAXReaderFactory.getInstance();
+    XStream xStream=new XStream();
+    Document doc=reader.read(new StringReader(data));
+    Element root=doc.getRootElement();
+    Element el=root.element("documentlibrary-folders").element("list");
+    Document tempDoc=DocumentHelper.createDocument();
+    tempDoc.content().add(el.createCopy());
+    Map folderPKs=CollectionFactory.getHashMap();
+    List folders=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
+    Iterator itr=folders.iterator();
+    while (itr.hasNext()) {
+      DLFolder folder=(DLFolder)itr.next();
+      importFolder(context,mergeData,folderPKs,folder);
+    }
+    el=root.element("documentlibrary-entries").element("list");
+    tempDoc=DocumentHelper.createDocument();
+    tempDoc.content().add(el.createCopy());
+    Map entryNames=CollectionFactory.getHashMap();
+    List entries=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
+    itr=entries.iterator();
+    while (itr.hasNext()) {
+      DLFileEntry entry=(DLFileEntry)itr.next();
+      importEntry(context,mergeData,folderPKs,entryNames,entry);
+    }
+    if (importShortcuts) {
+      el=root.element("documentlibrary-shortcuts").element("list");
+      tempDoc=DocumentHelper.createDocument();
+      tempDoc.content().add(el.createCopy());
+      List shortcuts=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
+      itr=shortcuts.iterator();
+      while (itr.hasNext()) {
+        DLFileShortcut shortcut=(DLFileShortcut)itr.next();
+        importShortcut(context,mergeData,folderPKs,entryNames,shortcut);
+      }
+    }
+    if (importRanks) {
+      el=root.element("documentlibrary-ranks").element("list");
+      tempDoc=DocumentHelper.createDocument();
+      tempDoc.content().add(el.createCopy());
+      List ranks=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
+      itr=ranks.iterator();
+      while (itr.hasNext()) {
+        DLFileRank rank=(DLFileRank)itr.next();
+        importRank(context,folderPKs,entryNames,rank);
+      }
+    }
+    return null;
+  }
+ catch (  Exception e) {
+    throw new PortletDataException(e);
+  }
+}
