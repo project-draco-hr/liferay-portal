@@ -12,6 +12,8 @@
   if (!importData) {
     return null;
   }
+  boolean mergeData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.MERGE_DATA);
+  boolean importStats=MapUtil.getBoolean(parameterMap,_IMPORT_BLOGS_STATS);
   try {
     SAXReader reader=SAXReaderFactory.getInstance();
     XStream xStream=new XStream();
@@ -24,41 +26,17 @@
     Iterator itr=entries.iterator();
     while (itr.hasNext()) {
       BlogsEntry entry=(BlogsEntry)itr.next();
-      String[] tagsEntries=context.getTagsEntries(BlogsEntry.class,entry.getPrimaryKeyObj());
-      BlogsEntry existingEntry=BlogsEntryUtil.fetchByPrimaryKey(entry.getPrimaryKey());
-      if ((existingEntry == null) || (existingEntry.getGroupId() != context.getGroupId())) {
-        long plid=context.getPlid();
-        Calendar displayDateCal=CalendarFactoryUtil.getCalendar();
-        displayDateCal.setTime(entry.getDisplayDate());
-        int displayDateMonth=displayDateCal.get(Calendar.MONTH);
-        int displayDateDay=displayDateCal.get(Calendar.DATE);
-        int displayDateYear=displayDateCal.get(Calendar.YEAR);
-        int displayDateHour=displayDateCal.get(Calendar.HOUR);
-        int displayDateMinute=displayDateCal.get(Calendar.MINUTE);
-        ThemeDisplay themeDisplay=null;
-        boolean addCommunityPermissions=true;
-        boolean addGuestPermissions=true;
-        BlogsEntryLocalServiceUtil.addEntry(entry.getUserId(),plid,entry.getCategoryId(),entry.getTitle(),entry.getContent(),displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,themeDisplay,tagsEntries,addCommunityPermissions,addGuestPermissions);
-      }
- else {
-        TagsAssetLocalServiceUtil.updateAsset(entry.getUserId(),entry.getGroupId(),BlogsEntry.class.getName(),entry.getPrimaryKey(),tagsEntries);
-        BlogsEntryUtil.update(entry,true);
-      }
+      importEntry(context,mergeData,entry);
     }
-    el=root.element("blog-stats-users").element("list");
-    tempDoc=DocumentHelper.createDocument();
-    tempDoc.content().add(el.createCopy());
-    List statsUsers=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
-    itr=statsUsers.iterator();
-    while (itr.hasNext()) {
-      BlogsStatsUser statsUser=(BlogsStatsUser)itr.next();
-      BlogsStatsUser existingStatsUser=BlogsStatsUserUtil.fetchByPrimaryKey(statsUser.getPrimaryKey());
-      if ((existingStatsUser == null) || (existingStatsUser.getGroupId() != context.getGroupId())) {
-        long groupId=context.getGroupId();
-        BlogsStatsUserLocalServiceUtil.updateStatsUser(groupId,statsUser.getUserId(),statsUser.getLastPostDate());
-      }
- else {
-        BlogsStatsUserUtil.update(statsUser,true);
+    if (importStats) {
+      el=root.element("blog-stats-users").element("list");
+      tempDoc=DocumentHelper.createDocument();
+      tempDoc.content().add(el.createCopy());
+      List statsUsers=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
+      itr=statsUsers.iterator();
+      while (itr.hasNext()) {
+        BlogsStatsUser statsUser=(BlogsStatsUser)itr.next();
+        importStatsUser(context,statsUser);
       }
     }
     return null;
