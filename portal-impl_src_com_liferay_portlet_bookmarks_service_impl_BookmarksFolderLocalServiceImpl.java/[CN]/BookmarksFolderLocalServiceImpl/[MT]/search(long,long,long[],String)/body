@@ -1,0 +1,36 @@
+{
+  Searcher searcher=null;
+  try {
+    HitsImpl hits=new HitsImpl();
+    if (Validator.isNull(keywords)) {
+      return hits;
+    }
+    BooleanQuery contextQuery=new BooleanQuery();
+    LuceneUtil.addRequiredTerm(contextQuery,LuceneFields.PORTLET_ID,Indexer.PORTLET_ID);
+    if (groupId > 0) {
+      LuceneUtil.addRequiredTerm(contextQuery,LuceneFields.GROUP_ID,groupId);
+    }
+    if ((folderIds != null) && (folderIds.length > 0)) {
+      BooleanQuery folderIdsQuery=new BooleanQuery();
+      for (int i=0; i < folderIds.length; i++) {
+        Term term=new Term("folderId",String.valueOf(folderIds[i]));
+        TermQuery termQuery=new TermQuery(term);
+        folderIdsQuery.add(termQuery,BooleanClause.Occur.SHOULD);
+      }
+      contextQuery.add(folderIdsQuery,BooleanClause.Occur.MUST);
+    }
+    BooleanQuery searchQuery=new BooleanQuery();
+    LuceneUtil.addTerm(searchQuery,LuceneFields.TITLE,keywords);
+    LuceneUtil.addTerm(searchQuery,LuceneFields.CONTENT,keywords);
+    LuceneUtil.addTerm(searchQuery,LuceneFields.DESCRIPTION,keywords);
+    BooleanQuery fullQuery=new BooleanQuery();
+    fullQuery.add(contextQuery,BooleanClause.Occur.MUST);
+    fullQuery.add(searchQuery,BooleanClause.Occur.MUST);
+    searcher=LuceneUtil.getSearcher(companyId);
+    hits.recordHits(searcher.search(fullQuery),searcher);
+    return hits;
+  }
+ catch (  Exception e) {
+    return LuceneUtil.closeSearcher(searcher,keywords,e);
+  }
+}
