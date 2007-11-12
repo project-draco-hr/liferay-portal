@@ -5,6 +5,7 @@
   boolean importRatings=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.IMPORT_RATINGS);
   boolean importTags=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.IMPORT_TAGS);
   boolean importTheme=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.IMPORT_THEME);
+  String userIdStrategy=MapUtil.getString(parameterMap,PortletDataHandlerKeys.USER_ID_STRATEGY);
   if (_log.isDebugEnabled()) {
     _log.debug("Import permissions " + importPermissions);
     _log.debug("Import portlet data " + importPortletData);
@@ -19,8 +20,16 @@
   LayoutCache layoutCache=new LayoutCache();
   LayoutSet layoutSet=layoutSetLocalService.getLayoutSet(groupId,privateLayout);
   long companyId=layoutSet.getCompanyId();
+  User user=userPersistence.findByPrimaryKey(userId);
+  UserIdStrategy strategy=null;
+  if (UserIdStrategy.ALWAYS_CURRENT_USER_ID.equals(userIdStrategy)) {
+    strategy=new AlwaysCurrentUserIdStrategy(user);
+  }
+ else   if (UserIdStrategy.CURRENT_USER_ID.equals(userIdStrategy)) {
+    strategy=new CurrentUserIdStrategy(user);
+  }
   ZipReader zipReader=new ZipReader(is);
-  PortletDataContext context=new PortletDataContextImpl(companyId,groupId,parameterMap,CollectionFactory.getHashSet(),zipReader);
+  PortletDataContext context=new PortletDataContextImpl(companyId,groupId,parameterMap,CollectionFactory.getHashSet(),strategy,zipReader);
   Group guestGroup=groupLocalService.getGroup(companyId,GroupImpl.GUEST);
   Element root=null;
   byte[] themeZip=null;
@@ -69,7 +78,6 @@
   if (importTags) {
     importTags(context,root);
   }
-  User user=userPersistence.findByPrimaryKey(userId);
   Set newLayoutIds=CollectionFactory.getHashSet();
   Iterator itr=root.elements("layout").iterator();
   if (_log.isDebugEnabled()) {
