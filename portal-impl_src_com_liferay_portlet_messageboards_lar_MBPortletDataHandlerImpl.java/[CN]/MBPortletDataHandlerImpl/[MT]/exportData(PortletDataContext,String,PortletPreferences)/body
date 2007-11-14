@@ -1,0 +1,114 @@
+{
+  Map parameterMap=context.getParameterMap();
+  boolean exportData=MapUtil.getBoolean(parameterMap,_EXPORT_MESSAGE_BOARDS_DATA);
+  if (_log.isDebugEnabled()) {
+    if (exportData) {
+      _log.debug("Exporting data is enabled");
+    }
+ else {
+      _log.debug("Exporting data is disabled");
+    }
+  }
+  if (!exportData) {
+    return null;
+  }
+  boolean exportAttachments=MapUtil.getBoolean(parameterMap,_EXPORT_MESSAGE_BOARDS_ATTACHMENTS);
+  boolean exportBans=MapUtil.getBoolean(parameterMap,_EXPORT_MESSAGE_BOARDS_BANS);
+  boolean exportFlags=MapUtil.getBoolean(parameterMap,_EXPORT_MESSAGE_BOARDS_FLAGS);
+  try {
+    SAXReader reader=SAXReaderFactory.getInstance();
+    XStream xStream=new XStream();
+    Document doc=DocumentHelper.createDocument();
+    Element root=doc.addElement("message-boards-data");
+    root.addAttribute("group-id",String.valueOf(context.getGroupId()));
+    List categories=MBCategoryUtil.findByGroupId(context.getGroupId());
+    List messages=new ArrayList();
+    Iterator itr=categories.iterator();
+    while (itr.hasNext()) {
+      MBCategory category=(MBCategory)itr.next();
+      if (context.addPrimaryKey(MBCategory.class,category.getPrimaryKeyObj())) {
+        itr.remove();
+      }
+ else {
+        category.setUserUuid(category.getUserUuid());
+        List categoryMessages=MBMessageUtil.findByCategoryId(category.getCategoryId());
+        messages.addAll(categoryMessages);
+      }
+    }
+    String xml=xStream.toXML(categories);
+    Element el=root.addElement("message-board-categories");
+    Document tempDoc=reader.read(new StringReader(xml));
+    el.content().add(tempDoc.getRootElement().createCopy());
+    List flags=new ArrayList();
+    itr=messages.iterator();
+    while (itr.hasNext()) {
+      MBMessage message=(MBMessage)itr.next();
+      if (context.addPrimaryKey(MBMessage.class,message.getPrimaryKeyObj())) {
+        itr.remove();
+      }
+ else {
+        message.setUserUuid(message.getUserUuid());
+        message.setPriority(message.getPriority());
+        context.addTagsEntries(MBMessage.class,message.getPrimaryKeyObj());
+        if (message.isAttachments() && exportAttachments) {
+          String[] fileNames=null;
+          try {
+            fileNames=DLServiceUtil.getFileNames(context.getCompanyId(),CompanyImpl.SYSTEM,message.getAttachmentsDir());
+            for (int i=0; i < fileNames.length; i++) {
+              byte[] byteArray=DLServiceUtil.getFile(context.getCompanyId(),CompanyImpl.SYSTEM,fileNames[i]);
+              context.getZipWriter().addEntry(fileNames[i],byteArray);
+            }
+            message.setAttachmentsDir(message.getAttachmentsDir());
+          }
+ catch (          NoSuchDirectoryException nsde) {
+          }
+        }
+        if (exportFlags) {
+          List messageFlags=MBMessageFlagUtil.findByMessageId(message.getMessageId());
+          flags.addAll(messageFlags);
+        }
+      }
+    }
+    xml=xStream.toXML(messages);
+    el=root.addElement("message-board-messages");
+    tempDoc=reader.read(new StringReader(xml));
+    el.content().add(tempDoc.getRootElement().createCopy());
+    itr=flags.iterator();
+    while (itr.hasNext()) {
+      MBMessageFlag flag=(MBMessageFlag)itr.next();
+      if (context.addPrimaryKey(MBMessageFlag.class,flag.getPrimaryKeyObj())) {
+        itr.remove();
+      }
+ else {
+        flag.setUserUuid(flag.getUserUuid());
+      }
+    }
+    xml=xStream.toXML(flags);
+    el=root.addElement("message-board-flags");
+    tempDoc=reader.read(new StringReader(xml));
+    el.content().add(tempDoc.getRootElement().createCopy());
+    List bans=new ArrayList();
+    if (exportBans) {
+      bans=MBBanUtil.findByGroupId(context.getGroupId());
+      itr=bans.iterator();
+      while (itr.hasNext()) {
+        MBBan ban=(MBBan)itr.next();
+        if (context.addPrimaryKey(MBBan.class,ban.getPrimaryKeyObj())) {
+          itr.remove();
+        }
+ else {
+          ban.setBanUserUuid(ban.getBanUserUuid());
+          ban.setUserUuid(ban.getUserUuid());
+        }
+      }
+    }
+    xml=xStream.toXML(bans);
+    el=root.addElement("message-board-bans");
+    tempDoc=reader.read(new StringReader(xml));
+    el.content().add(tempDoc.getRootElement().createCopy());
+    return XMLFormatter.toString(doc);
+  }
+ catch (  Exception e) {
+    throw new PortletDataException(e);
+  }
+}

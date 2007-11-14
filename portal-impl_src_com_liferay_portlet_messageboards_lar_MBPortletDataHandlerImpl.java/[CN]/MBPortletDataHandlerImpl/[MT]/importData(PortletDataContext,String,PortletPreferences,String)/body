@@ -1,0 +1,72 @@
+{
+  Map parameterMap=context.getParameterMap();
+  boolean importData=MapUtil.getBoolean(parameterMap,_IMPORT_MESSAGE_BOARDS_DATA);
+  if (_log.isDebugEnabled()) {
+    if (importData) {
+      _log.debug("Importing data is enabled");
+    }
+ else {
+      _log.debug("Importing data is disabled");
+    }
+  }
+  if (!importData) {
+    return null;
+  }
+  boolean mergeData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.MERGE_DATA);
+  boolean importAttachments=MapUtil.getBoolean(parameterMap,_IMPORT_MESSAGE_BOARDS_ATTACHMENTS);
+  boolean importBans=MapUtil.getBoolean(parameterMap,_IMPORT_MESSAGE_BOARDS_BANS);
+  boolean importFlags=MapUtil.getBoolean(parameterMap,_IMPORT_MESSAGE_BOARDS_FLAGS);
+  try {
+    SAXReader reader=SAXReaderFactory.getInstance();
+    XStream xStream=new XStream();
+    Document doc=reader.read(new StringReader(data));
+    Element root=doc.getRootElement();
+    Element el=root.element("message-board-categories").element("list");
+    Document tempDoc=DocumentHelper.createDocument();
+    tempDoc.content().add(el.createCopy());
+    Map categoryPKs=CollectionFactory.getHashMap();
+    List categories=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
+    Iterator itr=categories.iterator();
+    while (itr.hasNext()) {
+      MBCategory category=(MBCategory)itr.next();
+      importCategory(context,mergeData,categoryPKs,category);
+    }
+    el=root.element("message-board-messages").element("list");
+    tempDoc=DocumentHelper.createDocument();
+    tempDoc.content().add(el.createCopy());
+    Map messagePKs=CollectionFactory.getHashMap();
+    Map threadPKs=CollectionFactory.getHashMap();
+    List messages=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
+    itr=messages.iterator();
+    while (itr.hasNext()) {
+      MBMessage message=(MBMessage)itr.next();
+      importMessage(context,mergeData,importAttachments,categoryPKs,messagePKs,threadPKs,message);
+    }
+    if (importFlags) {
+      el=root.element("message-board-flags").element("list");
+      tempDoc=DocumentHelper.createDocument();
+      tempDoc.content().add(el.createCopy());
+      List flags=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
+      itr=flags.iterator();
+      while (itr.hasNext()) {
+        MBMessageFlag flag=(MBMessageFlag)itr.next();
+        importFlag(context,messagePKs,flag);
+      }
+    }
+    if (importBans) {
+      el=root.element("message-board-bans").element("list");
+      tempDoc=DocumentHelper.createDocument();
+      tempDoc.content().add(el.createCopy());
+      List bans=(List)xStream.fromXML(XMLFormatter.toString(tempDoc));
+      itr=bans.iterator();
+      while (itr.hasNext()) {
+        MBBan ban=(MBBan)itr.next();
+        importBan(context,ban);
+      }
+    }
+    return null;
+  }
+ catch (  Exception e) {
+    throw new PortletDataException(e);
+  }
+}
