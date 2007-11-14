@@ -1,0 +1,118 @@
+{
+  boolean exportPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.EXPORT_PERMISSIONS);
+  boolean exportUserPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.EXPORT_USER_PERMISSIONS);
+  boolean exportPortletData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.EXPORT_PORTLET_DATA);
+  boolean exportPortletPreferences=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.EXPORT_PORTLET_PREFERENCES);
+  boolean exportRatings=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.EXPORT_RATINGS);
+  boolean exportTags=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.EXPORT_TAGS);
+  boolean exportTheme=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.EXPORT_THEME);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Export permissions " + exportPermissions);
+    _log.debug("Export user permissions " + exportUserPermissions);
+    _log.debug("Export portlet data " + exportPortletData);
+    _log.debug("Export portlet preferences " + exportPortletPreferences);
+    _log.debug("Export theme " + exportTheme);
+  }
+  StopWatch stopWatch=null;
+  if (_log.isInfoEnabled()) {
+    stopWatch=new StopWatch();
+    stopWatch.start();
+  }
+  LayoutCache layoutCache=new LayoutCache();
+  LayoutSet layoutSet=layoutSetLocalService.getLayoutSet(groupId,privateLayout);
+  long companyId=layoutSet.getCompanyId();
+  long defaultUserId=userLocalService.getDefaultUserId(companyId);
+  ZipWriter zipWriter=new ZipWriter();
+  PortletDataContext context=new PortletDataContextImpl(companyId,groupId,parameterMap,CollectionFactory.getHashSet(),zipWriter);
+  Group guestGroup=groupLocalService.getGroup(companyId,GroupImpl.GUEST);
+  Document doc=DocumentHelper.createDocument();
+  Element root=doc.addElement("root");
+  Element header=root.addElement("header");
+  header.addAttribute("build-number",String.valueOf(ReleaseInfo.getBuildNumber()));
+  header.addAttribute("group-id",String.valueOf(groupId));
+  header.addAttribute("private-layout",String.valueOf(privateLayout));
+  header.addAttribute("export-date",Time.getRFC822());
+  header.addAttribute("theme-id",layoutSet.getThemeId());
+  header.addAttribute("color-scheme-id",layoutSet.getColorSchemeId());
+  Set portletIds=new LinkedHashSet();
+  List layouts;
+  if ((layoutIds == null) || (layoutIds.length == 0)) {
+    layouts=getLayouts(groupId,privateLayout);
+  }
+ else {
+    layouts=getLayouts(groupId,privateLayout,layoutIds);
+  }
+  Iterator itr=layouts.iterator();
+  while (itr.hasNext()) {
+    Layout layout=(Layout)itr.next();
+    Element layoutEl=root.addElement("layout");
+    layoutEl.addAttribute("layout-id",String.valueOf(layout.getLayoutId()));
+    layoutEl.addElement("parent-layout-id").addText(String.valueOf(layout.getParentLayoutId()));
+    layoutEl.addElement("name").addCDATA(layout.getName());
+    layoutEl.addElement("title").addCDATA(layout.getTitle());
+    layoutEl.addElement("type").addText(layout.getType());
+    layoutEl.addElement("type-settings").addCDATA(layout.getTypeSettings());
+    layoutEl.addElement("hidden").addText(String.valueOf(layout.getHidden()));
+    layoutEl.addElement("friendly-url").addText(layout.getFriendlyURL());
+    layoutEl.addElement("theme-id").addText(layout.getThemeId());
+    layoutEl.addElement("color-scheme-id").addText(layout.getColorSchemeId());
+    layoutEl.addElement("priority").addText(String.valueOf(layout.getPriority()));
+    Element permissionsEl=layoutEl.addElement("permissions");
+    if (exportPermissions) {
+      exportLayoutPermissions(layoutCache,companyId,groupId,guestGroup,layout,permissionsEl,exportUserPermissions);
+    }
+    if (layout.getType().equals(LayoutImpl.TYPE_PORTLET)) {
+      LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
+      if (exportPortletData) {
+        exportPortletData(context,layout,layoutTypePortlet,layoutEl);
+      }
+      if (exportPortletPreferences) {
+        exportPortletPreferences(PortletKeys.PREFS_OWNER_ID_DEFAULT,PortletKeys.PREFS_OWNER_TYPE_LAYOUT,false,layout.getPlid(),layoutTypePortlet,layoutEl);
+        if (!layoutSet.isPrivateLayout()) {
+          exportPortletPreferences(defaultUserId,PortletKeys.PREFS_OWNER_TYPE_USER,true,layout.getPlid(),layoutTypePortlet,layoutEl);
+        }
+      }
+      if (exportPermissions) {
+        exportPortletPermissions(layoutCache,companyId,groupId,guestGroup,layout,layoutTypePortlet,portletIds,permissionsEl,exportUserPermissions);
+      }
+    }
+  }
+  if (exportPortletPreferences) {
+    exportPortletPreferences(groupId,PortletKeys.PREFS_OWNER_TYPE_GROUP,PortletKeys.PREFS_PLID_SHARED,false,root);
+  }
+  Element rolesEl=root.addElement("roles");
+  if (exportPermissions) {
+    exportLayoutRoles(layoutCache,companyId,groupId,rolesEl);
+  }
+  if (exportPermissions) {
+    exportPortletRoles(layoutCache,companyId,groupId,portletIds,rolesEl);
+  }
+  if (exportRatings) {
+    exportRatings(context,root);
+  }
+  if (exportTags) {
+    exportTags(context,root);
+  }
+  byte[] themeZip=null;
+  try {
+    if (exportTheme) {
+      themeZip=exportTheme(layoutSet);
+    }
+  }
+ catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Exporting layouts takes " + stopWatch.getTime() + " ms");
+  }
+  try {
+    zipWriter.addEntry("layouts.xml",XMLFormatter.toString(doc));
+    if (themeZip != null) {
+      zipWriter.addEntry("theme.zip",themeZip);
+    }
+    return zipWriter.finish();
+  }
+ catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+}
