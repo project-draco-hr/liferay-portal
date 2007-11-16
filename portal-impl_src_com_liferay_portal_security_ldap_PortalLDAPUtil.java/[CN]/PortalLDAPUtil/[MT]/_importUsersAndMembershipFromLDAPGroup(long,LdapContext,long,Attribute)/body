@@ -1,17 +1,38 @@
 {
+  Properties userMappings=getUserMappings(companyId);
   UserLocalServiceUtil.clearUserGroupUsers(userGroupId);
   for (int i=0; i < attr.size(); i++) {
-    String fullUserDN=(String)attr.get(i);
-    Attributes userAttr=null;
+    Attributes userAttrs=null;
+    String userDN=(String)attr.get(i);
     try {
-      userAttr=ctx.getAttributes(fullUserDN);
+      userAttrs=ctx.getAttributes(userDN);
     }
  catch (    NameNotFoundException nnfe) {
-      _log.error("LDAP user not found with fullUserDN " + fullUserDN);
+      _log.error("Trying to import nonexistent LDAP user that was " + "referenced from LDAP group with userDN " + userDN);
       _log.error(nnfe,nnfe);
       continue;
     }
-    User user=importLDAPUser(companyId,ctx,userAttr,StringPool.BLANK,false);
+    User user=null;
+    String emailAddress=LDAPUtil.getAttributeValue(userAttrs,userMappings.getProperty("emailAddress"));
+    try {
+      user=UserLocalServiceUtil.getUserByEmailAddress(companyId,emailAddress);
+    }
+ catch (    NoSuchUserException nsue) {
+      try {
+        if (_log.isDebugEnabled()) {
+          _log.debug("Adding user " + emailAddress + " at "+ userDN);
+        }
+        user=importLDAPUser(companyId,ctx,userAttrs,StringPool.BLANK,false);
+      }
+ catch (      Exception e) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Could not create user " + userDN);
+        }
+        if (_log.isDebugEnabled()) {
+          _log.debug(e,e);
+        }
+      }
+    }
     if (user != null) {
       if (_log.isDebugEnabled()) {
         _log.debug("Adding " + user.getUserId() + " to group "+ userGroupId);
