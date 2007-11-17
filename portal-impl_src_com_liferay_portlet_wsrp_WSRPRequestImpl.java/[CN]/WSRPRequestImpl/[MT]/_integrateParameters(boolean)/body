@@ -1,0 +1,73 @@
+{
+  final String MN="integrateParameter()";
+  if (_logger.isLogging(Logger.TRACE_HIGH)) {
+    _logger.entry(Logger.TRACE_HIGH,MN);
+  }
+  this._interactionState=_portletRequest.getParameter(Constants.INTERACTION_STATE);
+  this._naviState=_portletRequest.getParameter(Constants.NAVIGATIONAL_STATE);
+  if (this._naviState == null) {
+    this._naviState=_portletRequest.getParameter(WSRPProxyPortlet.NAVIGATIONAL_STATE);
+  }
+  ArrayList formParams=new ArrayList();
+  ArrayList uploadContexts=new ArrayList();
+  HttpServletRequest httpReq=PortalUtil.getHttpServletRequest(_portletRequest);
+  String contentType=httpReq.getContentType();
+  if (contentType != null && contentType.startsWith(ContentTypes.MULTIPART_FORM_DATA) && !renderPhase) {
+    ActionRequest actionRequest=(ActionRequest)_portletRequest;
+    UploadPortletRequest upr=PortalUtil.getUploadPortletRequest(actionRequest);
+    Enumeration paramNames=upr.getParameterNames();
+    while (paramNames.hasMoreElements()) {
+      String name=(String)paramNames.nextElement();
+      if (_isReservedParameter(name)) {
+        continue;
+      }
+      if (upr.isFormField(name)) {
+        _addFormField(formParams,name,upr.getParameterValues(name));
+      }
+ else {
+        UploadContext uploadContext=new UploadContext();
+        String partContentType=upr.getContentType(name);
+        uploadContext.setMimeType(partContentType);
+        StringMaker sm=new StringMaker();
+        sm.append("form-data; ");
+        sm.append("name=");
+        sm.append(name);
+        sm.append("; filename=");
+        sm.append(upr.getFileName(name));
+        NamedString[] mimeAttributes={new NamedString()};
+        mimeAttributes[0].setName("Content-Disposition");
+        mimeAttributes[0].setValue(sm.toString());
+        uploadContext.setMimeAttributes(mimeAttributes);
+        File file=upr.getFile(name);
+        byte[] fileBytes=null;
+        try {
+          fileBytes=FileUtil.getBytes(file);
+        }
+ catch (        IOException e) {
+          throw new IllegalStateException("Error reading multi-part file",e);
+        }
+        if (fileBytes == null) {
+          continue;
+        }
+        uploadContext.setUploadData(fileBytes);
+        uploadContexts.add(uploadContext);
+      }
+    }
+  }
+ else {
+    _addFormFields(formParams);
+  }
+  int formParamsSize=formParams.size();
+  if (formParamsSize > 0) {
+    _formParameters=new NamedString[formParamsSize];
+    formParams.toArray(_formParameters);
+  }
+  int uploadContextsSize=uploadContexts.size();
+  if (uploadContextsSize > 0) {
+    _uploadContexts=new UploadContext[uploadContextsSize];
+    uploadContexts.toArray(_uploadContexts);
+  }
+  if (_logger.isLogging(Logger.TRACE_HIGH)) {
+    _logger.exit(Logger.TRACE_HIGH,MN);
+  }
+}
