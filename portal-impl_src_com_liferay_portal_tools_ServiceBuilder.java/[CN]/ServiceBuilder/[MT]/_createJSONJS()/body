@@ -1,9 +1,7 @@
 {
-  StringMaker sm=new StringMaker();
+  StringMaker content=new StringMaker();
   if (_ejbList.size() > 0) {
-    sm.append("Liferay.Service." + _portletShortName + " = {\n");
-    sm.append("\tservicePackage: \"" + _packagePath + ".service.http.\"\n");
-    sm.append("};\n\n");
+    content.append(_processTemplate("json_js.ftl"));
   }
   for (int i=0; i < _ejbList.size(); i++) {
     Entity entity=(Entity)_ejbList.get(i);
@@ -19,31 +17,19 @@
         }
       }
       if (jsonMethods.size() > 0) {
-        sm.append("Liferay.Service." + _portletShortName + "."+ entity.getName()+ " = {\n");
-        sm.append("\tserviceClassName: Liferay.Service." + _portletShortName + ".servicePackage + \""+ entity.getName()+ "\" + Liferay.Service.classNameSuffix,\n\n");
-        Iterator itr=jsonMethods.iterator();
-        while (itr.hasNext()) {
-          String methodName=(String)itr.next();
-          sm.append("\t" + methodName + ": function(params, callback) {\n");
-          sm.append("\t\tparams.serviceClassName = this.serviceClassName;\n");
-          sm.append("\t\tparams.serviceMethodName = \"" + methodName + "\";\n\n");
-          sm.append("\t\treturn Liferay.Service.ajax(params, callback);\n");
-          sm.append("\t}");
-          if (itr.hasNext()) {
-            sm.append(",\n");
-          }
-          sm.append("\n");
-        }
-        sm.append("};\n\n");
+        Map context=_getContext();
+        context.put("entity",entity);
+        context.put("methods",jsonMethods);
+        content.append("\n\n");
+        content.append(_processTemplate("json_js_method.ftl",context));
       }
     }
   }
-  File xmlFile=new File(_jsonFileName);
-  if (!xmlFile.exists()) {
-    String content="";
-    FileUtil.write(xmlFile,content);
+  File jsonFile=new File(_jsonFileName);
+  if (!jsonFile.exists()) {
+    FileUtil.write(jsonFile,"");
   }
-  String oldContent=FileUtil.read(xmlFile);
+  String oldContent=FileUtil.read(jsonFile);
   String newContent=new String(oldContent);
   int oldBegin=oldContent.indexOf("Liferay.Service." + _portletShortName);
   int oldEnd=oldContent.lastIndexOf("Liferay.Service." + _portletShortName);
@@ -52,12 +38,12 @@
   int newEnd=newContent.lastIndexOf("Liferay.Service." + _portletShortName);
   newEnd=newContent.indexOf("};",newEnd);
   if (newBegin == -1) {
-    newContent=oldContent + "\n\n" + sm.toString().trim();
+    newContent=oldContent + "\n\n" + content.toString().trim();
   }
  else {
-    newContent=newContent.substring(0,oldBegin) + sm.toString().trim() + newContent.substring(oldEnd + 2,newContent.length());
+    newContent=newContent.substring(0,oldBegin) + content.toString().trim() + newContent.substring(oldEnd + 2,newContent.length());
   }
   if (!oldContent.equals(newContent)) {
-    FileUtil.write(xmlFile,newContent);
+    FileUtil.write(jsonFile,newContent);
   }
 }
