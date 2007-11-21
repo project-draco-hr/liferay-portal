@@ -1,6 +1,7 @@
 {
   Map parameterMap=context.getParameterMap();
-  boolean importData=MapUtil.getBoolean(parameterMap,_IMPORT_JOURNAL_DATA,_enableImport.getDefaultState());
+  boolean importData=MapUtil.getBoolean(parameterMap,_IMPORT_JOURNAL_DATA);
+  boolean staging=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.STAGING);
   if (_log.isDebugEnabled()) {
     if (importData) {
       _log.debug("Importing data is enabled");
@@ -9,100 +10,42 @@
       _log.debug("Importing data is disabled");
     }
   }
-  if (!importData) {
+  if (!importData && !staging) {
     return null;
   }
+  boolean mergeData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.MERGE_DATA);
   try {
-    JournalCreationStrategy creationStrategy=JournalCreationStrategyFactory.getInstance();
     XStream xStream=new XStream();
     Document doc=PortalUtil.readDocumentFromXML(data);
     Element root=doc.getRootElement();
-    Element el=root.element("articles").element("list");
+    Element el=root.element("journal-structures").element("list");
     Document tempDoc=DocumentHelper.createDocument();
     tempDoc.content().add(el.createCopy());
-    List articles=(List)xStream.fromXML(tempDoc.asXML());
-    Iterator itr=articles.iterator();
-    while (itr.hasNext()) {
-      JournalArticle article=(JournalArticle)itr.next();
-      article.setGroupId(context.getGroupId());
-      if (JournalArticleUtil.fetchByPrimaryKey(article.getPrimaryKey()) == null) {
-        article.setNew(true);
-        long authorId=creationStrategy.getAuthorUserId(context.getCompanyId(),context.getGroupId(),article);
-        if (authorId > 0) {
-          article.setUserId(authorId);
-          article.setUserName(creationStrategy.getAuthorUserName(context.getCompanyId(),context.getGroupId(),article));
-        }
-        long approvedById=creationStrategy.getApprovalUserId(context.getCompanyId(),context.getGroupId(),article);
-        if (approvedById > 0) {
-          article.setApprovedByUserId(approvedById);
-          article.setApprovedByUserName(creationStrategy.getApprovalUserName(context.getCompanyId(),context.getGroupId(),article));
-          article.setApproved(true);
-        }
- else {
-          article.setApprovedByUserId(0);
-          article.setApprovedByUserName(null);
-          article.setApproved(false);
-        }
-        String newContent=creationStrategy.getTransformedContent(context.getCompanyId(),context.getGroupId(),article);
-        if (newContent != null) {
-          article.setContent(newContent);
-        }
-        article=JournalArticleUtil.update(article);
-        boolean addCommunityPermissions=creationStrategy.addCommunityPermissions(context.getCompanyId(),context.getGroupId(),article);
-        boolean addGuestPermissions=creationStrategy.addGuestPermissions(context.getCompanyId(),context.getGroupId(),article);
-        JournalArticleLocalServiceUtil.addArticleResources(article,addCommunityPermissions,addGuestPermissions);
-      }
- else {
-        JournalArticleUtil.update(article,true);
-      }
-    }
-    el=root.element("structures").element("list");
-    tempDoc=DocumentHelper.createDocument();
-    tempDoc.content().add(el.createCopy());
+    Map structurePKs=CollectionFactory.getHashMap();
     List structures=(List)xStream.fromXML(tempDoc.asXML());
-    itr=structures.iterator();
+    Iterator itr=structures.iterator();
     while (itr.hasNext()) {
       JournalStructure structure=(JournalStructure)itr.next();
-      structure.setGroupId(context.getGroupId());
-      if (JournalStructureUtil.fetchByPrimaryKey(structure.getPrimaryKey()) == null) {
-        structure.setNew(true);
-        long authorId=creationStrategy.getAuthorUserId(context.getCompanyId(),context.getGroupId(),structure);
-        if (authorId > 0) {
-          structure.setUserId(authorId);
-          structure.setUserName(creationStrategy.getAuthorUserName(context.getCompanyId(),context.getGroupId(),structure));
-        }
-        structure=JournalStructureUtil.update(structure);
-        boolean addCommunityPermissions=creationStrategy.addCommunityPermissions(context.getCompanyId(),context.getGroupId(),structure);
-        boolean addGuestPermissions=creationStrategy.addGuestPermissions(context.getCompanyId(),context.getGroupId(),structure);
-        JournalStructureLocalServiceUtil.addStructureResources(structure,addCommunityPermissions,addGuestPermissions);
-      }
- else {
-        JournalStructureUtil.update(structure,true);
-      }
+      importStructure(context,mergeData,structurePKs,structure);
     }
-    el=root.element("templates").element("list");
+    el=root.element("journal-templates").element("list");
     tempDoc=DocumentHelper.createDocument();
     tempDoc.content().add(el.createCopy());
+    Map templatePKs=CollectionFactory.getHashMap();
     List templates=(List)xStream.fromXML(tempDoc.asXML());
     itr=templates.iterator();
     while (itr.hasNext()) {
       JournalTemplate template=(JournalTemplate)itr.next();
-      template.setGroupId(context.getGroupId());
-      if (JournalTemplateUtil.fetchByPrimaryKey(template.getPrimaryKey()) == null) {
-        template.setNew(true);
-        long authorId=creationStrategy.getAuthorUserId(context.getCompanyId(),context.getGroupId(),template);
-        if (authorId > 0) {
-          template.setUserId(authorId);
-          template.setUserName(creationStrategy.getAuthorUserName(context.getCompanyId(),context.getGroupId(),template));
-        }
-        template=JournalTemplateUtil.update(template);
-        boolean addCommunityPermissions=creationStrategy.addCommunityPermissions(context.getCompanyId(),context.getGroupId(),template);
-        boolean addGuestPermissions=creationStrategy.addGuestPermissions(context.getCompanyId(),context.getGroupId(),template);
-        JournalTemplateLocalServiceUtil.addTemplateResources(template,addCommunityPermissions,addGuestPermissions);
-      }
- else {
-        JournalTemplateUtil.update(template,true);
-      }
+      importTemplate(context,mergeData,structurePKs,templatePKs,template);
+    }
+    el=root.element("journal-articles").element("list");
+    tempDoc=DocumentHelper.createDocument();
+    tempDoc.content().add(el.createCopy());
+    List articles=(List)xStream.fromXML(tempDoc.asXML());
+    itr=articles.iterator();
+    while (itr.hasNext()) {
+      JournalArticle article=(JournalArticle)itr.next();
+      importArticle(context,mergeData,structurePKs,templatePKs,article);
     }
     return null;
   }

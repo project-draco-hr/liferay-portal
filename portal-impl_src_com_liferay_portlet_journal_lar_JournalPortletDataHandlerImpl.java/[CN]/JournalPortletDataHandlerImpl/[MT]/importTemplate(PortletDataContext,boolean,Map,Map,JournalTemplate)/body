@@ -1,0 +1,38 @@
+{
+  long userId=context.getUserId(template.getUserUuid());
+  long plid=context.getPlid();
+  String templateId=template.getTemplateId();
+  boolean autoTemplateId=false;
+  if ((Validator.isNumber(templateId)) || (JournalTemplateUtil.fetchByG_T(context.getGroupId(),templateId) != null)) {
+    autoTemplateId=true;
+  }
+  String parentStructureId=MapUtil.getString(structurePKs,template.getStructureId(),template.getStructureId());
+  boolean formatXsl=false;
+  boolean addCommunityPermissions=true;
+  boolean addGuestPermissions=true;
+  File smallFile=null;
+  if (template.isSmallImage()) {
+    byte[] byteArray=context.getZipReader().getEntryAsByteArray(getSmallImageDir(template));
+    smallFile=new File(getSmallImageDir(template));
+    FileUtil.write(smallFile,byteArray);
+  }
+  JournalTemplate existingTemplate=null;
+  if (mergeData) {
+    existingTemplate=JournalTemplateUtil.fetchByUUID_G(template.getUuid(),context.getGroupId());
+    if (existingTemplate == null) {
+      existingTemplate=JournalTemplateLocalServiceUtil.addTemplate(template.getUuid(),userId,templateId,autoTemplateId,plid,parentStructureId,template.getName(),template.getDescription(),template.getXsl(),formatXsl,template.getLangType(),template.isSmallImage(),template.getSmallImageURL(),smallFile,addCommunityPermissions,addGuestPermissions);
+    }
+ else {
+      existingTemplate=JournalTemplateLocalServiceUtil.updateTemplate(existingTemplate.getGroupId(),existingTemplate.getTemplateId(),existingTemplate.getStructureId(),template.getName(),template.getDescription(),template.getXsl(),formatXsl,template.getLangType(),template.isSmallImage(),template.getSmallImageURL(),smallFile);
+    }
+  }
+ else {
+    existingTemplate=JournalTemplateLocalServiceUtil.addTemplate(userId,templateId,autoTemplateId,plid,parentStructureId,template.getName(),template.getDescription(),template.getXsl(),formatXsl,template.getLangType(),template.isSmallImage(),template.getSmallImageURL(),smallFile,addCommunityPermissions,addGuestPermissions);
+  }
+  templatePKs.put(template.getTemplateId(),existingTemplate.getTemplateId());
+  if (!templateId.equals(existingTemplate.getTemplateId())) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("A template with the same ID (" + templateId + ") was "+ "found. A new ID was generated: "+ existingTemplate.getTemplateId());
+    }
+  }
+}
