@@ -1,15 +1,16 @@
 {
-  boolean exportPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.EXPORT_PERMISSIONS);
-  boolean exportUserPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.EXPORT_USER_PERMISSIONS);
-  boolean exportPortletData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.EXPORT_PORTLET_DATA);
-  boolean exportPortletPreferences=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.EXPORT_PORTLET_PREFERENCES);
-  boolean exportTags=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.EXPORT_TAGS);
-  boolean exportTheme=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.EXPORT_THEME);
+  boolean exportPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PERMISSIONS);
+  boolean exportUserPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.USER_PERMISSIONS);
+  boolean exportPortletData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_DATA);
+  boolean exportPortletSetup=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_SETUP);
+  boolean exportPortletUserPreferences=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_USER_PREFERENCES);
+  boolean exportTheme=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.THEME);
   if (_log.isDebugEnabled()) {
     _log.debug("Export permissions " + exportPermissions);
     _log.debug("Export user permissions " + exportUserPermissions);
     _log.debug("Export portlet data " + exportPortletData);
-    _log.debug("Export portlet preferences " + exportPortletPreferences);
+    _log.debug("Export portlet setup " + exportPortletSetup);
+    _log.debug("Export portlet user preferences " + exportPortletUserPreferences);
     _log.debug("Export theme " + exportTheme);
   }
   StopWatch stopWatch=null;
@@ -33,6 +34,7 @@
   header.addAttribute("export-date",Time.getRFC822());
   header.addAttribute("theme-id",layoutSet.getThemeId());
   header.addAttribute("color-scheme-id",layoutSet.getColorSchemeId());
+  header.addAttribute("type","layouts");
   Set portletIds=new LinkedHashSet();
   List layouts=null;
   if ((layoutIds == null) || (layoutIds.length == 0)) {
@@ -66,18 +68,20 @@
       if (exportPortletData) {
         exportPortletData(context,layout,layoutTypePortlet,layoutEl);
       }
-      if (exportPortletPreferences) {
+      if (exportPortletSetup) {
         exportPortletPreferences(PortletKeys.PREFS_OWNER_ID_DEFAULT,PortletKeys.PREFS_OWNER_TYPE_LAYOUT,false,layout.getPlid(),layoutTypePortlet,layoutEl);
-        if (!layoutSet.isPrivateLayout()) {
-          exportPortletPreferences(defaultUserId,PortletKeys.PREFS_OWNER_TYPE_USER,true,layout.getPlid(),layoutTypePortlet,layoutEl);
-        }
+        exportPortletPreferences(layout.getGroupId(),PortletKeys.PREFS_OWNER_TYPE_GROUP,false,layout.getPlid(),layoutTypePortlet,layoutEl);
+        exportPortletPreferences(layout.getCompanyId(),PortletKeys.PREFS_OWNER_TYPE_COMPANY,false,layout.getPlid(),layoutTypePortlet,layoutEl);
+      }
+      if (exportPortletUserPreferences) {
+        exportPortletPreferences(defaultUserId,PortletKeys.PREFS_OWNER_TYPE_USER,true,layout.getPlid(),layoutTypePortlet,layoutEl);
       }
       if (exportPermissions) {
         exportPortletPermissions(layoutCache,companyId,groupId,guestGroup,layout,layoutTypePortlet,portletIds,permissionsEl,exportUserPermissions);
       }
     }
   }
-  if (exportPortletPreferences) {
+  if (exportPortletUserPreferences) {
     exportPortletPreferences(groupId,PortletKeys.PREFS_OWNER_TYPE_GROUP,PortletKeys.PREFS_PLID_SHARED,false,root);
   }
   Element rolesEl=root.addElement("roles");
@@ -89,9 +93,7 @@
   }
   exportComments(context,root);
   exportRatings(context,root);
-  if (exportTags) {
-    exportTags(context,root);
-  }
+  exportTags(context,root);
   byte[] themeZip=null;
   try {
     if (exportTheme) {
@@ -102,7 +104,7 @@
     throw new SystemException(ioe);
   }
   if (_log.isInfoEnabled()) {
-    _log.info("Exporting layouts takes " + stopWatch.getTime() + " ms");
+    _log.info("Exporting layouts took " + stopWatch.getTime() + " ms");
   }
   try {
     zipWriter.addEntry("layouts.xml",XMLFormatter.toString(doc));
