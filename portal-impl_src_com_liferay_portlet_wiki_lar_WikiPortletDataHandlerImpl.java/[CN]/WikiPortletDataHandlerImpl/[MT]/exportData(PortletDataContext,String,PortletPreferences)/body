@@ -1,0 +1,50 @@
+{
+  try {
+    XStream xStream=new XStream();
+    Document doc=DocumentHelper.createDocument();
+    Element root=doc.addElement("wiki-data");
+    root.addAttribute("group-id",String.valueOf(context.getGroupId()));
+    List nodes=WikiNodeUtil.findByGroupId(context.getGroupId());
+    List pages=new ArrayList();
+    Iterator itr=nodes.iterator();
+    while (itr.hasNext()) {
+      WikiNode node=(WikiNode)itr.next();
+      if (context.addPrimaryKey(WikiNode.class,node.getPrimaryKeyObj())) {
+        itr.remove();
+      }
+ else {
+        node.setUserUuid(node.getUserUuid());
+        List nodePages=WikiPageUtil.findByNodeId(node.getNodeId());
+        pages.addAll(nodePages);
+      }
+    }
+    String xml=xStream.toXML(nodes);
+    Element el=root.addElement("wiki-nodes");
+    Document tempDoc=PortalUtil.readDocumentFromXML(xml);
+    el.content().add(tempDoc.getRootElement().createCopy());
+    itr=pages.iterator();
+    while (itr.hasNext()) {
+      WikiPage page=(WikiPage)itr.next();
+      if (context.addPrimaryKey(WikiPage.class,page.getPrimaryKeyObj())) {
+        itr.remove();
+      }
+ else {
+        page.setUserUuid(page.getUserUuid());
+        if (context.getBooleanParameter(_NAMESPACE,"comments")) {
+          context.addComments(WikiPage.class,new Long(page.getResourcePrimKey()));
+        }
+        if (context.getBooleanParameter(_NAMESPACE,"tags")) {
+          context.addTagsEntries(WikiPage.class,new Long(page.getResourcePrimKey()));
+        }
+      }
+    }
+    xml=xStream.toXML(pages);
+    el=root.addElement("wiki-pages");
+    tempDoc=PortalUtil.readDocumentFromXML(xml);
+    el.content().add(tempDoc.getRootElement().createCopy());
+    return doc.asXML();
+  }
+ catch (  Exception e) {
+    throw new PortletDataException(e);
+  }
+}
