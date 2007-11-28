@@ -1,73 +1,16 @@
 {
-  GetMethod getMethod=null;
-  String deploymentContext=ParamUtil.getString(req,"deploymentContext");
   try {
     String url=ParamUtil.getString(req,"url");
     URL urlObj=new URL(url);
-    HostConfiguration hostConfig=Http.getHostConfig(url.toString());
-    HttpClient client=Http.getClient(hostConfig);
-    getMethod=new GetMethod(url);
-    String fileName=null;
-    if (Validator.isNotNull(deploymentContext)) {
-      fileName=BaseDeployer.DEPLOY_TO_PREFIX + deploymentContext + ".war";
+    String host=urlObj.getHost();
+    if (host.endsWith(".sf.net") || host.endsWith(".sourceforge.net")) {
+      remoteDeploySourceForge(urlObj.getPath(),req);
     }
  else {
-      fileName=url.substring(url.lastIndexOf(StringPool.SLASH) + 1);
-      int pos=fileName.lastIndexOf(StringPool.PERIOD);
-      if (pos != -1) {
-        deploymentContext=fileName.substring(0,pos);
-      }
-    }
-    PluginPackageUtil.registerPluginPackageInstallation(deploymentContext);
-    int responseCode=client.executeMethod(hostConfig,getMethod);
-    if (responseCode != 200) {
-      SessionErrors.add(req,"errorConnectingToUrl",new Object[]{String.valueOf(responseCode)});
-      return;
-    }
-    long contentLength=getMethod.getResponseContentLength();
-    String progressId=ParamUtil.getString(req,Constants.PROGRESS_ID);
-    ProgressInputStream pis=new ProgressInputStream(req,getMethod.getResponseBodyAsStream(),contentLength,progressId);
-    String deployDir=PrefsPropsUtil.getString(PropsUtil.AUTO_DEPLOY_DEPLOY_DIR);
-    String tmpFilePath=deployDir + StringPool.SLASH + _DOWNLOAD_DIR+ StringPool.SLASH+ fileName;
-    File tmpFile=new File(tmpFilePath);
-    if (!tmpFile.getParentFile().exists()) {
-      tmpFile.getParentFile().mkdirs();
-    }
-    FileOutputStream fos=new FileOutputStream(tmpFile);
-    try {
-      pis.readAll(fos);
-      if (_log.isInfoEnabled()) {
-        _log.info("Downloaded plugin from " + urlObj + " has "+ pis.getTotalRead()+ " bytes");
-      }
-    }
-  finally {
-      pis.clearProgress();
-    }
-    getMethod.releaseConnection();
-    if (pis.getTotalRead() > 0) {
-      String destination=deployDir + StringPool.SLASH + fileName;
-      File destinationFile=new File(destination);
-      boolean moved=FileUtil.move(tmpFile,destinationFile);
-      if (!moved) {
-        FileUtil.copyFile(tmpFile,destinationFile);
-        FileUtil.delete(tmpFile);
-      }
-      SessionMessages.add(req,"pluginDownloaded");
-    }
- else {
-      SessionErrors.add(req,UploadException.class.getName());
+      remoteDeploy(url,urlObj,req,true);
     }
   }
  catch (  MalformedURLException murle) {
     SessionErrors.add(req,"invalidUrl",murle);
-  }
-catch (  IOException ioe) {
-    SessionErrors.add(req,"errorConnectingToUrl",ioe);
-  }
- finally {
-    if (getMethod != null) {
-      getMethod.releaseConnection();
-    }
-    PluginPackageUtil.endPluginPackageInstallation(deploymentContext);
   }
 }

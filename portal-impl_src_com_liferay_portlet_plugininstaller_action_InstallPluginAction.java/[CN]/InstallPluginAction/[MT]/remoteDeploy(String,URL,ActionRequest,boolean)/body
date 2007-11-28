@@ -1,0 +1,78 @@
+{
+  int responseCode=HttpServletResponse.SC_OK;
+  GetMethod getMethod=null;
+  String deploymentContext=ParamUtil.getString(req,"deploymentContext");
+  try {
+    HostConfiguration hostConfig=Http.getHostConfig(url);
+    HttpClient client=Http.getClient(hostConfig);
+    getMethod=new GetMethod(url);
+    String fileName=null;
+    if (Validator.isNotNull(deploymentContext)) {
+      fileName=BaseDeployer.DEPLOY_TO_PREFIX + deploymentContext + ".war";
+    }
+ else {
+      fileName=url.substring(url.lastIndexOf(StringPool.SLASH) + 1);
+      int pos=fileName.lastIndexOf(StringPool.PERIOD);
+      if (pos != -1) {
+        deploymentContext=fileName.substring(0,pos);
+      }
+    }
+    PluginPackageUtil.registerPluginPackageInstallation(deploymentContext);
+    responseCode=client.executeMethod(hostConfig,getMethod);
+    if (responseCode != HttpServletResponse.SC_OK) {
+      if (failOnError) {
+        SessionErrors.add(req,"errorConnectingToUrl",new Object[]{String.valueOf(responseCode)});
+      }
+      return responseCode;
+    }
+    long contentLength=getMethod.getResponseContentLength();
+    String progressId=ParamUtil.getString(req,Constants.PROGRESS_ID);
+    ProgressInputStream pis=new ProgressInputStream(req,getMethod.getResponseBodyAsStream(),contentLength,progressId);
+    String deployDir=PrefsPropsUtil.getString(PropsUtil.AUTO_DEPLOY_DEPLOY_DIR);
+    String tmpFilePath=deployDir + StringPool.SLASH + _DOWNLOAD_DIR+ StringPool.SLASH+ fileName;
+    File tmpFile=new File(tmpFilePath);
+    if (!tmpFile.getParentFile().exists()) {
+      tmpFile.getParentFile().mkdirs();
+    }
+    FileOutputStream fos=new FileOutputStream(tmpFile);
+    try {
+      pis.readAll(fos);
+      if (_log.isInfoEnabled()) {
+        _log.info("Downloaded plugin from " + urlObj + " has "+ pis.getTotalRead()+ " bytes");
+      }
+    }
+  finally {
+      pis.clearProgress();
+    }
+    getMethod.releaseConnection();
+    if (pis.getTotalRead() > 0) {
+      String destination=deployDir + StringPool.SLASH + fileName;
+      File destinationFile=new File(destination);
+      boolean moved=FileUtil.move(tmpFile,destinationFile);
+      if (!moved) {
+        FileUtil.copyFile(tmpFile,destinationFile);
+        FileUtil.delete(tmpFile);
+      }
+      SessionMessages.add(req,"pluginDownloaded");
+    }
+ else {
+      if (failOnError) {
+        SessionErrors.add(req,UploadException.class.getName());
+      }
+      responseCode=HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
+    }
+  }
+ catch (  MalformedURLException murle) {
+    SessionErrors.add(req,"invalidUrl",murle);
+  }
+catch (  IOException ioe) {
+    SessionErrors.add(req,"errorConnectingToUrl",ioe);
+  }
+ finally {
+    if (getMethod != null) {
+      getMethod.releaseConnection();
+    }
+    PluginPackageUtil.endPluginPackageInstallation(deploymentContext);
+  }
+  return responseCode;
+}
