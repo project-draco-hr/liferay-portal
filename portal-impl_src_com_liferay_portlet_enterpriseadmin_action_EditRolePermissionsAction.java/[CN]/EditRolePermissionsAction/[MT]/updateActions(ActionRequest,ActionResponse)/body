@@ -7,7 +7,6 @@
   if (Validator.isNull(modelResource)) {
     selResource=portletResource;
   }
-  List groupScopeActionIds=new ArrayList();
   List actions=ResourceActionsUtil.getResourceActions(themeDisplay.getCompanyId(),portletResource,modelResource);
   Collections.sort(actions,new ActionComparator(themeDisplay.getCompanyId(),themeDisplay.getLocale()));
   Role role=RoleServiceUtil.getRole(roleId);
@@ -22,7 +21,16 @@
         PermissionServiceUtil.setRolePermission(roleId,themeDisplay.getPortletGroupId(),selResource,ResourceImpl.SCOPE_GROUP_TEMPLATE,String.valueOf(GroupImpl.DEFAULT_PARENT_GROUP_ID),actionId);
       }
  else {
-        groupScopeActionIds.add(actionId);
+        String[] groupIds=StringUtil.split(ParamUtil.getString(req,"groupIds" + actionId));
+        if (groupIds.length == 0) {
+          SessionErrors.add(req,"missingGroupIdsForAction");
+          return;
+        }
+        groupIds=ArrayUtil.distinct(groupIds);
+        PermissionServiceUtil.unsetRolePermissions(roleId,themeDisplay.getPortletGroupId(),selResource,ResourceImpl.SCOPE_GROUP,actionId);
+        for (int j=0; j < groupIds.length; j++) {
+          PermissionServiceUtil.setRolePermission(roleId,themeDisplay.getPortletGroupId(),selResource,ResourceImpl.SCOPE_GROUP,groupIds[j],actionId);
+        }
       }
     }
  else {
@@ -32,12 +40,7 @@
     }
   }
   String redirect=ParamUtil.getString(req,"redirect");
-  if (groupScopeActionIds.size() == 0) {
-    SessionMessages.add(req,"permissionsUpdated");
-    redirect+="&" + Constants.CMD + "="+ Constants.VIEW;
-  }
- else {
-    redirect+="&groupScopePos=0&groupScopeActionIds=" + StringUtil.merge(groupScopeActionIds);
-  }
+  SessionMessages.add(req,"permissionsUpdated");
+  redirect+="&" + Constants.CMD + "="+ Constants.VIEW;
   res.sendRedirect(redirect);
 }
