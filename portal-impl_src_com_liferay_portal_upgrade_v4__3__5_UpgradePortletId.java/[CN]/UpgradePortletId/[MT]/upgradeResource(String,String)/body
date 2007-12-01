@@ -1,0 +1,28 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=HibernateUtil.getConnection();
+    ps=con.prepareStatement("select primKey from Resource_ where primKey like ?");
+    String primKeyLike="%" + PortletImpl.LAYOUT_SEPARATOR + oldRootPortletId+ PortletImpl.INSTANCE_SEPARATOR+ "%";
+    ps.setString(1,primKeyLike);
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      String oldPrimKey=rs.getString("primKey");
+      int pos=oldPrimKey.indexOf(PortletImpl.LAYOUT_SEPARATOR);
+      long plid=GetterUtil.getLong(oldPrimKey.substring(0,pos));
+      pos=oldPrimKey.indexOf(PortletImpl.INSTANCE_SEPARATOR);
+      String instanceId=oldPrimKey.substring(pos + PortletImpl.INSTANCE_SEPARATOR.length());
+      String newPrimKey=plid + PortletImpl.LAYOUT_SEPARATOR + newRootPortletId+ PortletImpl.INSTANCE_SEPARATOR+ instanceId;
+      runSQL("update Resource_ set primKey = '" + newPrimKey + "' where primKey = '"+ oldPrimKey+ "'");
+      String oldPortletId=oldRootPortletId + PortletImpl.INSTANCE_SEPARATOR + instanceId;
+      String newPortletId=newRootPortletId + PortletImpl.INSTANCE_SEPARATOR + instanceId;
+      upgradeLayout(plid,oldPortletId,newPortletId);
+      upgradePortletPreferences(oldPortletId,newPortletId);
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}
