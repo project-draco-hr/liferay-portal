@@ -1,32 +1,30 @@
 {
   String rank=StringPool.BLANK;
+  Group group=GroupLocalServiceUtil.getGroup(statsUser.getGroupId());
+  long companyId=group.getCompanyId();
   String[] ranks=LocalizationUtil.getPrefsValues(prefs,"ranks",languageId);
   for (int i=0; i < ranks.length; i++) {
     String[] kvp=StringUtil.split(ranks[i],StringPool.EQUAL);
-    String kvpName=kvp[0];
-    String kvpValue=kvp[1];
-    kvp=StringUtil.split(kvpValue,StringPool.COLON);
-    if (kvp.length > 1) {
-      if ("group".equals(kvp[0])) {
-        Group group=GroupLocalServiceUtil.getGroup(user.getGroupId());
-        UserGroup userGroup=UserGroupLocalServiceUtil.getUserGroup(group.getCompanyId(),kvp[1]);
-        if (UserLocalServiceUtil.hasUserGroupUser(userGroup.getUserGroupId(),user.getUserId())) {
-          rank=kvpName;
-          break;
-        }
+    String curRank=kvp[0];
+    String curRankValue=kvp[1];
+    String[] curRankValueKvp=StringUtil.split(curRankValue,StringPool.COLON);
+    if (curRankValueKvp.length <= 1) {
+      int kvpPosts=GetterUtil.getInteger(curRankValue);
+      if (statsUser.getMessageCount() >= kvpPosts) {
+        rank=curRank;
       }
- else       if ("role".equals(kvp[0])) {
-        Group group=GroupLocalServiceUtil.getGroup(user.getGroupId());
-        if (RoleLocalServiceUtil.hasUserRole(user.getUserId(),group.getCompanyId(),kvp[1],true)) {
-          rank=kvpName;
-          break;
-        }
+      continue;
+    }
+    String entityType=curRankValueKvp[0];
+    String entityValue=curRankValueKvp[1];
+    try {
+      if (_isEntityRank(companyId,statsUser,entityType,entityValue)) {
+        return curRank;
       }
     }
- else {
-      int kvpPosts=GetterUtil.getInteger(kvpValue);
-      if (user.getMessageCount() >= kvpPosts) {
-        rank=kvpName;
+ catch (    Exception e) {
+      if (_log.isWarnEnabled()) {
+        _log.warn(e);
       }
     }
   }
