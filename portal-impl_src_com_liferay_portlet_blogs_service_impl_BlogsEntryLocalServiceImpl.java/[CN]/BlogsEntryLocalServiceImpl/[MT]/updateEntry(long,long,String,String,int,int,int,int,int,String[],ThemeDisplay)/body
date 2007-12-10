@@ -1,0 +1,27 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  Date now=new Date();
+  Date displayDate=PortalUtil.getDate(displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,user.getTimeZone(),new EntryDisplayDateException());
+  validate(title,content);
+  BlogsEntry entry=blogsEntryPersistence.findByPrimaryKey(entryId);
+  entry.setModifiedDate(now);
+  entry.setTitle(title);
+  entry.setUrlTitle(getUniqueUrlTitle(entryId,entry.getGroupId(),title));
+  entry.setContent(content);
+  entry.setDisplayDate(displayDate);
+  blogsEntryPersistence.update(entry);
+  BlogsStatsUser statsUser=blogsStatsUserPersistence.fetchByG_U(entry.getGroupId(),entry.getUserId());
+  if (statsUser != null) {
+    statsUser.setLastPostDate(now);
+    blogsStatsUserPersistence.update(statsUser);
+  }
+  updateTagsAsset(userId,entry,tagsEntries);
+  try {
+    Indexer.updateEntry(entry.getCompanyId(),entry.getGroupId(),userId,entryId,title,content,tagsEntries);
+  }
+ catch (  IOException ioe) {
+    _log.error("Indexing " + entryId,ioe);
+  }
+  pingGoogle(entry,themeDisplay);
+  return entry;
+}
