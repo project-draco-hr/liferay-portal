@@ -1,0 +1,39 @@
+{
+  Date now=new Date();
+  MBMessage message=mbMessagePersistence.findByPrimaryKey(messageId);
+  long oldThreadId=message.getThreadId();
+  MBCategory category=mbCategoryPersistence.fetchByPrimaryKey(message.getCategoryId());
+  MBThread thread=addThread(message.getCategoryId(),message);
+  message.setThreadId(thread.getThreadId());
+  message.setParentMessageId(0);
+  mbMessagePersistence.update(message);
+  try {
+    if (!category.isDiscussion()) {
+      Indexer.updateMessage(message.getCompanyId(),category.getGroupId(),message.getUserName(),category.getCategoryId(),message.getThreadId(),message.getMessageId(),message.getSubject(),message.getBody(),message.getTagsEntries());
+    }
+  }
+ catch (  IOException ioe) {
+    _log.error("Indexing " + message.getMessageId(),ioe);
+  }
+  Iterator itr=mbMessagePersistence.findByT_P(oldThreadId,message.getMessageId()).iterator();
+  int messagesMoved=1;
+  while (itr.hasNext()) {
+    MBMessage curMessage=(MBMessage)itr.next();
+    curMessage.setCategoryId(message.getCategoryId());
+    curMessage.setThreadId(message.getThreadId());
+    mbMessagePersistence.update(curMessage);
+    messagesMoved++;
+    try {
+      if (!category.isDiscussion()) {
+        Indexer.updateMessage(curMessage.getCompanyId(),category.getGroupId(),curMessage.getUserName(),category.getCategoryId(),curMessage.getThreadId(),curMessage.getMessageId(),curMessage.getSubject(),curMessage.getBody(),curMessage.getTagsEntries());
+      }
+    }
+ catch (    IOException ioe) {
+      _log.error("Indexing " + curMessage.getMessageId(),ioe);
+    }
+  }
+  MBThread oldThread=mbThreadPersistence.findByPrimaryKey(oldThreadId);
+  oldThread.setMessageCount(oldThread.getMessageCount() - messagesMoved);
+  mbThreadPersistence.update(oldThread);
+  return thread;
+}

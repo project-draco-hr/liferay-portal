@@ -1,0 +1,23 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
+  PortletPreferences prefs=req.getPreferences();
+  long messageId=ParamUtil.getLong(req,"messageId");
+  MBMessage message=MBMessageLocalServiceUtil.getMessage(messageId);
+  long oldThreadId=message.getThreadId();
+  long oldParentMessageId=message.getParentMessageId();
+  MBThread newThread=MBThreadServiceUtil.splitThread(messageId,prefs,themeDisplay);
+  boolean addExplanationPost=ParamUtil.getBoolean(req,"addExplanationPost");
+  if (addExplanationPost) {
+    String subject=ParamUtil.getString(req,"subject");
+    String body=ParamUtil.getString(req,"body");
+    String portalURL=PortalUtil.getPortalURL(themeDisplay);
+    String layoutURL=PortalUtil.getLayoutURL(themeDisplay);
+    String newThreadURL=portalURL + layoutURL + "/message_boards/message/"+ message.getMessageId();
+    body=StringUtil.replace(body,new String[]{"[$NEW_THREAD_URL$]"},new String[]{newThreadURL});
+    MBMessageServiceUtil.addMessage(message.getCategoryId(),oldThreadId,oldParentMessageId,subject,body,new ArrayList(),false,MBThreadImpl.PRIORITY_NOT_GIVEN,null,prefs,true,true,themeDisplay);
+  }
+  PortletURL portletURL=((ActionResponseImpl)res).createRenderURL();
+  portletURL.setParameter("struts_action","/message_boards/view_message");
+  portletURL.setParameter("messageId",String.valueOf(newThread.getRootMessageId()));
+  res.sendRedirect(portletURL.toString());
+}
