@@ -1,0 +1,60 @@
+{
+  if (!path.equals(_PATH_PORTAL_LAYOUT)) {
+    return null;
+  }
+  long plid=ParamUtil.getLong(req,"p_l_id");
+  if (plid == 0) {
+    return null;
+  }
+  Layout layout=LayoutLocalServiceUtil.getLayout(plid);
+  String layoutFriendlyURL=PortalUtil.getLayoutFriendlyURL(layout,themeDisplay);
+  StringMaker sm=new StringMaker();
+  sm.append(layoutFriendlyURL);
+  String portletId=ParamUtil.getString(req,"p_p_id");
+  if (Validator.isNull(portletId)) {
+    return sm;
+  }
+  long companyId=PortalUtil.getCompanyId(req);
+  Portlet portlet=PortletLocalServiceUtil.getPortletById(companyId,portletId);
+  if (portlet == null) {
+    String strutsPath=path.substring(1,path.lastIndexOf(StringPool.SLASH));
+    portlet=PortletLocalServiceUtil.getPortletByStrutsPath(companyId,strutsPath);
+  }
+  if ((portlet == null) || !portlet.isActive()) {
+    sm.append(StringPool.QUESTION);
+    sm.append(req.getQueryString());
+    return sm;
+  }
+  String namespace=PortalUtil.getPortletNamespace(portletId);
+  FriendlyURLMapper friendlyURLMapper=portlet.getFriendlyURLMapperInstance();
+  if (friendlyURLMapper == null) {
+    sm.append(StringPool.QUESTION);
+    sm.append(req.getQueryString());
+    return sm;
+  }
+  PortletURLImpl portletURL=new PortletURLImpl(req,portletId,plid,false);
+  Iterator itr=req.getParameterMap().entrySet().iterator();
+  while (itr.hasNext()) {
+    Entry entry=(Entry)itr.next();
+    String key=(String)entry.getKey();
+    if (key.startsWith(namespace)) {
+      key=key.substring(namespace.length());
+      Object value=entry.getValue();
+      if (value instanceof String[]) {
+        portletURL.setParameter(key,(String[])entry.getValue());
+      }
+ else {
+        portletURL.setParameter(key,(String)entry.getValue());
+      }
+    }
+  }
+  String portletFriendlyURL=friendlyURLMapper.buildPath(portletURL);
+  if (portletFriendlyURL != null) {
+    sm.append(portletFriendlyURL);
+  }
+ else {
+    sm.append(StringPool.QUESTION);
+    sm.append(req.getQueryString());
+  }
+  return sm;
+}
