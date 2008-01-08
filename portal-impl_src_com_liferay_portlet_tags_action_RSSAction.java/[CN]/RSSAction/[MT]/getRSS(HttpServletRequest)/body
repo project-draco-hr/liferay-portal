@@ -1,0 +1,49 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
+  Layout layout=themeDisplay.getLayout();
+  long companyId=ParamUtil.getLong(req,"companyId");
+  long groupId=ParamUtil.getLong(req,"groupId");
+  int max=ParamUtil.getInteger(req,"max",SearchContainer.DEFAULT_DELTA);
+  String type=ParamUtil.getString(req,"type",RSSUtil.DEFAULT_TYPE);
+  double version=ParamUtil.getDouble(req,"version",RSSUtil.DEFAULT_VERSION);
+  String displayStyle=ParamUtil.getString(req,"displayStyle",RSSUtil.DISPLAY_STYLE_FULL_CONTENT);
+  String feedURL=StringPool.BLANK;
+  String entryURL=themeDisplay.getURLPortal() + themeDisplay.getPathMain() + "/tags/find_asset?";
+  String rss=StringPool.BLANK;
+  if (companyId > 0) {
+    try {
+      rss=TagsAssetServiceUtil.getCompanyAssetsRSS(companyId,max,type,version,displayStyle,feedURL,entryURL);
+    }
+ catch (    NoSuchCompanyException nsce) {
+      if (_log.isWarnEnabled()) {
+        _log.warn(nsce);
+      }
+    }
+  }
+ else   if (groupId > 0) {
+    try {
+      Group group=GroupLocalServiceUtil.getGroup(groupId);
+      companyId=group.getCompanyId();
+      long[] classNameIds=new long[0];
+      String[] allEntries=StringUtil.split(ParamUtil.getString(req,"tags"));
+      long[] entryIds=TagsEntryLocalServiceUtil.getEntryIds(companyId,allEntries);
+      String[] notEntries=StringUtil.split(ParamUtil.getString(req,"noTags"));
+      long[] notEntryIds=TagsEntryLocalServiceUtil.getEntryIds(companyId,notEntries);
+      boolean andOperator=false;
+      String orderByCol1=null;
+      String orderByCol2=null;
+      String orderByType1=null;
+      String orderByType2=null;
+      boolean excludeZeroViewCount=false;
+      Date publishDate=null;
+      Date expirationDate=null;
+      rss=TagsAssetServiceUtil.getAssetsRSS(groupId,classNameIds,entryIds,notEntryIds,andOperator,orderByCol1,orderByCol2,orderByType1,orderByType2,excludeZeroViewCount,publishDate,expirationDate,max,type,version,displayStyle,feedURL,entryURL);
+    }
+ catch (    NoSuchGroupException nsge) {
+      if (_log.isWarnEnabled()) {
+        _log.warn(nsge);
+      }
+    }
+  }
+  return rss.getBytes(StringPool.UTF8);
+}
