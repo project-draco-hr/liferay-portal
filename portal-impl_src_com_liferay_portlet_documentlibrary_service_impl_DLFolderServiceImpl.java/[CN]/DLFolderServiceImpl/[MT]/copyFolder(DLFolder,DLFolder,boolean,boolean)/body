@@ -1,0 +1,45 @@
+{
+  long srcFolderId=srcFolder.getFolderId();
+  long destFolderId=destFolder.getFolderId();
+  long companyId=srcFolder.getCompanyId();
+  long userId=getUserId();
+  Iterator filesItr=dlFileEntryLocalService.getFileEntries(srcFolderId).iterator();
+  while (filesItr.hasNext()) {
+    DLFileEntry fileEntry=(DLFileEntry)filesItr.next();
+    if (DLFileEntryPermission.contains(getPermissionChecker(),fileEntry,ActionKeys.VIEW)) {
+      String name=fileEntry.getTitleWithExtension();
+      String title=fileEntry.getTitleWithExtension();
+      String description=fileEntry.getDescription();
+      String[] tagsEntries=null;
+      String extraSettings=fileEntry.getExtraSettings();
+      File file=null;
+      try {
+        InputStream is=dlFileEntryLocalService.getFileAsStream(companyId,userId,srcFolderId,fileEntry.getName());
+        String fileName=SystemProperties.get(SystemProperties.TMP_DIR) + StringPool.SLASH + Time.getTimestamp()+ PwdGenerator.getPassword(PwdGenerator.KEY2,8);
+        file=new File(fileName);
+        FileUtil.write(file,is);
+      }
+ catch (      Exception e) {
+        _log.error(e,e);
+        continue;
+      }
+      dlFileEntryLocalService.addFileEntry(userId,destFolderId,name,title,description,tagsEntries,extraSettings,file,addCommunityPermissions,addGuestPermissions);
+    }
+  }
+  String uuid=StringPool.BLANK;
+  long groupId=destFolder.getGroupId();
+  Boolean addCommunityPermissionsObj=Boolean.valueOf(addCommunityPermissions);
+  Boolean addGuestPermissionsObj=Boolean.valueOf(addGuestPermissions);
+  String[] communityPermissions=null;
+  String[] guestPermissions=null;
+  Iterator folderItr=dlFolderLocalService.getFolders(srcFolder.getGroupId(),srcFolderId).iterator();
+  while (folderItr.hasNext()) {
+    DLFolder folder=(DLFolder)folderItr.next();
+    if (DLFolderPermission.contains(getPermissionChecker(),folder,ActionKeys.VIEW)) {
+      String name=folder.getName();
+      String description=folder.getDescription();
+      DLFolder subFolder=dlFolderLocalService.addFolderToGroup(uuid,userId,groupId,destFolderId,name,description,addCommunityPermissionsObj,addGuestPermissionsObj,communityPermissions,guestPermissions);
+      copyFolder(folder,subFolder,addCommunityPermissions,addGuestPermissions);
+    }
+  }
+}

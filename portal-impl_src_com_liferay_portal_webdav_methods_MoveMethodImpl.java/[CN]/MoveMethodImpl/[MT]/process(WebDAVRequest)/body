@@ -1,8 +1,30 @@
 {
   WebDAVStorage storage=webDavReq.getWebDAVStorage();
   HttpServletRequest req=webDavReq.getHttpServletRequest();
-  HttpServletResponse res=webDavReq.getHttpServletResponse();
-  String destination=WebDAVUtil.getDestination(req);
-  int status=storage.moveResource(webDavReq,destination);
-  res.setStatus(status);
+  String destination=WebDAVUtil.getDestination(req,storage.getRootPath());
+  StringBuffer infoMsg=new StringBuffer();
+  if (_log.isInfoEnabled()) {
+    infoMsg.append("Destination is " + destination);
+  }
+  int status=HttpServletResponse.SC_FORBIDDEN;
+  if (!destination.equals(webDavReq.getPath()) && (WebDAVUtil.getGroupId(destination) == webDavReq.getGroupId())) {
+    Resource resource=storage.getResource(webDavReq);
+    if (resource == null) {
+      status=HttpServletResponse.SC_NOT_FOUND;
+    }
+ else {
+      boolean overwrite=WebDAVUtil.isOverwrite(req);
+      if (_log.isInfoEnabled()) {
+        infoMsg.append(", overwrite is " + overwrite);
+        _log.info(infoMsg);
+      }
+      if (resource.isCollection()) {
+        status=storage.moveCollectionResource(webDavReq,resource,destination,overwrite);
+      }
+ else {
+        status=storage.moveSimpleResource(webDavReq,resource,destination,overwrite);
+      }
+    }
+  }
+  return status;
 }

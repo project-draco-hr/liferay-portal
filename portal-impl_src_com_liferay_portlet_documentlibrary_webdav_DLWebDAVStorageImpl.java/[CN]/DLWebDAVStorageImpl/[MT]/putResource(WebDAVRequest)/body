@@ -1,0 +1,42 @@
+{
+  File file=null;
+  try {
+    HttpServletRequest req=webDavReq.getHttpServletRequest();
+    String[] pathArray=webDavReq.getPathArray();
+    long userId=webDavReq.getUserId();
+    long parentFolderId=getParentFolderId(pathArray);
+    String name=WebDAVUtil.getEntryName(pathArray);
+    String title=WebDAVUtil.getEntryName(pathArray);
+    String description=StringPool.BLANK;
+    String[] tagsEntries=new String[0];
+    String extraSettings=StringPool.BLANK;
+    boolean addCommunityPermissions=true;
+    boolean addGuestPermissions=true;
+    String fileName=SystemProperties.get(SystemProperties.TMP_DIR) + StringPool.SLASH + Time.getTimestamp()+ PwdGenerator.getPassword(PwdGenerator.KEY2,8);
+    file=new File(fileName);
+    FileUtil.write(file,req.getInputStream());
+    if (_log.isDebugEnabled()) {
+      _log.debug("Writing request to file " + fileName);
+    }
+    DLFolderPermission.check(webDavReq.getPermissionChecker(),parentFolderId,ActionKeys.ADD_DOCUMENT);
+    DLFileEntryLocalServiceUtil.addFileEntry(userId,parentFolderId,name,title,description,tagsEntries,extraSettings,file,addCommunityPermissions,addGuestPermissions);
+    return HttpServletResponse.SC_CREATED;
+  }
+ catch (  PrincipalException pe) {
+    return HttpServletResponse.SC_FORBIDDEN;
+  }
+catch (  PortalException pe) {
+    if (_log.isWarnEnabled()) {
+      _log.warn(pe,pe);
+    }
+    return HttpServletResponse.SC_CONFLICT;
+  }
+catch (  Exception e) {
+    throw new WebDAVException(e);
+  }
+ finally {
+    if (file != null) {
+      file.delete();
+    }
+  }
+}

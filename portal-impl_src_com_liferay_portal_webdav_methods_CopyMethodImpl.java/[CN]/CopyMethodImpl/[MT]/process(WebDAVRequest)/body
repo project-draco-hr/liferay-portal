@@ -1,13 +1,40 @@
 {
   WebDAVStorage storage=webDavReq.getWebDAVStorage();
   HttpServletRequest req=webDavReq.getHttpServletRequest();
-  HttpServletResponse res=webDavReq.getHttpServletResponse();
-  String destination=WebDAVUtil.getDestination(req);
-  if (destination.equals(webDavReq.getPath())) {
-    res.setStatus(HttpServletResponse.SC_FORBIDDEN);
+  String destination=WebDAVUtil.getDestination(req,storage.getRootPath());
+  StringBuffer infoMsg=new StringBuffer();
+  if (_log.isInfoEnabled()) {
+    infoMsg.append("Destination is " + destination);
   }
+  int status=HttpServletResponse.SC_FORBIDDEN;
+  if (!destination.equals(webDavReq.getPath()) && (WebDAVUtil.getGroupId(destination) == webDavReq.getGroupId())) {
+    Resource resource=storage.getResource(webDavReq);
+    if (resource == null) {
+      status=HttpServletResponse.SC_NOT_FOUND;
+    }
+ else     if (resource.isCollection()) {
+      try {
+        boolean overwrite=WebDAVUtil.isOverwrite(req);
+        long depth=WebDAVUtil.getDepth(req);
+        if (_log.isInfoEnabled()) {
+          infoMsg.append(", overwrite is " + overwrite);
+          infoMsg.append(", depth is " + depth);
+          _log.info(infoMsg);
+        }
+        status=storage.copyCollectionResource(webDavReq,resource,destination,overwrite,depth);
+      }
+ catch (      InvalidDepthException e) {
+        status=HttpServletResponse.SC_BAD_REQUEST;
+      }
+    }
  else {
-    int status=storage.copyResource(webDavReq,destination);
-    res.setStatus(status);
+      boolean overwrite=WebDAVUtil.isOverwrite(req);
+      if (_log.isInfoEnabled()) {
+        infoMsg.append(", overwrite is " + overwrite);
+        _log.info(infoMsg);
+      }
+      status=storage.copySimpleResource(webDavReq,resource,destination,overwrite);
+    }
   }
+  return status;
 }

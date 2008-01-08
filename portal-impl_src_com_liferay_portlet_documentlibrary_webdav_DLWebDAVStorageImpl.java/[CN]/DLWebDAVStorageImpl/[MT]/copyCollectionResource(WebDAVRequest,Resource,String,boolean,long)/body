@@ -1,0 +1,51 @@
+{
+  try {
+    String[] destinationArray=WebDAVUtil.getPathArray(destination,true);
+    long parentFolderId=DLFolderImpl.DEFAULT_PARENT_FOLDER_ID;
+    try {
+      parentFolderId=getParentFolderId(destinationArray);
+    }
+ catch (    NoSuchFolderException nsfe) {
+      return HttpServletResponse.SC_CONFLICT;
+    }
+    DLFolder folder=(DLFolder)resource.getModel();
+    long groupId=WebDAVUtil.getGroupId(destination);
+    long plid=getPlid(groupId);
+    String name=WebDAVUtil.getEntryName(destinationArray);
+    String description=folder.getDescription();
+    boolean addCommunityPermissions=true;
+    boolean addGuestPermissions=true;
+    int status=HttpServletResponse.SC_CREATED;
+    if (overwrite) {
+      try {
+        DLFolder destFolder=DLFolderServiceUtil.getFolder(groupId,parentFolderId,name);
+        DLFolderServiceUtil.deleteFolder(destFolder.getFolderId());
+        status=HttpServletResponse.SC_NO_CONTENT;
+      }
+ catch (      NoSuchFolderException nsfe) {
+        try {
+          DLFileEntryServiceUtil.deleteFileEntryByTitle(parentFolderId,name);
+          status=HttpServletResponse.SC_NO_CONTENT;
+        }
+ catch (        NoSuchFileEntryException nsfee) {
+        }
+      }
+    }
+    if (depth == 0) {
+      DLFolderServiceUtil.addFolder(plid,parentFolderId,name,description,addCommunityPermissions,addGuestPermissions);
+    }
+ else {
+      DLFolderServiceUtil.copyFolder(plid,folder.getFolderId(),parentFolderId,name,description,addCommunityPermissions,addGuestPermissions);
+    }
+    return status;
+  }
+ catch (  DuplicateFolderNameException dfne) {
+    return HttpServletResponse.SC_PRECONDITION_FAILED;
+  }
+catch (  PrincipalException pe) {
+    return HttpServletResponse.SC_FORBIDDEN;
+  }
+catch (  Exception e) {
+    throw new WebDAVException(e);
+  }
+}

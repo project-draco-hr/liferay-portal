@@ -1,0 +1,45 @@
+{
+  try {
+    Object model=resource.getModel();
+    String[] destinationArray=WebDAVUtil.getPathArray(destination,true);
+    int status=HttpServletResponse.SC_CREATED;
+    DLFolder folder=(DLFolder)model;
+    long groupId=webDavReq.getGroupId();
+    long folderId=folder.getFolderId();
+    long parentFolderId=getParentFolderId(destinationArray);
+    String name=WebDAVUtil.getEntryName(destinationArray);
+    String description=folder.getDescription();
+    if (parentFolderId != folder.getParentFolderId()) {
+      name=folder.getName();
+    }
+    if (overwrite) {
+      try {
+        DLFolder destFolder=DLFolderServiceUtil.getFolder(groupId,parentFolderId,name);
+        DLFolderServiceUtil.deleteFolder(destFolder.getFolderId());
+        status=HttpServletResponse.SC_NO_CONTENT;
+      }
+ catch (      NoSuchFolderException nsfe) {
+        try {
+          DLFileEntryServiceUtil.deleteFileEntryByTitle(parentFolderId,name);
+          status=HttpServletResponse.SC_NO_CONTENT;
+        }
+ catch (        NoSuchFileEntryException nsfee) {
+        }
+      }
+    }
+    DLFolderServiceUtil.updateFolder(folderId,parentFolderId,name,description);
+    return status;
+  }
+ catch (  PrincipalException pe) {
+    return HttpServletResponse.SC_FORBIDDEN;
+  }
+catch (  DuplicateFileException dfe) {
+    return HttpServletResponse.SC_PRECONDITION_FAILED;
+  }
+catch (  DuplicateFolderNameException dfne) {
+    return HttpServletResponse.SC_PRECONDITION_FAILED;
+  }
+catch (  Exception e) {
+    throw new WebDAVException(e);
+  }
+}
