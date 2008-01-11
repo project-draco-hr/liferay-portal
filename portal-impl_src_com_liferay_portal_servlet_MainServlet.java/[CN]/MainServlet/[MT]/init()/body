@@ -32,10 +32,11 @@ catch (  ActionException ae) {
   if (_log.isDebugEnabled()) {
     _log.debug("Initialize portlets");
   }
+  List portlets=PortletLocalServiceUtil.getPortlets();
   try {
     String[] xmls=new String[]{Http.URLtoString(ctx.getResource("/WEB-INF/" + PortalUtil.PORTLET_XML_FILE_NAME_CUSTOM)),Http.URLtoString(ctx.getResource("/WEB-INF/portlet-ext.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-portlet.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-portlet-ext.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/web.xml"))};
     PortletLocalServiceUtil.initEAR(xmls,pluginPackage);
-    Iterator itr=PortletLocalServiceUtil.getPortlets().iterator();
+    Iterator itr=portlets.iterator();
     while (itr.hasNext()) {
       Portlet portlet=(Portlet)itr.next();
       PortletInstanceFactory.create(portlet,ctx);
@@ -60,6 +61,60 @@ catch (  ActionException ae) {
   try {
     String[] xmls=new String[]{Http.URLtoString(ctx.getResource("/WEB-INF/liferay-look-and-feel.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-look-and-feel-ext.xml"))};
     ThemeLocalUtil.init(ctx,null,true,xmls,pluginPackage);
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Scheduler");
+  }
+  try {
+    if (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.SCHEDULER_ENABLED))) {
+      Iterator itr=portlets.iterator();
+      while (itr.hasNext()) {
+        Portlet portlet=(Portlet)itr.next();
+        String className=portlet.getSchedulerClass();
+        if (portlet.isActive() && Validator.isNotNull(className)) {
+          Scheduler scheduler=(Scheduler)InstancePool.get(className);
+          scheduler.schedule();
+        }
+      }
+    }
+  }
+ catch (  ObjectAlreadyExistsException oaee) {
+  }
+catch (  Exception e) {
+    _log.error(e,e);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Activity tracker interpreter");
+  }
+  try {
+    Iterator itr=portlets.iterator();
+    while (itr.hasNext()) {
+      Portlet portlet=(Portlet)itr.next();
+      ActivityTrackerInterpreter activityTrackerInterpreter=portlet.getActivityTrackerInterpreterInstance();
+      if (portlet.isActive() && (activityTrackerInterpreter != null)) {
+        activityTrackerInterpreter=new ActivityTrackerInterpreterImpl(activityTrackerInterpreter);
+        ActivityTrackerInterpreterUtil.addActivityTrackerInterpreter(activityTrackerInterpreter);
+      }
+    }
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("SMTP message listener");
+  }
+  try {
+    Iterator itr=portlets.iterator();
+    while (itr.hasNext()) {
+      Portlet portlet=(Portlet)itr.next();
+      MessageListener smtpMessageListener=portlet.getSmtpMessageListenerInstance();
+      if (portlet.isActive() && (smtpMessageListener != null)) {
+        SMTPServerUtil.addListener(smtpMessageListener);
+      }
+    }
   }
  catch (  Exception e) {
     _log.error(e,e);
