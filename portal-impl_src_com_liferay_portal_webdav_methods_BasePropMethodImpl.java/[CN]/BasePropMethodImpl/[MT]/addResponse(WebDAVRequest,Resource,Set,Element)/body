@@ -1,0 +1,89 @@
+{
+  Element response=DocUtil.add(multistatus,"response",WebDAVUtil.DAV_URI);
+  DocUtil.add(response,"href",WebDAVUtil.DAV_URI,resource.getHREF());
+  Element successStat=DocUtil.add(response,"propstat",WebDAVUtil.DAV_URI);
+  Element successProp=DocUtil.add(successStat,"prop",WebDAVUtil.DAV_URI);
+  Element failureStat=DocUtil.add(response,"propstat",WebDAVUtil.DAV_URI);
+  Element failureProp=DocUtil.add(failureStat,"prop",WebDAVUtil.DAV_URI);
+  boolean hasSuccess=false;
+  boolean hasFailure=false;
+  if (props.contains(_ALL_PROPS_PAIR)) {
+    props.remove(_ALL_PROPS_PAIR);
+    if (resource.isCollection()) {
+      props.addAll(_ALL_COLLECTION_PROPS);
+    }
+ else {
+      props.addAll(_ALL_SIMPLE_PROPS);
+    }
+  }
+  if (props.contains(_CREATIONDATE_PAIR)) {
+    props.remove(_CREATIONDATE_PAIR);
+    DocUtil.add(successProp,_CREATIONDATE,WebDAVUtil.DAV_URI,resource.getCreateDate());
+    hasSuccess=true;
+  }
+  if (props.contains(_DISPLAYNAME_PAIR)) {
+    props.remove(_DISPLAYNAME_PAIR);
+    DocUtil.add(successProp,_DISPLAYNAME,WebDAVUtil.DAV_URI,resource.getDisplayName());
+    hasSuccess=true;
+  }
+  if (props.contains(_GETLASTMODIFIED_PAIR)) {
+    props.remove(_GETLASTMODIFIED_PAIR);
+    DocUtil.add(successProp,_GETLASTMODIFIED,WebDAVUtil.DAV_URI,resource.getModifiedDate());
+    hasSuccess=true;
+  }
+  if (props.contains(_GETCONTENTTYPE_PAIR)) {
+    props.remove(_GETCONTENTTYPE_PAIR);
+    DocUtil.add(successProp,_GETCONTENTTYPE,WebDAVUtil.DAV_URI,resource.getContentType());
+    hasSuccess=true;
+  }
+  if (props.contains(_GETCONTENTLENGTH_PAIR)) {
+    props.remove(_GETCONTENTLENGTH_PAIR);
+    if (!resource.isCollection()) {
+      DocUtil.add(successProp,_GETCONTENTLENGTH,WebDAVUtil.DAV_URI,resource.getSize());
+      hasSuccess=true;
+    }
+ else {
+      DocUtil.add(failureProp,_GETCONTENTLENGTH,WebDAVUtil.DAV_URI);
+      hasFailure=true;
+    }
+  }
+  if (props.contains(_RESOURCETYPE_PAIR)) {
+    props.remove(_RESOURCETYPE_PAIR);
+    Element resourceType=DocUtil.add(successProp,_RESOURCETYPE,WebDAVUtil.DAV_URI);
+    if (resource.isCollection()) {
+      DocUtil.add(resourceType,"collection",WebDAVUtil.DAV_URI);
+    }
+    hasSuccess=true;
+  }
+  WebDAVProps webDavProps=WebDAVPropsLocalServiceUtil.getWebDAVProps(webDavReq.getCompanyId(),resource.getClassName(),resource.getPrimaryKey());
+  Set customProps=webDavProps.getPropsSet();
+  Iterator itr=props.iterator();
+  while (itr.hasNext()) {
+    Tuple tuple=(Tuple)itr.next();
+    String name=(String)tuple.getObject(0);
+    Namespace namespace=(Namespace)tuple.getObject(1);
+    String prefix=namespace.getPrefix();
+    String uri=namespace.getURI();
+    if (customProps.contains(tuple)) {
+      String text=webDavProps.getText(name,prefix,uri);
+      DocUtil.add(successProp,name,namespace,text);
+      hasSuccess=true;
+    }
+ else {
+      DocUtil.add(failureProp,name,namespace);
+      hasFailure=true;
+    }
+  }
+  if (hasSuccess) {
+    DocUtil.add(successStat,"status",WebDAVUtil.DAV_URI,"HTTP/1.1 200 OK");
+  }
+ else {
+    response.remove(successStat);
+  }
+  if (hasFailure) {
+    DocUtil.add(failureStat,"status",WebDAVUtil.DAV_URI,"HTTP/1.1 404 Not Found");
+  }
+ else {
+    response.remove(failureStat);
+  }
+}
