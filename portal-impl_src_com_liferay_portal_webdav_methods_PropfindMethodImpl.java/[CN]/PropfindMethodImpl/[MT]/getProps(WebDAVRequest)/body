@@ -1,18 +1,38 @@
 {
-  HttpServletRequest req=webDavReq.getHttpServletRequest();
-  List props=new ArrayList();
-  String xml=WebDAVUtil.getRequestXML(req);
-  if (Validator.isNull(xml)) {
+  try {
+    Set props=new HashSet();
+    HttpServletRequest req=webDavReq.getHttpServletRequest();
+    String xml=new String(FileUtil.getBytes(req.getInputStream()));
+    if (Validator.isNull(xml)) {
+      return props;
+    }
+    if (_log.isDebugEnabled()) {
+      _log.debug("Request XML: \n" + XMLFormatter.toString(xml,"    "));
+    }
+    SAXReader reader=new SAXReader();
+    Document doc=reader.read(new StringReader(xml));
+    Element root=doc.getRootElement();
+    Element prop=root.element("prop");
+    Iterator itr=prop.elements().iterator();
+    while (itr.hasNext()) {
+      Element el=(Element)itr.next();
+      String prefix=el.getNamespacePrefix();
+      String uri=el.getNamespaceURI();
+      Namespace namespace=null;
+      if (uri.equals(WebDAVUtil.DAV_URI.getURI())) {
+        namespace=WebDAVUtil.DAV_URI;
+      }
+ else       if (Validator.isNull(prefix)) {
+        namespace=Namespace.get(uri);
+      }
+ else {
+        namespace=Namespace.get(prefix,uri);
+      }
+      props.add(new Tuple(el.getName(),namespace));
+    }
     return props;
   }
-  SAXReader reader=new SAXReader();
-  Document doc=reader.read(new StringReader(xml));
-  Element root=doc.getRootElement();
-  Element prop=root.element("prop");
-  Iterator itr=prop.elements().iterator();
-  while (itr.hasNext()) {
-    Element el=(Element)itr.next();
-    props.add(el.getName());
+ catch (  Exception e) {
+    throw new InvalidRequestException(e);
   }
-  return props;
 }
