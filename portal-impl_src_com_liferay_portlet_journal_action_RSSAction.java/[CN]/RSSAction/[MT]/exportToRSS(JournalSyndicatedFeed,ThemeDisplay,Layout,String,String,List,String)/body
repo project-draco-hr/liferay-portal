@@ -1,0 +1,84 @@
+{
+  SyndFeed feed=new SyndFeedImpl();
+  String contentField=synFeed.getContentField();
+  String portalURL=themeDisplay.getURLPortal();
+  feed.setFeedType(synFeed.getFeedType() + "_" + synFeed.getFeedVersion());
+  feed.setTitle(synFeed.getName());
+  feed.setLink(feedURL);
+  feed.setDescription(synFeed.getDescription());
+  List entries=new ArrayList();
+  feed.setEntries(entries);
+  Iterator itr=articles.iterator();
+  while (itr.hasNext()) {
+    JournalArticle article=(JournalArticle)itr.next();
+    SyndEntry syndEntry=new SyndEntryImpl();
+    syndEntry.setAuthor(article.getUserName());
+    SyndContent description=new SyndContentImpl();
+    description.setType("text");
+    description.setValue(article.getDescription());
+    syndEntry.setTitle(article.getTitle());
+    syndEntry.setPublishedDate(article.getCreateDate());
+    String entryURL=getEntryURL(themeDisplay,layout,article,synFeed.getTargetLayoutFriendlyUrl(),synFeed.getTargetPortletId());
+    syndEntry.setLink(entryURL);
+    SyndContent syndContent=new SyndContentImpl();
+    syndContent.setType("html");
+    String content=article.getDescription();
+    if (Validator.isNotNull(contentField)) {
+      if (contentField.equals(JournalSyndicatedFeedImpl.RENDERED_ARTICLE)) {
+        String rendererTemplateId=article.getTemplateId();
+        if (Validator.isNotNull(synFeed.getRendererTemplateId())) {
+          rendererTemplateId=synFeed.getRendererTemplateId();
+        }
+        JournalArticleDisplay articleDisplay=JournalContentUtil.getDisplay(synFeed.getGroupId(),article.getArticleId(),rendererTemplateId,languageId,themeDisplay,1,xmlRequest);
+        if (articleDisplay != null) {
+          content=articleDisplay.getContent();
+        }
+      }
+ else       if (!contentField.equals(JournalSyndicatedFeedImpl.ARTICLE_DESCRIPTION)) {
+        try {
+          Document doc=PortalUtil.readDocumentFromXML(article.getContent());
+          XPath xpathSelector=DocumentHelper.createXPath("//dynamic-element[@name='" + contentField + "']");
+          List results=xpathSelector.selectNodes(doc);
+          if (results.size() > 0) {
+            Element el=(Element)results.get(0);
+            String elType=el.attributeValue("type");
+            if (elType.equals("document_library")) {
+              String entryLink=el.element("dynamic-content").getTextTrim();
+              entryLink=StringUtil.replace(entryLink,new String[]{"@group_id@","@main_path@","@image_path@"},new String[]{String.valueOf(synFeed.getGroupId()),themeDisplay.getPathMain(),themeDisplay.getPathImage()});
+              syndEntry.setLinks(JournalRSSUtil.getDLLinksFromURL(portalURL,entryLink));
+              syndEntry.setEnclosures(JournalRSSUtil.getDLEnclosuresFromURL(portalURL,entryLink));
+            }
+ else             if (elType.equals("image") || elType.equals("image_gallery")) {
+              String entryLink=el.element("dynamic-content").getTextTrim();
+              entryLink=StringUtil.replace(entryLink,new String[]{"@group_id@","@main_path@","@image_path@"},new String[]{String.valueOf(synFeed.getGroupId()),themeDisplay.getPathMain(),themeDisplay.getPathImage()});
+              content=content + "<br/><br/><img src='" + portalURL+ entryLink+ "' />";
+              syndEntry.setLinks(JournalRSSUtil.getIGLinksFromURL(portalURL,entryLink));
+              syndEntry.setEnclosures(JournalRSSUtil.getIGEnclosuresFromURL(portalURL,entryLink));
+            }
+ else             if (elType.equals("text_box")) {
+              syndContent.setType("text");
+              content=el.element("dynamic-content").getTextTrim();
+            }
+ else {
+              content=el.element("dynamic-content").getTextTrim();
+            }
+          }
+        }
+ catch (        DocumentException de) {
+        }
+      }
+    }
+    syndContent.setValue(content);
+    syndEntry.setDescription(syndContent);
+    entries.add(syndEntry);
+  }
+  try {
+    return RSSUtil.export(feed);
+  }
+ catch (  FeedException fe) {
+    throw new SystemException(fe);
+  }
+catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+}
