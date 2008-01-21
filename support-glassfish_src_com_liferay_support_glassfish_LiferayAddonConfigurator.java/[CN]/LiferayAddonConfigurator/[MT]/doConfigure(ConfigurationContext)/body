@@ -1,0 +1,39 @@
+{
+  InstallationContext ic=cc.getInstallationContext();
+  String rootDir=ic.getInstallationDirectory().getAbsolutePath();
+  String domainDir=cc.getDomainDirectory().getAbsolutePath();
+  File tmpDir=LiferayAddonUtil.getTmpDir();
+  JarFactory jarFactory=new JarFactory(tmpDir.getAbsolutePath());
+  File liferayConfiguratorJar=new File(rootDir + "/lib/addons/liferay_configurator.jar");
+  jarFactory.unJar(liferayConfiguratorJar);
+  LiferayAddonUtil.copyFile(tmpDir + "/lportal.properties",domainDir + "/config/lportal.properties");
+  LiferayAddonUtil.copyFile(tmpDir + "/lportal.script",domainDir + "/config/lportal.script");
+  StringBuffer jarFiles=new StringBuffer();
+  StringBuffer warFiles=new StringBuffer();
+  File[] files=tmpDir.listFiles();
+  for (int i=0; i < files.length; i++) {
+    File file=(File)files[i];
+    String name=file.getName().toLowerCase();
+    if (name.endsWith(".jar")) {
+      LiferayAddonUtil.copyFile(file,new File(domainDir + "/lib/" + file.getName()));
+      jarFiles.append(file.getName());
+      jarFiles.append(":");
+    }
+ else     if (name.endsWith(".war")) {
+      LiferayAddonUtil.copyFile(file,new File(domainDir + "/autodeploy/" + file.getName()));
+      warFiles.append(file.getName());
+      warFiles.append(":");
+    }
+  }
+  Properties props=new Properties();
+  props.setProperty("jar.files",jarFiles.toString());
+  props.setProperty("war.files",warFiles.toString());
+  File propsFile=new File(domainDir + "/lib/liferay_addon.properties");
+  FileOutputStream fos=new FileOutputStream(propsFile);
+  props.store(fos,"");
+  fos.close();
+  ConfigurationType configurationType=cc.getConfigurationType();
+  if (configurationType == ConfigurationType.DAS) {
+    configureDomainXml(rootDir + "/lib/dtds",new File(domainDir + "/config/domain.xml"),new File(tmpDir + "/update-domain.xml"));
+  }
+}
