@@ -1,0 +1,48 @@
+{
+  validateTitle(newTitle);
+  if (isUsedTitle(nodeId,newTitle)) {
+    WikiPage page=getPage(nodeId,newTitle);
+    if ((page.getVersion() == WikiPageImpl.DEFAULT_VERSION) && page.getContent().equals(WikiPageImpl.MOVED)) {
+      deletePage(nodeId,newTitle);
+    }
+ else {
+      throw new PageAlreadyExistsException(newTitle);
+    }
+  }
+  List pageVersions=wikiPagePersistence.findByN_T(nodeId,title);
+  if (pageVersions.size() == 0) {
+    return;
+  }
+  Iterator itr=pageVersions.iterator();
+  while (itr.hasNext()) {
+    WikiPage page=(WikiPage)itr.next();
+    page.setTitle(newTitle);
+    wikiPagePersistence.update(page);
+  }
+  WikiPage page=(WikiPage)pageVersions.get(pageVersions.size() - 1);
+  WikiPageResource wikiPageResource=wikiPageResourcePersistence.findByPrimaryKey(page.getResourcePrimKey());
+  wikiPageResource.setTitle(newTitle);
+  wikiPageResourcePersistence.update(wikiPageResource);
+  double version=WikiPageImpl.DEFAULT_VERSION;
+  String content="Moved";
+  String format=page.getFormat();
+  boolean head=true;
+  String[] tagsEntries=null;
+  WikiPage stubPage=addPage(userId,nodeId,title,version,content,format,head,tagsEntries);
+  stubPage.setRedirectTo(page.getTitle());
+  wikiPagePersistence.update(stubPage);
+  List redirectedPages=wikiPagePersistence.findByN_R(nodeId,title);
+  itr=redirectedPages.iterator();
+  while (itr.hasNext()) {
+    WikiPage p=(WikiPage)itr.next();
+    p.setRedirectTo(newTitle);
+    wikiPagePersistence.update(p);
+  }
+  updateTagsAsset(userId,page,tagsEntries);
+  try {
+    Indexer.updatePage(page.getCompanyId(),page.getNode().getGroupId(),nodeId,newTitle,content,tagsEntries);
+  }
+ catch (  IOException ioe) {
+    _log.error("Indexing " + newTitle,ioe);
+  }
+}
