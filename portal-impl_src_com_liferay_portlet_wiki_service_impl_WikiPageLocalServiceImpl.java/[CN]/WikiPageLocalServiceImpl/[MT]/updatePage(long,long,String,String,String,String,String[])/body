@@ -1,0 +1,45 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  Date now=new Date();
+  validate(nodeId,content,format);
+  WikiPage page=null;
+  try {
+    page=getPage(nodeId,title);
+  }
+ catch (  NoSuchPageException nspe) {
+    page=addPage(userId,nodeId,title);
+  }
+  long resourcePrimKey=page.getResourcePrimKey();
+  page.setHead(false);
+  wikiPagePersistence.update(page);
+  double oldVersion=page.getVersion();
+  double newVersion=MathUtil.format(oldVersion + 0.1,1,1);
+  long pageId=counterLocalService.increment();
+  page=wikiPagePersistence.create(pageId);
+  page.setResourcePrimKey(resourcePrimKey);
+  page.setCompanyId(user.getCompanyId());
+  page.setUserId(user.getUserId());
+  page.setUserName(user.getFullName());
+  page.setCreateDate(now);
+  page.setNodeId(nodeId);
+  page.setTitle(title);
+  page.setVersion(newVersion);
+  page.setContent(content);
+  page.setFormat(format);
+  page.setHead(true);
+  if (redirectTo != null) {
+    page.setRedirectTo(redirectTo);
+  }
+  wikiPagePersistence.update(page);
+  WikiNode node=wikiNodePersistence.findByPrimaryKey(nodeId);
+  node.setLastPostDate(now);
+  wikiNodePersistence.update(node);
+  updateTagsAsset(userId,page,tagsEntries);
+  try {
+    Indexer.updatePage(node.getCompanyId(),node.getGroupId(),nodeId,title,content,tagsEntries);
+  }
+ catch (  IOException ioe) {
+    _log.error("Indexing " + page.getPrimaryKey(),ioe);
+  }
+  return page;
+}
