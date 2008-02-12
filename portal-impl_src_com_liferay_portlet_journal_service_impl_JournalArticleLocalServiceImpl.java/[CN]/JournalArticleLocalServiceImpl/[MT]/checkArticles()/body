@@ -1,12 +1,11 @@
 {
   Date now=new Date();
-  List articles=journalArticleFinder.findByExpirationDate(Boolean.FALSE,now,new Date(now.getTime() - CheckArticleJob.INTERVAL));
+  List<JournalArticle> articles=journalArticleFinder.findByExpirationDate(Boolean.FALSE,now,new Date(now.getTime() - CheckArticleJob.INTERVAL));
   if (_log.isDebugEnabled()) {
     _log.debug("Expiring " + articles.size() + " articles");
   }
-  Set companies=new HashSet();
-  for (int i=0; i < articles.size(); i++) {
-    JournalArticle article=(JournalArticle)articles.get(i);
+  Set<Long> companyIds=new HashSet<Long>();
+  for (  JournalArticle article : articles) {
     article.setApproved(false);
     article.setExpired(true);
     journalArticlePersistence.update(article);
@@ -19,19 +18,16 @@
       _log.error("Removing index " + article.getId(),ioe);
     }
     JournalContentUtil.clearCache(article.getGroupId(),article.getArticleId(),article.getTemplateId());
-    companies.add(new Long(article.getCompanyId()));
+    companyIds.add(article.getCompanyId());
   }
-  Iterator itr=companies.iterator();
-  while (itr.hasNext()) {
-    long companyId=((Long)itr.next()).longValue();
+  for (  long companyId : companyIds) {
     LayoutCacheUtil.clearCache(companyId);
   }
   articles=journalArticleFinder.findByReviewDate(now,new Date(now.getTime() - CheckArticleJob.INTERVAL));
   if (_log.isDebugEnabled()) {
     _log.debug("Sending review notifications for " + articles.size() + " articles");
   }
-  for (int i=0; i < articles.size(); i++) {
-    JournalArticle article=(JournalArticle)articles.get(i);
+  for (  JournalArticle article : articles) {
     Date reviewDate=article.getReviewDate();
     if (reviewDate != null) {
       long diff=reviewDate.getTime() - now.getTime();
