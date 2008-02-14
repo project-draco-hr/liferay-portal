@@ -1,0 +1,57 @@
+{
+  SyndFeed syndFeed=new SyndFeedImpl();
+  syndFeed.setFeedType(type + "_" + version);
+  syndFeed.setTitle(name);
+  syndFeed.setLink(feedURL);
+  syndFeed.setDescription(GetterUtil.getString(description,name));
+  List<SyndEntry> entries=new ArrayList<SyndEntry>();
+  syndFeed.setEntries(entries);
+  WikiPage lastPageVersion=null;
+  for (  WikiPage page : wikiPages) {
+    String author=PortalUtil.getUserName(page.getUserId(),page.getUserName());
+    String value=null;
+    String link=entryURL;
+    SyndEntry syndEntry=new SyndEntryImpl();
+    syndEntry.setAuthor(author);
+    syndEntry.setTitle(page.getTitle());
+    syndEntry.setPublishedDate(page.getCreateDate());
+    SyndContent syndContent=new SyndContentImpl();
+    syndContent.setType("html");
+    if (diff) {
+      if (lastPageVersion != null) {
+        link=entryURL + "?_" + PortletKeys.WIKI+ "_version="+ page.getVersion();
+        try {
+          value=getPageDiff(companyId,lastPageVersion,page,locale);
+          syndContent.setValue(value);
+          syndEntry.setDescription(syndContent);
+          entries.add(syndEntry);
+        }
+ catch (        Exception e) {
+          throw new SystemException(e);
+        }
+      }
+    }
+ else {
+      if (displayStyle.equals(RSSUtil.DISPLAY_STYLE_ABSTRACT)) {
+        value=StringUtil.shorten(Html.stripHtml(page.getContent()),_RSS_ABSTRACT_LENGTH,StringPool.BLANK);
+      }
+ else {
+        value=page.getContent();
+      }
+      syndContent.setValue(value);
+      syndEntry.setDescription(syndContent);
+      entries.add(syndEntry);
+    }
+    syndEntry.setLink(link);
+    lastPageVersion=page;
+  }
+  try {
+    return RSSUtil.export(syndFeed);
+  }
+ catch (  FeedException fe) {
+    throw new SystemException(fe);
+  }
+catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+}
