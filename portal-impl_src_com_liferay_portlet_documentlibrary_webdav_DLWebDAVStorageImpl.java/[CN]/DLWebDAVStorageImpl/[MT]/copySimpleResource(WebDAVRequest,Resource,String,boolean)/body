@@ -12,44 +12,28 @@
     DLFileEntry fileEntry=(DLFileEntry)resource.getModel();
     DLFileEntryPermission.check(webDavReq.getPermissionChecker(),fileEntry,ActionKeys.VIEW);
     long userId=webDavReq.getUserId();
+    long groupId=webDavReq.getGroupId();
     String name=StringPool.BLANK;
-    String sourceName=fileEntry.getName();
-    String title=WebDAVUtil.getEntryName(destinationArray);
+    String title=WebDAVUtil.getResourceName(destinationArray);
     String description=fileEntry.getDescription();
     String[] tagsEntries=new String[0];
     String extraSettings=fileEntry.getExtraSettings();
     boolean addCommunityPermissions=true;
     boolean addGuestPermissions=true;
-    String fileName=SystemProperties.get(SystemProperties.TMP_DIR) + StringPool.SLASH + Time.getTimestamp()+ PwdGenerator.getPassword(PwdGenerator.KEY2,8);
-    file=new File(fileName);
+    file=FileUtil.createTempFile();
     InputStream is=DLFileEntryLocalServiceUtil.getFileAsStream(fileEntry.getCompanyId(),userId,fileEntry.getFolderId(),fileEntry.getName());
     FileUtil.write(file,is);
     if (_log.isDebugEnabled()) {
-      _log.debug("Writing request to file " + fileName);
+      _log.debug("Writing request to file " + file.getName());
     }
     DLFolderPermission.check(webDavReq.getPermissionChecker(),parentFolderId,ActionKeys.ADD_DOCUMENT);
     int status=HttpServletResponse.SC_CREATED;
     if (overwrite) {
-      try {
-        long groupId=webDavReq.getGroupId();
-        DLFolderServiceUtil.deleteFolder(groupId,parentFolderId,title);
-        DLFileEntryLocalServiceUtil.addFileEntry(userId,parentFolderId,name,title,description,tagsEntries,extraSettings,file,addCommunityPermissions,addGuestPermissions);
+      if (deleteResource(groupId,parentFolderId,title)) {
         status=HttpServletResponse.SC_NO_CONTENT;
       }
- catch (      NoSuchFolderException nsfe) {
-        DLFileEntry destFile=DLFileEntryLocalServiceUtil.addOrOverwriteFileEntry(userId,parentFolderId,name,sourceName,title,description,tagsEntries,extraSettings,file,addCommunityPermissions,addGuestPermissions);
-        if (destFile.getVersion() > 1.0) {
-          status=HttpServletResponse.SC_NO_CONTENT;
-        }
- else {
-          status=HttpServletResponse.SC_CREATED;
-        }
-      }
     }
- else {
-      DLFileEntryLocalServiceUtil.addFileEntry(userId,parentFolderId,name,title,description,tagsEntries,extraSettings,file,addCommunityPermissions,addGuestPermissions);
-      status=HttpServletResponse.SC_CREATED;
-    }
+    DLFileEntryLocalServiceUtil.addFileEntry(userId,parentFolderId,name,title,description,tagsEntries,extraSettings,file,addCommunityPermissions,addGuestPermissions);
     return status;
   }
  catch (  DuplicateFolderNameException dfne) {

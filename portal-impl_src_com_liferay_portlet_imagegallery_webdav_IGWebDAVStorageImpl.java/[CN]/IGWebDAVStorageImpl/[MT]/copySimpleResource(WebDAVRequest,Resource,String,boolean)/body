@@ -1,0 +1,53 @@
+{
+  File file=null;
+  try {
+    IGImage image=(IGImage)resource.getModel();
+    String[] destinationArray=WebDAVUtil.getPathArray(destination,true);
+    long parentFolderId;
+    try {
+      parentFolderId=getParentFolderId(destinationArray);
+    }
+ catch (    NoSuchFolderException nsfe) {
+      return HttpServletResponse.SC_CONFLICT;
+    }
+    long groupId=WebDAVUtil.getGroupId(destination);
+    String name=WebDAVUtil.getResourceName(destinationArray);
+    String srcName=image.getNameWithExtension();
+    String contentType=ContentTypeUtil.getContentType(srcName);
+    String description=image.getDescription();
+    String[] tagsEntries=new String[0];
+    boolean addCommunityPermissions=true;
+    boolean addGuestPermissions=true;
+    file=FileUtil.createTempFile(image.getImageType());
+    InputStream is=resource.getContentAsStream();
+    FileUtil.write(file,is);
+    if (_log.isDebugEnabled()) {
+      _log.debug("Writing request to file " + file.getName());
+    }
+    int status=HttpServletResponse.SC_CREATED;
+    if (overwrite) {
+      if (deleteResource(groupId,parentFolderId,name)) {
+        status=HttpServletResponse.SC_NO_CONTENT;
+      }
+    }
+    IGImageServiceUtil.addImage(parentFolderId,name,description,file,contentType,tagsEntries,addCommunityPermissions,addGuestPermissions);
+    return status;
+  }
+ catch (  DuplicateFolderNameException dfne) {
+    return HttpServletResponse.SC_PRECONDITION_FAILED;
+  }
+catch (  DuplicateFileException dfe) {
+    return HttpServletResponse.SC_PRECONDITION_FAILED;
+  }
+catch (  PrincipalException pe) {
+    return HttpServletResponse.SC_FORBIDDEN;
+  }
+catch (  Exception e) {
+    throw new WebDAVException(e);
+  }
+ finally {
+    if (file != null) {
+      file.delete();
+    }
+  }
+}
