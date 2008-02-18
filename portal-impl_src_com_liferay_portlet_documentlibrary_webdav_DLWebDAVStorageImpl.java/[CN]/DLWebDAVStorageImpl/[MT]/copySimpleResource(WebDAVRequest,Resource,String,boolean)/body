@@ -2,7 +2,7 @@
   File file=null;
   try {
     String[] destinationArray=WebDAVUtil.getPathArray(destination,true);
-    long parentFolderId;
+    long parentFolderId=DLFolderImpl.DEFAULT_PARENT_FOLDER_ID;
     try {
       parentFolderId=getParentFolderId(destinationArray);
     }
@@ -10,30 +10,25 @@
       return HttpServletResponse.SC_CONFLICT;
     }
     DLFileEntry fileEntry=(DLFileEntry)resource.getModel();
-    DLFileEntryPermission.check(webDavReq.getPermissionChecker(),fileEntry,ActionKeys.VIEW);
+    long groupId=WebDAVUtil.getGroupId(destination);
     long userId=webDavReq.getUserId();
-    long groupId=webDavReq.getGroupId();
     String name=StringPool.BLANK;
     String title=WebDAVUtil.getResourceName(destinationArray);
     String description=fileEntry.getDescription();
-    String[] tagsEntries=new String[0];
+    String[] tagsEntries=null;
     String extraSettings=fileEntry.getExtraSettings();
-    boolean addCommunityPermissions=true;
-    boolean addGuestPermissions=true;
-    file=FileUtil.createTempFile();
+    file=FileUtil.createTempFile(FileUtil.getExtension(fileEntry.getName()));
     InputStream is=DLFileEntryLocalServiceUtil.getFileAsStream(fileEntry.getCompanyId(),userId,fileEntry.getFolderId(),fileEntry.getName());
     FileUtil.write(file,is);
-    if (_log.isDebugEnabled()) {
-      _log.debug("Writing request to file " + file.getName());
-    }
-    DLFolderPermission.check(webDavReq.getPermissionChecker(),parentFolderId,ActionKeys.ADD_DOCUMENT);
+    boolean addCommunityPermissions=true;
+    boolean addGuestPermissions=true;
     int status=HttpServletResponse.SC_CREATED;
     if (overwrite) {
       if (deleteResource(groupId,parentFolderId,title)) {
         status=HttpServletResponse.SC_NO_CONTENT;
       }
     }
-    DLFileEntryLocalServiceUtil.addFileEntry(userId,parentFolderId,name,title,description,tagsEntries,extraSettings,file,addCommunityPermissions,addGuestPermissions);
+    DLFileEntryServiceUtil.addFileEntry(parentFolderId,name,title,description,tagsEntries,extraSettings,file,addCommunityPermissions,addGuestPermissions);
     return status;
   }
  catch (  DuplicateFolderNameException dfne) {
