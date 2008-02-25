@@ -3,47 +3,47 @@
   if ((portlet.isInstanceable()) && (PortletImpl.getInstanceId(portlet.getPortletId()) != null)) {
     instanceable=true;
   }
-  Map portletInstances=(Map)_pool.get(portlet.getRootPortletId());
+  Map<String,InvokerPortlet> portletInstances=_pool.get(portlet.getRootPortletId());
   if (portletInstances == null) {
-    portletInstances=CollectionFactory.getSyncHashMap();
+    portletInstances=new ConcurrentHashMap<String,InvokerPortlet>();
     _pool.put(portlet.getRootPortletId(),portletInstances);
   }
-  CachePortlet instanceCachePortletInstance=null;
+  InvokerPortlet instanceInvokerPortletInstance=null;
   if (instanceable) {
-    instanceCachePortletInstance=(CachePortlet)portletInstances.get(portlet.getPortletId());
+    instanceInvokerPortletInstance=portletInstances.get(portlet.getPortletId());
   }
-  CachePortlet rootCachePortletInstance=null;
-  if (instanceCachePortletInstance == null) {
-    rootCachePortletInstance=(CachePortlet)portletInstances.get(portlet.getRootPortletId());
-    if (rootCachePortletInstance == null) {
+  InvokerPortlet rootInvokerPortletInstance=null;
+  if (instanceInvokerPortletInstance == null) {
+    rootInvokerPortletInstance=portletInstances.get(portlet.getRootPortletId());
+    if (rootInvokerPortletInstance == null) {
       PortletConfig portletConfig=PortletConfigFactory.create(portlet,ctx);
       if (portlet.isWARFile()) {
-        PortletContextWrapper pcw=PortletContextPool.get(portlet.getRootPortletId());
-        rootCachePortletInstance=_init(portlet,portletConfig,pcw.getPortletInstance());
+        PortletBag portletBag=PortletBagPool.get(portlet.getRootPortletId());
+        rootInvokerPortletInstance=_init(portlet,portletConfig,portletBag.getPortletInstance());
       }
  else {
-        rootCachePortletInstance=_init(portlet,portletConfig);
+        rootInvokerPortletInstance=_init(portlet,portletConfig);
       }
-      portletInstances.put(portlet.getRootPortletId(),rootCachePortletInstance);
+      portletInstances.put(portlet.getRootPortletId(),rootInvokerPortletInstance);
     }
   }
   if (instanceable) {
-    if (instanceCachePortletInstance == null) {
-      javax.portlet.Portlet portletInstance=rootCachePortletInstance.getPortletInstance();
+    if (instanceInvokerPortletInstance == null) {
+      javax.portlet.Portlet portletInstance=rootInvokerPortletInstance.getPortletInstance();
       PortletConfig portletConfig=PortletConfigFactory.create(portlet,ctx);
       PortletContext portletCtx=portletConfig.getPortletContext();
-      Integer expCache=rootCachePortletInstance.getExpCache();
-      boolean facesPortlet=rootCachePortletInstance.isFacesPortlet();
-      boolean strutsPortlet=rootCachePortletInstance.isStrutsPortlet();
-      boolean strutsBridgePortlet=rootCachePortletInstance.isStrutsBridgePortlet();
-      instanceCachePortletInstance=new CachePortlet(portletInstance,portletConfig,portletCtx,expCache,facesPortlet,strutsPortlet,strutsBridgePortlet);
-      portletInstances.put(portlet.getPortletId(),instanceCachePortletInstance);
+      Integer expCache=rootInvokerPortletInstance.getExpCache();
+      boolean facesPortlet=rootInvokerPortletInstance.isFacesPortlet();
+      boolean strutsPortlet=rootInvokerPortletInstance.isStrutsPortlet();
+      boolean strutsBridgePortlet=rootInvokerPortletInstance.isStrutsBridgePortlet();
+      instanceInvokerPortletInstance=new InvokerPortlet(portlet,portletInstance,portletConfig,portletCtx,facesPortlet,strutsPortlet,strutsBridgePortlet);
+      portletInstances.put(portlet.getPortletId(),instanceInvokerPortletInstance);
     }
   }
  else {
-    if (rootCachePortletInstance != null) {
-      instanceCachePortletInstance=rootCachePortletInstance;
+    if (rootInvokerPortletInstance != null) {
+      instanceInvokerPortletInstance=rootInvokerPortletInstance;
     }
   }
-  return instanceCachePortletInstance;
+  return instanceInvokerPortletInstance;
 }

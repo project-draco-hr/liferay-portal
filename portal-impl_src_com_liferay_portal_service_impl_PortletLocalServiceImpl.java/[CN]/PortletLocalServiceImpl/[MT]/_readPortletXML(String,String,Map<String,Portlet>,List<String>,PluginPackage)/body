@@ -117,5 +117,44 @@
     }
     portletModel.getUserAttributes().addAll(userAttributes);
   }
+  Map<String,PortletFilter> portletFilters=new HashMap<String,PortletFilter>();
+  itr1=root.elements("filter").iterator();
+  while (itr1.hasNext()) {
+    Element filter=itr1.next();
+    String filterName=filter.elementText("filter-name");
+    String filterClass=filter.elementText("filter-class");
+    Set<String> lifecycles=new LinkedHashSet<String>();
+    Iterator<Element> itr2=filter.elements("lifecycle").iterator();
+    while (itr2.hasNext()) {
+      Element lifecycle=itr2.next();
+      lifecycles.add(lifecycle.getText());
+    }
+    Map<String,String> initParams=new HashMap<String,String>();
+    itr2=filter.elements("init-param").iterator();
+    while (itr2.hasNext()) {
+      Element initParam=itr2.next();
+      initParams.put(initParam.elementText("name"),initParam.elementText("value"));
+    }
+    PortletFilter portletFilter=new PortletFilterImpl(filterName,filterClass,lifecycles,initParams,servletContextName);
+    portletFilters.put(filterName,portletFilter);
+  }
+  itr1=root.elements("filter-mapping").iterator();
+  while (itr1.hasNext()) {
+    Element filterMapping=itr1.next();
+    String filterName=filterMapping.elementText("filter-name");
+    String portletName=filterMapping.elementText("portlet-name");
+    PortletFilter portletFilter=portletFilters.get(filterName);
+    if (portletFilter == null) {
+      _log.error("Filter mapping references unnknown filter name " + filterName);
+      continue;
+    }
+    List<Portlet> portletModels=_getPortletsByPortletName(portletName,servletContextName,portletsPool);
+    if (portletModels.size() == 0) {
+      _log.error("Filter mapping with filter name " + filterName + " references unnknown portlet name "+ portletName);
+    }
+    for (    Portlet portletModel : portletModels) {
+      portletModel.getPortletFilters().put(filterName,portletFilter);
+    }
+  }
   return portletIds;
 }

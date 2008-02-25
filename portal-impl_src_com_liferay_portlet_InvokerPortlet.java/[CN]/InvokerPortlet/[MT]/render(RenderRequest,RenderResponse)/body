@@ -1,0 +1,43 @@
+{
+  PortletException portletException=(PortletException)req.getAttribute(_portletId + PortletException.class.getName());
+  if (portletException != null) {
+    throw portletException;
+  }
+  StopWatch stopWatch=null;
+  if (_log.isDebugEnabled()) {
+    stopWatch=new StopWatch();
+    stopWatch.start();
+  }
+  String remoteUser=req.getRemoteUser();
+  if ((remoteUser == null) || (_expCache == null) || (_expCache.intValue() == 0)) {
+    invoke(req,res,false);
+  }
+ else {
+    RenderResponseImpl resImpl=(RenderResponseImpl)res;
+    StringServletResponse stringServletRes=(StringServletResponse)resImpl.getHttpServletResponse();
+    PortletSession ses=req.getPortletSession();
+    long now=System.currentTimeMillis();
+    Layout layout=(Layout)req.getAttribute(WebKeys.LAYOUT);
+    Map sesResponses=getResponses(ses);
+    String sesResponseId=encodeResponseKey(layout.getPlid(),_portletId,LanguageUtil.getLanguageId(req));
+    InvokerPortletResponse response=(InvokerPortletResponse)sesResponses.get(sesResponseId);
+    if (response == null) {
+      invoke(req,res,false);
+      response=new InvokerPortletResponse(resImpl.getTitle(),stringServletRes.getString(),now + Time.SECOND * _expCache.intValue());
+      sesResponses.put(sesResponseId,response);
+    }
+ else     if ((response.getTime() < now) && (_expCache.intValue() > 0)) {
+      invoke(req,res,false);
+      response.setTitle(resImpl.getTitle());
+      response.setContent(stringServletRes.getString());
+      response.setTime(now + Time.SECOND * _expCache.intValue());
+    }
+ else {
+      resImpl.setTitle(response.getTitle());
+      stringServletRes.getWriter().print(response.getContent());
+    }
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("render for " + _portletId + " takes "+ stopWatch.getTime()+ " ms");
+  }
+}
