@@ -32,14 +32,16 @@ catch (  ActionException ae) {
   if (_log.isDebugEnabled()) {
     _log.debug("Initialize portlets");
   }
-  List portlets=null;
+  List<Portlet> portlets=null;
   try {
     String[] xmls=new String[]{Http.URLtoString(ctx.getResource("/WEB-INF/" + PortalUtil.PORTLET_XML_FILE_NAME_CUSTOM)),Http.URLtoString(ctx.getResource("/WEB-INF/portlet-ext.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-portlet.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/liferay-portlet-ext.xml")),Http.URLtoString(ctx.getResource("/WEB-INF/web.xml"))};
     PortletLocalServiceUtil.initEAR(xmls,pluginPackage);
     portlets=PortletLocalServiceUtil.getPortlets();
-    Iterator itr=portlets.iterator();
-    while (itr.hasNext()) {
-      Portlet portlet=(Portlet)itr.next();
+    for (int i=0; i < portlets.size(); i++) {
+      Portlet portlet=portlets.get(i);
+      if (i == 0) {
+        initPortletApp(portlet,ctx);
+      }
       PortletInstanceFactory.create(portlet,ctx);
     }
   }
@@ -71,9 +73,9 @@ catch (  ActionException ae) {
   }
   try {
     if (GetterUtil.getBoolean(PropsUtil.get(PropsUtil.SCHEDULER_ENABLED))) {
-      Iterator itr=portlets.iterator();
+      Iterator<Portlet> itr=portlets.iterator();
       while (itr.hasNext()) {
-        Portlet portlet=(Portlet)itr.next();
+        Portlet portlet=itr.next();
         String className=portlet.getSchedulerClass();
         if (portlet.isActive() && Validator.isNotNull(className)) {
           Scheduler scheduler=(Scheduler)InstancePool.get(className);
@@ -91,9 +93,9 @@ catch (  Exception e) {
     _log.debug("Activity tracker interpreter");
   }
   try {
-    Iterator itr=portlets.iterator();
+    Iterator<Portlet> itr=portlets.iterator();
     while (itr.hasNext()) {
-      Portlet portlet=(Portlet)itr.next();
+      Portlet portlet=itr.next();
       ActivityTrackerInterpreter activityTrackerInterpreter=portlet.getActivityTrackerInterpreterInstance();
       if (portlet.isActive() && (activityTrackerInterpreter != null)) {
         activityTrackerInterpreter=new ActivityTrackerInterpreterImpl(activityTrackerInterpreter);
@@ -108,9 +110,9 @@ catch (  Exception e) {
     _log.debug("POP message listener");
   }
   try {
-    Iterator itr=portlets.iterator();
+    Iterator<Portlet> itr=portlets.iterator();
     while (itr.hasNext()) {
-      Portlet portlet=(Portlet)itr.next();
+      Portlet portlet=itr.next();
       MessageListener popMessageListener=portlet.getPopMessageListenerInstance();
       if (portlet.isActive() && (popMessageListener != null)) {
         POPServerUtil.addListener(popMessageListener);
@@ -134,7 +136,7 @@ catch (  Exception e) {
     _log.debug("Last modified paths");
   }
   if (_lastModifiedPaths == null) {
-    _lastModifiedPaths=CollectionFactory.getHashSet();
+    _lastModifiedPaths=new HashSet<String>();
     String[] pathsArray=PropsUtil.getArray(PropsUtil.LAST_MODIFIED_PATHS);
     for (int i=0; i < pathsArray.length; i++) {
       _lastModifiedPaths.add(pathsArray[i]);

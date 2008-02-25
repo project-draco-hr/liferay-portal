@@ -5,6 +5,8 @@
   }
   Document doc=PortalUtil.readDocumentFromXML(xml);
   Element root=doc.getRootElement();
+  PortletApp portletApp=_getPortletApp(servletContextName);
+  portletApp.getServletURLPatterns().addAll(servletURLPatterns);
   Set<String> userAttributes=new HashSet<String>();
   Iterator<Element> itr1=root.elements("user-attribute").iterator();
   while (itr1.hasNext()) {
@@ -16,7 +18,7 @@
   while (itr1.hasNext()) {
     Element portlet=itr1.next();
     String portletId=portlet.elementText("portlet-name");
-    if (servletContextName != null) {
+    if (Validator.isNotNull(servletContextName)) {
       portletId=portletId + PortletImpl.WAR_SEPARATOR + servletContextName;
     }
     portletId=PortalUtil.getJsSafePortletId(portletId);
@@ -30,12 +32,7 @@
       portletsPool.put(portletId,portletModel);
     }
     portletModel.setPluginPackage(pluginPackage);
-    if (servletContextName != null) {
-      portletModel.setServletContextName(servletContextName);
-    }
-    if (servletURLPatterns != null) {
-      portletModel.setServletURLPatterns(servletURLPatterns);
-    }
+    portletModel.setPortletApp(portletApp);
     portletModel.setDisplayName(GetterUtil.getString(portlet.elementText("display-name"),portletModel.getDisplayName()));
     portletModel.setPortletClass(GetterUtil.getString(portlet.elementText("portlet-class")));
     Iterator<Element> itr2=portlet.elements("init-param").iterator();
@@ -98,7 +95,7 @@
     }
     portletModel.setDefaultPreferences(defaultPreferences);
     portletModel.setPreferencesValidator(prefsValidator);
-    if (!portletModel.isWARFile() && Validator.isNotNull(prefsValidator) && PropsValues.PREFERENCE_VALIDATE_ON_STARTUP) {
+    if (!portletApp.isWARFile() && Validator.isNotNull(prefsValidator) && PropsValues.PREFERENCE_VALIDATE_ON_STARTUP) {
       try {
         PreferencesValidator prefsValidatorObj=PortalUtil.getPreferencesValidator(portletModel);
         prefsValidatorObj.validate(PortletPreferencesSerializer.fromDefaultXML(defaultPreferences));
@@ -117,7 +114,7 @@
     }
     portletModel.getUserAttributes().addAll(userAttributes);
   }
-  Map<String,PortletFilter> portletFilters=new HashMap<String,PortletFilter>();
+  List<PortletFilter> portletFilters=portletApp.getPortletFilters();
   itr1=root.elements("filter").iterator();
   while (itr1.hasNext()) {
     Element filter=itr1.next();
@@ -135,15 +132,24 @@
       Element initParam=itr2.next();
       initParams.put(initParam.elementText("name"),initParam.elementText("value"));
     }
-    PortletFilter portletFilter=new PortletFilterImpl(filterName,filterClass,lifecycles,initParams,servletContextName);
-    portletFilters.put(filterName,portletFilter);
+    PortletFilter portletFilter=new PortletFilterImpl(filterName,filterClass,lifecycles,initParams,portletApp);
+    portletFilters.add(portletFilter);
   }
   itr1=root.elements("filter-mapping").iterator();
   while (itr1.hasNext()) {
     Element filterMapping=itr1.next();
     String filterName=filterMapping.elementText("filter-name");
     String portletName=filterMapping.elementText("portlet-name");
-    PortletFilter portletFilter=portletFilters.get(filterName);
+    PortletFilter portletFilter=null;
+    for (int i=0; i < portletFilters.size(); i++) {
+      portletFilter=portletFilters.get(i);
+      if (portletFilter.getFilterName().equals(filterName)) {
+        break;
+      }
+ else {
+        portletFilter=null;
+      }
+    }
     if (portletFilter == null) {
       _log.error("Filter mapping references unnknown filter name " + filterName);
       continue;
@@ -155,6 +161,14 @@
     for (    Portlet portletModel : portletModels) {
       portletModel.getPortletFilters().put(filterName,portletFilter);
     }
+  }
+  List<PortletURLListener> urlListeners=portletApp.getPortletURLListeners();
+  itr1=root.elements("listener").iterator();
+  while (itr1.hasNext()) {
+    Element listener=itr1.next();
+    String listenerClass=listener.elementText("listener-class");
+    PortletURLListener portletURLListener=new PortletURLListenerImpl(listenerClass,portletApp);
+    urlListeners.add(portletURLListener);
   }
   return portletIds;
 }
