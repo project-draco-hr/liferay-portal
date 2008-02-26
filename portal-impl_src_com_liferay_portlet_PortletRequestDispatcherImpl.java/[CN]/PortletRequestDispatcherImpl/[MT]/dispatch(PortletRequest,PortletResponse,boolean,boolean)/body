@@ -1,0 +1,98 @@
+{
+  try {
+    PortletRequestImpl reqImpl=(PortletRequestImpl)req;
+    PortletResponseImpl resImpl=PortalUtil.getPortletResponseImpl(res);
+    HttpServletRequest httpReq=PortalUtil.getHttpServletRequest(req);
+    HttpServletResponse httpRes=PortalUtil.getHttpServletResponse(res);
+    String pathInfo=null;
+    String queryString=null;
+    String requestURI=null;
+    String servletPath=null;
+    if (_path != null) {
+      String pathNoQueryString=_path;
+      int pos=_path.indexOf(StringPool.QUESTION);
+      if (pos != -1) {
+        pathNoQueryString=_path.substring(0,pos);
+        queryString=_path.substring(pos + 1,_path.length());
+        Map<String,String[]> queryParams=new HashMap<String,String[]>();
+        String[] queryParamsArray=StringUtil.split(queryString,StringPool.AMPERSAND);
+        for (int i=0; i < queryParamsArray.length; i++) {
+          String[] nameValuePair=StringUtil.split(queryParamsArray[i],StringPool.EQUAL);
+          String name=nameValuePair[0];
+          String value=nameValuePair[1];
+          String[] values=queryParams.get(name);
+          if (values == null) {
+            queryParams.put(name,new String[]{value});
+          }
+ else {
+            String[] newValues=new String[values.length + 1];
+            System.arraycopy(values,0,newValues,0,values.length);
+            newValues[newValues.length - 1]=value;
+            queryParams.put(name,newValues);
+          }
+        }
+        DynamicServletRequest dynamicReq=null;
+        if (reqImpl.isPrivateRequestAttributes()) {
+          String portletNamespace=PortalUtil.getPortletNamespace(reqImpl.getPortletName());
+          dynamicReq=new NamespaceServletRequest(httpReq,portletNamespace,portletNamespace);
+        }
+ else {
+          dynamicReq=new DynamicServletRequest(httpReq);
+        }
+        for (        Map.Entry<String,String[]> entry : queryParams.entrySet()) {
+          String name=entry.getKey();
+          String[] values=entry.getValue();
+          String[] oldValues=dynamicReq.getParameterValues(name);
+          if (oldValues == null) {
+            dynamicReq.setParameterValues(name,values);
+          }
+ else {
+            String[] newValues=ArrayUtil.append(values,oldValues);
+            dynamicReq.setParameterValues(name,newValues);
+          }
+        }
+        httpReq=dynamicReq;
+      }
+      Portlet portlet=reqImpl.getPortlet();
+      PortletApp portletApp=portlet.getPortletApp();
+      List<String> servletURLPatterns=portletApp.getServletURLPatterns();
+      for (      String urlPattern : servletURLPatterns) {
+        if (urlPattern.endsWith("/*")) {
+          pos=urlPattern.indexOf("/*");
+          urlPattern=urlPattern.substring(0,pos);
+          if (pathNoQueryString.startsWith(urlPattern)) {
+            pathInfo=pathNoQueryString.substring(urlPattern.length());
+            servletPath=urlPattern;
+            break;
+          }
+        }
+      }
+      if ((pathInfo == null) && (servletPath == null)) {
+        pathInfo=StringPool.BLANK;
+        servletPath=pathNoQueryString;
+      }
+      requestURI=req.getContextPath() + pathNoQueryString;
+    }
+    PortletServletRequest portletServletReq=new PortletServletRequest(httpReq,reqImpl,pathInfo,queryString,requestURI,servletPath);
+    PortletServletResponse portletServletRes=new PortletServletResponse(httpRes,resImpl);
+    URLEncoder urlEncoder=_portlet.getURLEncoderInstance();
+    if (urlEncoder != null) {
+      resImpl.setURLEncoder(urlEncoder);
+    }
+ else     if (strutsURLEncoder) {
+      ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
+      URLEncoder strutsURLEncoderObj=new StrutsURLEncoder(portletServletReq.getContextPath(),themeDisplay.getPathMain(),(String)_portletCtxImpl.getAttribute(Globals.SERVLET_KEY),resImpl.createRenderURL());
+      resImpl.setURLEncoder(strutsURLEncoderObj);
+    }
+    if (include) {
+      _rd.include(portletServletReq,portletServletRes);
+    }
+ else {
+      _rd.forward(portletServletReq,portletServletRes);
+    }
+  }
+ catch (  ServletException se) {
+    _log.error(se,se);
+    throw new PortletException(se);
+  }
+}
