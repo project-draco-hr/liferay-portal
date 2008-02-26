@@ -1,0 +1,110 @@
+{
+  _portletName=portlet.getPortletId();
+  String portletNamespace=PortalUtil.getPortletNamespace(_portletName);
+  Map<String,Object> sharedSessionAttributes=SharedSessionUtil.getSharedSessionAttributes(req);
+  boolean portalSessionShared=false;
+  PortletApp portletApp=portlet.getPortletApp();
+  if (portletApp.isWARFile() && !portlet.isPrivateSessionAttributes()) {
+    portalSessionShared=true;
+  }
+  req=new SharedSessionServletRequest(req,sharedSessionAttributes,portalSessionShared);
+  DynamicServletRequest dynamicReq=null;
+  if (portlet.isPrivateRequestAttributes()) {
+    dynamicReq=new NamespaceServletRequest(req,portletNamespace,portletNamespace,false);
+  }
+ else {
+    dynamicReq=new DynamicServletRequest(req,false);
+  }
+  Enumeration<String> enu=null;
+  Map<String,String[]> renderParameters=null;
+  boolean portletFocus=false;
+  if (_portletName.equals(req.getParameter("p_p_id"))) {
+    String lifecycle=ParamUtil.getString(req,"p_p_lifecycle");
+    if (lifecycle.equals("0")) {
+      portletFocus=true;
+    }
+ else     if (lifecycle.equals("1") && getLifecycle().equals(PortletRequest.ACTION_PHASE)) {
+      portletFocus=true;
+    }
+  }
+  if (portletFocus) {
+    renderParameters=new HashMap<String,String[]>();
+    if (getLifecycle().equals(PortletRequest.RENDER_PHASE) && !LiferayWindowState.isExclusive(req) && !LiferayWindowState.isPopUp(req)) {
+      RenderParametersPool.put(req,plid,_portletName,renderParameters);
+    }
+    enu=req.getParameterNames();
+  }
+ else {
+    renderParameters=RenderParametersPool.get(req,plid,_portletName);
+    if (!_portletName.equals(req.getParameter("p_p_id"))) {
+      putNamespaceParams(req,portletNamespace,plid,renderParameters);
+    }
+    enu=Collections.enumeration(renderParameters.keySet());
+  }
+  while (enu.hasMoreElements()) {
+    String param=enu.nextElement();
+    if (param.startsWith(portletNamespace) && !invokerPortlet.isFacesPortlet()) {
+      String newParam=param.substring(portletNamespace.length(),param.length());
+      String[] values=null;
+      if (portletFocus) {
+        values=req.getParameterValues(param);
+        renderParameters.put(param,values);
+      }
+ else {
+        values=renderParameters.get(param);
+      }
+      dynamicReq.setParameterValues(newParam,values);
+    }
+ else {
+      if (!PortalUtil.isReservedParameter(param) && Validator.isNotNull(param)) {
+        String[] values=null;
+        if (portletFocus) {
+          values=req.getParameterValues(param);
+          renderParameters.put(param,values);
+        }
+ else {
+          values=renderParameters.get(param);
+        }
+        dynamicReq.setParameterValues(param,values);
+      }
+    }
+  }
+  _req=dynamicReq;
+  _wapTheme=BrowserSniffer.is_wap_xhtml(_req);
+  _portlet=portlet;
+  _portalCtx=new PortalContextImpl();
+  _portletCtx=portletCtx;
+  _windowState=windowState;
+  _portletMode=portletMode;
+  _prefs=prefs;
+  _portalSessionId=_req.getRequestedSessionId();
+  _ses=new PortletSessionImpl(_req,_portletName,_portletCtx,_portalSessionId,plid);
+  long userId=PortalUtil.getUserId(req);
+  String remoteUser=req.getRemoteUser();
+  String userPrincipalStrategy=portlet.getUserPrincipalStrategy();
+  if (userPrincipalStrategy.equals(PortletImpl.USER_PRINCIPAL_STRATEGY_SCREEN_NAME)) {
+    try {
+      User user=PortalUtil.getUser(req);
+      _remoteUser=user.getScreenName();
+      _remoteUserId=user.getUserId();
+      _userPrincipal=new ProtectedPrincipal(_remoteUser);
+    }
+ catch (    Exception e) {
+      _log.error(e);
+    }
+  }
+ else {
+    if ((userId > 0) && (remoteUser == null)) {
+      _remoteUser=String.valueOf(userId);
+      _remoteUserId=userId;
+      _userPrincipal=new ProtectedPrincipal(_remoteUser);
+    }
+ else {
+      _remoteUser=remoteUser;
+      _remoteUserId=GetterUtil.getLong(remoteUser);
+      _userPrincipal=req.getUserPrincipal();
+    }
+  }
+  _locale=(Locale)_req.getSession().getAttribute(Globals.LOCALE_KEY);
+  _plid=plid;
+}

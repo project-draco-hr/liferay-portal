@@ -1,0 +1,51 @@
+{
+  Portlet portlet=getPortlet();
+  String portletURLClass=portlet.getPortletURLClass();
+  if (portlet.getPortletId().equals(portletName) && Validator.isNotNull(portletURLClass)) {
+    try {
+      Class<?> portletURLClassObj=Class.forName(portletURLClass);
+      Constructor<?> constructor=portletURLClassObj.getConstructor(new Class[]{com.liferay.portlet.PortletResponseImpl.class,String.class});
+      return (PortletURLImpl)constructor.newInstance(new Object[]{this,lifecycle});
+    }
+ catch (    Exception e) {
+      _log.error(e);
+    }
+  }
+  long plid=_plid;
+  try {
+    Layout layout=(Layout)_req.getAttribute(WebKeys.LAYOUT);
+    PortletPreferences portletSetup=PortletPreferencesFactoryUtil.getPortletSetup(layout,_portletName);
+    plid=GetterUtil.getLong(portletSetup.getValue("portlet-setup-link-to-plid",String.valueOf(_plid)));
+    if (plid <= 0) {
+      plid=_plid;
+    }
+  }
+ catch (  PortalException e) {
+    if (_log.isWarnEnabled()) {
+      _log.warn(e);
+    }
+  }
+catch (  SystemException e) {
+    if (_log.isWarnEnabled()) {
+      _log.warn(e);
+    }
+  }
+  PortletApp portletApp=portlet.getPortletApp();
+  List<PortletURLListener> portletURLListeners=portletApp.getPortletURLListeners();
+  PortletURLImpl portletURLImpl=new PortletURLImpl(_req,portletName,plid,lifecycle);
+  for (  PortletURLListener portletURLListener : portletURLListeners) {
+    try {
+      PortletURLGenerationListener portletURLGenerationListener=PortletURLListenerFactory.create(portletURLListener);
+      if (lifecycle.equals(PortletRequest.ACTION_PHASE)) {
+        portletURLGenerationListener.filterActionURL(portletURLImpl);
+      }
+ else       if (lifecycle.equals(PortletRequest.RENDER_PHASE)) {
+        portletURLGenerationListener.filterRenderURL(portletURLImpl);
+      }
+    }
+ catch (    PortletException pe) {
+      _log.error(pe,pe);
+    }
+  }
+  return portletURLImpl;
+}

@@ -1,0 +1,86 @@
+{
+  FilterChain filterChain=null;
+  Map<String,String[]> properties=null;
+  if (_portletConfig.isWARFile()) {
+    String path=StringPool.SLASH + _portletConfig.getPortletName() + "/invoke";
+    RequestDispatcher rd=_portletCtx.getServletContext().getRequestDispatcher(path);
+    HttpServletRequest httpReq=null;
+    HttpServletResponse httpRes=null;
+    ActionRequestImpl actionReqImpl=null;
+    ActionResponseImpl actionResImpl=null;
+    RenderRequestImpl renderReqImpl=null;
+    RenderResponseImpl renderResImpl=null;
+    ResourceRequestImpl resourceReqImpl=null;
+    ResourceResponseImpl resourceResImpl=null;
+    if (lifecycle.equals(PortletRequest.ACTION_PHASE)) {
+      actionReqImpl=(ActionRequestImpl)req;
+      actionResImpl=(ActionResponseImpl)res;
+      httpReq=actionReqImpl.getHttpServletRequest();
+      httpRes=actionResImpl.getHttpServletResponse();
+      filterChain=new FilterChainImpl(_portlet,_actionFilters);
+    }
+ else     if (lifecycle.equals(PortletRequest.RENDER_PHASE)) {
+      renderReqImpl=(RenderRequestImpl)req;
+      renderResImpl=(RenderResponseImpl)res;
+      httpReq=renderReqImpl.getHttpServletRequest();
+      httpRes=renderResImpl.getHttpServletResponse();
+      filterChain=new FilterChainImpl(_portlet,_renderFilters);
+    }
+ else     if (lifecycle.equals(PortletRequest.RESOURCE_PHASE)) {
+      resourceReqImpl=(ResourceRequestImpl)req;
+      resourceResImpl=(ResourceResponseImpl)res;
+      httpReq=resourceReqImpl.getHttpServletRequest();
+      httpRes=resourceResImpl.getHttpServletResponse();
+      filterChain=new FilterChainImpl(_portlet,_resourceFilters);
+    }
+    httpReq.setAttribute(JavaConstants.JAVAX_PORTLET_PORTLET,_portlet);
+    httpReq.setAttribute(PortletServlet.PORTLET_SERVLET_FILTER_CHAIN,filterChain);
+    try {
+      rd.include(httpReq,httpRes);
+    }
+ catch (    ServletException se) {
+      Throwable cause=se.getRootCause();
+      if (cause instanceof PortletException) {
+        throw (PortletException)cause;
+      }
+      throw new PortletException(cause);
+    }
+    if (lifecycle.equals(PortletRequest.ACTION_PHASE)) {
+      properties=actionResImpl.getProperties();
+    }
+ else     if (lifecycle.equals(PortletRequest.RENDER_PHASE)) {
+      properties=renderResImpl.getProperties();
+    }
+  }
+ else {
+    if (lifecycle.equals(PortletRequest.ACTION_PHASE)) {
+      ActionRequestImpl actionReqImpl=(ActionRequestImpl)req;
+      ActionResponseImpl actionResImpl=(ActionResponseImpl)res;
+      filterChain=new FilterChainImpl(_portlet,_actionFilters);
+      filterChain.doFilter(actionReqImpl,actionResImpl);
+      properties=actionResImpl.getProperties();
+    }
+ else     if (lifecycle.equals(PortletRequest.RENDER_PHASE)) {
+      RenderRequestImpl renderReqImpl=(RenderRequestImpl)req;
+      RenderResponseImpl renderResImpl=(RenderResponseImpl)res;
+      filterChain=new FilterChainImpl(_portlet,_renderFilters);
+      filterChain.doFilter(renderReqImpl,renderResImpl);
+      properties=renderResImpl.getProperties();
+    }
+ else     if (lifecycle.equals(PortletRequest.RESOURCE_PHASE)) {
+      ResourceRequestImpl resourceReqImpl=(ResourceRequestImpl)req;
+      ResourceResponseImpl resourceResImpl=(ResourceResponseImpl)res;
+      filterChain=new FilterChainImpl(_portlet,_resourceFilters);
+      filterChain.doFilter(resourceReqImpl,resourceResImpl);
+      properties=resourceResImpl.getProperties();
+    }
+  }
+  if ((properties != null) && (properties.size() > 0)) {
+    if (_expCache != null) {
+      String[] expCache=properties.get(RenderResponse.EXPIRATION_CACHE);
+      if ((expCache != null) && (expCache.length > 0) && (expCache[0] != null)) {
+        _expCache=new Integer(GetterUtil.getInteger(expCache[0]));
+      }
+    }
+  }
+}
