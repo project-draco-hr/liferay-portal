@@ -45,6 +45,45 @@
     if (_log.isDebugEnabled()) {
       _log.debug("Not securing " + completeURL);
     }
+    HttpSession ses=httpReq.getSession();
+    boolean userAuthenticated=GetterUtil.getBoolean((String)ses.getAttribute(WebKeys.USER_AUTHENTICATED));
+    if (_basicAuthenticationEnabled && !userAuthenticated && !PropsValues.PORTAL_JAAS_ENABLE) {
+      long userId=-1;
+      try {
+        String authorization=httpReq.getHeader(HttpHeaders.AUTHORIZATION);
+        if (Validator.isNotNull(authorization)) {
+          String[] authPair=authorization.split("\\s+");
+          String reqAuthType=authPair[0];
+          String credentials=new String(Base64.decode(authPair[1]));
+          if (reqAuthType.equalsIgnoreCase(HttpServletRequest.BASIC_AUTH)) {
+            String[] loginPassword=StringUtil.split(credentials,StringPool.COLON);
+            String login=loginPassword[0].trim();
+            String password=loginPassword[1].trim();
+            long companyId=PortalInstances.getCompanyId(httpReq);
+            Company company=CompanyLocalServiceUtil.getCompanyById(companyId);
+            String authType=company.getAuthType();
+            userId=UserLocalServiceUtil.authenticateForBasic(companyId,authType,login,password);
+            if (userId > 0) {
+              ses.setAttribute(WebKeys.USER_AUTHENTICATED,StringPool.TRUE);
+              req=new ProtectedServletRequest(httpReq,String.valueOf(userId));
+            }
+ else {
+              if (_log.isDebugEnabled()) {
+                _log.debug("Authentication failed for login " + login);
+              }
+            }
+          }
+        }
+      }
+ catch (      Exception e) {
+        _log.error(e);
+      }
+      if (userId <= 0) {
+        httpRes.setHeader(HttpHeaders.WWW_AUTHENTICATE,_PORTAL_REALM);
+        httpRes.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        return;
+      }
+    }
     doFilter(SecureFilter.class,req,res,chain);
   }
 }
