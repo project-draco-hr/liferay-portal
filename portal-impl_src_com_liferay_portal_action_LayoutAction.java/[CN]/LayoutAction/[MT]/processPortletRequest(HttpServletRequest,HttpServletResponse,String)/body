@@ -32,11 +32,11 @@
           req=uploadReq;
         }
       }
-      ActionRequestImpl actionRequestImpl=ActionRequestFactory.create(req,portlet,invokerPortlet,portletCtx,windowState,portletMode,portletPreferences,layout.getPlid());
-      ActionResponseImpl actionResponseImpl=ActionResponseFactory.create(actionRequestImpl,res,portletId,user,layout,windowState,portletMode);
-      actionRequestImpl.defineObjects(portletConfig,actionResponseImpl);
-      invokerPortlet.processAction(actionRequestImpl,actionResponseImpl);
-      RenderParametersPool.put(req,layout.getPlid(),portletId,actionResponseImpl.getRenderParameterMap());
+      ActionRequestImpl actionReqImpl=ActionRequestFactory.create(req,portlet,invokerPortlet,portletCtx,windowState,portletMode,portletPreferences,layout.getPlid());
+      ActionResponseImpl actionResImpl=ActionResponseFactory.create(actionReqImpl,res,portletId,user,layout,windowState,portletMode);
+      actionReqImpl.defineObjects(portletConfig,actionResImpl);
+      invokerPortlet.processAction(actionReqImpl,actionResImpl);
+      RenderParametersPool.put(req,layout.getPlid(),portletId,actionResImpl.getRenderParameterMap());
     }
   finally {
       if (uploadReq != null) {
@@ -49,10 +49,19 @@
     PortalUtil.updatePortletMode(portletId,user,layout,portletMode,req);
   }
   if (lifecycle.equals(PortletRequest.RESOURCE_PHASE)) {
-    ResourceRequestImpl resourceRequestImpl=ResourceRequestFactory.create(req,portlet,invokerPortlet,portletCtx,windowState,portletMode,portletPreferences,layout.getPlid());
-    ResourceResponseImpl resourceResponseImpl=ResourceResponseFactory.create(resourceRequestImpl,res,portletId,companyId);
-    resourceRequestImpl.defineObjects(portletConfig,resourceResponseImpl);
-    invokerPortlet.serveResource(resourceRequestImpl,resourceResponseImpl);
+    ResourceRequestImpl resourceReqImpl=ResourceRequestFactory.create(req,portlet,invokerPortlet,portletCtx,windowState,portletMode,portletPreferences,layout.getPlid());
+    StringServletResponse stringServletRes=new StringServletResponse(res);
+    ResourceResponseImpl resourceResImpl=ResourceResponseFactory.create(resourceReqImpl,stringServletRes,portletId,companyId);
+    resourceReqImpl.defineObjects(portletConfig,resourceResImpl);
+    invokerPortlet.serveResource(resourceReqImpl,resourceResImpl);
+    if (stringServletRes.isCalledGetOutputStream()) {
+      InputStream is=new ByteArrayInputStream(stringServletRes.getByteArrayMaker().toByteArray());
+      ServletResponseUtil.sendFile(res,resourceReqImpl.getResourceID(),is,resourceResImpl.getContentType());
+    }
+ else {
+      byte[] content=stringServletRes.getString().getBytes(StringPool.UTF8);
+      ServletResponseUtil.sendFile(res,resourceReqImpl.getResourceID(),content,resourceResImpl.getContentType());
+    }
   }
   return portlet;
 }
