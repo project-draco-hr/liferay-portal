@@ -1,0 +1,39 @@
+{
+  HttpServletRequest req=portletReqImpl.getHttpServletRequest();
+  HttpServletResponse res=stateAwareResImpl.getHttpServletResponse();
+  String portletId=portlet.getPortletId();
+  ServletContext ctx=(ServletContext)req.getAttribute(WebKeys.CTX);
+  PortletConfig portletConfig=PortletConfigFactory.create(portlet,ctx);
+  PortletContext portletCtx=portletConfig.getPortletContext();
+  WindowState windowState=portletReqImpl.getWindowState();
+  PortletMode portletMode=portletReqImpl.getPortletMode();
+  User user=stateAwareResImpl.getUser();
+  Layout layout=stateAwareResImpl.getLayout();
+  PortletPreferences portletPreferences=portletReqImpl.getPreferencesImpl();
+  EventRequestImpl eventReqImpl=EventRequestFactory.create(req,portlet,invokerPortlet,portletCtx,windowState,portletMode,portletPreferences,layout.getPlid());
+  eventReqImpl.setEvent(event);
+  EventResponseImpl eventResImpl=EventResponseFactory.create(eventReqImpl,res,portletId,user,layout,windowState,portletMode);
+  eventReqImpl.defineObjects(portletConfig,eventResImpl);
+  try {
+    try {
+      invokerPortlet.processEvent(eventReqImpl,eventResImpl);
+      if (eventResImpl.isCalledSetRenderParameter()) {
+        Map<String,String[]> renderParameterMap=new HashMap<String,String[]>();
+        MapUtil.copy(eventResImpl.getRenderParameterMap(),renderParameterMap);
+        RenderParametersPool.put(req,layout.getPlid(),portletId,renderParameterMap);
+      }
+    }
+ catch (    UnavailableException ue) {
+      throw ue;
+    }
+catch (    PortletException pe) {
+      eventResImpl.setWindowState(windowState);
+      eventResImpl.setPortletMode(portletMode);
+    }
+    processEvents(invokerPortlet,eventReqImpl,eventResImpl,portlets);
+  }
+  finally {
+    EventRequestFactory.recycle(eventReqImpl);
+    EventResponseFactory.recycle(eventResImpl);
+  }
+}
