@@ -7,12 +7,39 @@
   Element root=doc.getRootElement();
   PortletApp portletApp=_getPortletApp(servletContextName);
   portletApp.getServletURLPatterns().addAll(servletURLPatterns);
-  Set<String> userAttributes=new HashSet<String>();
+  Set<String> userAttributes=portletApp.getUserAttributes();
   Iterator<Element> itr1=root.elements("user-attribute").iterator();
   while (itr1.hasNext()) {
     Element userAttribute=itr1.next();
     String name=userAttribute.elementText("name");
     userAttributes.add(name);
+  }
+  Set<PublicRenderParameter> publicRenderParameters=portletApp.getPublicRenderParameters();
+  itr1=root.elements("public-render-parameter").iterator();
+  while (itr1.hasNext()) {
+    Element publicRenderParameterEl=itr1.next();
+    String identifier=publicRenderParameterEl.elementText("identifier");
+    Element qNameEl=publicRenderParameterEl.element("qname");
+    List<Namespace> namespaces=qNameEl.declaredNamespaces();
+    if (namespaces.size() == 0) {
+      _log.error("qname for identifier " + identifier + " does not have a namespace");
+      continue;
+    }
+    Namespace namespace=namespaces.get(0);
+    String uri=namespace.getURI();
+    String prefix=namespace.getPrefix();
+    String localPart=qNameEl.getText();
+    if (localPart.startsWith(prefix + StringPool.COLON)) {
+      localPart=localPart.substring(prefix.length() + 1);
+    }
+ else {
+      if (_log.isWarnEnabled()) {
+        _log.warn("qname " + localPart + " is not correctly namespaced");
+      }
+    }
+    QName qName=new QName(uri,localPart,prefix);
+    PublicRenderParameter publicRenderParameter=new PublicRenderParameterImpl(identifier,qName,portletApp);
+    publicRenderParameters.add(publicRenderParameter);
   }
   itr1=root.elements("portlet").iterator();
   while (itr1.hasNext()) {
@@ -112,9 +139,25 @@
       Element role=itr2.next();
       unlikedRoles.add(role.elementText("role-name"));
     }
-    portletModel.getUserAttributes().addAll(userAttributes);
+    itr2=portlet.elements("supported-public-render-parameter").iterator();
+    while (itr2.hasNext()) {
+      Element supportedPublicRenderParameter=itr2.next();
+      String identifier=supportedPublicRenderParameter.getTextTrim();
+      PublicRenderParameter publicRenderParameter=null;
+      for (      PublicRenderParameter curPublicRenderParameter : publicRenderParameters) {
+        if (curPublicRenderParameter.getIdentifier().equals(identifier)) {
+          publicRenderParameter=curPublicRenderParameter;
+          break;
+        }
+      }
+      if (publicRenderParameter == null) {
+        _log.error("Supported public render parameter references " + "unnknown identifier " + identifier);
+        continue;
+      }
+      portletModel.getPublicRenderParameters().put(identifier,publicRenderParameter);
+    }
   }
-  List<PortletFilter> portletFilters=portletApp.getPortletFilters();
+  Set<PortletFilter> portletFilters=portletApp.getPortletFilters();
   itr1=root.elements("filter").iterator();
   while (itr1.hasNext()) {
     Element filter=itr1.next();
@@ -141,13 +184,10 @@
     String filterName=filterMapping.elementText("filter-name");
     String portletName=filterMapping.elementText("portlet-name");
     PortletFilter portletFilter=null;
-    for (int i=0; i < portletFilters.size(); i++) {
-      portletFilter=portletFilters.get(i);
-      if (portletFilter.getFilterName().equals(filterName)) {
+    for (    PortletFilter curPortletFilter : portletFilters) {
+      if (curPortletFilter.getFilterName().equals(filterName)) {
+        portletFilter=curPortletFilter;
         break;
-      }
- else {
-        portletFilter=null;
       }
     }
     if (portletFilter == null) {
@@ -162,7 +202,7 @@
       portletModel.getPortletFilters().put(filterName,portletFilter);
     }
   }
-  List<PortletURLListener> urlListeners=portletApp.getPortletURLListeners();
+  Set<PortletURLListener> urlListeners=portletApp.getPortletURLListeners();
   itr1=root.elements("listener").iterator();
   while (itr1.hasNext()) {
     Element listener=itr1.next();
