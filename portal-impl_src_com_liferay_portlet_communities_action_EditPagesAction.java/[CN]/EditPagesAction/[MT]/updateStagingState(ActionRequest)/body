@@ -2,6 +2,7 @@
   long liveGroupId=ParamUtil.getLong(req,"liveGroupId");
   long stagingGroupId=ParamUtil.getLong(req,"stagingGroupId");
   boolean activateStaging=ParamUtil.getBoolean(req,"activateStaging");
+  boolean activateManagedStaging=ParamUtil.getBoolean(req,"activateManagedStaging");
   ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
   PermissionChecker permissionChecker=themeDisplay.getPermissionChecker();
   if (!GroupPermissionUtil.contains(permissionChecker,liveGroupId,ActionKeys.MANAGE_STAGING)) {
@@ -9,6 +10,13 @@
   }
   if ((stagingGroupId > 0) && !activateStaging) {
     GroupServiceUtil.deleteGroup(stagingGroupId);
+    if (activateManagedStaging) {
+      Group liveGroup=GroupLocalServiceUtil.getGroup(liveGroupId);
+      Properties props=liveGroup.getTypeSettingsProperties();
+      props.setProperty(GroupImpl.MANAGED_STAGING,StringPool.BLANK);
+      GroupServiceUtil.updateGroup(liveGroup.getGroupId(),liveGroup.getTypeSettings());
+      TasksProposalLocalServiceUtil.deleteProposals(themeDisplay.getCompanyId(),liveGroup.getGroupId());
+    }
   }
  else   if ((stagingGroupId == 0) && activateStaging) {
     Group group=GroupServiceUtil.getGroup(liveGroupId);
