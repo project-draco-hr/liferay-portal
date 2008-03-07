@@ -46,23 +46,28 @@
       _log.debug("Not securing " + completeURL);
     }
     HttpSession ses=httpReq.getSession();
-    boolean userAuthenticated=GetterUtil.getBoolean((String)ses.getAttribute(_USER_AUTHENTICATED));
-    if (_basicAuthEnabled && !PropsValues.PORTAL_JAAS_ENABLE && !userAuthenticated) {
-      long userId=0;
-      try {
-        userId=getBasicAuthUserId(httpReq);
-      }
- catch (      Exception e) {
-        _log.error(e);
-      }
+    long userId=GetterUtil.getLong((String)ses.getAttribute(_AUTHENTICATED_USER));
+    if (_basicAuthEnabled && !PropsValues.PORTAL_JAAS_ENABLE) {
       if (userId > 0) {
         req=new ProtectedServletRequest(httpReq,String.valueOf(userId));
-        ses.setAttribute(_USER_AUTHENTICATED,StringPool.TRUE);
       }
  else {
-        httpRes.setHeader(HttpHeaders.WWW_AUTHENTICATE,_PORTAL_REALM);
-        httpRes.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-        return;
+        try {
+          userId=getBasicAuthUserId(httpReq);
+        }
+ catch (        Exception e) {
+          _log.error(e);
+        }
+        if (userId > 0) {
+          String userIdStr=String.valueOf(userId);
+          req=new ProtectedServletRequest(httpReq,userIdStr);
+          ses.setAttribute(_AUTHENTICATED_USER,userIdStr);
+        }
+ else {
+          httpRes.setHeader(HttpHeaders.WWW_AUTHENTICATE,_PORTAL_REALM);
+          httpRes.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+          return;
+        }
       }
     }
     doFilter(SecureFilter.class,req,res,chain);
