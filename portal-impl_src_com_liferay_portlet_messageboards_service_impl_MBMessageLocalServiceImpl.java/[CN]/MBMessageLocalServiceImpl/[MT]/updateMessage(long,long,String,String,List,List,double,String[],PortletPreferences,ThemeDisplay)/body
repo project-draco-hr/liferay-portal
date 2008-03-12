@@ -4,19 +4,24 @@
   subject=ModelHintsUtil.trimString(MBMessage.class.getName(),"subject",subject);
   Date now=new Date();
   validate(subject,body);
-  if (files.size() > 0) {
-    long companyId=message.getCompanyId();
-    String portletId=CompanyImpl.SYSTEM_STRING;
-    long groupId=GroupImpl.DEFAULT_PARENT_GROUP_ID;
-    long repositoryId=CompanyImpl.SYSTEM;
-    String dirName=message.getAttachmentsDir();
+  long companyId=message.getCompanyId();
+  String portletId=CompanyImpl.SYSTEM_STRING;
+  long groupId=GroupImpl.DEFAULT_PARENT_GROUP_ID;
+  long repositoryId=CompanyImpl.SYSTEM;
+  String dirName=message.getAttachmentsDir();
+  if (!files.isEmpty() || !existingFiles.isEmpty()) {
     try {
       try {
-        dlService.deleteDirectory(companyId,portletId,repositoryId,dirName);
+        dlService.addDirectory(companyId,repositoryId,dirName);
       }
- catch (      NoSuchDirectoryException nsde) {
+ catch (      DuplicateDirectoryException dde) {
       }
-      dlService.addDirectory(companyId,repositoryId,dirName);
+      String[] fileNames=dlService.getFileNames(companyId,repositoryId,dirName);
+      for (      String fileName : fileNames) {
+        if (!existingFiles.contains(fileName)) {
+          dlService.deleteFile(companyId,portletId,repositoryId,fileName);
+        }
+      }
       for (int i=0; i < files.size(); i++) {
         ObjectValuePair ovp=(ObjectValuePair)files.get(i);
         String fileName=(String)ovp.getKey();
@@ -32,10 +37,20 @@
       throw new SystemException(re);
     }
   }
+ else {
+    try {
+      dlService.deleteDirectory(companyId,portletId,repositoryId,dirName);
+    }
+ catch (    NoSuchDirectoryException nsde) {
+    }
+catch (    RemoteException re) {
+      throw new SystemException(re);
+    }
+  }
   message.setModifiedDate(now);
   message.setSubject(subject);
   message.setBody(body);
-  message.setAttachments((files.size() > 0 ? true : false));
+  message.setAttachments(!files.isEmpty() || !existingFiles.isEmpty());
   mbMessagePersistence.update(message);
   MBThread thread=mbThreadPersistence.findByPrimaryKey(message.getThreadId());
   if (priority != MBThreadImpl.PRIORITY_NOT_GIVEN) {
