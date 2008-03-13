@@ -1,0 +1,26 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
+  PermissionChecker permissionChecker=themeDisplay.getPermissionChecker();
+  long liveGroupId=ParamUtil.getLong(req,"liveGroupId");
+  if (!GroupPermissionUtil.contains(permissionChecker,liveGroupId,ActionKeys.MANAGE_STAGING)) {
+    throw new PrincipalException();
+  }
+  long stagingGroupId=ParamUtil.getLong(req,"stagingGroupId");
+  boolean stagingEnabled=ParamUtil.getBoolean(req,"stagingEnabled");
+  if ((stagingGroupId > 0) && !stagingEnabled) {
+    GroupServiceUtil.deleteGroup(stagingGroupId);
+    GroupServiceUtil.updateWorkflow(liveGroupId,false,0,null);
+  }
+ else   if ((stagingGroupId == 0) && stagingEnabled) {
+    Group liveGroup=GroupServiceUtil.getGroup(liveGroupId);
+    Group stagingGroup=GroupServiceUtil.addGroup(liveGroup.getGroupId(),liveGroup.getName() + " (Staging)",liveGroup.getDescription(),GroupImpl.TYPE_COMMUNITY_PRIVATE,null,liveGroup.isActive());
+    if (liveGroup.hasPrivateLayouts()) {
+      Map parameterMap=getStagingParameters();
+      copyLayouts(liveGroup.getGroupId(),stagingGroup.getGroupId(),true,parameterMap);
+    }
+    if (liveGroup.hasPublicLayouts()) {
+      Map parameterMap=getStagingParameters();
+      copyLayouts(liveGroup.getGroupId(),stagingGroup.getGroupId(),false,parameterMap);
+    }
+  }
+}
