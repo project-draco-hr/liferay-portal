@@ -1,0 +1,42 @@
+{
+  Session session=null;
+  try {
+    session=HibernateUtil.openSession();
+    StringMaker sm=new StringMaker();
+    sm.append("SELECT COUNT(assetId) AS COUNT_VALUE ");
+    sm.append("FROM TagsAsset WHERE");
+    sm.append(" (1 = 1)");
+    if (excludeZeroViewCount) {
+      sm.append(" AND (TagsAsset.viewCount > 0)");
+    }
+    sm.append("[$DATES$]");
+    if (groupId > 0) {
+      sm.append(" AND (TagsAsset.groupId = ?)");
+    }
+    sm.append(getClassNameIds(classNameIds));
+    String sql=sm.toString();
+    sql=getDates(sql,publishDate,expirationDate);
+    SQLQuery q=session.createSQLQuery(sql);
+    q.addScalar(HibernateUtil.getCountColumnName(),Hibernate.LONG);
+    QueryPos qPos=QueryPos.getInstance(q);
+    setDates(qPos,publishDate,expirationDate);
+    if (groupId > 0) {
+      setGroupId(qPos,groupId);
+    }
+    setClassNamedIds(qPos,classNameIds);
+    Iterator<Long> itr=q.list().iterator();
+    if (itr.hasNext()) {
+      Long count=itr.next();
+      if (count != null) {
+        return count.intValue();
+      }
+    }
+    return 0;
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+ finally {
+    HibernateUtil.closeSession(session);
+  }
+}
