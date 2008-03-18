@@ -1,78 +1,29 @@
 {
-  RenderedImage renderedImage=null;
-  String type=null;
-  InputStream is=null;
-  FileCacheImageInputStream fcis=null;
-  try {
-    is=new ByteArrayInputStream(bytes);
-    fcis=new FileCacheImageInputStream(is,null);
-    Iterator itr=ImageIO.getImageReaders(fcis);
-    if (itr.hasNext()) {
-      ImageReader reader=(ImageReader)itr.next();
-      String[] suffixes=reader.getOriginatingProvider().getFileSuffixes();
-      if (suffixes != null) {
-        type=suffixes[0];
-      }
-      reader.dispose();
-    }
-    if (type != null) {
-      renderedImage=ImageIO.read(fcis);
-    }
-    if (renderedImage == null) {
-      renderedImage=_getRenderedImage("BMP",bytes);
-      if (renderedImage != null) {
-        type=TYPE_BMP;
-      }
-    }
-    if (renderedImage == null) {
-      renderedImage=_getRenderedImage("TIFF",bytes);
-      if (renderedImage != null) {
-        type=TYPE_TIFF;
-      }
-    }
-    if (renderedImage == null) {
-      renderedImage=_getRenderedImage("GIF",bytes);
-      if (renderedImage != null) {
-        type=TYPE_GIF;
-      }
-    }
-    if (renderedImage == null) {
-      renderedImage=_getRenderedImage("JPEG",bytes);
-      if (renderedImage != null) {
-        type=TYPE_JPEG;
-      }
-    }
-    if (renderedImage == null) {
-      renderedImage=_getRenderedImage("PNG",bytes);
-      if (renderedImage != null) {
-        type=TYPE_PNG;
-      }
-    }
+  if (_readWithImageIO) {
   }
-  finally {
-    if (is != null) {
-      try {
-        is.close();
-      }
- catch (      IOException ioe) {
-        if (_log.isWarnEnabled()) {
-          _log.warn(ioe);
-        }
-      }
-    }
-    if (fcis != null) {
-      try {
-        fcis.close();
-      }
- catch (      IOException ioe) {
-        if (_log.isDebugEnabled()) {
-          _log.debug(ioe);
-        }
-      }
+ else {
+  }
+  String type=null;
+  Enumeration enu=ImageCodec.getCodecs();
+  while (enu.hasMoreElements()) {
+    ImageCodec codec=(ImageCodec)enu.nextElement();
+    if (codec.isFormatRecognized(bytes)) {
+      type=codec.getFormatName();
+      break;
     }
   }
   if (type == null) {
-    type=TYPE_NOT_AVAILABLE;
+    return new ImageBag(null,TYPE_NOT_AVAILABLE);
+  }
+  RenderedImage renderedImage=null;
+  ImageDecoder decoder=ImageCodec.createImageDecoder(type,new ByteArrayInputStream(bytes),null);
+  try {
+    renderedImage=decoder.decodeAsRenderedImage();
+  }
+ catch (  IOException ioe) {
+    if (_log.isDebugEnabled()) {
+      _log.debug(type + ": " + ioe.getMessage());
+    }
   }
   return new ImageBag(renderedImage,type);
 }
