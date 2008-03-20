@@ -1,57 +1,68 @@
 {
-  if (Validator.isNull(xml) || (xml.indexOf("<root") == -1)) {
-    xml="<root />";
-  }
-  String updatedXml=xml;
+  _removeCachedValue(xml);
+  xml=_sanitizeXML(xml);
+  XMLStreamReader reader=null;
+  XMLStreamWriter writer=null;
   try {
-    SAXReader reader=new SAXReader();
-    Document doc=reader.read(new StringReader(xml));
-    Element root=doc.getRootElement();
-    String availableLocales=root.attributeValue("available-locales");
-    Element localeEl=null;
-    Iterator itr=root.elements().iterator();
-    while (itr.hasNext()) {
-      Element el=(Element)itr.next();
-      String languageId=el.attributeValue("language-id",defaultLanguageId);
-      if (languageId.equals(requestedLanguageId)) {
-        localeEl=el;
-        break;
-      }
-    }
-    if (localeEl != null) {
-      localeEl.addAttribute("language-id",requestedLanguageId);
-      if (cdata) {
-        localeEl.clearContent();
-        localeEl.addCDATA(value);
-      }
- else {
-        localeEl.setText(value);
-      }
-    }
- else {
-      localeEl=root.addElement(key);
-      localeEl.addAttribute("language-id",requestedLanguageId);
-      if (cdata) {
-        localeEl.addCDATA(value);
-      }
- else {
-        localeEl.setText(value);
-      }
-      if (availableLocales == null) {
+    XMLInputFactory inputFactory=XMLInputFactory.newInstance();
+    reader=inputFactory.createXMLStreamReader(new StringReader(xml));
+    String availableLocales=StringPool.BLANK;
+    if (reader.hasNext()) {
+      reader.nextTag();
+      availableLocales=reader.getAttributeValue(null,_AVAILABLE_LOCALES);
+      if (Validator.isNull(availableLocales)) {
         availableLocales=defaultLanguageId;
       }
-      if (!requestedLanguageId.equals(defaultLanguageId)) {
+      if (availableLocales.indexOf(requestedLanguageId) == -1) {
         availableLocales+=StringPool.COMMA + requestedLanguageId;
       }
-      root.addAttribute("available-locales",availableLocales);
     }
-    root.addAttribute("default-locale",defaultLanguageId);
-    updatedXml=XMLFormatter.toString(doc,"  ");
+    StringWriter sw=new StringWriter(xml.length());
+    XMLOutputFactory outputFactory=XMLOutputFactory.newInstance();
+    writer=outputFactory.createXMLStreamWriter(sw);
+    writer.writeStartDocument();
+    writer.writeStartElement(_ROOT);
+    writer.writeAttribute(_AVAILABLE_LOCALES,availableLocales);
+    writer.writeAttribute(_DEFAULT_LOCALE,defaultLanguageId);
+    _copyNonExempt(reader,writer,requestedLanguageId,defaultLanguageId,cdata);
+    if (cdata) {
+      writer.writeStartElement(key);
+      writer.writeAttribute(_LANGUAGE_ID,requestedLanguageId);
+      writer.writeCData(value);
+      writer.writeEndElement();
+    }
+ else {
+      writer.writeStartElement(key);
+      writer.writeAttribute(_LANGUAGE_ID,requestedLanguageId);
+      writer.writeCharacters(value);
+      writer.writeEndElement();
+    }
+    writer.writeEndElement();
+    writer.writeEndDocument();
+    writer.close();
+    writer=null;
+    xml=sw.toString();
   }
  catch (  Exception e) {
     if (_log.isWarnEnabled()) {
       _log.warn(e);
     }
   }
-  return updatedXml;
+ finally {
+    if (reader != null) {
+      try {
+        reader.close();
+      }
+ catch (      Exception e) {
+      }
+    }
+    if (writer != null) {
+      try {
+        writer.close();
+      }
+ catch (      Exception e) {
+      }
+    }
+  }
+  return xml;
 }

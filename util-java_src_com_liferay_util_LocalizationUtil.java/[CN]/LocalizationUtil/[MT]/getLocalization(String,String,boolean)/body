@@ -1,20 +1,51 @@
 {
+  String value=_getCachedValue(xml,requestedLanguageId,useDefault);
+  if (value != null) {
+    return value;
+  }
+ else {
+    value=StringPool.BLANK;
+  }
   String defaultLanguageId=LocaleUtil.toLanguageId(LocaleUtil.getDefault());
-  String value=StringPool.BLANK;
   String defaultValue=StringPool.BLANK;
+  XMLStreamReader reader=null;
   try {
-    SAXReader reader=new SAXReader();
-    Document doc=reader.read(new StringReader(xml));
-    Element root=doc.getRootElement();
-    Iterator itr=root.elements().iterator();
-    while (itr.hasNext()) {
-      Element el=(Element)itr.next();
-      String languageId=el.attributeValue("language-id",defaultLanguageId);
-      if (languageId.equals(defaultLanguageId)) {
-        defaultValue=el.getText();
+    XMLInputFactory factory=XMLInputFactory.newInstance();
+    reader=factory.createXMLStreamReader(new StringReader(xml));
+    if (reader.hasNext()) {
+      reader.nextTag();
+    }
+    while (reader.hasNext()) {
+      int event=reader.next();
+      if (event == XMLStreamConstants.START_ELEMENT) {
+        String languageId=reader.getAttributeValue(null,_LANGUAGE_ID);
+        if (Validator.isNull(languageId)) {
+          languageId=defaultLanguageId;
+        }
+        if (languageId.equals(defaultLanguageId) || languageId.equals(requestedLanguageId)) {
+          while (reader.hasNext()) {
+            event=reader.next();
+            if (event == XMLStreamConstants.CHARACTERS || event == XMLStreamConstants.CDATA) {
+              String text=reader.getText();
+              if (languageId.equals(defaultLanguageId)) {
+                defaultValue=text;
+              }
+              if (languageId.equals(requestedLanguageId)) {
+                value=text;
+              }
+              break;
+            }
+ else             if (event == XMLStreamConstants.END_ELEMENT) {
+              break;
+            }
+          }
+          if (Validator.isNotNull(value)) {
+            break;
+          }
+        }
       }
-      if (languageId.equals(requestedLanguageId)) {
-        value=el.getText();
+ else       if (event == XMLStreamConstants.END_DOCUMENT) {
+        break;
       }
     }
     if (useDefault && Validator.isNull(value)) {
@@ -26,5 +57,6 @@
       _log.warn(e);
     }
   }
+  _setCachedValue(xml,requestedLanguageId,useDefault,value);
   return value;
 }
