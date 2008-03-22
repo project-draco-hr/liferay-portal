@@ -1,0 +1,169 @@
+{
+  boolean deleteMissingLayouts=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.DELETE_MISSING_LAYOUTS,Boolean.TRUE.booleanValue());
+  boolean deletePortletData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.DELETE_PORTLET_DATA);
+  boolean importPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PERMISSIONS);
+  boolean importUserPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PERMISSIONS);
+  boolean importPortletData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_DATA);
+  boolean importPortletSetup=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_SETUP);
+  boolean importPortletArchivedSetups=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_ARCHIVED_SETUPS);
+  boolean importPortletUserPreferences=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_USER_PREFERENCES);
+  boolean importTheme=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.THEME);
+  String userIdStrategy=MapUtil.getString(parameterMap,PortletDataHandlerKeys.USER_ID_STRATEGY);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Delete portlet data " + deletePortletData);
+    _log.debug("Import permissions " + importPermissions);
+    _log.debug("Import user permissions " + importUserPermissions);
+    _log.debug("Import portlet data " + importPortletData);
+    _log.debug("Import portlet setup " + importPortletSetup);
+    _log.debug("Import portlet archived setups " + importPortletArchivedSetups);
+    _log.debug("Import portlet user preferences " + importPortletUserPreferences);
+    _log.debug("Import theme " + importTheme);
+  }
+  StopWatch stopWatch=null;
+  if (_log.isInfoEnabled()) {
+    stopWatch=new StopWatch();
+    stopWatch.start();
+  }
+  LayoutCache layoutCache=new LayoutCache();
+  LayoutSet layoutSet=layoutSetLocalService.getLayoutSet(groupId,privateLayout);
+  long companyId=layoutSet.getCompanyId();
+  User user=userPersistence.findByPrimaryKey(userId);
+  UserIdStrategy strategy=getUserIdStrategy(user,userIdStrategy);
+  ZipReader zipReader=new ZipReader(is);
+  PortletDataContext context=new PortletDataContextImpl(companyId,groupId,parameterMap,CollectionFactory.getHashSet(),strategy,zipReader);
+  Group guestGroup=groupLocalService.getGroup(companyId,GroupImpl.GUEST);
+  Element root=null;
+  byte[] themeZip=null;
+  try {
+    String xml=zipReader.getEntryAsString("layouts.xml");
+    SAXReader reader=new SAXReader();
+    Document doc=reader.read(new StringReader(xml));
+    root=doc.getRootElement();
+    if (importTheme) {
+      themeZip=zipReader.getEntryAsByteArray("theme.zip");
+    }
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+  Element header=root.element("header");
+  int buildNumber=ReleaseInfo.getBuildNumber();
+  int importBuildNumber=GetterUtil.getInteger(header.attributeValue("build-number"));
+  if (buildNumber != importBuildNumber) {
+    throw new LayoutImportException("LAR build number " + importBuildNumber + " does not match "+ "portal build number "+ buildNumber);
+  }
+  String themeId=header.attributeValue("theme-id");
+  String colorSchemeId=header.attributeValue("color-scheme-id");
+  boolean useThemeZip=false;
+  if (themeZip != null) {
+    try {
+      String importThemeId=importTheme(layoutSet,themeZip);
+      if (importThemeId != null) {
+        themeId=importThemeId;
+        colorSchemeId=ColorSchemeImpl.getDefaultRegularColorSchemeId();
+        useThemeZip=true;
+      }
+      if (_log.isDebugEnabled()) {
+        _log.debug("Importing theme takes " + stopWatch.getTime() + " ms");
+      }
+    }
+ catch (    Exception e) {
+      throw new SystemException(e);
+    }
+  }
+  boolean wapTheme=false;
+  layoutSetLocalService.updateLookAndFeel(groupId,privateLayout,themeId,colorSchemeId,StringPool.BLANK,wapTheme);
+  readComments(context,root);
+  readRatings(context,root);
+  readTags(context,root);
+  Set<Long> newLayoutIds=new HashSet<Long>();
+  Iterator<Element> itr=root.elements("layout").iterator();
+  if (_log.isDebugEnabled()) {
+    if (itr.hasNext()) {
+      _log.debug("Importing layouts");
+    }
+  }
+  while (itr.hasNext()) {
+    Element layoutEl=itr.next();
+    long layoutId=GetterUtil.getInteger(layoutEl.attributeValue("layout-id"));
+    long parentLayoutId=GetterUtil.getInteger(layoutEl.elementText("parent-layout-id"));
+    if (_log.isDebugEnabled()) {
+      _log.debug("Importing layout with layout id " + layoutId + " and parent layout id "+ parentLayoutId);
+    }
+    String name=layoutEl.elementText("name");
+    String title=layoutEl.elementText("title");
+    String type=layoutEl.elementText("type");
+    String typeSettings=layoutEl.elementText("type-settings");
+    boolean hidden=GetterUtil.getBoolean(layoutEl.elementText("hidden"));
+    String friendlyURL=layoutEl.elementText("friendly-url");
+    if (useThemeZip) {
+      themeId=StringPool.BLANK;
+      colorSchemeId=StringPool.BLANK;
+    }
+ else {
+      themeId=layoutEl.elementText("theme-id");
+      colorSchemeId=layoutEl.elementText("color-scheme-id");
+    }
+    int priority=GetterUtil.getInteger(layoutEl.elementText("priority"));
+    Layout layout=layoutPersistence.fetchByG_P_L(groupId,privateLayout,layoutId);
+    if (_log.isDebugEnabled()) {
+      if (layout == null) {
+        _log.debug("Layout with {groupId=" + groupId + ",privateLayout="+ privateLayout+ ",layoutId="+ layoutId+ "} does not exist");
+      }
+ else {
+        _log.debug("Layout with {groupId=" + groupId + ",privateLayout="+ privateLayout+ ",layoutId="+ layoutId+ "} exists");
+      }
+    }
+    if (layout == null) {
+      long plid=counterLocalService.increment();
+      layout=layoutPersistence.create(plid);
+      layout.setGroupId(groupId);
+      layout.setPrivateLayout(privateLayout);
+      layout.setLayoutId(layoutId);
+    }
+    layout.setCompanyId(user.getCompanyId());
+    layout.setParentLayoutId(parentLayoutId);
+    layout.setName(name);
+    layout.setTitle(title);
+    layout.setType(type);
+    layout.setTypeSettings(typeSettings);
+    layout.setHidden(hidden);
+    layout.setFriendlyURL(friendlyURL);
+    layout.setThemeId(themeId);
+    layout.setColorSchemeId(colorSchemeId);
+    layout.setPriority(priority);
+    fixTypeSettings(layout);
+    layoutPersistence.update(layout);
+    context.setPlid(layout.getPlid());
+    newLayoutIds.add(layoutId);
+    Element permissionsEl=layoutEl.element("permissions");
+    if (importPermissions) {
+      importLayoutPermissions(layoutCache,companyId,groupId,guestGroup,layout,permissionsEl,importUserPermissions);
+    }
+    if (deletePortletData) {
+      deletePortletData(context,layout,layoutEl);
+    }
+    importPortletPreferences(context,layoutSet.getCompanyId(),layout.getGroupId(),layout.getPlid(),layoutEl,importPortletSetup,importPortletArchivedSetups,importPortletUserPreferences);
+    if (importPortletData) {
+      importPortletData(context,layout,layoutEl);
+    }
+    if (importPermissions) {
+      importPortletPermissions(layoutCache,companyId,groupId,guestGroup,layout,permissionsEl,importUserPermissions);
+    }
+  }
+  importPortletPreferences(context,layoutSet.getCompanyId(),groupId,0,root,importPortletSetup,importPortletArchivedSetups,importPortletUserPreferences);
+  Element rolesEl=root.element("roles");
+  if (importPermissions) {
+    importLayoutRoles(layoutCache,companyId,groupId,rolesEl);
+  }
+  if (importPermissions) {
+    importPortletRoles(layoutCache,companyId,groupId,rolesEl);
+  }
+  if (deleteMissingLayouts) {
+    deleteMissingLayouts(groupId,privateLayout,newLayoutIds);
+  }
+  layoutSetLocalService.updatePageCount(groupId,privateLayout);
+  if (_log.isInfoEnabled()) {
+    _log.info("Importing layouts takes " + stopWatch.getTime() + " ms");
+  }
+}
