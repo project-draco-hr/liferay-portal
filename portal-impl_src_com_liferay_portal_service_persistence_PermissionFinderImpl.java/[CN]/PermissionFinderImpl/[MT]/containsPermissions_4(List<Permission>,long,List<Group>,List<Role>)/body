@@ -1,0 +1,62 @@
+{
+  Session session=null;
+  try {
+    session=HibernateUtil.openSession();
+    String sql=null;
+    StringMaker sm=new StringMaker();
+    if (groups.size() > 0) {
+      sm.append("(");
+      sm.append(CustomSQLUtil.get(COUNT_BY_GROUPS_PERMISSIONS));
+      sm.append(") ");
+      sql=sm.toString();
+      sql=StringUtil.replace(sql,"[$PERMISSION_IDS$]",getPermissionIds(permissions,"Groups_Permissions"));
+      sql=StringUtil.replace(sql,"[$GROUP_IDS$]",getGroupIds(groups,"Groups_Permissions"));
+      sm=new StringMaker();
+      sm.append(sql);
+      sm.append("UNION ALL ");
+    }
+    if (roles.size() > 0) {
+      sm.append("(");
+      sm.append(CustomSQLUtil.get(COUNT_BY_ROLES_PERMISSIONS));
+      sm.append(") ");
+      sql=sm.toString();
+      sql=StringUtil.replace(sql,"[$PERMISSION_IDS$]",getPermissionIds(permissions,"Roles_Permissions"));
+      sql=StringUtil.replace(sql,"[$ROLE_IDS$]",getRoleIds(roles,"Roles_Permissions"));
+      sm=new StringMaker();
+      sm.append(sql);
+      sm.append("UNION ALL ");
+    }
+    sm.append("(");
+    sm.append(CustomSQLUtil.get(COUNT_BY_USERS_PERMISSIONS));
+    sm.append(") ");
+    sql=sm.toString();
+    sql=StringUtil.replace(sql,"[$PERMISSION_IDS$]",getPermissionIds(permissions,"Users_Permissions"));
+    SQLQuery q=session.createSQLQuery(sql);
+    q.addScalar(HibernateUtil.getCountColumnName(),Hibernate.LONG);
+    QueryPos qPos=QueryPos.getInstance(q);
+    if (groups.size() > 0) {
+      setPermissionIds(qPos,permissions);
+      setGroupIds(qPos,groups);
+    }
+    if (roles.size() > 0) {
+      setPermissionIds(qPos,permissions);
+      setRoleIds(qPos,roles);
+    }
+    setPermissionIds(qPos,permissions);
+    qPos.add(userId);
+    Iterator<Long> itr=q.list().iterator();
+    while (itr.hasNext()) {
+      Long count=itr.next();
+      if ((count != null) && (count.intValue() > 0)) {
+        return true;
+      }
+    }
+    return false;
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+ finally {
+    HibernateUtil.closeSession(session);
+  }
+}

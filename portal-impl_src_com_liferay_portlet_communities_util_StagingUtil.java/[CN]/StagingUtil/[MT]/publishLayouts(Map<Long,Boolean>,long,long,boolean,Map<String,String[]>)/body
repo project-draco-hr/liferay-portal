@@ -1,0 +1,38 @@
+{
+  parameterMap.put(PortletDataHandlerKeys.DELETE_MISSING_LAYOUTS,new String[]{Boolean.FALSE.toString()});
+  List<Layout> layouts=new ArrayList<Layout>();
+  Iterator<Map.Entry<Long,Boolean>> itr1=layoutIdMap.entrySet().iterator();
+  while (itr1.hasNext()) {
+    Entry<Long,Boolean> entry=itr1.next();
+    long plid=entry.getKey();
+    boolean includeChildren=entry.getValue();
+    Layout layout=LayoutLocalServiceUtil.getLayout(plid);
+    if (!layouts.contains(layout)) {
+      layouts.add(layout);
+    }
+    Iterator<Layout> itr2=getMissingParents(layout,liveGroupId).iterator();
+    while (itr2.hasNext()) {
+      Layout parentLayout=itr2.next();
+      if (!layouts.contains(parentLayout)) {
+        layouts.add(parentLayout);
+      }
+    }
+    if (includeChildren) {
+      itr2=layout.getAllChildren().iterator();
+      while (itr2.hasNext()) {
+        Layout childLayout=itr2.next();
+        if (!layouts.contains(childLayout)) {
+          layouts.add(childLayout);
+        }
+      }
+    }
+  }
+  long[] layoutIds=new long[layouts.size()];
+  for (int i=0; i < layouts.size(); i++) {
+    Layout curLayout=layouts.get(i);
+    layoutIds[i]=curLayout.getLayoutId();
+  }
+  byte[] data=LayoutServiceUtil.exportLayouts(stagingGroupId,privateLayout,layoutIds,parameterMap);
+  ByteArrayInputStream bais=new ByteArrayInputStream(data);
+  LayoutServiceUtil.importLayouts(liveGroupId,privateLayout,parameterMap,bais);
+}
