@@ -1,0 +1,99 @@
+{
+  long classNameId=entry.getClassNameId();
+  String className=StringPool.BLANK;
+  if (classNameId > 0) {
+    className=PortalUtil.getClassName(classNameId);
+  }
+  long classPK=entry.getClassPK();
+  Company company=companyPersistence.findByPrimaryKey(entry.getCompanyId());
+  String subject=ContentUtil.get(PropsValues.ANNOUNCEMENTS_EMAIL_SUBJECT);
+  String body=ContentUtil.get(PropsValues.ANNOUNCEMENTS_EMAIL_BODY);
+  String fromName=PropsValues.ANNOUNCEMENTS_EMAIL_FROM_NAME;
+  String fromAddress=PropsValues.ANNOUNCEMENTS_EMAIL_FROM_ADDRESS;
+  String toName=PropsValues.ANNOUNCEMENTS_EMAIL_TO_NAME;
+  String toAddress=PropsValues.ANNOUNCEMENTS_EMAIL_TO_ADDRESS;
+  List<User> users=new ArrayList<User>();
+  try {
+    if (classNameId == 0 && classPK == 0) {
+      users=userPersistence.findByCompanyId(company.getCompanyId());
+    }
+ else     if (className.equals(Group.class.getName()) && classPK > 0) {
+      Group group=groupPersistence.findByPrimaryKey(classPK);
+      toName=group.getName();
+      users=userLocalService.getGroupUsers(group.getGroupId());
+    }
+ else     if (className.equals(Organization.class.getName()) && classPK > 0) {
+      Organization org=organizationPersistence.findByPrimaryKey(classPK);
+      toName=org.getName();
+      users=userLocalService.getOrganizationUsers(org.getOrganizationId());
+    }
+ else     if (className.equals(Role.class.getName()) && classPK > 0) {
+      Role role=rolePersistence.findByPrimaryKey(classPK);
+      toName=role.getName();
+      users=userLocalService.getRoleUsers(role.getRoleId());
+    }
+ else     if (className.equals(User.class.getName()) && classPK > 0) {
+      User user=userLocalService.getUserById(classPK);
+      toName=user.getFullName();
+      toAddress=user.getEmailAddress();
+      users.add(user);
+    }
+ else     if (className.equals(UserGroup.class.getName()) && classPK > 0) {
+      UserGroup userGroup=userGroupPersistence.findByPrimaryKey(classPK);
+      toName=userGroup.getName();
+      users=userLocalService.getUserGroupUsers(userGroup.getUserGroupId());
+    }
+    if (_log.isDebugEnabled()) {
+      _log.debug("Checking " + users.size() + " users");
+    }
+    List<InternetAddress> addresses=new ArrayList<InternetAddress>();
+    long userClassNameId=PortalUtil.getClassNameId(User.class.getName());
+    String emailColName="announcements-delivery-by-email-type-" + entry.getType();
+    String smsColName="announcements-delivery-by-sms-type-" + entry.getType();
+    ExpandoColumn emailColumn=expandoColumnLocalService.setColumn(userClassNameId,emailColName,ExpandoColumnImpl.BOOLEAN);
+    ExpandoColumn smsColumn=expandoColumnLocalService.setColumn(userClassNameId,smsColName,ExpandoColumnImpl.BOOLEAN);
+    boolean sendEmail, sendSMS;
+    for (    User user : users) {
+      try {
+        ExpandoValue emailValue=expandoValueLocalService.getValue(user.getUserId(),emailColumn.getColumnId());
+        sendEmail=emailValue.getBoolean();
+      }
+ catch (      NoSuchExpandoValueException nseve) {
+        sendEmail=Boolean.FALSE;
+      }
+      if (sendEmail) {
+        InternetAddress address=new InternetAddress(user.getEmailAddress(),user.getFullName());
+        addresses.add(address);
+      }
+      try {
+        ExpandoValue smsValue=expandoValueLocalService.getValue(user.getUserId(),smsColumn.getColumnId());
+        sendSMS=smsValue.getBoolean();
+      }
+ catch (      NoSuchExpandoValueException nseve) {
+        sendSMS=Boolean.FALSE;
+      }
+      if (sendSMS) {
+        Contact contact=contactPersistence.findByPrimaryKey(user.getContactId());
+        if (Validator.isNotNull(contact.getSmsSn())) {
+          InternetAddress address=new InternetAddress(contact.getSmsSn(),user.getFullName());
+          addresses.add(address);
+        }
+      }
+    }
+    InternetAddress[] bulkAddresses=addresses.toArray(new InternetAddress[addresses.size()]);
+    if (bulkAddresses.length > 0) {
+      subject=StringUtil.replace(subject,new String[]{"[$ENTRY_ID$]","[$ENTRY_TITLE$]","[$ENTRY_URL$]","[$ENTRY_CONTENT$]","[$ENTRY_TYPE$]","[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PORTAL_URL$]","[$PORTLET_NAME$]","[$TO_ADDRESS$]","[$TO_NAME$]"},new String[]{String.valueOf(entry.getEntryId()),entry.getTitle(),entry.getUrl(),entry.getContent(),LanguageUtil.get(company.getCompanyId(),company.getLocale(),entry.getType()),fromAddress,fromName,company.getVirtualHost(),(entry.isAlert() ? "Alert" : "Announcement"),toAddress,toName});
+      body=StringUtil.replace(body,new String[]{"[$ENTRY_ID$]","[$ENTRY_TITLE$]","[$ENTRY_URL$]","[$ENTRY_CONTENT$]","[$ENTRY_TYPE$]","[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PORTAL_URL$]","[$PORTLET_NAME$]","[$TO_ADDRESS$]","[$TO_NAME$]"},new String[]{String.valueOf(entry.getEntryId()),entry.getTitle(),entry.getUrl(),entry.getContent(),LanguageUtil.get(company.getCompanyId(),company.getLocale(),entry.getType()),fromAddress,fromName,company.getVirtualHost(),(entry.isAlert() ? "Alert" : "Announcement"),toAddress,toName});
+      InternetAddress from=new InternetAddress(fromAddress,fromName);
+      InternetAddress[] to=new InternetAddress[]{new InternetAddress(toAddress,toName)};
+      MailMessage message=new MailMessage(from,to,null,null,bulkAddresses,subject,body,true);
+      mailService.sendEmail(message);
+    }
+  }
+ catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+catch (  PortalException pe) {
+    throw pe;
+  }
+}
