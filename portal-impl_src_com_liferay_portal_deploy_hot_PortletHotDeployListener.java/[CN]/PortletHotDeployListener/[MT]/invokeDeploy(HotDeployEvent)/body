@@ -15,17 +15,23 @@
       _log.info("Registering portlets for " + servletContextName);
     }
     List<Portlet> portlets=PortletLocalServiceUtil.initWAR(servletContextName,xmls,event.getPluginPackage());
+    if (_log.isInfoEnabled()) {
+      _log.info(portlets.size() + " portlets for " + servletContextName+ " are ready for registration");
+    }
     ClassLoader portletClassLoader=event.getContextClassLoader();
     ctx.setAttribute(PortletServlet.PORTLET_CLASS_LOADER,portletClassLoader);
     boolean strutsBridges=false;
-    for (int i=0; i < portlets.size(); i++) {
-      Portlet portlet=portlets.get(i);
+    Iterator<Portlet> portletsItr=portlets.iterator();
+    while (portletsItr.hasNext()) {
+      Portlet portlet=portletsItr.next();
       Class<?> portletClass=null;
       try {
         portletClass=portletClassLoader.loadClass(portlet.getPortletClass());
       }
  catch (      Exception e1) {
         _log.error(e1,e1);
+        portletsItr.remove();
+        PortletLocalServiceUtil.destroyPortlet(portlet);
         continue;
       }
       javax.portlet.Portlet portletInstance=(javax.portlet.Portlet)portletClass.newInstance();
@@ -96,7 +102,7 @@
       }
       PortletBag portletBag=new PortletBag(portlet.getPortletId(),ctx,portletInstance,configurationActionInstance,indexerInstance,schedulerInstance,friendlyURLMapperInstance,urlEncoderInstance,portletDataHandlerInstance,portletLayoutListenerInstance,activityTrackerInterpreterInstance,popMessageListenerInstance,prefsValidatorInstance,resourceBundles);
       PortletBagPool.put(portlet.getPortletId(),portletBag);
-      if (i == 0) {
+      if (!portletsItr.hasNext()) {
         initPortletApp(portlet,ctx,portletClassLoader);
       }
       try {
@@ -140,7 +146,7 @@
     processServiceBuilder(ctx,portletClassLoader);
     _vars.put(servletContextName,new ObjectValuePair<long[],List<Portlet>>(companyIds,portlets));
     if (_log.isInfoEnabled()) {
-      _log.info("Portlets for " + servletContextName + " registered successfully");
+      _log.info(portlets.size() + " portlets for " + servletContextName+ " registered successfully");
     }
   }
  catch (  Exception e2) {
