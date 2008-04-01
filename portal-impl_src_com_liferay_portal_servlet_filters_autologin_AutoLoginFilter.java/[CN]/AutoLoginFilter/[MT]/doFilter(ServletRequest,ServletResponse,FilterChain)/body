@@ -2,11 +2,31 @@
   HttpServletRequest httpReq=(HttpServletRequest)req;
   HttpServletResponse httpRes=(HttpServletResponse)res;
   HttpSession ses=httpReq.getSession();
+  String host=PortalUtil.getHost(httpReq);
+  if (PortalInstances.isAutoLoginIgnoreHost(host)) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Ignore host " + host);
+    }
+    doFilter(AutoLoginFilter.class,req,res,chain);
+    return;
+  }
+  String contextPath=PortalUtil.getPathContext();
+  String path=httpReq.getRequestURI().toLowerCase();
+  if ((!contextPath.equals(StringPool.SLASH)) && (path.indexOf(contextPath) != -1)) {
+    path=path.substring(contextPath.length(),path.length());
+  }
+  if (PortalInstances.isAutoLoginIgnorePath(path)) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Ignore path " + path);
+    }
+    doFilter(AutoLoginFilter.class,req,res,chain);
+    return;
+  }
   String remoteUser=httpReq.getRemoteUser();
   String jUserName=(String)ses.getAttribute("j_username");
   if ((remoteUser == null) && (jUserName == null)) {
-    for (int i=0; i < PropsValues.AUTO_LOGIN_HOOKS.length; i++) {
-      AutoLogin autoLogin=(AutoLogin)InstancePool.get(PropsValues.AUTO_LOGIN_HOOKS[i]);
+    for (    String autoLoginHook : PropsValues.AUTO_LOGIN_HOOKS) {
+      AutoLogin autoLogin=(AutoLogin)InstancePool.get(autoLoginHook);
       try {
         String[] credentials=autoLogin.login(httpReq,httpRes);
         String redirect=(String)req.getAttribute(AutoLogin.AUTO_LOGIN_REDIRECT);
