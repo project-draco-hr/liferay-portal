@@ -1,0 +1,75 @@
+{
+  Entity[] entities=new Entity[2];
+  for (int i=0; i < entities.length; i++) {
+    entities[i]=getEntity(entityMapping.getEntity(i));
+    if (entities[i] == null) {
+      return null;
+    }
+  }
+  StringMaker sm=new StringMaker();
+  sm.append(_CREATE_TABLE + entityMapping.getTable() + " (\n");
+  for (  Entity entity : entities) {
+    List<EntityColumn> pkList=entity.getPKList();
+    for (int i=0; i < pkList.size(); i++) {
+      EntityColumn col=pkList.get(i);
+      String colName=col.getName();
+      String colType=col.getType();
+      sm.append("\t" + col.getDBName());
+      sm.append(" ");
+      if (colType.equalsIgnoreCase("boolean")) {
+        sm.append("BOOLEAN");
+      }
+ else       if (colType.equalsIgnoreCase("double") || colType.equalsIgnoreCase("float")) {
+        sm.append("DOUBLE");
+      }
+ else       if (colType.equals("int") || colType.equals("Integer") || colType.equalsIgnoreCase("short")) {
+        sm.append("INTEGER");
+      }
+ else       if (colType.equalsIgnoreCase("long")) {
+        sm.append("LONG");
+      }
+ else       if (colType.equals("String")) {
+        Map<String,String> hints=ModelHintsUtil.getHints(_packagePath + ".model." + entity.getName(),colName);
+        int maxLength=75;
+        if (hints != null) {
+          maxLength=GetterUtil.getInteger(hints.get("max-length"),maxLength);
+        }
+        if (maxLength < 4000) {
+          sm.append("VARCHAR(" + maxLength + ")");
+        }
+ else         if (maxLength == 4000) {
+          sm.append("STRING");
+        }
+ else         if (maxLength > 4000) {
+          sm.append("TEXT");
+        }
+      }
+ else       if (colType.equals("Date")) {
+        sm.append("DATE null");
+      }
+ else {
+        sm.append("invalid");
+      }
+      if (col.isPrimary()) {
+        sm.append(" not null");
+      }
+      sm.append(",\n");
+    }
+  }
+  sm.append("\tprimary key (");
+  for (int i=0; i < entities.length; i++) {
+    Entity entity=entities[i];
+    List<EntityColumn> pkList=entity.getPKList();
+    for (int j=0; j < pkList.size(); j++) {
+      EntityColumn col=pkList.get(j);
+      String colName=col.getName();
+      if ((i != 0) || (j != 0)) {
+        sm.append(", ");
+      }
+      sm.append(colName);
+    }
+  }
+  sm.append(")\n");
+  sm.append(");");
+  return sm.toString();
+}
