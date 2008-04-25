@@ -1,22 +1,62 @@
 {
   ByteArrayMaker bam=new ByteArrayMaker();
   long companyId=GetterUtil.getLong(tokens.get("company_id"));
+  Company company=null;
+  try {
+    company=CompanyLocalServiceUtil.getCompanyById(companyId);
+  }
+ catch (  Exception e) {
+  }
+  long groupId=GetterUtil.getLong(tokens.get("group_id"));
+  String journalTemplatesPath=VelocityResourceListener.JOURNAL_SEPARATOR + StringPool.SLASH + companyId+ StringPool.SLASH+ groupId;
+  String randomNamespace=PwdGenerator.getPassword(PwdGenerator.KEY3,4) + StringPool.UNDERLINE;
   Locale locale=LocaleUtil.fromLanguageId(languageId);
   JournalXslErrorListener errorListener=new JournalXslErrorListener(companyId,locale);
+  StreamSource xmlSource=new StreamSource(new StringReader(xml));
+  TransformerFactory transformerFactory=TransformerFactory.newInstance();
+  transformerFactory.setURIResolver(new URIResolver(tokens,languageId));
+  transformerFactory.setErrorListener(errorListener);
   try {
-    StreamSource xmlSource=new StreamSource(new StringReader(xml));
-    StreamSource scriptSource=new StreamSource(new StringReader(script));
-    TransformerFactory transformerFactory=TransformerFactory.newInstance();
-    transformerFactory.setURIResolver(new URIResolver(tokens,languageId));
-    transformerFactory.setErrorListener(errorListener);
-    Transformer transformer=transformerFactory.newTransformer(scriptSource);
-    transformer.transform(xmlSource,new StreamResult(bam));
+    try {
+      StreamSource scriptSource=new StreamSource(new StringReader(script));
+      Transformer transformer=transformerFactory.newTransformer(scriptSource);
+      transformer.setParameter("company",company);
+      transformer.setParameter("companyId",new Long(companyId));
+      transformer.setParameter("groupId",String.valueOf(groupId));
+      transformer.setParameter("journalTemplatesPath",journalTemplatesPath);
+      transformer.setParameter("locale",locale);
+      transformer.setParameter("randomNamespace",randomNamespace);
+      transformer.transform(xmlSource,new StreamResult(bam));
+    }
+ catch (    TransformerConfigurationException tce) {
+      throw new TransformException(errorListener.getMessageAndLocation());
+    }
+catch (    TransformerException te) {
+      throw new TransformException(errorListener.getMessageAndLocation());
+    }
   }
- catch (  TransformerConfigurationException tce) {
-    throw new TransformException(errorListener.getMessageAndLocation());
-  }
-catch (  TransformerException te) {
-    throw new TransformException(errorListener.getMessageAndLocation());
+ catch (  TransformException te1) {
+    try {
+      String errorTemplate=ContentUtil.get(PropsUtil.get(PropsUtil.JOURNAL_XSL_ERROR_TEMPLATE));
+      StreamSource scriptSource=new StreamSource(new StringReader(errorTemplate));
+      Transformer transformer=transformerFactory.newTransformer(scriptSource);
+      transformer.setParameter("company",company);
+      transformer.setParameter("companyId",new Long(companyId));
+      transformer.setParameter("groupId",String.valueOf(groupId));
+      transformer.setParameter("journalTemplatesPath",journalTemplatesPath);
+      transformer.setParameter("locale",locale);
+      transformer.setParameter("randomNamespace",randomNamespace);
+      transformer.setParameter("exception",errorListener.getMessageAndLocation());
+      if (Validator.isNotNull(errorListener.getLocation())) {
+        transformer.setParameter("column",new Integer(errorListener.getColumnNumber()));
+        transformer.setParameter("line",new Integer(errorListener.getLineNumber()));
+      }
+      transformer.setParameter("script",script);
+      transformer.transform(xmlSource,new StreamResult(bam));
+    }
+ catch (    Exception e) {
+      throw new TransformException(e);
+    }
   }
   return bam.toString(StringPool.UTF8);
 }

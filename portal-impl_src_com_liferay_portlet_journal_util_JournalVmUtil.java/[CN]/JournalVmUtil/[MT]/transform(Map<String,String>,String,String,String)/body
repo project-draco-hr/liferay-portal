@@ -12,16 +12,32 @@
     }
     context.put("request",_insertRequestVariables(root.element("request")));
     long companyId=GetterUtil.getLong(tokens.get("company_id"));
+    Company company=CompanyLocalServiceUtil.getCompanyById(companyId);
     long groupId=GetterUtil.getLong(tokens.get("group_id"));
     String journalTemplatesPath=VelocityResourceListener.JOURNAL_SEPARATOR + StringPool.SLASH + companyId+ StringPool.SLASH+ groupId;
     String randomNamespace=PwdGenerator.getPassword(PwdGenerator.KEY3,4) + StringPool.UNDERLINE;
+    context.put("company",company);
     context.put("companyId",String.valueOf(companyId));
     context.put("groupId",String.valueOf(groupId));
     context.put("journalTemplatesPath",journalTemplatesPath);
+    context.put("locale",LocaleUtil.fromLanguageId(languageId));
     context.put("randomNamespace",randomNamespace);
     VelocityVariables.insertHelperUtilities(context,_TEMPLATE_VELOCITY_RESTRICTED_VARIABLES);
     script=_injectEditInPlace(xml,script);
-    load=Velocity.evaluate(context,output,JournalVmUtil.class.getName(),script);
+    try {
+      load=Velocity.evaluate(context,output,JournalVmUtil.class.getName(),script);
+    }
+ catch (    VelocityException ve) {
+      if (ve instanceof ParseErrorException) {
+        ParseErrorException pe=(ParseErrorException)ve;
+        context.put("column",new Integer(pe.getColumnNumber()));
+        context.put("line",new Integer(pe.getLineNumber()));
+      }
+      context.put("exception",ve.getMessage());
+      context.put("script",script);
+      String errorTemplate=ContentUtil.get(PropsUtil.get(PropsUtil.JOURNAL_VELOCITY_ERROR_TEMPLATE));
+      load=Velocity.evaluate(context,output,JournalVmUtil.class.getName(),errorTemplate);
+    }
   }
  catch (  Exception e) {
     if (e instanceof DocumentException) {
