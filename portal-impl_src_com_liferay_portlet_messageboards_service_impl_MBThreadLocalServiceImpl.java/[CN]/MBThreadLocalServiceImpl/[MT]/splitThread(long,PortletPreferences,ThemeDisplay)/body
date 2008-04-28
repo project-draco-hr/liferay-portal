@@ -1,11 +1,14 @@
 {
   MBMessage message=mbMessagePersistence.findByPrimaryKey(messageId);
+  MBCategory category=message.getCategory();
   long oldThreadId=message.getThreadId();
-  MBCategory category=mbCategoryPersistence.fetchByPrimaryKey(message.getCategoryId());
+  String oldAttachmentsDir=message.getAttachmentsDir();
   MBThread thread=addThread(message.getCategoryId(),message);
   message.setThreadId(thread.getThreadId());
   message.setParentMessageId(0);
+  message.setAttachmentsDir(null);
   mbMessagePersistence.update(message,false);
+  moveAttachmentsFromOldThread(message,oldAttachmentsDir);
   try {
     if (!category.isDiscussion()) {
       Indexer.updateMessage(message.getCompanyId(),category.getGroupId(),message.getUserName(),category.getCategoryId(),message.getThreadId(),message.getMessageId(),message.getSubject(),message.getBody(),message.getTagsEntries());
@@ -14,22 +17,10 @@
  catch (  IOException ioe) {
     _log.error("Indexing " + message.getMessageId(),ioe);
   }
-  List<MBMessage> messages=mbMessagePersistence.findByT_P(oldThreadId,message.getMessageId());
   int messagesMoved=1;
-  for (  MBMessage curMessage : messages) {
-    curMessage.setCategoryId(message.getCategoryId());
-    curMessage.setThreadId(message.getThreadId());
-    mbMessagePersistence.update(curMessage,false);
-    messagesMoved++;
-    try {
-      if (!category.isDiscussion()) {
-        Indexer.updateMessage(curMessage.getCompanyId(),category.getGroupId(),curMessage.getUserName(),category.getCategoryId(),curMessage.getThreadId(),curMessage.getMessageId(),curMessage.getSubject(),curMessage.getBody(),curMessage.getTagsEntries());
-      }
-    }
- catch (    IOException ioe) {
-      _log.error("Indexing " + curMessage.getMessageId(),ioe);
-    }
-  }
+  messagesMoved+=moveChildrenMessages(message,category,oldThreadId);
+  thread.setMessageCount(messagesMoved);
+  mbThreadPersistence.update(thread,false);
   MBThread oldThread=mbThreadPersistence.findByPrimaryKey(oldThreadId);
   oldThread.setMessageCount(oldThread.getMessageCount() - messagesMoved);
   mbThreadPersistence.update(oldThread,false);

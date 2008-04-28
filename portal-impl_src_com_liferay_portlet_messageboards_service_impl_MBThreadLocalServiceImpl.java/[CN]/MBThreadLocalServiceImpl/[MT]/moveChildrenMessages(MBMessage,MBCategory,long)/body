@@ -1,0 +1,23 @@
+{
+  int messagesMoved=0;
+  List<MBMessage> messages=mbMessagePersistence.findByT_P(oldThreadId,parentMessage.getMessageId());
+  for (  MBMessage message : messages) {
+    String oldAttachmentsDir=message.getAttachmentsDir();
+    message.setCategoryId(parentMessage.getCategoryId());
+    message.setThreadId(parentMessage.getThreadId());
+    message.setAttachmentsDir(null);
+    mbMessagePersistence.update(message,false);
+    moveAttachmentsFromOldThread(message,oldAttachmentsDir);
+    try {
+      if (!category.isDiscussion()) {
+        Indexer.updateMessage(message.getCompanyId(),category.getGroupId(),message.getUserName(),category.getCategoryId(),message.getThreadId(),message.getMessageId(),message.getSubject(),message.getBody(),message.getTagsEntries());
+      }
+    }
+ catch (    IOException ioe) {
+      _log.error("Indexing " + message.getMessageId(),ioe);
+    }
+    messagesMoved++;
+    messagesMoved+=moveChildrenMessages(message,category,oldThreadId);
+  }
+  return messagesMoved;
+}
