@@ -10,8 +10,10 @@
   boolean sendAsEmail=ParamUtil.getBoolean(req,"sendAsEmail");
   String subject=ParamUtil.getString(req,"subject");
   String emailAddress=ParamUtil.getString(req,"emailAddress");
+  boolean saveToDatabase=ParamUtil.getBoolean(req,"saveToDatabase");
   boolean saveToFile=ParamUtil.getBoolean(req,"saveToFile");
   String fileName=ParamUtil.getString(req,"fileName");
+  boolean updateFields=ParamUtil.getBoolean(req,"updateFields");
   String portletResource=ParamUtil.getString(req,"portletResource");
   PortletPreferences prefs=PortletPreferencesFactoryUtil.getPortletSetup(req,portletResource);
   if (Validator.isNull(title)) {
@@ -20,7 +22,7 @@
   if (Validator.isNull(subject)) {
     SessionErrors.add(req,"subjectRequired");
   }
-  if (!sendAsEmail && !saveToFile) {
+  if (!sendAsEmail && !saveToDatabase && !saveToFile) {
     SessionErrors.add(req,"handlingRequired");
   }
   if (sendAsEmail) {
@@ -30,6 +32,15 @@
  else     if (!Validator.isEmailAddress(emailAddress)) {
       SessionErrors.add(req,"emailAddressInvalid");
     }
+  }
+  ExpandoTable expandoTable=null;
+  if (saveToDatabase) {
+    String databaseTableName=prefs.getValue("databaseTableName",StringPool.BLANK);
+    if (Validator.isNull(databaseTableName)) {
+      databaseTableName=portletResource + title;
+      prefs.setValue("databaseTableName",databaseTableName);
+    }
+    expandoTable=WebFormUtil.dropAndCreateTable(databaseTableName);
   }
   if (saveToFile) {
     try {
@@ -53,32 +64,38 @@ catch (    FileNotFoundException fnfe) {
   prefs.setValue("sendAsEmail",String.valueOf(sendAsEmail));
   prefs.setValue("subject",subject);
   prefs.setValue("emailAddress",emailAddress);
+  prefs.setValue("saveToDatabase",String.valueOf(saveToDatabase));
   prefs.setValue("saveToFile",String.valueOf(saveToFile));
   prefs.setValue("fileName",fileName);
-  int i=1;
-  String fieldLabel=ParamUtil.getString(req,"fieldLabel" + i);
-  String fieldType=ParamUtil.getString(req,"fieldType" + i);
-  boolean fieldOptional=ParamUtil.getBoolean(req,"fieldOptional" + i);
-  String fieldOptions=ParamUtil.getString(req,"fieldOptions" + i);
-  while ((i == 1) || (fieldLabel.trim().length() > 0)) {
-    prefs.setValue("fieldLabel" + i,fieldLabel);
-    prefs.setValue("fieldType" + i,fieldType);
-    prefs.setValue("fieldOptional" + i,String.valueOf(fieldOptional));
-    prefs.setValue("fieldOptions" + i,fieldOptions);
-    i++;
-    fieldLabel=ParamUtil.getString(req,"fieldLabel" + i);
-    fieldType=ParamUtil.getString(req,"fieldType" + i);
-    fieldOptional=ParamUtil.getBoolean(req,"fieldOptional" + i);
-    fieldOptions=ParamUtil.getString(req,"fieldOptions" + i);
-  }
-  fieldLabel=prefs.getValue("fieldLabel" + i,StringPool.BLANK);
-  while (fieldLabel.trim().length() > 0) {
-    prefs.setValue("fieldLabel" + i,StringPool.BLANK);
-    prefs.setValue("fieldType" + i,StringPool.BLANK);
-    prefs.setValue("fieldOptional" + i,StringPool.BLANK);
-    prefs.setValue("fieldOptions" + i,StringPool.BLANK);
-    i++;
+  if (updateFields) {
+    int i=1;
+    String fieldLabel=ParamUtil.getString(req,"fieldLabel" + i);
+    String fieldType=ParamUtil.getString(req,"fieldType" + i);
+    boolean fieldOptional=ParamUtil.getBoolean(req,"fieldOptional" + i);
+    String fieldOptions=ParamUtil.getString(req,"fieldOptions" + i);
+    while ((i == 1) || (fieldLabel.trim().length() > 0)) {
+      prefs.setValue("fieldLabel" + i,fieldLabel);
+      prefs.setValue("fieldType" + i,fieldType);
+      prefs.setValue("fieldOptional" + i,String.valueOf(fieldOptional));
+      prefs.setValue("fieldOptions" + i,fieldOptions);
+      if (saveToDatabase) {
+        ExpandoColumnLocalServiceUtil.addColumn(expandoTable.getTableId(),fieldLabel,ExpandoColumnConstants.STRING);
+      }
+      i++;
+      fieldLabel=ParamUtil.getString(req,"fieldLabel" + i);
+      fieldType=ParamUtil.getString(req,"fieldType" + i);
+      fieldOptional=ParamUtil.getBoolean(req,"fieldOptional" + i);
+      fieldOptions=ParamUtil.getString(req,"fieldOptions" + i);
+    }
     fieldLabel=prefs.getValue("fieldLabel" + i,StringPool.BLANK);
+    while (fieldLabel.trim().length() > 0) {
+      prefs.setValue("fieldLabel" + i,StringPool.BLANK);
+      prefs.setValue("fieldType" + i,StringPool.BLANK);
+      prefs.setValue("fieldOptional" + i,StringPool.BLANK);
+      prefs.setValue("fieldOptions" + i,StringPool.BLANK);
+      i++;
+      fieldLabel=prefs.getValue("fieldLabel" + i,StringPool.BLANK);
+    }
   }
   if (SessionErrors.isEmpty(req)) {
     prefs.store();

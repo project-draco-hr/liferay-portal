@@ -5,6 +5,8 @@
   boolean requireCaptcha=GetterUtil.getBoolean(prefs.getValue("requireCaptcha",StringPool.BLANK));
   String successURL=GetterUtil.getString(prefs.getValue("successURL",StringPool.BLANK));
   boolean sendAsEmail=GetterUtil.getBoolean(prefs.getValue("sendAsEmail",StringPool.BLANK),true);
+  boolean saveToDatabase=GetterUtil.getBoolean(prefs.getValue("saveToDatabase",StringPool.BLANK));
+  String databaseTableName=GetterUtil.getString(prefs.getValue("databaseTableName",StringPool.BLANK));
   boolean saveToFile=GetterUtil.getBoolean(prefs.getValue("saveToFile",StringPool.BLANK));
   String fileName=GetterUtil.getString(prefs.getValue("fileName",StringPool.BLANK));
   if (requireCaptcha) {
@@ -16,27 +18,31 @@
     }
   }
   List<String> fieldValues=new ArrayList<String>();
-  for (int i=1; i <= _MAX_FIELDS; i++) {
+  for (int i=1; i <= WebFormUtil.MAX_FIELDS; i++) {
     fieldValues.add(req.getParameter("field" + i));
   }
   if (validate(fieldValues,prefs)) {
-    boolean emailSent=false;
-    boolean fileSaved=false;
+    boolean emailSuccess=true;
+    boolean databaseSuccess=true;
+    boolean fileSuccess=true;
     if (sendAsEmail) {
-      emailSent=sendEmail(fieldValues,prefs);
+      emailSuccess=sendEmail(fieldValues,prefs);
+    }
+    if (saveToDatabase) {
+      databaseSuccess=saveDatabase(fieldValues,prefs,databaseTableName);
     }
     if (saveToFile) {
-      fileSaved=saveFile(fieldValues,prefs,fileName);
+      fileSuccess=saveFile(fieldValues,prefs,fileName);
     }
-    if ((sendAsEmail == emailSent) && (saveToFile == fileSaved)) {
-      SessionMessages.add(req,"emailSent");
+    if (emailSuccess && databaseSuccess && fileSuccess) {
+      SessionMessages.add(req,"success");
     }
  else {
-      SessionErrors.add(req,"emailNotSent");
+      SessionErrors.add(req,"error");
     }
   }
  else {
-    SessionErrors.add(req,"allFieldsRequired");
+    SessionErrors.add(req,"requiredFieldMissing");
   }
   if (SessionErrors.isEmpty(req) && Validator.isNotNull(successURL)) {
     res.sendRedirect(successURL);
