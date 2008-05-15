@@ -12,6 +12,7 @@
       deleteEntry(req);
     }
     String redirect=ParamUtil.getString(req,"redirect");
+    boolean updateRedirect=false;
     if ((entry != null) && (Validator.isNotNull(oldUrlTitle)) && (redirect.endsWith("/blogs/" + oldUrlTitle) || redirect.indexOf("/blogs/" + oldUrlTitle + "?") != -1)) {
       int pos=redirect.indexOf("?");
       if (pos == -1) {
@@ -23,14 +24,28 @@
         newRedirect+="?" + redirect.substring(pos + 1,redirect.length());
       }
       redirect=newRedirect;
+      updateRedirect=true;
     }
-    ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
-    LayoutTypePortlet layoutTypePortlet=themeDisplay.getLayoutTypePortlet();
-    if (layoutTypePortlet.hasPortletId(config.getPortletName())) {
-      sendRedirect(req,res,redirect);
+    if ((entry != null) && entry.isDraft()) {
+      JSONObject jsonObj=new JSONObject();
+      JSONUtil.put(jsonObj,"entryId",entry.getEntryId());
+      JSONUtil.put(jsonObj,"redirect",redirect);
+      JSONUtil.put(jsonObj,"updateRedirect",updateRedirect);
+      HttpServletResponse httpRes=PortalUtil.getHttpServletResponse(res);
+      InputStream is=new ByteArrayInputStream(jsonObj.toString().getBytes());
+      String contentType=ContentTypes.TEXT_JAVASCRIPT;
+      ServletResponseUtil.sendFile(httpRes,null,is,contentType);
+      setForward(req,ActionConstants.COMMON_NULL);
     }
  else {
-      res.sendRedirect(redirect);
+      ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
+      LayoutTypePortlet layoutTypePortlet=themeDisplay.getLayoutTypePortlet();
+      if (layoutTypePortlet.hasPortletId(config.getPortletName())) {
+        sendRedirect(req,res,redirect);
+      }
+ else {
+        res.sendRedirect(redirect);
+      }
     }
   }
  catch (  Exception e) {
