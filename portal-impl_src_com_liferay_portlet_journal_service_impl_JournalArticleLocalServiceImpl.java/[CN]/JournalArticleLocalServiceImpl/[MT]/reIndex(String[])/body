@@ -1,11 +1,9 @@
 {
-  if (LuceneUtil.INDEX_READ_ONLY) {
+  if (SearchEngineUtil.isIndexReadOnly()) {
     return;
   }
   long companyId=GetterUtil.getLong(ids[0]);
-  IndexWriter writer=null;
   try {
-    writer=LuceneUtil.getWriter(companyId);
     for (    JournalArticle article : journalArticlePersistence.findByCompanyId(companyId)) {
       if (article.isApproved() && article.isIndexable()) {
         long resourcePrimKey=article.getResourcePrimKey();
@@ -19,8 +17,8 @@
         Date displayDate=article.getDisplayDate();
         String[] tagsEntries=tagsEntryLocalService.getEntryNames(JournalArticle.class.getName(),resourcePrimKey);
         try {
-          org.apache.lucene.document.Document doc=Indexer.getAddArticleDocument(companyId,groupId,articleId,version,title,description,content,type,displayDate,tagsEntries);
-          writer.addDocument(doc);
+          com.liferay.portal.kernel.search.Document doc=Indexer.getArticleDocument(companyId,groupId,articleId,version,title,description,content,type,displayDate,tagsEntries);
+          SearchEngineUtil.addDocument(companyId,doc);
         }
  catch (        Exception e1) {
           _log.error("Reindexing " + article.getId(),e1);
@@ -33,15 +31,5 @@
   }
 catch (  Exception e2) {
     throw new SystemException(e2);
-  }
- finally {
-    try {
-      if (writer != null) {
-        LuceneUtil.write(companyId);
-      }
-    }
- catch (    Exception e) {
-      _log.error(e);
-    }
   }
 }

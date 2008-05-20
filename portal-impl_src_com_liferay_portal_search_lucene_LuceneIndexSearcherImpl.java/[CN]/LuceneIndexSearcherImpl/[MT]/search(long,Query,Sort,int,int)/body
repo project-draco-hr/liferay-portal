@@ -1,0 +1,51 @@
+{
+  LuceneHitsImpl hits=new LuceneHitsImpl();
+  org.apache.lucene.search.IndexSearcher searcher=null;
+  try {
+    searcher=LuceneUtil.getSearcher(companyId);
+    org.apache.lucene.search.Sort luceneSort=null;
+    if (sort != null) {
+      luceneSort=new org.apache.lucene.search.Sort(new SortField(sort.getFieldName(),sort.isReverse()));
+    }
+    if (query instanceof QueryImpl) {
+      hits.recordHits(searcher.search(((QueryImpl)query).getQuery(),luceneSort),searcher);
+    }
+ else {
+      QueryParser parser=new QueryParser(StringPool.BLANK,LuceneUtil.getAnalyzer());
+      hits.recordHits(searcher.search(parser.parse(query.parse()),luceneSort),searcher);
+    }
+    if ((start == SearchEngineUtil.ALL_POS) && (end == SearchEngineUtil.ALL_POS)) {
+      hits=hits.subset(0,hits.getLength());
+    }
+ else {
+      hits=hits.subset(start,end);
+    }
+  }
+ catch (  RuntimeException re) {
+    String msg=GetterUtil.getString(re.getMessage());
+    if (!msg.endsWith("does not appear to be indexed")) {
+      throw re;
+    }
+  }
+catch (  Exception e) {
+    if (e instanceof BooleanQuery.TooManyClauses || e instanceof ParseException) {
+      _log.error("Parsing keywords " + query.parse(),e);
+      return new LuceneHitsImpl();
+    }
+ else {
+      throw new SearchException(e);
+    }
+  }
+ finally {
+    try {
+      if (searcher != null) {
+        searcher.close();
+        hits.setSearcher(null);
+      }
+    }
+ catch (    IOException ioe) {
+      throw new SearchException(ioe);
+    }
+  }
+  return hits;
+}
