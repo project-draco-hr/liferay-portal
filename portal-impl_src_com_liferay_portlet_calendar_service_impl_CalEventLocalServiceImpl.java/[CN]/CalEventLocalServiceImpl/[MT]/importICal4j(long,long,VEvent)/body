@@ -1,6 +1,11 @@
 {
   User user=userPersistence.findByPrimaryKey(userId);
   TimeZone timeZone=user.getTimeZone();
+  Property timeZoneXProperty=event.getProperty(TimeZoneSensitive.PROPERTY_NAME);
+  boolean timeZoneXPropertyValue=true;
+  if (Validator.isNotNull(timeZoneXProperty) && timeZoneXProperty.getValue().equals("FALSE")) {
+    timeZoneXPropertyValue=false;
+  }
   String title=StringPool.BLANK;
   if (event.getSummary() != null) {
     title=event.getSummary().getValue();
@@ -9,20 +14,61 @@
   if (event.getDescription() != null) {
     description=event.getDescription().getValue();
   }
-  Calendar startDate=Calendar.getInstance(timeZone);
-  startDate.setTime(event.getStartDate().getDate());
-  Calendar endDate=Calendar.getInstance(timeZone);
-  endDate.setTime(event.getEndDate().getDate());
-  long diffMillis=endDate.getTimeInMillis() - startDate.getTimeInMillis();
-  long durationHours=diffMillis / (60 * 60 * 1000);
-  long durationMins=(diffMillis / (60 * 1000)) - (durationHours * 60);
+  DtStart dtStart=event.getStartDate();
+  Calendar startDate=toCalendar(dtStart,timeZone,timeZoneXPropertyValue);
+  startDate.setTime(dtStart.getDate());
+  Calendar endDate=null;
+  DtEnd dtEnd=event.getEndDate(true);
+  RRule rrule=(RRule)event.getProperty(Property.RRULE);
+  if (Validator.isNotNull(dtEnd)) {
+    endDate=toCalendar(dtEnd,timeZone,timeZoneXPropertyValue);
+    endDate.setTime(dtEnd.getDate());
+  }
+ else {
+    endDate=(Calendar)startDate.clone();
+    endDate.add(Calendar.DATE,1);
+  }
+  long diffMillis=0;
+  long durationHours=24;
+  long durationMins=0;
+  boolean multiDayEvent=false;
+  if (Validator.isNotNull(dtEnd)) {
+    diffMillis=dtEnd.getDate().getTime() - startDate.getTimeInMillis();
+    durationHours=diffMillis / Time.HOUR;
+    durationMins=(diffMillis / Time.MINUTE) - (durationHours * 60);
+    if ((durationHours > 24) || ((durationHours == 24) && (durationMins > 0))) {
+      durationHours=24;
+      durationMins=0;
+      multiDayEvent=true;
+    }
+  }
   boolean allDay=false;
+  if (isICal4jDateOnly(event.getStartDate()) || multiDayEvent) {
+    allDay=true;
+  }
   boolean timeZoneSensitive=true;
+  if (allDay || !timeZoneXPropertyValue) {
+    timeZoneSensitive=false;
+  }
   String type=StringPool.BLANK;
+  Property comment=event.getProperty(Property.COMMENT);
+  if (Validator.isNotNull(comment) && ArrayUtil.contains(CalEventImpl.TYPES,comment.getValue())) {
+    type=comment.getValue();
+  }
   boolean repeating=false;
   Recurrence recurrence=null;
-  RRule rrule=(RRule)event.getProperty(Property.RRULE);
-  if (rrule != null) {
+  if (multiDayEvent) {
+    repeating=true;
+    Calendar recStartCal=CalendarFactoryUtil.getCalendar(timeZone);
+    recStartCal.setTime(startDate.getTime());
+    com.liferay.portal.kernel.cal.Duration duration=new com.liferay.portal.kernel.cal.Duration(1,0,0,0);
+    recurrence=new Recurrence(recStartCal,duration,Recurrence.DAILY);
+    Calendar until=(Calendar)startDate.clone();
+    until.setTimeInMillis(until.getTimeInMillis() + diffMillis);
+    recurrence.setUntil(until);
+    endDate=recurrence.getUntil();
+  }
+ else   if (rrule != null) {
     repeating=true;
     recurrence=toRecurrence(rrule.getRecur(),timeZone,startDate);
     if (recurrence.getUntil() != null) {
