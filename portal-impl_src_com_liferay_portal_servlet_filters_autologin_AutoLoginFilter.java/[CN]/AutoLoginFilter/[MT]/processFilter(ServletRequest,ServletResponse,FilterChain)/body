@@ -1,0 +1,52 @@
+{
+  HttpServletRequest httpReq=(HttpServletRequest)req;
+  HttpServletResponse httpRes=(HttpServletResponse)res;
+  HttpSession ses=httpReq.getSession();
+  String host=PortalUtil.getHost(httpReq);
+  if (PortalInstances.isAutoLoginIgnoreHost(host)) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Ignore host " + host);
+    }
+    processFilter(AutoLoginFilter.class,req,res,chain);
+    return;
+  }
+  String contextPath=PortalUtil.getPathContext();
+  String path=httpReq.getRequestURI().toLowerCase();
+  if ((!contextPath.equals(StringPool.SLASH)) && (path.indexOf(contextPath) != -1)) {
+    path=path.substring(contextPath.length(),path.length());
+  }
+  if (PortalInstances.isAutoLoginIgnorePath(path)) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Ignore path " + path);
+    }
+    processFilter(AutoLoginFilter.class,req,res,chain);
+    return;
+  }
+  String remoteUser=httpReq.getRemoteUser();
+  String jUserName=(String)ses.getAttribute("j_username");
+  if ((remoteUser == null) && (jUserName == null)) {
+    for (    String autoLoginHook : PropsValues.AUTO_LOGIN_HOOKS) {
+      AutoLogin autoLogin=(AutoLogin)InstancePool.get(autoLoginHook);
+      try {
+        String[] credentials=autoLogin.login(httpReq,httpRes);
+        String redirect=(String)req.getAttribute(AutoLogin.AUTO_LOGIN_REDIRECT);
+        if (redirect != null) {
+          httpRes.sendRedirect(redirect);
+          return;
+        }
+        String loginRemoteUser=getLoginRemoteUser(httpReq,httpRes,ses,credentials);
+        if (loginRemoteUser != null) {
+          req=new ProtectedServletRequest(httpReq,loginRemoteUser);
+          if (PropsValues.PORTAL_JAAS_ENABLE) {
+            return;
+          }
+        }
+      }
+ catch (      Exception e) {
+        _log.warn(e,e);
+        _log.error(e.getMessage());
+      }
+    }
+  }
+  processFilter(AutoLoginFilter.class,req,res,chain);
+}
