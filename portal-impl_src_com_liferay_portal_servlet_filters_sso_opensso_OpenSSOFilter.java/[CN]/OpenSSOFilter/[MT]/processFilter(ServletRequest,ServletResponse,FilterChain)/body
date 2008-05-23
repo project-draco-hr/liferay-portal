@@ -7,8 +7,7 @@
     String loginUrl=PrefsPropsUtil.getString(companyId,PropsUtil.OPEN_SSO_LOGIN_URL,PropsValues.OPEN_SSO_LOGIN_URL);
     String logoutUrl=PrefsPropsUtil.getString(companyId,PropsUtil.OPEN_SSO_LOGOUT_URL,PropsValues.OPEN_SSO_LOGOUT_URL);
     String serviceUrl=PrefsPropsUtil.getString(companyId,PropsUtil.OPEN_SSO_SERVICE_URL,PropsValues.OPEN_SSO_SERVICE_URL);
-    String cookieName=PrefsPropsUtil.getString(companyId,PropsUtil.OPEN_SSO_SUBJECT_COOKIE_NAME,PropsValues.OPEN_SSO_SUBJECT_COOKIE_NAME);
-    if (!enabled || Validator.isNull(loginUrl) || Validator.isNull(logoutUrl)|| Validator.isNull(serviceUrl)|| Validator.isNull(cookieName)) {
+    if (!enabled || Validator.isNull(loginUrl) || Validator.isNull(logoutUrl)|| Validator.isNull(serviceUrl)) {
       processFilter(OpenSSOFilter.class,req,res,chain);
       return;
     }
@@ -19,7 +18,27 @@
       httpRes.sendRedirect(logoutUrl);
     }
  else {
-      if (isAuthenticated(httpReq,cookieName)) {
+      boolean authenticated=false;
+      try {
+        authenticated=OpenSSOUtil.isAuthenticated(httpReq,serviceUrl);
+      }
+ catch (      Exception e) {
+        _log.error(e,e);
+        processFilter(OpenSSOFilter.class,req,res,chain);
+        return;
+      }
+      if (authenticated) {
+        String newId=OpenSSOUtil.getSubjectId(httpReq,serviceUrl);
+        HttpSession httpSes=httpReq.getSession();
+        String oldId=(String)httpSes.getAttribute(_SUBJECT_ID_KEY);
+        if (oldId == null) {
+          httpSes.setAttribute(_SUBJECT_ID_KEY,newId);
+        }
+ else         if (!newId.equals(oldId)) {
+          httpSes.invalidate();
+          httpSes=httpReq.getSession();
+          httpSes.setAttribute(_SUBJECT_ID_KEY,newId);
+        }
         processFilter(OpenSSOFilter.class,req,res,chain);
       }
  else {
