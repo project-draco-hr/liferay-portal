@@ -1,0 +1,236 @@
+{
+  boolean exportPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PERMISSIONS);
+  boolean exportUserPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.USER_PERMISSIONS);
+  boolean exportPortletData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_DATA);
+  boolean exportPortletSetup=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_SETUP);
+  boolean exportPortletArchivedSetups=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_ARCHIVED_SETUPS);
+  boolean exportPortletUserPreferences=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_USER_PREFERENCES);
+  boolean exportTheme=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.THEME);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Export permissions " + exportPermissions);
+    _log.debug("Export user permissions " + exportUserPermissions);
+    _log.debug("Export portlet data " + exportPortletData);
+    _log.debug("Export portlet setup " + exportPortletSetup);
+    _log.debug("Export portlet archived setups " + exportPortletArchivedSetups);
+    _log.debug("Export portlet user preferences " + exportPortletUserPreferences);
+    _log.debug("Export theme " + exportTheme);
+  }
+  StopWatch stopWatch=null;
+  if (_log.isInfoEnabled()) {
+    stopWatch=new StopWatch();
+    stopWatch.start();
+  }
+  LayoutCache layoutCache=new LayoutCache();
+  LayoutSet layoutSet=layoutSetLocalService.getLayoutSet(groupId,privateLayout);
+  long companyId=layoutSet.getCompanyId();
+  long defaultUserId=userLocalService.getDefaultUserId(companyId);
+  ZipWriter zipWriter=new ZipWriter();
+  PortletDataContext context=new PortletDataContextImpl(companyId,groupId,parameterMap,new HashSet(),startDate,endDate,zipWriter);
+  Group guestGroup=groupLocalService.getGroup(companyId,GroupImpl.GUEST);
+  Document doc=DocumentHelper.createDocument();
+  Element root=doc.addElement("root");
+  Element header=root.addElement("header");
+  header.addAttribute("build-number",String.valueOf(ReleaseInfo.getBuildNumber()));
+  header.addAttribute("export-date",Time.getRFC822());
+  header.addAttribute("type","layouts");
+  header.addAttribute("group-id",String.valueOf(groupId));
+  header.addAttribute("private-layout",String.valueOf(privateLayout));
+  header.addAttribute("theme-id",layoutSet.getThemeId());
+  header.addAttribute("color-scheme-id",layoutSet.getColorSchemeId());
+  if (context.hasDateRange()) {
+    header.addAttribute("start-date",String.valueOf(context.getStartDate()));
+    header.addAttribute("end-date",String.valueOf(context.getEndDate()));
+  }
+  Set<String> portletIds=new LinkedHashSet<String>();
+  List<Layout> layouts=null;
+  if ((layoutIds == null) || (layoutIds.length == 0)) {
+    layouts=getLayouts(groupId,privateLayout);
+  }
+ else {
+    layouts=getLayouts(groupId,privateLayout,layoutIds);
+  }
+  long start=0;
+  long layoutPermissionsTime=0;
+  long portletDataTime=0;
+  long portletSetupTime=0;
+  long portletUserPreferencesTime=0;
+  long portletPermissionsTime=0;
+  long portletPreferencesTime=0;
+  long portletArchivedSetupsTime=0;
+  long layoutRolesTime=0;
+  long portletRolesTime=0;
+  long commentsTime=0;
+  long ratingsTime=0;
+  long tagsTime=0;
+  long themeTime=0;
+  for (  Layout layout : layouts) {
+    context.setPlid(layout.getPlid());
+    Element layoutEl=root.addElement("layout");
+    layoutEl.addAttribute("layout-id",String.valueOf(layout.getLayoutId()));
+    layoutEl.addElement("parent-layout-id").addText(String.valueOf(layout.getParentLayoutId()));
+    layoutEl.addElement("name").addCDATA(layout.getName());
+    layoutEl.addElement("title").addCDATA(layout.getTitle());
+    layoutEl.addElement("description").addText(layout.getDescription());
+    layoutEl.addElement("type").addText(layout.getType());
+    layoutEl.addElement("type-settings").addCDATA(layout.getTypeSettings());
+    layoutEl.addElement("hidden").addText(String.valueOf(layout.getHidden()));
+    layoutEl.addElement("friendly-url").addText(layout.getFriendlyURL());
+    layoutEl.addElement("icon-image").addText(String.valueOf(layout.getIconImage()));
+    if (layout.isIconImage()) {
+      Image image=ImageLocalUtil.getImage(layout.getIconImageId());
+      StringMaker sm=new StringMaker();
+      sm.append("/layout/");
+      sm.append(layout.getLayoutId());
+      sm.append("/icon/");
+      sm.append(image.getImageId());
+      sm.append(StringPool.PERIOD);
+      sm.append(image.getType());
+      layoutEl.addElement("icon-image-path").addText(sm.toString());
+      try {
+        zipWriter.addEntry(sm.toString(),image.getTextObj());
+      }
+ catch (      IOException ioe) {
+      }
+    }
+    layoutEl.addElement("theme-id").addText(layout.getThemeId());
+    layoutEl.addElement("color-scheme-id").addText(layout.getColorSchemeId());
+    layoutEl.addElement("wap-theme-id").addText(layout.getWapThemeId());
+    layoutEl.addElement("wap-color-scheme-id").addText(layout.getWapColorSchemeId());
+    layoutEl.addElement("css").addCDATA(layout.getCss());
+    layoutEl.addElement("priority").addText(String.valueOf(layout.getPriority()));
+    Element permissionsEl=layoutEl.addElement("permissions");
+    if (_log.isInfoEnabled()) {
+      start=stopWatch.getTime();
+    }
+    if (exportPermissions) {
+      exportLayoutPermissions(layoutCache,companyId,groupId,guestGroup,layout,permissionsEl,exportUserPermissions);
+    }
+    if (_log.isInfoEnabled()) {
+      layoutPermissionsTime+=stopWatch.getTime() - start;
+      start=stopWatch.getTime();
+    }
+    if (layout.getType().equals(LayoutConstants.TYPE_PORTLET)) {
+      LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
+      if (exportPortletData) {
+        exportPortletData(context,layout,layoutTypePortlet,layoutEl);
+      }
+      if (_log.isInfoEnabled()) {
+        portletDataTime+=stopWatch.getTime() - start;
+        start=stopWatch.getTime();
+      }
+      if (exportPortletSetup) {
+        exportPortletPreferences(PortletKeys.PREFS_OWNER_ID_DEFAULT,PortletKeys.PREFS_OWNER_TYPE_LAYOUT,false,layout.getPlid(),layoutTypePortlet,layoutEl);
+        exportPortletPreferences(layout.getGroupId(),PortletKeys.PREFS_OWNER_TYPE_GROUP,false,layout.getPlid(),layoutTypePortlet,layoutEl);
+        exportPortletPreferences(layout.getCompanyId(),PortletKeys.PREFS_OWNER_TYPE_COMPANY,false,layout.getPlid(),layoutTypePortlet,layoutEl);
+      }
+      if (_log.isInfoEnabled()) {
+        portletSetupTime+=stopWatch.getTime() - start;
+        start=stopWatch.getTime();
+      }
+      if (exportPortletUserPreferences) {
+        exportPortletPreferences(defaultUserId,PortletKeys.PREFS_OWNER_TYPE_USER,true,layout.getPlid(),layoutTypePortlet,layoutEl);
+      }
+      if (_log.isInfoEnabled()) {
+        portletUserPreferencesTime+=stopWatch.getTime() - start;
+        start=stopWatch.getTime();
+      }
+      if (exportPermissions) {
+        exportPortletPermissions(layoutCache,companyId,groupId,guestGroup,layout,layoutTypePortlet,portletIds,permissionsEl,exportUserPermissions);
+      }
+      if (_log.isInfoEnabled()) {
+        portletPermissionsTime+=stopWatch.getTime() - start;
+      }
+    }
+  }
+  if (_log.isInfoEnabled()) {
+    start=stopWatch.getTime();
+  }
+  if (exportPortletUserPreferences) {
+    exportPortletPreferences(groupId,PortletKeys.PREFS_OWNER_TYPE_GROUP,PortletKeys.PREFS_PLID_SHARED,false,root);
+  }
+  if (_log.isInfoEnabled()) {
+    portletPreferencesTime+=stopWatch.getTime() - start;
+    start=stopWatch.getTime();
+  }
+  if (exportPortletArchivedSetups) {
+    List<PortletItem> portletItems=portletItemLocalService.getPortletItems(groupId,PortletPreferences.class.getName());
+    for (    PortletItem portletItem : portletItems) {
+      long ownerId=portletItem.getPortletItemId();
+      int ownerType=PortletKeys.PREFS_OWNER_TYPE_ARCHIVED;
+      exportPortletPreferences(ownerId,ownerType,false,null,portletItem.getPortletId(),root);
+    }
+  }
+  if (_log.isInfoEnabled()) {
+    portletArchivedSetupsTime+=stopWatch.getTime() - start;
+    start=stopWatch.getTime();
+  }
+  Element rolesEl=root.addElement("roles");
+  if (exportPermissions) {
+    exportLayoutRoles(layoutCache,companyId,groupId,rolesEl);
+  }
+  if (_log.isInfoEnabled()) {
+    layoutRolesTime+=stopWatch.getTime() - start;
+    start=stopWatch.getTime();
+  }
+  if (exportPermissions) {
+    exportPortletRoles(layoutCache,companyId,groupId,portletIds,rolesEl);
+  }
+  if (_log.isInfoEnabled()) {
+    portletRolesTime+=stopWatch.getTime() - start;
+    start=stopWatch.getTime();
+  }
+  exportComments(context,root);
+  if (_log.isInfoEnabled()) {
+    commentsTime+=stopWatch.getTime() - start;
+    start=stopWatch.getTime();
+  }
+  exportRatings(context,root);
+  if (_log.isInfoEnabled()) {
+    ratingsTime+=stopWatch.getTime() - start;
+    start=stopWatch.getTime();
+  }
+  exportTags(context,root);
+  if (_log.isInfoEnabled()) {
+    tagsTime+=stopWatch.getTime() - start;
+    start=stopWatch.getTime();
+  }
+  byte[] themeZip=null;
+  try {
+    if (exportTheme) {
+      themeZip=exportTheme(layoutSet);
+      if (_log.isInfoEnabled()) {
+        themeTime+=stopWatch.getTime() - start;
+        start=stopWatch.getTime();
+      }
+    }
+  }
+ catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Exporting layoutPermissions takes " + layoutPermissionsTime + " ms");
+    _log.info("Exporting portletData takes " + portletDataTime + " ms");
+    _log.info("Exporting portletSetup takes " + portletSetupTime + " ms");
+    _log.info("Exporting portletUserPreferences takes " + portletUserPreferencesTime + " ms");
+    _log.info("Exporting portletPermissions takes " + portletPermissionsTime + " ms");
+    _log.info("Exporting portletPreferences takes " + portletPreferencesTime + " ms");
+    _log.info("Exporting portletArchivedSetups takes " + portletArchivedSetupsTime + " ms");
+    _log.info("Exporting layoutRoles takes " + layoutRolesTime + " ms");
+    _log.info("Exporting portletRoles takes " + portletRolesTime + " ms");
+    _log.info("Exporting comments takes " + commentsTime + " ms");
+    _log.info("Exporting ratings takes " + ratingsTime + " ms");
+    _log.info("Exporting tags takes " + tagsTime + " ms");
+    _log.info("Exporting theme takes " + themeTime + " ms");
+    _log.info("Exporting layouts takes " + stopWatch.getTime() + " ms");
+  }
+  try {
+    zipWriter.addEntry("layouts.xml",XMLFormatter.toString(doc));
+    if (themeZip != null) {
+      zipWriter.addEntry("theme.zip",themeZip);
+    }
+    return zipWriter.finish();
+  }
+ catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+}
