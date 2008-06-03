@@ -1,0 +1,37 @@
+{
+  if (context.isWithinDateRange(article.getModifiedDate())) {
+    String path=getArticlePath(context,article);
+    el.addElement("article").addAttribute("path",path);
+    if (context.isPathNotProcessed(path)) {
+      if (article.isSmallImage()) {
+        Image smallImage=ImageUtil.fetchByPrimaryKey(article.getSmallImageId());
+        article.setSmallImageType(smallImage.getType());
+        context.addZipEntry(getSmallImagePath(context,article),smallImage.getTextObj());
+      }
+      if (context.getBooleanParameter(_NAMESPACE,"images")) {
+        List<JournalArticleImage> articleImages=JournalArticleImageUtil.findByG_A_V(context.getGroupId(),article.getArticleId(),article.getVersion());
+        for (        JournalArticleImage articleImage : articleImages) {
+          try {
+            Image image=ImageUtil.findByPrimaryKey(articleImage.getArticleImageId());
+            String imagePath=getArticleImagePath(context,article,articleImage,image);
+            context.addZipEntry(imagePath,image.getTextObj());
+          }
+ catch (          NoSuchImageException nsie) {
+          }
+        }
+      }
+      if (context.getBooleanParameter(_NAMESPACE,"comments")) {
+        context.addComments(JournalArticle.class,new Long(article.getResourcePrimKey()));
+      }
+      if (context.getBooleanParameter(_NAMESPACE,"ratings")) {
+        context.addRatingsEntries(JournalArticle.class,new Long(article.getResourcePrimKey()));
+      }
+      if (context.getBooleanParameter(_NAMESPACE,"tags")) {
+        context.addTagsEntries(JournalArticle.class,new Long(article.getResourcePrimKey()));
+      }
+      article.setUserUuid(article.getUserUuid());
+      article.setApprovedByUserUuid(article.getApprovedByUserUuid());
+      context.addZipEntry(path,article);
+    }
+  }
+}
