@@ -18,13 +18,19 @@
   PortletDataContext context=new PortletDataContextImpl(companyId,layout.getGroupId(),parameterMap,new HashSet(),strategy,zipReader);
   context.setPlid(plid);
   Element root=null;
-  String xml=context.getZipEntryAsString("/manifest.xml");
   try {
-    Document doc=DocumentUtil.readDocumentFromXML(xml);
-    root=doc.getRootElement();
+    String xml=zipReader.getEntryAsString("portlet.xml");
+    if (xml != null) {
+      SAXReader reader=new SAXReader();
+      Document doc=reader.read(new StringReader(xml));
+      root=doc.getRootElement();
+    }
   }
  catch (  Exception e) {
-    throw new LARFileException("Cannot locate a manifest in this LAR file.");
+    throw new SystemException(e);
+  }
+  if (root == null) {
+    throw new LARTypeException("The LAR does not contain a portlet.xml file");
   }
   Element header=root.element("header");
   int buildNumber=ReleaseInfo.getBuildNumber();
@@ -40,8 +46,6 @@
   if (!PortletConstants.getRootPortletId(portletId).equals(rootPortletId)) {
     throw new PortletIdException("Invalid portlet id " + rootPortletId);
   }
-  long importGroupId=GetterUtil.getLong(header.attributeValue("group-id"));
-  context.setImportGroupId(importGroupId);
   readComments(context,root);
   readRatings(context,root);
   readTags(context,root);
@@ -49,23 +53,14 @@
     _log.debug("Deleting portlet data");
   }
   if (deletePortletData) {
-    deletePortletData(context,portletId,plid);
+    deletePortletData(context,layout,root);
   }
-  Element portletRefEl=root.element("portlet");
-  Element portletEl=null;
-  try {
-    Document portletDoc=DocumentUtil.readDocumentFromXML(context.getZipEntryAsString(portletRefEl.attributeValue("path")));
-    portletEl=portletDoc.getRootElement();
-  }
- catch (  DocumentException de) {
-    throw new SystemException(de);
-  }
-  importPortletPreferences(context,layout.getCompanyId(),layout.getGroupId(),plid,portletId,portletEl,importPortletSetup,importPortletArchivedSetups,importUserPreferences);
+  importPortletPreferences(context,layout.getCompanyId(),layout.getGroupId(),plid,portletId,root,importPortletSetup,importPortletArchivedSetups,importUserPreferences);
   if (_log.isDebugEnabled()) {
     _log.debug("Importing portlet data");
   }
   if (importPortletData) {
-    importPortletData(context,portletId,plid,portletEl.element("portlet-data"));
+    importPortletData(context,layout,root);
   }
   if (_log.isInfoEnabled()) {
     _log.info("Importing portlet data takes " + stopWatch.getTime() + " ms");

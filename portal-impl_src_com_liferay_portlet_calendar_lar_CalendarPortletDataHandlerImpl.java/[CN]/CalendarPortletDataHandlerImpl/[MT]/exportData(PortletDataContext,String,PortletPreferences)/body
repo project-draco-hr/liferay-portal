@@ -1,13 +1,28 @@
 {
   try {
+    XStream xStream=new XStream();
     Document doc=DocumentHelper.createDocument();
     Element root=doc.addElement("calendar-data");
     root.addAttribute("group-id",String.valueOf(context.getGroupId()));
     List<CalEvent> events=CalEventUtil.findByGroupId(context.getGroupId());
-    for (    CalEvent event : events) {
-      exportEvent(context,root,event);
+    Iterator<CalEvent> itr=events.iterator();
+    while (itr.hasNext()) {
+      CalEvent event=itr.next();
+      if (context.addPrimaryKey(CalEvent.class,event.getPrimaryKeyObj())) {
+        itr.remove();
+      }
+ else       if (!context.isWithinDateRange(event.getModifiedDate())) {
+        itr.remove();
+      }
+ else {
+        event.setUserUuid(event.getUserUuid());
+      }
     }
-    return XMLFormatter.toString(doc);
+    String xml=xStream.toXML(events);
+    Element el=root.addElement("calendar-events");
+    Document tempDoc=DocumentUtil.readDocumentFromXML(xml);
+    el.content().add(tempDoc.getRootElement().createCopy());
+    return doc.asXML();
   }
  catch (  Exception e) {
     throw new PortletDataException(e);

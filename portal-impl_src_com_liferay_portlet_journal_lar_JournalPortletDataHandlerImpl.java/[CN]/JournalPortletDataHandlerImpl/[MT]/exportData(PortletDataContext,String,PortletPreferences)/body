@@ -1,26 +1,64 @@
 {
   try {
+    XStream xStream=new XStream();
     Document doc=DocumentHelper.createDocument();
     Element root=doc.addElement("journal-data");
     root.addAttribute("group-id",String.valueOf(context.getGroupId()));
-    Element el=root.addElement("journal-structures");
     List<JournalStructure> structures=JournalStructureUtil.findByGroupId(context.getGroupId());
-    for (    JournalStructure structure : structures) {
-      exportStructure(context,el,structure);
-    }
-    el=root.addElement("journal-templates");
-    List<JournalTemplate> templates=JournalTemplateUtil.findByGroupId(context.getGroupId());
-    for (    JournalTemplate template : templates) {
-      exportTemplate(context,el,template);
-    }
-    el=root.addElement("journal-articles");
-    List<JournalArticle> articles=JournalArticleUtil.findByGroupId(context.getGroupId());
-    for (    JournalArticle article : articles) {
-      if (context.isWithinDateRange(article.getModifiedDate())) {
-        exportArticle(context,el,article);
+    Iterator<JournalStructure> structuresItr=structures.iterator();
+    while (structuresItr.hasNext()) {
+      JournalStructure structure=structuresItr.next();
+      if (context.addPrimaryKey(JournalStructure.class,structure.getPrimaryKeyObj())) {
+        structuresItr.remove();
+      }
+ else       if (!context.isWithinDateRange(structure.getModifiedDate())) {
+        structuresItr.remove();
+      }
+ else {
+        exportStructure(structure);
       }
     }
-    return XMLFormatter.toString(doc);
+    String xml=xStream.toXML(structures);
+    Document tempDoc=DocumentUtil.readDocumentFromXML(xml);
+    Element el=root.addElement("journal-structures");
+    el.content().add(tempDoc.getRootElement().createCopy());
+    List<JournalTemplate> templates=JournalTemplateUtil.findByGroupId(context.getGroupId());
+    Iterator<JournalTemplate> templatesItr=templates.iterator();
+    while (templatesItr.hasNext()) {
+      JournalTemplate template=templatesItr.next();
+      if (context.addPrimaryKey(JournalTemplate.class,template.getPrimaryKeyObj())) {
+        templatesItr.remove();
+      }
+ else       if (!context.isWithinDateRange(template.getModifiedDate())) {
+        templatesItr.remove();
+      }
+ else {
+        exportTemplate(context,template);
+      }
+    }
+    xml=xStream.toXML(templates);
+    el=root.addElement("journal-templates");
+    tempDoc=DocumentUtil.readDocumentFromXML(xml);
+    el.content().add(tempDoc.getRootElement().createCopy());
+    List<JournalArticle> articles=JournalArticleUtil.findByGroupId(context.getGroupId());
+    Iterator<JournalArticle> articlesItr=articles.iterator();
+    while (articlesItr.hasNext()) {
+      JournalArticle article=articlesItr.next();
+      if (context.addPrimaryKey(JournalArticle.class,article.getPrimaryKeyObj())) {
+        articlesItr.remove();
+      }
+ else       if (!context.isWithinDateRange(article.getModifiedDate())) {
+        articlesItr.remove();
+      }
+ else {
+        exportArticle(context,article);
+      }
+    }
+    xml=xStream.toXML(articles);
+    el=root.addElement("journal-articles");
+    tempDoc=DocumentUtil.readDocumentFromXML(xml);
+    el.content().add(tempDoc.getRootElement().createCopy());
+    return doc.asXML();
   }
  catch (  Exception e) {
     throw new PortletDataException(e);

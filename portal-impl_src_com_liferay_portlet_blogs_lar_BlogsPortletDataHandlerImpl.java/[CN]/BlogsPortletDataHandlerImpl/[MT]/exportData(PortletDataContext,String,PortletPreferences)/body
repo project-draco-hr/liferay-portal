@@ -1,13 +1,37 @@
 {
   try {
+    XStream xStream=new XStream();
     Document doc=DocumentHelper.createDocument();
     Element root=doc.addElement("blogs-data");
     root.addAttribute("group-id",String.valueOf(context.getGroupId()));
     List<BlogsEntry> entries=BlogsEntryUtil.findByGroupId(context.getGroupId());
-    for (    BlogsEntry entry : entries) {
-      exportEntry(context,root,entry);
+    Iterator<BlogsEntry> itr=entries.iterator();
+    while (itr.hasNext()) {
+      BlogsEntry entry=itr.next();
+      if (context.addPrimaryKey(BlogsEntry.class,entry.getPrimaryKeyObj())) {
+        itr.remove();
+      }
+ else       if (!context.isWithinDateRange(entry.getModifiedDate())) {
+        itr.remove();
+      }
+ else {
+        entry.setUserUuid(entry.getUserUuid());
+        if (context.getBooleanParameter(_NAMESPACE,"comments")) {
+          context.addComments(BlogsEntry.class,entry.getPrimaryKeyObj());
+        }
+        if (context.getBooleanParameter(_NAMESPACE,"ratings")) {
+          context.addRatingsEntries(BlogsEntry.class,entry.getPrimaryKeyObj());
+        }
+        if (context.getBooleanParameter(_NAMESPACE,"tags")) {
+          context.addTagsEntries(BlogsEntry.class,entry.getPrimaryKeyObj());
+        }
+      }
     }
-    return XMLFormatter.toString(doc);
+    String xml=xStream.toXML(entries);
+    Element el=root.addElement("blog-entries");
+    Document tempDoc=DocumentUtil.readDocumentFromXML(xml);
+    el.content().add(tempDoc.getRootElement().createCopy());
+    return doc.asXML();
   }
  catch (  Exception e) {
     throw new PortletDataException(e);
