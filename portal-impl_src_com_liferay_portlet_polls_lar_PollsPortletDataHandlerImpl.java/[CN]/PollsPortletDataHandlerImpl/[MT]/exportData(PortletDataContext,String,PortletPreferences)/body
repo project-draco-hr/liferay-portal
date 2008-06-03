@@ -1,61 +1,16 @@
 {
   try {
-    XStream xStream=new XStream();
     Document doc=DocumentHelper.createDocument();
     Element root=doc.addElement("polls-data");
     root.addAttribute("group-id",String.valueOf(context.getGroupId()));
+    Element questionsEl=root.addElement("questions");
+    Element choicesEl=root.addElement("choices");
+    Element votesEl=root.addElement("votes");
     List<PollsQuestion> questions=PollsQuestionUtil.findByGroupId(context.getGroupId());
-    List<PollsChoice> choices=new ArrayList<PollsChoice>();
-    List<PollsVote> votes=new ArrayList<PollsVote>();
-    Iterator<PollsQuestion> questionsItr=questions.iterator();
-    while (questionsItr.hasNext()) {
-      PollsQuestion question=questionsItr.next();
-      if (context.addPrimaryKey(PollsQuestion.class,question.getPrimaryKeyObj())) {
-        questionsItr.remove();
-      }
- else       if (!context.isWithinDateRange(question.getModifiedDate())) {
-        questionsItr.remove();
-      }
- else {
-        List<PollsChoice> questionChoices=PollsChoiceUtil.findByQuestionId(question.getQuestionId());
-        choices.addAll(questionChoices);
-        if (context.getBooleanParameter(_NAMESPACE,"votes")) {
-          question.setUserUuid(question.getUserUuid());
-          List<PollsVote> questionVotes=PollsVoteUtil.findByQuestionId(question.getQuestionId());
-          votes.addAll(questionVotes);
-        }
-      }
+    for (    PollsQuestion question : questions) {
+      exportQuestion(context,questionsEl,choicesEl,votesEl,question);
     }
-    String xml=xStream.toXML(questions);
-    Element el=root.addElement("poll-questions");
-    Document tempDoc=DocumentUtil.readDocumentFromXML(xml);
-    el.content().add(tempDoc.getRootElement().createCopy());
-    Iterator<PollsChoice> choicesItr=choices.iterator();
-    while (choicesItr.hasNext()) {
-      PollsChoice choice=choicesItr.next();
-      if (context.addPrimaryKey(PollsChoice.class,choice.getPrimaryKeyObj())) {
-        choicesItr.remove();
-      }
-    }
-    xml=xStream.toXML(choices);
-    el=root.addElement("poll-choices");
-    tempDoc=DocumentUtil.readDocumentFromXML(xml);
-    el.content().add(tempDoc.getRootElement().createCopy());
-    Iterator<PollsVote> votesItr=votes.iterator();
-    while (votesItr.hasNext()) {
-      PollsVote vote=votesItr.next();
-      if (context.addPrimaryKey(PollsVote.class,vote.getPrimaryKeyObj())) {
-        votesItr.remove();
-      }
- else {
-        vote.setUserUuid(vote.getUserUuid());
-      }
-    }
-    xml=xStream.toXML(votes);
-    el=root.addElement("poll-votes");
-    tempDoc=DocumentUtil.readDocumentFromXML(xml);
-    el.content().add(tempDoc.getRootElement().createCopy());
-    return doc.asXML();
+    return XMLFormatter.toString(doc);
   }
  catch (  Exception e) {
     throw new PortletDataException(e);
