@@ -1,69 +1,15 @@
 {
   try {
-    XStream xStream=new XStream();
     Document doc=DocumentHelper.createDocument();
     Element root=doc.addElement("wiki-data");
     root.addAttribute("group-id",String.valueOf(context.getGroupId()));
+    Element nodesEl=root.addElement("nodes");
+    Element pagesEl=root.addElement("pages");
     List<WikiNode> nodes=WikiNodeUtil.findByGroupId(context.getGroupId());
-    List<WikiPage> pages=new ArrayList<WikiPage>();
-    Iterator<WikiNode> nodesItr=nodes.iterator();
-    while (nodesItr.hasNext()) {
-      WikiNode node=nodesItr.next();
-      if (context.addPrimaryKey(WikiNode.class,node.getPrimaryKeyObj())) {
-        nodesItr.remove();
-      }
- else {
-        node.setUserUuid(node.getUserUuid());
-        List<WikiPage> nodePages=WikiPageUtil.findByNodeId(node.getNodeId());
-        if (context.hasDateRange()) {
-          for (          WikiPage page : nodePages) {
-            if (context.isWithinDateRange(page.getModifiedDate())) {
-              pages.add(page);
-            }
-          }
-          if (!context.isWithinDateRange(node.getModifiedDate())) {
-            nodesItr.remove();
-          }
-        }
- else {
-          pages.addAll(nodePages);
-        }
-      }
+    for (    WikiNode node : nodes) {
+      exportNode(context,nodesEl,pagesEl,node);
     }
-    String xml=xStream.toXML(nodes);
-    Element el=root.addElement("wiki-nodes");
-    Document tempDoc=DocumentUtil.readDocumentFromXML(xml);
-    el.content().add(tempDoc.getRootElement().createCopy());
-    Iterator<WikiPage> pagesItr=pages.iterator();
-    while (pagesItr.hasNext()) {
-      WikiPage page=pagesItr.next();
-      if (context.addPrimaryKey(WikiPage.class,page.getPrimaryKeyObj())) {
-        pagesItr.remove();
-      }
- else {
-        page.setUserUuid(page.getUserUuid());
-        if (context.getBooleanParameter(_NAMESPACE,"comments")) {
-          context.addComments(WikiPage.class,new Long(page.getResourcePrimKey()));
-        }
-        if (context.getBooleanParameter(_NAMESPACE,"tags")) {
-          context.addTagsEntries(WikiPage.class,new Long(page.getResourcePrimKey()));
-        }
-        if (context.getBooleanParameter(_NAMESPACE,"attachments") && page.isHead()) {
-          String[] attachments=page.getAttachmentsFiles();
-          for (int i=0; i < attachments.length; i++) {
-            String attachment=attachments[i];
-            byte[] byteArray=DLServiceUtil.getFile(context.getCompanyId(),CompanyConstants.SYSTEM,attachment);
-            context.getZipWriter().addEntry(attachment,byteArray);
-          }
-          page.setAttachmentsDir(page.getAttachmentsDir());
-        }
-      }
-    }
-    xml=xStream.toXML(pages);
-    el=root.addElement("wiki-pages");
-    tempDoc=DocumentUtil.readDocumentFromXML(xml);
-    el.content().add(tempDoc.getRootElement().createCopy());
-    return doc.asXML();
+    return XMLFormatter.toString(doc);
   }
  catch (  Exception e) {
     throw new PortletDataException(e);

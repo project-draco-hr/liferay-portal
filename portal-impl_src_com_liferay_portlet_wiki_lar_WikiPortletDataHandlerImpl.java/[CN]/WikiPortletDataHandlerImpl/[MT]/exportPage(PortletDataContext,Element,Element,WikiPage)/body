@@ -1,0 +1,35 @@
+{
+  if (context.isWithinDateRange(page.getModifiedDate())) {
+    String path=getPagePath(context,page);
+    Element pageEl=pagesEl.addElement("page");
+    pageEl.addAttribute("path",path);
+    if (context.isPathNotProcessed(path)) {
+      page.setUserUuid(page.getUserUuid());
+      if (context.getBooleanParameter(_NAMESPACE,"comments")) {
+        context.addComments(WikiPage.class,new Long(page.getResourcePrimKey()));
+      }
+      if (context.getBooleanParameter(_NAMESPACE,"tags")) {
+        context.addTagsEntries(WikiPage.class,new Long(page.getResourcePrimKey()));
+      }
+      if (context.getBooleanParameter(_NAMESPACE,"attachments") && page.isHead()) {
+        for (        String attachment : page.getAttachmentsFiles()) {
+          int lf=attachment.lastIndexOf(CharPool.FORWARD_SLASH);
+          String attachementName=attachment.substring((lf + 1),attachment.length());
+          String attachementPath=getPageAttachementBinPath(context,attachementName,page);
+          Element attachementEl=pageEl.addElement("attachement");
+          attachementEl.addAttribute("name",attachementName);
+          attachementEl.addAttribute("bin-path",attachementPath);
+          try {
+            byte[] byteArray=DLServiceUtil.getFile(context.getCompanyId(),CompanyConstants.SYSTEM,attachment);
+            context.addZipEntry(attachementPath,byteArray);
+          }
+ catch (          RemoteException re) {
+          }
+        }
+        page.setAttachmentsDir(page.getAttachmentsDir());
+      }
+      context.addZipEntry(path,page);
+    }
+    exportNode(context,nodesEl,page.getNodeId());
+  }
+}
