@@ -1,64 +1,15 @@
 {
   try {
-    XStream xStream=new XStream();
     Document doc=DocumentHelper.createDocument();
     Element root=doc.addElement("image-gallery");
     root.addAttribute("group-id",String.valueOf(context.getGroupId()));
+    Element foldersEl=root.addElement("folders");
+    Element imagesEl=root.addElement("images");
     List<IGFolder> folders=IGFolderUtil.findByGroupId(context.getGroupId());
-    List<IGImage> igImages=new ArrayList<IGImage>();
-    Iterator<IGFolder> foldersItr=folders.iterator();
-    while (foldersItr.hasNext()) {
-      IGFolder folder=foldersItr.next();
-      if (context.addPrimaryKey(IGFolder.class,folder.getPrimaryKeyObj())) {
-        foldersItr.remove();
-      }
- else {
-        folder.setUserUuid(folder.getUserUuid());
-        List<IGImage> folderIGImages=IGImageUtil.findByFolderId(folder.getFolderId());
-        if (context.hasDateRange()) {
-          for (          IGImage image : folderIGImages) {
-            if (context.isWithinDateRange(image.getModifiedDate())) {
-              igImages.add(image);
-            }
-          }
-          if (!context.isWithinDateRange(folder.getModifiedDate())) {
-            foldersItr.remove();
-          }
-        }
- else {
-          igImages.addAll(folderIGImages);
-        }
-      }
+    for (    IGFolder igFolder : folders) {
+      exportFolder(context,foldersEl,imagesEl,igFolder);
     }
-    String xml=xStream.toXML(folders);
-    Element el=root.addElement("ig-folders");
-    Document tempDoc=DocumentUtil.readDocumentFromXML(xml);
-    el.content().add(tempDoc.getRootElement().createCopy());
-    Iterator<IGImage> imagesItr=igImages.iterator();
-    while (imagesItr.hasNext()) {
-      IGImage igImage=imagesItr.next();
-      if (context.addPrimaryKey(IGImage.class,igImage.getPrimaryKeyObj())) {
-        imagesItr.remove();
-      }
- else {
-        igImage.setUserUuid(igImage.getUserUuid());
-        if (context.getBooleanParameter(_NAMESPACE,"tags")) {
-          context.addTagsEntries(IGImage.class,igImage.getPrimaryKeyObj());
-        }
-        try {
-          Image largeImage=ImageUtil.findByPrimaryKey(igImage.getLargeImageId());
-          igImage.setImageType(largeImage.getType());
-          context.getZipWriter().addEntry(getIGImageDir(igImage),largeImage.getTextObj());
-        }
- catch (        com.liferay.portal.NoSuchImageException nsie) {
-        }
-      }
-    }
-    xml=xStream.toXML(igImages);
-    el=root.addElement("ig-images");
-    tempDoc=DocumentUtil.readDocumentFromXML(xml);
-    el.content().add(tempDoc.getRootElement().createCopy());
-    return doc.asXML();
+    return XMLFormatter.toString(doc);
   }
  catch (  Exception e) {
     throw new PortletDataException(e);

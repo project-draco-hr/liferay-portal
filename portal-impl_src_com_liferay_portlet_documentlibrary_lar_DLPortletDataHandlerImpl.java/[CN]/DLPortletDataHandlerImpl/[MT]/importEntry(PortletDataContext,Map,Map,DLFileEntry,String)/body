@@ -1,0 +1,37 @@
+{
+  long userId=context.getUserId(entry.getUserUuid());
+  long folderId=MapUtil.getLong(folderPKs,entry.getFolderId(),entry.getFolderId());
+  String[] tagsEntries=null;
+  if (context.getBooleanParameter(_NAMESPACE,"tags")) {
+    tagsEntries=context.getTagsEntries(DLFileEntry.class,entry.getPrimaryKeyObj());
+  }
+  boolean addCommunityPermissions=true;
+  boolean addGuestPermissions=true;
+  byte[] byteArray=context.getZipEntryAsByteArray(binPath);
+  DLFileEntry existingEntry=null;
+  try {
+    DLFolderUtil.findByPrimaryKey(folderId);
+    if (context.getDataStrategy().equals(PortletDataHandlerKeys.DATA_STRATEGY_MIRROR)) {
+      try {
+        existingEntry=DLFileEntryFinderUtil.findByUuid_G(entry.getUuid(),context.getGroupId());
+        existingEntry=DLFileEntryLocalServiceUtil.updateFileEntry(userId,existingEntry.getFolderId(),folderId,existingEntry.getName(),entry.getName(),entry.getTitle(),entry.getDescription(),tagsEntries,entry.getExtraSettings(),byteArray);
+      }
+ catch (      NoSuchFileEntryException nsfee) {
+        existingEntry=DLFileEntryLocalServiceUtil.addFileEntry(entry.getUuid(),userId,folderId,entry.getName(),entry.getTitle(),entry.getDescription(),tagsEntries,entry.getExtraSettings(),byteArray,addCommunityPermissions,addGuestPermissions);
+      }
+    }
+ else {
+      existingEntry=DLFileEntryLocalServiceUtil.addFileEntry(userId,folderId,entry.getName(),entry.getTitle(),entry.getDescription(),tagsEntries,entry.getExtraSettings(),byteArray,addCommunityPermissions,addGuestPermissions);
+    }
+    entryNames.put(entry.getName(),existingEntry.getName());
+    if (context.getBooleanParameter(_NAMESPACE,"comments")) {
+      context.importComments(DLFileEntry.class,entry.getPrimaryKeyObj(),existingEntry.getPrimaryKeyObj(),context.getGroupId());
+    }
+    if (context.getBooleanParameter(_NAMESPACE,"ratings")) {
+      context.importRatingsEntries(DLFileEntry.class,entry.getPrimaryKeyObj(),existingEntry.getPrimaryKeyObj());
+    }
+  }
+ catch (  NoSuchFolderException nsfe) {
+    _log.error("Could not find the parent folder for entry " + entry.getFileEntryId());
+  }
+}
