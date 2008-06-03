@@ -6,10 +6,15 @@
   List<ObjectValuePair<String,byte[]>> files=new ArrayList<ObjectValuePair<String,byte[]>>();
   List<String> existingFiles=new ArrayList<String>();
   if (context.getBooleanParameter(_NAMESPACE,"attachments") && message.isAttachments()) {
-    files=context.getZipReader().getFolderEntries().get(message.getAttachmentsDir() + "/");
-    if (files == null) {
+    List<Element> attachementEls=messageEl.elements("attachement");
+    for (    Element attachementEl : attachementEls) {
+      String name=attachementEl.attributeValue("name");
+      String attachementPath=attachementEl.attributeValue("bin-path");
+      byte[] bytes=context.getZipEntryAsByteArray(attachementPath);
+      files.add(new ObjectValuePair<String,byte[]>(name,bytes));
+    }
+    if (files.size() <= 0) {
       _log.error("Could not find attachments for message " + message.getMessageId());
-      files=new ArrayList<ObjectValuePair<String,byte[]>>();
     }
   }
   String[] tagsEntries=null;
@@ -41,6 +46,9 @@
     }
     threadPKs.put(new Long(message.getThreadId()),new Long(existingMessage.getThreadId()));
     messagePKs.put(message.getMessageId(),existingMessage.getMessageId());
+    if (context.getBooleanParameter(_NAMESPACE,"ratings")) {
+      context.importRatingsEntries(MBMessage.class,message.getPrimaryKeyObj(),existingMessage.getPrimaryKeyObj());
+    }
   }
  catch (  NoSuchCategoryException nsce) {
     _log.error("Could not find the parent category for message " + message.getMessageId());
