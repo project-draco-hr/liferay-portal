@@ -35,23 +35,28 @@
   Group guestGroup=groupLocalService.getGroup(companyId,GroupImpl.GUEST);
   Element root=null;
   byte[] themeZip=null;
+  String xml=context.getZipEntryAsString("/manifest.xml");
   try {
-    String xml=zipReader.getEntryAsString("layouts.xml");
-    SAXReader reader=new SAXReader();
-    Document doc=reader.read(new StringReader(xml));
+    Document doc=DocumentUtil.readDocumentFromXML(xml);
     root=doc.getRootElement();
-    if (importTheme) {
-      themeZip=zipReader.getEntryAsByteArray("theme.zip");
-    }
   }
  catch (  Exception e) {
-    throw new SystemException(e);
+    throw new LARFileException(e);
   }
   Element header=root.element("header");
   int buildNumber=ReleaseInfo.getBuildNumber();
   int importBuildNumber=GetterUtil.getInteger(header.attributeValue("build-number"));
   if (buildNumber != importBuildNumber) {
     throw new LayoutImportException("LAR build number " + importBuildNumber + " does not match "+ "portal build number "+ buildNumber);
+  }
+  String larType=header.attributeValue("type");
+  if (!larType.equals("layout-set")) {
+    throw new LARTypeException("Invalid type of LAR file (" + larType + ")");
+  }
+  long importGroupId=GetterUtil.getLong(header.attributeValue("group-id"));
+  context.setImportGroupId(importGroupId);
+  if (importTheme) {
+    themeZip=context.getZipEntryAsByteArray("theme.zip");
   }
   String themeId=header.attributeValue("theme-id");
   String colorSchemeId=header.attributeValue("color-scheme-id");
@@ -78,15 +83,25 @@
   readRatings(context,root);
   readTags(context,root);
   Set<Long> newLayoutIds=new HashSet<Long>();
-  Iterator<Element> itr=root.elements("layout").iterator();
+  Map<Long,Long> newLayoutIdPlidMap=context.getNewPrimaryKeysMap(Layout.class);
+  List<Element> layoutEls=root.element("layouts").elements("layout");
   if (_log.isDebugEnabled()) {
-    if (itr.hasNext()) {
+    if (layoutEls.size() > 0) {
       _log.debug("Importing layouts");
     }
   }
-  while (itr.hasNext()) {
-    Element layoutEl=itr.next();
-    long layoutId=GetterUtil.getInteger(layoutEl.attributeValue("layout-id"));
+  for (  Element layoutRefEl : layoutEls) {
+    long layoutId=GetterUtil.getInteger(layoutRefEl.attributeValue("layout-id"));
+    long oldLayoutId=layoutId;
+    String layoutPath=layoutRefEl.attributeValue("path");
+    Element layoutEl=null;
+    try {
+      Document layoutDoc=DocumentUtil.readDocumentFromXML(context.getZipEntryAsString(layoutPath));
+      layoutEl=layoutDoc.getRootElement();
+    }
+ catch (    DocumentException de) {
+      throw new SystemException(de);
+    }
     long parentLayoutId=GetterUtil.getInteger(layoutEl.elementText("parent-layout-id"));
     if (_log.isDebugEnabled()) {
       _log.debug("Importing layout with layout id " + layoutId + " and parent layout id "+ parentLayoutId);
@@ -101,8 +116,8 @@
     boolean iconImage=GetterUtil.getBoolean(layoutEl.elementText("icon-image"));
     byte[] iconBytes=null;
     if (iconImage) {
-      String iconImagePath=layoutEl.elementText("icon-image-path");
-      iconBytes=zipReader.getEntryAsByteArray(iconImagePath);
+      String path=layoutEl.elementText("icon-image-path");
+      iconBytes=context.getZipEntryAsByteArray(path);
     }
     if (useThemeZip) {
       themeId=StringPool.BLANK;
@@ -167,29 +182,66 @@
       ImageLocalUtil.updateImage(layout.getIconImageId(),iconBytes);
     }
     context.setPlid(layout.getPlid());
+    newLayoutIdPlidMap.put(oldLayoutId,layout.getPlid());
     newLayoutIds.add(layoutId);
     Element permissionsEl=layoutEl.element("permissions");
     if (importPermissions) {
       importLayoutPermissions(layoutCache,companyId,groupId,guestGroup,layout,permissionsEl,importUserPermissions);
     }
-    if (deletePortletData) {
-      deletePortletData(context,layout,layoutEl);
+  }
+  List<Element> portletEls=root.element("portlets").elements("portlet");
+  if (deletePortletData) {
+    if (_log.isDebugEnabled()) {
+      if (portletEls.size() > 0) {
+        _log.debug("Deleting portlet data");
+      }
     }
-    importPortletPreferences(context,layoutSet.getCompanyId(),layout.getGroupId(),layout.getPlid(),null,layoutEl,importPortletSetup,importPortletArchivedSetups,importPortletUserPreferences);
+    for (    Element portletRefEl : portletEls) {
+      String portletId=portletRefEl.attributeValue("portlet-id");
+      long layoutId=GetterUtil.getLong(portletRefEl.attributeValue("layout-id"));
+      long plid=newLayoutIdPlidMap.get(layoutId);
+      context.setPlid(plid);
+      deletePortletData(context,portletId,plid);
+    }
+  }
+  if (_log.isDebugEnabled()) {
+    if (portletEls.size() > 0) {
+      _log.debug("Importing portlets");
+    }
+  }
+  for (  Element portletRefEl : portletEls) {
+    String portletPath=portletRefEl.attributeValue("path");
+    String portletId=portletRefEl.attributeValue("portlet-id");
+    long layoutId=GetterUtil.getLong(portletRefEl.attributeValue("layout-id"));
+    long plid=newLayoutIdPlidMap.get(layoutId);
+    Layout layout=layoutPersistence.findByPrimaryKey(plid);
+    context.setPlid(plid);
+    Element portletEl=null;
+    try {
+      Document portletDoc=DocumentUtil.readDocumentFromXML(context.getZipEntryAsString(portletPath));
+      portletEl=portletDoc.getRootElement();
+    }
+ catch (    DocumentException de) {
+      throw new SystemException(de);
+    }
+    importPortletPreferences(context,layoutSet.getCompanyId(),layout.getGroupId(),layout.getPlid(),null,portletEl,importPortletSetup,importPortletArchivedSetups,importPortletUserPreferences);
     if (importPortletData) {
-      importPortletData(context,layout,layoutEl);
+      importPortletData(context,portletId,plid,portletEl.element("portlet-data"));
     }
+    Element permissionsEl=portletEl.element("permissions");
     if (importPermissions) {
       importPortletPermissions(layoutCache,companyId,groupId,guestGroup,layout,permissionsEl,importUserPermissions);
     }
+    importPortletPreferences(context,layoutSet.getCompanyId(),groupId,0,null,portletEl,importPortletSetup,importPortletArchivedSetups,importPortletUserPreferences);
+    Element rolesEl=portletEl.element("roles");
+    if (importPermissions) {
+      importPortletRoles(layoutCache,companyId,groupId,portletEl);
+      importPortletRoles(layoutCache,companyId,groupId,portletId,rolesEl);
+    }
   }
-  importPortletPreferences(context,layoutSet.getCompanyId(),groupId,0,null,root,importPortletSetup,importPortletArchivedSetups,importPortletUserPreferences);
   Element rolesEl=root.element("roles");
   if (importPermissions) {
     importLayoutRoles(layoutCache,companyId,groupId,rolesEl);
-  }
-  if (importPermissions) {
-    importPortletRoles(layoutCache,companyId,groupId,rolesEl);
   }
   if (deleteMissingLayouts) {
     deleteMissingLayouts(groupId,privateLayout,newLayoutIds);

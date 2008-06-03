@@ -1,21 +1,24 @@
 {
   try {
-    XStream xStream=new XStream();
-    Map commentsMap=context.getComments();
-    Iterator<String> itr=commentsMap.keySet().iterator();
-    while (itr.hasNext()) {
-      String key=itr.next();
-      String[] comment=key.split(StringPool.POUND);
-      Element el=root.addElement("comments");
-      el.addAttribute("class-name",comment[0]);
-      el.addAttribute("class-pk",comment[1]);
-      List messages=(List)commentsMap.get(key);
-      String xml=xStream.toXML(messages);
-      Document tempDoc=DocumentUtil.readDocumentFromXML(xml);
-      el.content().add(tempDoc.getRootElement().createCopy());
+    Document doc=DocumentHelper.createDocument();
+    Element root=doc.addElement("comments");
+    Map<String,List> commentsMap=context.getComments();
+    for (    Map.Entry<String,List> entry : commentsMap.entrySet()) {
+      String[] comment=entry.getKey().split(StringPool.POUND);
+      String path=getCommentPath(context,comment[0],comment[1]);
+      Element asset=root.addElement("asset");
+      asset.addAttribute("path",path);
+      asset.addAttribute("class-name",comment[0]);
+      asset.addAttribute("class-pk",comment[1]);
+      List<MBMessage> messages=entry.getValue();
+      for (      MBMessage message : messages) {
+        path=getCommentPath(context,comment[0],comment[1],message);
+        context.addZipEntry(path,message);
+      }
     }
+    context.addZipEntry(context.getRootPath() + "/comments.xml",XMLFormatter.toString(doc));
   }
- catch (  Exception e) {
-    throw new SystemException(e);
+ catch (  IOException ioe) {
+    throw new SystemException(ioe);
   }
 }
