@@ -1,0 +1,38 @@
+{
+  ProgressTracker tracker=ProgressTrackerThreadLocal.getProgressTracker();
+  List<Element> pages=root.elements("page");
+  int total=pages.size();
+  Iterator<Element> itr=pages.iterator();
+  for (int i=0; itr.hasNext(); i++) {
+    Element page=itr.next();
+    String title=page.elementText("title");
+    if (!title.startsWith("Category:")) {
+      if (isSpecialMediaWikiPage(title,specialNamespaces)) {
+        root.remove(page);
+      }
+      continue;
+    }
+    String categoryName=title.substring("Category:".length());
+    categoryName=normalize(categoryName,75);
+    String description=page.element("revision").elementText("text");
+    description=normalizeDescription(description);
+    try {
+      TagsEntry tagsEntry=null;
+      try {
+        tagsEntry=TagsEntryLocalServiceUtil.getEntry(node.getCompanyId(),categoryName);
+      }
+ catch (      NoSuchEntryException nsee) {
+        tagsEntry=TagsEntryLocalServiceUtil.addEntry(userId,categoryName);
+      }
+      if (Validator.isNotNull(description)) {
+        TagsPropertyLocalServiceUtil.addProperty(userId,tagsEntry.getEntryId(),"description",description);
+      }
+    }
+ catch (    SystemException se) {
+      _log.error(se,se);
+    }
+    if (i % 5 == 0) {
+      tracker.updateProgress((i * 10) / total);
+    }
+  }
+}
