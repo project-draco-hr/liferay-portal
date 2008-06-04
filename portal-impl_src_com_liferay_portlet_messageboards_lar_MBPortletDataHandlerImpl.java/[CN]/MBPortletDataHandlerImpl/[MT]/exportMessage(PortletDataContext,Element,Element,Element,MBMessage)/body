@@ -1,42 +1,43 @@
 {
-  if (context.isWithinDateRange(message.getModifiedDate())) {
-    String path=getMessagePath(context,message);
-    Element messageEl=messagesEl.addElement("message");
-    messageEl.addAttribute("path",path);
-    if (context.isPathNotProcessed(path)) {
-      message.setUserUuid(message.getUserUuid());
-      message.setPriority(message.getPriority());
-      if (context.getBooleanParameter(_NAMESPACE,"ratings")) {
-        context.addRatingsEntries(MBMessage.class,message.getPrimaryKeyObj());
-      }
-      if (context.getBooleanParameter(_NAMESPACE,"tags")) {
-        context.addTagsEntries(MBMessage.class,message.getPrimaryKeyObj());
-      }
-      if (context.getBooleanParameter(_NAMESPACE,"attachments") && message.isAttachments()) {
-        for (        String attachment : message.getAttachmentsFiles()) {
-          int lf=attachment.lastIndexOf(CharPool.FORWARD_SLASH);
-          String attachementName=attachment.substring((lf + 1),attachment.length());
-          String attachementPath=getMessageAttachementBinPath(context,attachementName,message);
-          Element attachementEl=messageEl.addElement("attachement");
-          attachementEl.addAttribute("name",attachementName);
-          attachementEl.addAttribute("bin-path",attachementPath);
-          try {
-            byte[] byteArray=DLServiceUtil.getFile(context.getCompanyId(),CompanyConstants.SYSTEM,attachment);
-            context.addZipEntry(attachementPath,byteArray);
-          }
- catch (          RemoteException re) {
-          }
-        }
-        message.setAttachmentsDir(message.getAttachmentsDir());
-      }
-      if (context.getBooleanParameter(_NAMESPACE,"flags")) {
-        List<MBMessageFlag> messageFlags=MBMessageFlagUtil.findByMessageId(message.getMessageId());
-        for (        MBMessageFlag messageFlag : messageFlags) {
-          exportMessageFlag(context,messageFlagsEl,messageFlag);
-        }
-      }
-      context.addZipEntry(path,message);
-    }
-    exportParentCategory(context,categoriesEl,message.getCategoryId());
+  if (!context.isWithinDateRange(message.getModifiedDate())) {
+    return;
   }
+  String path=getMessagePath(context,message);
+  Element messageEl=messagesEl.addElement("message");
+  messageEl.addAttribute("path",path);
+  if (context.isPathNotProcessed(path)) {
+    message.setUserUuid(message.getUserUuid());
+    message.setPriority(message.getPriority());
+    if (context.getBooleanParameter(_NAMESPACE,"ratings")) {
+      context.addRatingsEntries(MBMessage.class,message.getMessageId());
+    }
+    if (context.getBooleanParameter(_NAMESPACE,"tags")) {
+      context.addTagsEntries(MBMessage.class,message.getMessageId());
+    }
+    if (context.getBooleanParameter(_NAMESPACE,"attachments") && message.isAttachments()) {
+      for (      String attachment : message.getAttachmentsFiles()) {
+        int pos=attachment.lastIndexOf(StringPool.FORWARD_SLASH);
+        String name=attachment.substring(pos + 1);
+        String binPath=getMessageAttachementBinPath(context,message,name);
+        Element attachmentEl=messageEl.addElement("attachment");
+        attachmentEl.addAttribute("name",name);
+        attachmentEl.addAttribute("bin-path",binPath);
+        try {
+          byte[] bytes=DLServiceUtil.getFile(context.getCompanyId(),CompanyConstants.SYSTEM,attachment);
+          context.addZipEntry(binPath,bytes);
+        }
+ catch (        RemoteException re) {
+        }
+      }
+      message.setAttachmentsDir(message.getAttachmentsDir());
+    }
+    if (context.getBooleanParameter(_NAMESPACE,"flags")) {
+      List<MBMessageFlag> messageFlags=MBMessageFlagUtil.findByMessageId(message.getMessageId());
+      for (      MBMessageFlag messageFlag : messageFlags) {
+        exportMessageFlag(context,messageFlagsEl,messageFlag);
+      }
+    }
+    context.addZipEntry(path,message);
+  }
+  exportParentCategory(context,categoriesEl,message.getCategoryId());
 }
