@@ -1,0 +1,37 @@
+{
+  if (!context.isWithinDateRange(fileEntry.getModifiedDate())) {
+    return;
+  }
+  String path=getFileEntryPath(context,fileEntry);
+  String binPath=getFileEntryBinPath(context,fileEntry);
+  Element fileEntryEl=fileEntriesEl.addElement("file-entry");
+  fileEntryEl.addAttribute("path",path);
+  fileEntryEl.addAttribute("bin-path",binPath);
+  if (context.isPathNotProcessed(path)) {
+    fileEntry.setUserUuid(fileEntry.getUserUuid());
+    if (context.getBooleanParameter(_NAMESPACE,"comments")) {
+      context.addComments(DLFileEntry.class,fileEntry.getFileEntryId());
+    }
+    if (context.getBooleanParameter(_NAMESPACE,"ratings")) {
+      context.addRatingsEntries(DLFileEntry.class,fileEntry.getFileEntryId());
+    }
+    if (context.getBooleanParameter(_NAMESPACE,"tags")) {
+      context.addTagsEntries(DLFileEntry.class,fileEntry.getFileEntryId());
+    }
+    InputStream is=DLFileEntryLocalServiceUtil.getFileAsStream(fileEntry.getCompanyId(),fileEntry.getUserId(),fileEntry.getFolderId(),fileEntry.getName());
+    try {
+      context.addZipEntry(getFileEntryBinPath(context,fileEntry),FileUtil.getBytes(is));
+    }
+ catch (    IOException ioe) {
+      throw new SystemException(ioe);
+    }
+    context.addZipEntry(path,fileEntry);
+    if (context.getBooleanParameter(_NAMESPACE,"ranks")) {
+      List<DLFileRank> fileRanks=DLFileRankUtil.findByF_N(fileEntry.getFolderId(),fileEntry.getName());
+      for (      DLFileRank fileRank : fileRanks) {
+        exportFileRank(context,fileRanksEl,fileRank);
+      }
+    }
+  }
+  exportParentFolder(context,foldersEl,fileEntry.getFolderId());
+}

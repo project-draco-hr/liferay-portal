@@ -1,0 +1,37 @@
+{
+  long userId=context.getUserId(fileEntry.getUserUuid());
+  long folderId=MapUtil.getLong(folderPKs,fileEntry.getFolderId(),fileEntry.getFolderId());
+  String[] tagsEntries=null;
+  if (context.getBooleanParameter(_NAMESPACE,"tags")) {
+    tagsEntries=context.getTagsEntries(DLFileEntry.class,fileEntry.getFileEntryId());
+  }
+  boolean addCommunityPermissions=true;
+  boolean addGuestPermissions=true;
+  byte[] bytes=context.getZipEntryAsByteArray(binPath);
+  DLFileEntry existingFileEntry=null;
+  try {
+    DLFolderUtil.findByPrimaryKey(folderId);
+    if (context.getDataStrategy().equals(PortletDataHandlerKeys.DATA_STRATEGY_MIRROR)) {
+      try {
+        existingFileEntry=DLFileEntryFinderUtil.findByUuid_G(fileEntry.getUuid(),context.getGroupId());
+        existingFileEntry=DLFileEntryLocalServiceUtil.updateFileEntry(userId,existingFileEntry.getFolderId(),folderId,existingFileEntry.getName(),fileEntry.getName(),fileEntry.getTitle(),fileEntry.getDescription(),tagsEntries,fileEntry.getExtraSettings(),bytes);
+      }
+ catch (      NoSuchFileEntryException nsfee) {
+        existingFileEntry=DLFileEntryLocalServiceUtil.addFileEntry(fileEntry.getUuid(),userId,folderId,fileEntry.getName(),fileEntry.getTitle(),fileEntry.getDescription(),tagsEntries,fileEntry.getExtraSettings(),bytes,addCommunityPermissions,addGuestPermissions);
+      }
+    }
+ else {
+      existingFileEntry=DLFileEntryLocalServiceUtil.addFileEntry(userId,folderId,fileEntry.getName(),fileEntry.getTitle(),fileEntry.getDescription(),tagsEntries,fileEntry.getExtraSettings(),bytes,addCommunityPermissions,addGuestPermissions);
+    }
+    fileEntryNames.put(fileEntry.getName(),existingFileEntry.getName());
+    if (context.getBooleanParameter(_NAMESPACE,"comments")) {
+      context.importComments(DLFileEntry.class,fileEntry.getFileEntryId(),existingFileEntry.getFileEntryId(),context.getGroupId());
+    }
+    if (context.getBooleanParameter(_NAMESPACE,"ratings")) {
+      context.importRatingsEntries(DLFileEntry.class,fileEntry.getFileEntryId(),existingFileEntry.getFileEntryId());
+    }
+  }
+ catch (  NoSuchFolderException nsfe) {
+    _log.error("Could not find the parent folder for entry " + fileEntry.getFileEntryId());
+  }
+}
