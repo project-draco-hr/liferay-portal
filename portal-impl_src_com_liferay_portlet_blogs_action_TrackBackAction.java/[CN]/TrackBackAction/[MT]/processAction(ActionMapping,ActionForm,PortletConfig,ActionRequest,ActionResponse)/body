@@ -1,0 +1,40 @@
+{
+  long groupId=PortalUtil.getPortletGroupId(req);
+  ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
+  Locale locale=themeDisplay.getLocale();
+  String title=ParamUtil.getString(req,"title");
+  String excerpt=ParamUtil.getString(req,"excerpt");
+  String url=ParamUtil.getString(req,"url");
+  String blogName=ParamUtil.getString(req,"blog_name");
+  try {
+    if (!commentsEnabled(req)) {
+      sendError(res,_COMMENTS_DISABLED);
+    }
+ else     if (Validator.isNull(url)) {
+      sendError(res,_MISSING_URL);
+    }
+ else {
+      ActionUtil.getEntry(req);
+      BlogsEntry entry=(BlogsEntry)req.getAttribute(WebKeys.BLOGS_ENTRY);
+      if (!entry.isAllowTrackbacks()) {
+        sendError(res,_UNAUTHORIZED);
+      }
+ else {
+        long userId=PortalUtil.getCompany(req).getDefaultUser().getUserId();
+        String className=BlogsEntry.class.getName();
+        long classPK=entry.getEntryId();
+        MBThread thread=MBMessageLocalServiceUtil.getDiscussionMessageDisplay(userId,className,classPK).getThread();
+        long threadId=thread.getThreadId();
+        long parentMessageId=thread.getRootMessageId();
+        String body="[...] " + excerpt + " [...] [url="+ url+ "]"+ LanguageUtil.get(locale,"read-more")+ "[/url]";
+        MBMessageLocalServiceUtil.addDiscussionMessage(userId,blogName,groupId,className,classPK,threadId,parentMessageId,title,body,themeDisplay);
+        sendSuccess(res);
+      }
+    }
+  }
+ catch (  Exception e) {
+    sendError(res,_UNKNOWN_ERROR);
+    _log.error(e);
+  }
+  setForward(req,ActionConstants.COMMON_NULL);
+}
