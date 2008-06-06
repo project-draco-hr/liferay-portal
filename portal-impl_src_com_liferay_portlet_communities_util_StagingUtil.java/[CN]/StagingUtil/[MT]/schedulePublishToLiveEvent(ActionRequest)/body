@@ -1,0 +1,37 @@
+{
+  String tabs1=ParamUtil.getString(req,"tabs1");
+  long stagingGroupId=ParamUtil.getLong(req,"stagingGroupId");
+  Group stagingGroup=GroupLocalServiceUtil.getGroup(stagingGroupId);
+  long liveGroupId=stagingGroup.getLiveGroupId();
+  boolean privateLayout=true;
+  if (tabs1.equals("public-pages")) {
+    privateLayout=false;
+  }
+  Map<String,String[]> parameterMap=getStagingParameters(req);
+  String cronText=ParamUtil.getString(req,"cronText");
+  String scope=ParamUtil.getString(req,"scope");
+  Map<Long,Boolean> layoutIdMap=new LinkedHashMap<Long,Boolean>();
+  if (scope.equals("selected-pages")) {
+    long[] rowIds=ParamUtil.getLongValues(req,"rowIds");
+    for (int i=0; i < rowIds.length; i++) {
+      long selPlid=rowIds[i];
+      boolean includeChildren=ParamUtil.getBoolean(req,"includeChildren_" + selPlid);
+      layoutIdMap.put(selPlid,includeChildren);
+    }
+  }
+  String description=ParamUtil.getString(req,"description");
+  boolean timeZoneSensitive=ParamUtil.getBoolean(req,"timeZoneSensitive");
+  int recurrenceType=ParamUtil.getInteger(req,"recurrenceType");
+  Calendar startCal=getDate(req,"start",timeZoneSensitive);
+  Calendar endCal=null;
+  int endDateType=ParamUtil.getInteger(req,"endDateType");
+  if (endDateType == 1) {
+    endCal=getDate(req,"end",timeZoneSensitive);
+  }
+  cronText=getCronText(req,startCal,timeZoneSensitive,recurrenceType);
+  Date endDate=null;
+  if (endCal != null) {
+    endDate=endCal.getTime();
+  }
+  LayoutServiceUtil.schedulePublishToLiveEvent(stagingGroupId,liveGroupId,privateLayout,parameterMap,cronText,scope,layoutIdMap,startCal.getTime(),endDate,description);
+}
