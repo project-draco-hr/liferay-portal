@@ -1,5 +1,4 @@
 {
-  boolean addAsNewLayouts=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.ADD_AS_NEW_LAYOUTS);
   boolean deleteMissingLayouts=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.DELETE_MISSING_LAYOUTS,Boolean.TRUE.booleanValue());
   boolean deletePortletData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.DELETE_PORTLET_DATA);
   boolean importPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PERMISSIONS);
@@ -9,6 +8,8 @@
   boolean importPortletArchivedSetups=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_ARCHIVED_SETUPS);
   boolean importPortletUserPreferences=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_USER_PREFERENCES);
   boolean importTheme=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.THEME);
+  String layoutsImportMode=MapUtil.getString(parameterMap,PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE,PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_MERGE_BY_LAYOUT_ID);
+  String portletsMergeMode=MapUtil.getString(parameterMap,PortletDataHandlerKeys.PORTLETS_MERGE_MODE,PortletDataHandlerKeys.PORTLETS_MERGE_MODE_REPLACE);
   String userIdStrategy=MapUtil.getString(parameterMap,PortletDataHandlerKeys.USER_ID_STRATEGY);
   if (_log.isDebugEnabled()) {
     _log.debug("Delete portlet data " + deletePortletData);
@@ -82,6 +83,7 @@
   _portletImporter.readComments(context,root);
   _portletImporter.readRatings(context,root);
   _portletImporter.readTags(context,root);
+  List<Layout> previousLayouts=LayoutUtil.findByG_P(groupId,privateLayout);
   Set<Long> newLayoutIds=new HashSet<Long>();
   Map<Long,Long> newLayoutIdPlidMap=context.getNewPrimaryKeysMap(Layout.class);
   List<Element> layoutEls=root.element("layouts").elements("layout");
@@ -132,9 +134,19 @@
     String css=layoutEl.elementText("css");
     int priority=GetterUtil.getInteger(layoutEl.elementText("priority"));
     Layout layout=null;
-    if (addAsNewLayouts) {
+    if (layoutsImportMode.equals(PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_ADD_AS_NEW)) {
       layoutId=LayoutLocalServiceUtil.getNextLayoutId(groupId,privateLayout);
       friendlyURL=StringPool.SLASH + layoutId;
+    }
+ else     if (layoutsImportMode.equals(PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_MERGE_BY_LAYOUT_NAME)) {
+      Locale locale=LocaleUtil.getDefault();
+      String localizedName=LocalizationUtil.getLocalization(name,LocaleUtil.toLanguageId(locale));
+      for (      Layout curLayout : previousLayouts) {
+        if (curLayout.getName(locale).equals(localizedName)) {
+          layout=curLayout;
+          break;
+        }
+      }
     }
  else {
       layout=LayoutUtil.fetchByG_P_L(groupId,privateLayout,layoutId);
@@ -160,7 +172,12 @@
     layout.setTitle(title);
     layout.setDescription(description);
     layout.setType(type);
-    layout.setTypeSettings(typeSettings);
+    if (layout.getType().equals(LayoutConstants.TYPE_PORTLET) && Validator.isNotNull(layout.getTypeSettings()) && !portletsMergeMode.equals(PortletDataHandlerKeys.PORTLETS_MERGE_MODE_REPLACE)) {
+      mergePortlets(layout,typeSettings,portletsMergeMode);
+    }
+ else {
+      layout.setTypeSettings(typeSettings);
+    }
     layout.setHidden(hidden);
     layout.setFriendlyURL(friendlyURL);
     if (iconImage) {
@@ -245,7 +262,7 @@
     importLayoutRoles(layoutCache,companyId,groupId,rolesEl);
   }
   if (deleteMissingLayouts) {
-    deleteMissingLayouts(groupId,privateLayout,newLayoutIds);
+    deleteMissingLayouts(groupId,privateLayout,newLayoutIds,previousLayouts);
   }
   LayoutSetLocalServiceUtil.updatePageCount(groupId,privateLayout);
   if (_log.isInfoEnabled()) {
