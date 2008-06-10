@@ -1,0 +1,35 @@
+{
+  ServletContext ctx=event.getServletContext();
+  String servletContextName=ctx.getServletContextName();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Invoking undeploy for " + servletContextName);
+  }
+  ObjectValuePair<long[],List<Portlet>> ovp=_vars.remove(servletContextName);
+  if (ovp == null) {
+    return;
+  }
+  long[] companyIds=ovp.getKey();
+  List<Portlet> portlets=ovp.getValue();
+  Set<String> portletIds=new HashSet<String>();
+  if (portlets != null) {
+    if (_log.isInfoEnabled()) {
+      _log.info("Unregistering portlets for " + servletContextName);
+    }
+    Iterator<Portlet> itr=portlets.iterator();
+    while (itr.hasNext()) {
+      Portlet portlet=itr.next();
+      destroyPortlet(portlet,portletIds);
+    }
+  }
+  if (portletIds.size() > 0) {
+    for (int i=0; i < companyIds.length; i++) {
+      long companyId=companyIds[i];
+      PortletCategory portletCategory=(PortletCategory)WebAppPool.get(String.valueOf(companyId),WebKeys.PORTLET_CATEGORY);
+      portletCategory.separate(portletIds);
+    }
+  }
+  PortletResourceBundles.remove(servletContextName);
+  if (_log.isInfoEnabled()) {
+    _log.info(portlets.size() + " portlets for " + servletContextName+ " unregistered successfully");
+  }
+}

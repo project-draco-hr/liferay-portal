@@ -1,0 +1,96 @@
+{
+  Class<?> portletClass=null;
+  try {
+    portletClass=portletClassLoader.loadClass(portlet.getPortletClass());
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+    portletsItr.remove();
+    PortletLocalServiceUtil.destroyPortlet(portlet);
+    return;
+  }
+  javax.portlet.Portlet portletInstance=(javax.portlet.Portlet)portletClass.newInstance();
+  if (ClassUtil.isSubclass(portletClass,StrutsPortlet.class.getName())) {
+    strutsBridges=true;
+  }
+  ConfigurationAction configurationActionInstance=null;
+  if (Validator.isNotNull(portlet.getConfigurationActionClass())) {
+    configurationActionInstance=(ConfigurationAction)portletClassLoader.loadClass(portlet.getConfigurationActionClass()).newInstance();
+  }
+  Indexer indexerInstance=null;
+  if (Validator.isNotNull(portlet.getIndexerClass())) {
+    indexerInstance=(Indexer)portletClassLoader.loadClass(portlet.getIndexerClass()).newInstance();
+  }
+  Scheduler schedulerInstance=null;
+  if (Validator.isNotNull(portlet.getSchedulerClass())) {
+    schedulerInstance=(Scheduler)portletClassLoader.loadClass(portlet.getSchedulerClass()).newInstance();
+    schedulerInstance.schedule();
+  }
+  FriendlyURLMapper friendlyURLMapperInstance=null;
+  if (Validator.isNotNull(portlet.getFriendlyURLMapperClass())) {
+    friendlyURLMapperInstance=(FriendlyURLMapper)portletClassLoader.loadClass(portlet.getFriendlyURLMapperClass()).newInstance();
+  }
+  URLEncoder urlEncoderInstance=null;
+  if (Validator.isNotNull(portlet.getURLEncoderClass())) {
+    urlEncoderInstance=(URLEncoder)portletClassLoader.loadClass(portlet.getURLEncoderClass()).newInstance();
+  }
+  PortletDataHandler portletDataHandlerInstance=null;
+  if (Validator.isNotNull(portlet.getPortletDataHandlerClass())) {
+    portletDataHandlerInstance=(PortletDataHandler)portletClassLoader.loadClass(portlet.getPortletDataHandlerClass()).newInstance();
+  }
+  PortletLayoutListener portletLayoutListenerInstance=null;
+  if (Validator.isNotNull(portlet.getPortletLayoutListenerClass())) {
+    portletLayoutListenerInstance=(PortletLayoutListener)portletClassLoader.loadClass(portlet.getPortletLayoutListenerClass()).newInstance();
+  }
+  MessageListener popMessageListenerInstance=null;
+  if (Validator.isNotNull(portlet.getPopMessageListenerClass())) {
+    popMessageListenerInstance=(MessageListener)portletClassLoader.loadClass(portlet.getPopMessageListenerClass()).newInstance();
+    POPServerUtil.addListener(popMessageListenerInstance);
+  }
+  SocialActivityInterpreter socialActivityInterpreterInstance=null;
+  if (Validator.isNotNull(portlet.getSocialActivityInterpreterClass())) {
+    socialActivityInterpreterInstance=(SocialActivityInterpreter)portletClassLoader.loadClass(portlet.getSocialActivityInterpreterClass()).newInstance();
+    socialActivityInterpreterInstance=new SocialActivityInterpreterImpl(portlet.getPortletId(),socialActivityInterpreterInstance);
+    SocialActivityInterpreterLocalServiceUtil.addActivityInterpreter(socialActivityInterpreterInstance);
+  }
+  SocialRequestInterpreter socialRequestInterpreterInstance=null;
+  if (Validator.isNotNull(portlet.getSocialRequestInterpreterClass())) {
+    socialRequestInterpreterInstance=(SocialRequestInterpreter)portletClassLoader.loadClass(portlet.getSocialRequestInterpreterClass()).newInstance();
+    socialRequestInterpreterInstance=new SocialRequestInterpreterImpl(portlet.getPortletId(),socialRequestInterpreterInstance);
+    SocialRequestInterpreterLocalServiceUtil.addRequestInterpreter(socialRequestInterpreterInstance);
+  }
+  PreferencesValidator prefsValidatorInstance=null;
+  if (Validator.isNotNull(portlet.getPreferencesValidator())) {
+    prefsValidatorInstance=(PreferencesValidator)portletClassLoader.loadClass(portlet.getPreferencesValidator()).newInstance();
+    try {
+      if (PropsValues.PREFERENCE_VALIDATE_ON_STARTUP) {
+        prefsValidatorInstance.validate(PortletPreferencesSerializer.fromDefaultXML(portlet.getDefaultPreferences()));
+      }
+    }
+ catch (    Exception e) {
+      _log.warn("Portlet with the name " + portlet.getPortletId() + " does not have valid default preferences");
+    }
+  }
+  Map<String,ResourceBundle> resourceBundles=null;
+  if (Validator.isNotNull(portlet.getResourceBundle())) {
+    resourceBundles=new HashMap<String,ResourceBundle>();
+    initResourceBundle(resourceBundles,portlet,portletClassLoader,LocaleUtil.getDefault());
+    Iterator<String> supportLocalesItr=portlet.getSupportedLocales().iterator();
+    while (supportLocalesItr.hasNext()) {
+      String supportedLocale=supportLocalesItr.next();
+      Locale locale=LocaleUtil.fromLanguageId(supportedLocale);
+      initResourceBundle(resourceBundles,portlet,portletClassLoader,locale);
+    }
+  }
+  PortletBag portletBag=new PortletBag(portlet.getPortletId(),ctx,portletInstance,configurationActionInstance,indexerInstance,schedulerInstance,friendlyURLMapperInstance,urlEncoderInstance,portletDataHandlerInstance,portletLayoutListenerInstance,popMessageListenerInstance,socialActivityInterpreterInstance,socialRequestInterpreterInstance,prefsValidatorInstance,resourceBundles);
+  PortletBagPool.put(portlet.getPortletId(),portletBag);
+  if (!portletsItr.hasNext()) {
+    initPortletApp(portlet,ctx,portletClassLoader);
+  }
+  try {
+    PortletInstanceFactory.create(portlet,ctx);
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+}
