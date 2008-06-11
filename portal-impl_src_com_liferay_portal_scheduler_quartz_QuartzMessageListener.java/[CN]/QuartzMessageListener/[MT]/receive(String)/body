@@ -1,0 +1,30 @@
+{
+  try {
+    JSONObject jsonObj=new JSONObject(message);
+    String responseDestination=jsonObj.optString("lfrResponseDestination");
+    String responseId=jsonObj.optString("lfrResponseId");
+    jsonObj.remove("lfrResponseDestination");
+    jsonObj.remove("lfrResponseId");
+    SchedulerRequest request=(SchedulerRequest)_serializer.fromJSON(jsonObj.toString());
+    String type=request.getType();
+    if (type.equals(SchedulerRequest.REGISTER_TYPE)) {
+      QuartzSchedulerEngineUtil.schedule(String.valueOf(request.hashCode()),request.getGroupName(),request.getCronText(),request.getDestinationName(),request.getMessageBody(),request.getStartDate(),request.getEndDate(),request.getDescription());
+    }
+ else     if (type.equals(SchedulerRequest.RETRIEVE_TYPE)) {
+      Collection<SchedulerRequest> requests=QuartzSchedulerEngineUtil.retrieveScheduledJobs(request.getGroupName());
+      JSONObject jsonObject=new JSONObject();
+      jsonObject.put("lfrResponseId",responseId);
+      jsonObject.put("requests",_serializer.toJSON(requests));
+      MessageBusUtil.sendMessage(responseDestination,jsonObject.toString());
+    }
+ else     if (type.equals(SchedulerRequest.SHUTDOWN_TYPE)) {
+      QuartzSchedulerEngineUtil.shutdown();
+    }
+ else     if (type.equals(SchedulerRequest.UNREGISTER_TYPE)) {
+      QuartzSchedulerEngineUtil.unschedule(request.getJobName(),request.getGroupName());
+    }
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+}
