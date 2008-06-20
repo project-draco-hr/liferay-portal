@@ -1,4 +1,5 @@
 {
+  boolean importLatestVersion=MapUtil.getBoolean(options,WikiImporterKeys.OPTIONS_IMPORT_LATEST_VERSION);
   ProgressTracker progressTracker=ProgressTrackerThreadLocal.getProgressTracker();
   int count=0;
   List<Element> pages=root.elements("page");
@@ -12,7 +13,6 @@
   int percentageRange=maxPercentage - percentage;
   for (int i=0; itr.hasNext(); i++) {
     Element pageEl=itr.next();
-    String author=pageEl.element("revision").element("contributor").elementText("username");
     String title=pageEl.elementText("title");
     title=normalizeTitle(title);
     percentage=Math.min(10 + (i * percentageRange) / total,maxPercentage);
@@ -21,14 +21,25 @@
       continue;
     }
     List<Element> revisionEls=pageEl.elements("revision");
-    Element lastRevisionEl=revisionEls.get(revisionEls.size() - 1);
-    String content=lastRevisionEl.elementText("text");
-    try {
-      importPage(userId,author,node,title,content,usersMap);
+    if (importLatestVersion) {
+      Element lastRevisionEl=revisionEls.get(revisionEls.size() - 1);
+      revisionEls=new ArrayList<Element>();
+      revisionEls.add(lastRevisionEl);
     }
- catch (    Exception e) {
-      if (_log.isWarnEnabled()) {
-        _log.warn("Page with title " + title + " could not be imported",e);
+    for (    Element curRevisionEl : revisionEls) {
+      String author=curRevisionEl.element("contributor").elementText("username");
+      String content=curRevisionEl.elementText("text");
+      try {
+        importPage(userId,author,node,title,content,usersMap);
+      }
+ catch (      Exception e) {
+        if (_log.isWarnEnabled()) {
+          StringMaker sm=new StringMaker();
+          sm.append("Page with title ");
+          sm.append(title);
+          sm.append(" could not be imported");
+          _log.warn(sm,e);
+        }
       }
     }
     count++;
