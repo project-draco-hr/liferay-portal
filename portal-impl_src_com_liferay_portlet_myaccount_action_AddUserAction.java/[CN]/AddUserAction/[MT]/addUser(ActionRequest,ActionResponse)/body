@@ -1,4 +1,6 @@
 {
+  HttpServletRequest httpReq=PortalUtil.getHttpServletRequest(req);
+  HttpSession httpSes=httpReq.getSession();
   ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
   Company company=themeDisplay.getCompany();
   boolean autoPassword=true;
@@ -19,13 +21,26 @@
   String jobTitle=ParamUtil.getString(req,"jobTitle");
   long[] organizationIds=StringUtil.split(ParamUtil.getString(req,"organizationIds"),0L);
   boolean sendEmail=true;
+  String openId=ParamUtil.getString(req,"openId");
+  boolean openIdAuth=false;
+  Boolean loginPending=(Boolean)httpSes.getAttribute(WebKeys.OPEN_ID_LOGIN_PENDING);
+  if ((loginPending != null) && loginPending.booleanValue() && Validator.isNotNull(openId)) {
+    sendEmail=false;
+    openIdAuth=true;
+  }
   if (PropsValues.CAPTCHA_CHECK_PORTAL_CREATE_ACCOUNT) {
     CaptchaUtil.check(req);
   }
   User user=UserServiceUtil.addUser(company.getCompanyId(),autoPassword,password1,password2,autoScreenName,screenName,emailAddress,themeDisplay.getLocale(),firstName,middleName,lastName,prefixId,suffixId,male,birthdayMonth,birthdayDay,birthdayYear,jobTitle,organizationIds,sendEmail);
-  HttpServletRequest httpReq=PortalUtil.getHttpServletRequest(req);
-  SessionMessages.add(httpReq,"user_added",user.getEmailAddress());
-  SessionMessages.add(httpReq,"user_added_password",user.getPasswordUnencrypted());
+  if (openIdAuth) {
+    UserLocalServiceUtil.updateOpenId(user.getUserId(),openId);
+    httpSes.setAttribute(WebKeys.OPEN_ID_LOGIN,new Long(user.getUserId()));
+    httpSes.removeAttribute(WebKeys.OPEN_ID_LOGIN_PENDING);
+  }
+ else {
+    SessionMessages.add(httpReq,"user_added",user.getEmailAddress());
+    SessionMessages.add(httpReq,"user_added_password",user.getPasswordUnencrypted());
+  }
   String login=null;
   if (company.getAuthType().equals(CompanyConstants.AUTH_TYPE_ID)) {
     login=String.valueOf(user.getUserId());
