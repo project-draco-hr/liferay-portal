@@ -1,49 +1,37 @@
 {
-  if (isPortletExternal()) {
-    ResourceRequestImpl resourceReqImpl=(ResourceRequestImpl)req;
-    ResourceResponseImpl resourceResImpl=(ResourceResponseImpl)res;
-    try {
-      HttpServletRequest request=resourceReqImpl.getOriginalHttpServletRequest();
-      HttpServletResponse response=resourceResImpl.getHttpServletResponse();
-      GetResourceRequest getResourceRequest=ContainerRequestFactory.createGetResourceRequest(request,_portletModel,resourceReqImpl.getWindowState(),resourceReqImpl.getPortletMode(),resourceResImpl.getLifecycle(),getPlid(req),_isRemotePortlet);
-      populateContainerRequest(request,response,getResourceRequest,resourceReqImpl);
-      GetResourceResponse getResourceResponse=ContainerResponseFactory.createGetResourceResponse(response);
-      _container.getResources(getResourceRequest,getResourceResponse);
-      String contentType=response.getContentType();
-      if (contentType != null)       resourceResImpl.setContentType(contentType);
-      StringBuffer buffer=getResourceResponse.getContentAsBuffer();
-      byte[] bytes=getResourceResponse.getContentAsBytes();
-      if (buffer != null) {
-        response.getWriter().print(buffer);
-      }
- else       if (bytes != null && bytes.length > 0) {
-        response.getOutputStream().write(bytes);
-      }
+  if (!_isWARFile()) {
+    super.invokeResource(req,res);
+    return;
+  }
+  try {
+    ResourceRequestImpl reqImpl=(ResourceRequestImpl)req;
+    ResourceResponseImpl resImpl=(ResourceResponseImpl)res;
+    HttpServletRequest httpReq=reqImpl.getOriginalHttpServletRequest();
+    HttpServletResponse httpRes=resImpl.getHttpServletResponse();
+    GetResourceRequest getResourceRequest=ContainerRequestFactory.createGetResourceRequest(httpReq,_portletModel,reqImpl.getWindowState(),reqImpl.getPortletMode(),_getPlid(req));
+    _populateContainerRequest(httpReq,httpRes,getResourceRequest,reqImpl);
+    GetResourceResponse getResourceResponse=ContainerResponseFactory.createGetResourceResponse(httpRes);
+    _container.getResources(getResourceRequest,getResourceResponse);
+    String contentType=httpRes.getContentType();
+    if (contentType != null) {
+      resImpl.setContentType(contentType);
+    }
+    StringBuffer sb=getResourceResponse.getContentAsBuffer();
+    byte[] bytes=getResourceResponse.getContentAsBytes();
+    if (sb != null) {
+      httpRes.getWriter().print(sb);
+    }
+ else     if ((bytes != null) && (bytes.length > 0)) {
+      httpRes.getOutputStream().write(bytes);
+    }
  else {
-        response.getWriter().print("");
-      }
-    }
- catch (    ContentException ce) {
-      logError(ce);
-      throw new PortletException(ce);
-    }
-catch (    ContainerException ce) {
-      logError(ce);
-      throw new PortletException(ce);
-    }
-catch (    PortalException pe) {
-      logError(pe);
-      throw new PortletException(pe);
-    }
-catch (    SystemException se) {
-      logError(se);
-      throw new PortletException(se);
-    }
- finally {
-      setPortletAttributes(req,res);
+      httpRes.getWriter().print(StringPool.BLANK);
     }
   }
- else {
-    invoke(req,res,PortletRequest.RESOURCE_PHASE);
+ catch (  Exception e) {
+    throw new PortletException(e);
+  }
+ finally {
+    _setPortletAttributes(req,res);
   }
 }
