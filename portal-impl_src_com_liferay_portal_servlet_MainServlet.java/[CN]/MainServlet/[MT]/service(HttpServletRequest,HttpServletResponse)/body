@@ -3,32 +3,32 @@
     _log.debug("Process service request");
   }
   if (ShutdownUtil.isShutdown()) {
-    res.setContentType(ContentTypes.TEXT_HTML_UTF8);
+    response.setContentType(ContentTypes.TEXT_HTML_UTF8);
     String html=ContentUtil.get("com/liferay/portal/dependencies/shutdown.html");
-    res.getOutputStream().print(html);
+    response.getOutputStream().print(html);
     return;
   }
-  HttpSession ses=req.getSession();
-  long companyId=PortalInstances.getCompanyId(req);
-  PortalUtil.setPortalPort(req);
-  ServletContext ctx=getServletContext();
-  req.setAttribute(WebKeys.CTX,ctx);
-  ModuleConfig moduleConfig=getModuleConfig(req);
+  HttpSession ses=request.getSession();
+  long companyId=PortalInstances.getCompanyId(request);
+  PortalUtil.setPortalPort(request);
+  ServletContext servletContext=getServletContext();
+  request.setAttribute(WebKeys.CTX,servletContext);
+  ModuleConfig moduleConfig=getModuleConfig(request);
   if (PropsValues.LAST_MODIFIED_CHECK) {
-    String path=req.getPathInfo();
+    String path=request.getPathInfo();
     if ((path != null) && _lastModifiedPaths.contains(path)) {
       ActionMapping mapping=(ActionMapping)moduleConfig.findActionConfig(path);
       LastModifiedAction lastModifiedAction=(LastModifiedAction)InstancePool.get(mapping.getType());
-      String lmKey=lastModifiedAction.getLastModifiedKey(req);
+      String lmKey=lastModifiedAction.getLastModifiedKey(request);
       if (lmKey != null) {
-        long ifModifiedSince=req.getDateHeader(HttpHeaders.IF_MODIFIED_SINCE);
+        long ifModifiedSince=request.getDateHeader(HttpHeaders.IF_MODIFIED_SINCE);
         if (ifModifiedSince <= 0) {
           lastModifiedAction.setLastModifiedValue(lmKey,lmKey);
         }
  else {
           String lmValue=lastModifiedAction.getLastModifiedValue(lmKey);
           if (lmValue != null) {
-            res.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
+            response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
             return;
           }
  else {
@@ -41,29 +41,29 @@
   if (ses.getAttribute(WebKeys.PORTLET_SESSION_TRACKER) == null) {
     ses.setAttribute(WebKeys.PORTLET_SESSION_TRACKER,PortletSessionTracker.getInstance());
   }
-  PortletRequestProcessor portletReqProcessor=(PortletRequestProcessor)ctx.getAttribute(WebKeys.PORTLET_STRUTS_PROCESSOR);
+  PortletRequestProcessor portletReqProcessor=(PortletRequestProcessor)servletContext.getAttribute(WebKeys.PORTLET_STRUTS_PROCESSOR);
   if (portletReqProcessor == null) {
     portletReqProcessor=PortletRequestProcessor.getInstance(this,moduleConfig);
-    ctx.setAttribute(WebKeys.PORTLET_STRUTS_PROCESSOR,portletReqProcessor);
+    servletContext.setAttribute(WebKeys.PORTLET_STRUTS_PROCESSOR,portletReqProcessor);
   }
-  if (ctx.getAttribute(TilesUtilImpl.DEFINITIONS_FACTORY) == null) {
-    ctx.setAttribute(TilesUtilImpl.DEFINITIONS_FACTORY,ctx.getAttribute(TilesUtilImpl.DEFINITIONS_FACTORY));
+  if (servletContext.getAttribute(TilesUtilImpl.DEFINITIONS_FACTORY) == null) {
+    servletContext.setAttribute(TilesUtilImpl.DEFINITIONS_FACTORY,servletContext.getAttribute(TilesUtilImpl.DEFINITIONS_FACTORY));
   }
-  Object applicationAssociate=ctx.getAttribute(WebKeys.ASSOCIATE_KEY);
-  if (ctx.getAttribute(WebKeys.ASSOCIATE_KEY) == null) {
-    ctx.setAttribute(WebKeys.ASSOCIATE_KEY,applicationAssociate);
+  Object applicationAssociate=servletContext.getAttribute(WebKeys.ASSOCIATE_KEY);
+  if (servletContext.getAttribute(WebKeys.ASSOCIATE_KEY) == null) {
+    servletContext.setAttribute(WebKeys.ASSOCIATE_KEY,applicationAssociate);
   }
-  if (ParamUtil.get(req,WebKeys.ENCRYPT,false)) {
+  if (ParamUtil.get(request,WebKeys.ENCRYPT,false)) {
     try {
       Company company=CompanyLocalServiceUtil.getCompanyById(companyId);
-      req=new EncryptedServletRequest(req,company.getKeyObj());
+      request=new EncryptedServletRequest(request,company.getKeyObj());
     }
  catch (    Exception e) {
     }
   }
-  PortalUtil.getCurrentURL(req);
-  long userId=PortalUtil.getUserId(req);
-  String remoteUser=req.getRemoteUser();
+  PortalUtil.getCurrentURL(request);
+  long userId=PortalUtil.getUserId(request);
+  String remoteUser=request.getRemoteUser();
   if (!PropsValues.PORTAL_JAAS_ENABLE) {
     String jRemoteUser=(String)ses.getAttribute("j_remoteuser");
     if (jRemoteUser != null) {
@@ -74,7 +74,7 @@
   if ((userId > 0) && (remoteUser == null)) {
     remoteUser=String.valueOf(userId);
   }
-  req=new ProtectedServletRequest(req,remoteUser);
+  request=new ProtectedServletRequest(request,remoteUser);
   if ((userId > 0) || (remoteUser != null)) {
     String name=String.valueOf(userId);
     if (remoteUser != null) {
@@ -85,44 +85,44 @@
   if ((userId <= 0) && (remoteUser != null)) {
     try {
       userId=GetterUtil.getLong(remoteUser);
-      EventsProcessor.process(PropsKeys.LOGIN_EVENTS_PRE,PropsValues.LOGIN_EVENTS_PRE,req,res);
+      EventsProcessor.process(PropsKeys.LOGIN_EVENTS_PRE,PropsValues.LOGIN_EVENTS_PRE,request,response);
       User user=UserLocalServiceUtil.getUserById(userId);
-      UserLocalServiceUtil.updateLastLogin(userId,req.getRemoteAddr());
+      UserLocalServiceUtil.updateLastLogin(userId,request.getRemoteAddr());
       ses.setAttribute(WebKeys.USER_ID,new Long(userId));
       ses.setAttribute(Globals.LOCALE_KEY,user.getLocale());
-      EventsProcessor.process(PropsKeys.LOGIN_EVENTS_POST,PropsValues.LOGIN_EVENTS_POST,req,res);
+      EventsProcessor.process(PropsKeys.LOGIN_EVENTS_POST,PropsValues.LOGIN_EVENTS_POST,request,response);
     }
  catch (    Exception e) {
       _log.error(e,e);
     }
   }
   try {
-    EventsProcessor.process(PropsKeys.SERVLET_SERVICE_EVENTS_PRE,PropsValues.SERVLET_SERVICE_EVENTS_PRE,req,res);
+    EventsProcessor.process(PropsKeys.SERVLET_SERVICE_EVENTS_PRE,PropsValues.SERVLET_SERVICE_EVENTS_PRE,request,response);
   }
  catch (  Exception e) {
     Throwable cause=e.getCause();
     if (cause instanceof NoSuchLayoutException) {
-      DynamicServletRequest dynamicReq=new DynamicServletRequest(req);
+      DynamicServletRequest dynamicReq=new DynamicServletRequest(request);
       dynamicReq.setParameter("p_l_id",StringPool.BLANK);
-      PortalUtil.sendError(HttpServletResponse.SC_NOT_FOUND,(NoSuchLayoutException)cause,dynamicReq,res);
+      PortalUtil.sendError(HttpServletResponse.SC_NOT_FOUND,(NoSuchLayoutException)cause,dynamicReq,response);
       return;
     }
     _log.error(e,e);
-    req.setAttribute(PageContext.EXCEPTION,e);
-    StrutsUtil.forward(PropsValues.SERVLET_SERVICE_EVENTS_PRE_ERROR_PAGE,ctx,req,res);
+    request.setAttribute(PageContext.EXCEPTION,e);
+    StrutsUtil.forward(PropsValues.SERVLET_SERVICE_EVENTS_PRE_ERROR_PAGE,servletContext,request,response);
     return;
   }
   try {
-    callParentService(req,res);
+    callParentService(request,response);
   }
   finally {
     try {
-      EventsProcessor.process(PropsKeys.SERVLET_SERVICE_EVENTS_POST,PropsValues.SERVLET_SERVICE_EVENTS_POST,req,res);
+      EventsProcessor.process(PropsKeys.SERVLET_SERVICE_EVENTS_POST,PropsValues.SERVLET_SERVICE_EVENTS_POST,request,response);
     }
  catch (    Exception e) {
       _log.error(e,e);
     }
-    res.addHeader(_LIFERAY_PORTAL_REQUEST_HEADER,ReleaseInfo.getReleaseInfo());
+    response.addHeader(_LIFERAY_PORTAL_REQUEST_HEADER,ReleaseInfo.getReleaseInfo());
     CompanyThreadLocal.setCompanyId(0);
     PrincipalThreadLocal.setName(null);
   }

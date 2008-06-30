@@ -1,0 +1,73 @@
+{
+  String remoteAddr=request.getRemoteAddr();
+  if (isAccessAllowed(request)) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Access allowed for " + remoteAddr);
+    }
+  }
+ else {
+    if (_log.isErrorEnabled()) {
+      _log.error("Access denied for " + remoteAddr);
+    }
+    response.sendError(HttpServletResponse.SC_FORBIDDEN,"Access denied for " + remoteAddr);
+    return;
+  }
+  if (_log.isDebugEnabled()) {
+    if (_httpsRequired) {
+      _log.debug("https is required");
+    }
+ else {
+      _log.debug("https is not required");
+    }
+  }
+  String completeURL=HttpUtil.getCompleteURL(request);
+  if (_httpsRequired && !request.isSecure()) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Securing " + completeURL);
+    }
+    StringBuilder redirectURL=new StringBuilder();
+    redirectURL.append(Http.HTTPS_WITH_SLASH);
+    redirectURL.append(request.getServerName());
+    redirectURL.append(request.getServletPath());
+    String queryString=request.getQueryString();
+    if (Validator.isNotNull(queryString)) {
+      redirectURL.append(StringPool.QUESTION);
+      redirectURL.append(request.getQueryString());
+    }
+    if (_log.isDebugEnabled()) {
+      _log.debug("Redirect to " + redirectURL);
+    }
+    response.sendRedirect(redirectURL.toString());
+  }
+ else {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Not securing " + completeURL);
+    }
+    HttpSession ses=request.getSession();
+    long userId=GetterUtil.getLong((String)ses.getAttribute(_AUTHENTICATED_USER));
+    if (_basicAuthEnabled && !PropsValues.PORTAL_JAAS_ENABLE) {
+      if (userId > 0) {
+        request=new ProtectedServletRequest(request,String.valueOf(userId));
+      }
+ else {
+        try {
+          userId=getBasicAuthUserId(request);
+        }
+ catch (        Exception e) {
+          _log.error(e);
+        }
+        if (userId > 0) {
+          String userIdString=String.valueOf(userId);
+          request=new ProtectedServletRequest(request,userIdString);
+          ses.setAttribute(_AUTHENTICATED_USER,userIdString);
+        }
+ else {
+          response.setHeader(HttpHeaders.WWW_AUTHENTICATE,_PORTAL_REALM);
+          response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+          return;
+        }
+      }
+    }
+    processFilter(SecureFilter.class,request,response,chain);
+  }
+}

@@ -7,38 +7,38 @@
       _log.debug(VirtualHostFilter.class + " is disabled");
     }
   }
-  HttpServletRequest httpReq=(HttpServletRequest)req;
-  HttpServletResponse httpRes=(HttpServletResponse)res;
-  httpReq.setCharacterEncoding(StringPool.UTF8);
-  httpRes=new AbsoluteRedirectsResponse(httpReq,httpRes);
-  long companyId=PortalInstances.getCompanyId(httpReq);
+  HttpServletRequest request=(HttpServletRequest)servletRequest;
+  HttpServletResponse response=(HttpServletResponse)servletResponse;
+  request.setCharacterEncoding(StringPool.UTF8);
+  response=new AbsoluteRedirectsResponse(request,response);
+  long companyId=PortalInstances.getCompanyId(request);
   if (_log.isDebugEnabled()) {
     _log.debug("Company id " + companyId);
   }
-  PortalUtil.getCurrentURL(httpReq);
-  HttpSession ses=httpReq.getSession();
-  Boolean httpsInitial=(Boolean)ses.getAttribute(WebKeys.HTTPS_INITIAL);
+  PortalUtil.getCurrentURL(request);
+  HttpSession session=request.getSession();
+  Boolean httpsInitial=(Boolean)session.getAttribute(WebKeys.HTTPS_INITIAL);
   if (httpsInitial == null) {
-    httpsInitial=Boolean.valueOf(httpReq.isSecure());
-    ses.setAttribute(WebKeys.HTTPS_INITIAL,httpsInitial);
+    httpsInitial=Boolean.valueOf(request.isSecure());
+    session.setAttribute(WebKeys.HTTPS_INITIAL,httpsInitial);
     if (_log.isDebugEnabled()) {
       _log.debug("Setting httpsInitial to " + httpsInitial);
     }
   }
   if (!isFilterEnabled()) {
-    processFilter(VirtualHostFilter.class,req,httpRes,chain);
+    processFilter(VirtualHostFilter.class,request,response,chain);
     return;
   }
-  StringBuffer requestURL=httpReq.getRequestURL();
+  StringBuffer requestURL=request.getRequestURL();
   if (_log.isDebugEnabled()) {
     _log.debug("Received " + requestURL);
   }
   if (!isValidRequestURL(requestURL)) {
-    processFilter(VirtualHostFilter.class,req,httpRes,chain);
+    processFilter(VirtualHostFilter.class,request,response,chain);
     return;
   }
   String contextPath=PortalUtil.getPathContext();
-  String friendlyURL=httpReq.getRequestURI();
+  String friendlyURL=request.getRequestURI();
   if ((!contextPath.equals(StringPool.SLASH)) && (friendlyURL.indexOf(contextPath) != -1)) {
     friendlyURL=friendlyURL.substring(contextPath.length(),friendlyURL.length());
   }
@@ -47,17 +47,17 @@
     _log.debug("Friendly URL " + friendlyURL);
   }
   if (!isValidFriendlyURL(friendlyURL)) {
-    processFilter(VirtualHostFilter.class,req,httpRes,chain);
+    processFilter(VirtualHostFilter.class,request,response,chain);
     return;
   }
-  LayoutSet layoutSet=(LayoutSet)req.getAttribute(WebKeys.VIRTUAL_HOST_LAYOUT_SET);
+  LayoutSet layoutSet=(LayoutSet)servletRequest.getAttribute(WebKeys.VIRTUAL_HOST_LAYOUT_SET);
   if (_log.isDebugEnabled()) {
     _log.debug("Layout set " + layoutSet);
   }
   if (layoutSet != null) {
     try {
-      LastPath lastPath=new LastPath(StringPool.BLANK,friendlyURL,req.getParameterMap());
-      req.setAttribute(WebKeys.LAST_PATH,lastPath);
+      LastPath lastPath=new LastPath(StringPool.BLANK,friendlyURL,servletRequest.getParameterMap());
+      servletRequest.setAttribute(WebKeys.LAST_PATH,lastPath);
       StringBuilder prefix=new StringBuilder();
       if (layoutSet.isPrivateLayout()) {
         prefix.append(PortalUtil.getPathFriendlyURLPrivateGroup());
@@ -70,7 +70,7 @@
       StringBuilder redirect=new StringBuilder();
       redirect.append(prefix);
       redirect.append(friendlyURL);
-      String query=httpReq.getQueryString();
+      String query=request.getQueryString();
       if (query != null) {
         redirect.append(StringPool.QUESTION);
         redirect.append(query);
@@ -79,12 +79,12 @@
         _log.debug("Redirect to " + redirect);
       }
       RequestDispatcher rd=_ctx.getRequestDispatcher(redirect.toString());
-      rd.forward(req,httpRes);
+      rd.forward(servletRequest,response);
       return;
     }
  catch (    Exception e) {
       _log.error(e,e);
     }
   }
-  processFilter(VirtualHostFilter.class,req,httpRes,chain);
+  processFilter(VirtualHostFilter.class,request,response,chain);
 }

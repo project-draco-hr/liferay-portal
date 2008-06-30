@@ -1,0 +1,44 @@
+{
+  if (!isPortletRequest(request) && isLayout(request) && !isSignedIn(request)&& !isInclude(request)&& !isAlreadyFiltered(request)) {
+    request.setAttribute(SKIP_FILTER,Boolean.TRUE);
+    String key=getCacheKey(request);
+    long companyId=PortalInstances.getCompanyId(request);
+    CacheResponseData data=LayoutCacheUtil.getCacheResponseData(companyId,key);
+    if (data == null) {
+      if (!isCacheable(companyId,request)) {
+        if (_log.isDebugEnabled()) {
+          _log.debug("Layout is not cacheable " + key);
+        }
+        processFilter(LayoutCacheFilter.class,request,response,chain);
+        return;
+      }
+      if (_log.isInfoEnabled()) {
+        _log.info("Caching layout " + key);
+      }
+      CacheResponse cacheResponse=new CacheResponse(response,StringPool.UTF8);
+      processFilter(LayoutCacheFilter.class,request,cacheResponse,chain);
+      data=new CacheResponseData(cacheResponse.getData(),cacheResponse.getContentType(),cacheResponse.getHeaders());
+      LastPath lastPath=(LastPath)request.getAttribute(WebKeys.LAST_PATH);
+      if (lastPath != null) {
+        data.setAttribute(WebKeys.LAST_PATH,lastPath);
+      }
+      if (data.getData().length > 0) {
+        LayoutCacheUtil.putCacheResponseData(companyId,key,data);
+      }
+    }
+ else {
+      LastPath lastPath=(LastPath)data.getAttribute(WebKeys.LAST_PATH);
+      if (lastPath != null) {
+        HttpSession ses=request.getSession();
+        ses.setAttribute(WebKeys.LAST_PATH,lastPath);
+      }
+    }
+    CacheResponseUtil.write(response,data);
+  }
+ else {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Did not request a layout");
+    }
+    processFilter(LayoutCacheFilter.class,request,response,chain);
+  }
+}
