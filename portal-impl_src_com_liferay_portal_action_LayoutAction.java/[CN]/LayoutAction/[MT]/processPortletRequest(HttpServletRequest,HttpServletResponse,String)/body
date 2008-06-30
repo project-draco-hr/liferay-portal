@@ -1,64 +1,64 @@
 {
-  HttpSession ses=req.getSession();
-  long companyId=PortalUtil.getCompanyId(req);
-  User user=PortalUtil.getUser(req);
-  Layout layout=(Layout)req.getAttribute(WebKeys.LAYOUT);
-  String portletId=ParamUtil.getString(req,"p_p_id");
+  HttpSession session=request.getSession();
+  long companyId=PortalUtil.getCompanyId(request);
+  User user=PortalUtil.getUser(request);
+  Layout layout=(Layout)request.getAttribute(WebKeys.LAYOUT);
+  String portletId=ParamUtil.getString(request,"p_p_id");
   Portlet portlet=PortletLocalServiceUtil.getPortletById(companyId,portletId);
   if (portlet == null) {
     return null;
   }
-  ServletContext ctx=(ServletContext)req.getAttribute(WebKeys.CTX);
-  InvokerPortlet invokerPortlet=PortletInstanceFactory.create(portlet,ctx);
+  ServletContext servletContext=(ServletContext)request.getAttribute(WebKeys.CTX);
+  InvokerPortlet invokerPortlet=PortletInstanceFactory.create(portlet,servletContext);
   if (user != null) {
-    InvokerPortlet.clearResponse(ses,layout.getPrimaryKey(),portletId,LanguageUtil.getLanguageId(req));
+    InvokerPortlet.clearResponse(session,layout.getPrimaryKey(),portletId,LanguageUtil.getLanguageId(request));
   }
-  PortletConfig portletConfig=PortletConfigFactory.create(portlet,ctx);
-  PortletContext portletCtx=portletConfig.getPortletContext();
-  WindowState windowState=WindowStateFactory.getWindowState(ParamUtil.getString(req,"p_p_state"));
-  PortletMode portletMode=PortletModeFactory.getPortletMode(ParamUtil.getString(req,"p_p_mode"));
-  PortletPreferencesIds portletPreferencesIds=PortletPreferencesFactoryUtil.getPortletPreferencesIds(req,portletId);
+  PortletConfig portletConfig=PortletConfigFactory.create(portlet,servletContext);
+  PortletContext portletContext=portletConfig.getPortletContext();
+  WindowState windowState=WindowStateFactory.getWindowState(ParamUtil.getString(request,"p_p_state"));
+  PortletMode portletMode=PortletModeFactory.getPortletMode(ParamUtil.getString(request,"p_p_mode"));
+  PortletPreferencesIds portletPreferencesIds=PortletPreferencesFactoryUtil.getPortletPreferencesIds(request,portletId);
   PortletPreferences portletPreferences=PortletPreferencesLocalServiceUtil.getPreferences(portletPreferencesIds);
   if (lifecycle.equals(PortletRequest.ACTION_PHASE)) {
-    String contentType=req.getHeader(HttpHeaders.CONTENT_TYPE);
+    String contentType=request.getHeader(HttpHeaders.CONTENT_TYPE);
     if (_log.isDebugEnabled()) {
       _log.debug("Content type " + contentType);
     }
-    UploadServletRequest uploadReq=null;
+    UploadServletRequest uploadRequest=null;
     try {
       if ((contentType != null) && (contentType.startsWith(ContentTypes.MULTIPART_FORM_DATA))) {
         if (!invokerPortlet.getPortletConfig().isWARFile() || invokerPortlet.isStrutsPortlet()) {
-          uploadReq=new UploadServletRequestImpl(req);
-          req=uploadReq;
+          uploadRequest=new UploadServletRequestImpl(request);
+          request=uploadRequest;
         }
       }
-      ActionRequestImpl actionReqImpl=ActionRequestFactory.create(req,portlet,invokerPortlet,portletCtx,windowState,portletMode,portletPreferences,layout.getPlid());
-      ActionResponseImpl actionResImpl=ActionResponseFactory.create(actionReqImpl,res,portletId,user,layout,windowState,portletMode);
-      actionReqImpl.defineObjects(portletConfig,actionResImpl);
-      invokerPortlet.processAction(actionReqImpl,actionResImpl);
-      actionResImpl.transferHeaders(res);
-      RenderParametersPool.put(req,layout.getPlid(),portletId,actionResImpl.getRenderParameterMap());
-      if (actionResImpl.getEvents().size() > 0) {
+      ActionRequestImpl actionRequestImpl=ActionRequestFactory.create(request,portlet,invokerPortlet,portletContext,windowState,portletMode,portletPreferences,layout.getPlid());
+      ActionResponseImpl actionResponseImpl=ActionResponseFactory.create(actionRequestImpl,response,portletId,user,layout,windowState,portletMode);
+      actionRequestImpl.defineObjects(portletConfig,actionResponseImpl);
+      invokerPortlet.processAction(actionRequestImpl,actionResponseImpl);
+      actionResponseImpl.transferHeaders(response);
+      RenderParametersPool.put(request,layout.getPlid(),portletId,actionResponseImpl.getRenderParameterMap());
+      if (actionResponseImpl.getEvents().size() > 0) {
         if (layout.getType().equals(LayoutConstants.TYPE_PORTLET)) {
           LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
           List<Portlet> portlets=layoutTypePortlet.getPortlets();
-          processEvents(actionReqImpl,actionResImpl,portlets);
-          actionReqImpl.defineObjects(portletConfig,actionResImpl);
+          processEvents(actionRequestImpl,actionResponseImpl,portlets);
+          actionRequestImpl.defineObjects(portletConfig,actionResponseImpl);
         }
       }
     }
   finally {
-      if (uploadReq != null) {
-        uploadReq.cleanUp();
+      if (uploadRequest != null) {
+        uploadRequest.cleanUp();
       }
     }
   }
  else   if (lifecycle.equals(PortletRequest.RENDER_PHASE) || lifecycle.equals(PortletRequest.RESOURCE_PHASE)) {
-    PortalUtil.updateWindowState(portletId,user,layout,windowState,req);
-    PortalUtil.updatePortletMode(portletId,user,layout,portletMode,req);
+    PortalUtil.updateWindowState(portletId,user,layout,windowState,request);
+    PortalUtil.updatePortletMode(portletId,user,layout,portletMode,request);
   }
   if (lifecycle.equals(PortletRequest.RESOURCE_PHASE)) {
-    ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
+    ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
     PortletDisplay portletDisplay=themeDisplay.getPortletDisplay();
     String portletPrimaryKey=PortletPermissionUtil.getPrimaryKey(layout.getPlid(),portletId);
     portletDisplay.setId(portletId);
@@ -67,19 +67,19 @@
     portletDisplay.setResourcePK(portletPrimaryKey);
     portletDisplay.setPortletName(portletConfig.getPortletName());
     portletDisplay.setNamespace(PortalUtil.getPortletNamespace(portletId));
-    ResourceRequestImpl resourceReqImpl=ResourceRequestFactory.create(req,portlet,invokerPortlet,portletCtx,windowState,portletMode,portletPreferences,layout.getPlid());
-    StringServletResponse stringServletRes=new StringServletResponse(res);
-    ResourceResponseImpl resourceResImpl=ResourceResponseFactory.create(resourceReqImpl,stringServletRes,portletId,companyId);
-    resourceReqImpl.defineObjects(portletConfig,resourceResImpl);
-    invokerPortlet.serveResource(resourceReqImpl,resourceResImpl);
-    resourceResImpl.transferHeaders(res);
-    if (stringServletRes.isCalledGetOutputStream()) {
-      InputStream is=new ByteArrayInputStream(stringServletRes.getByteArrayMaker().toByteArray());
-      ServletResponseUtil.sendFile(res,resourceReqImpl.getResourceID(),is,resourceResImpl.getContentType());
+    ResourceRequestImpl resourceRequestImpl=ResourceRequestFactory.create(request,portlet,invokerPortlet,portletContext,windowState,portletMode,portletPreferences,layout.getPlid());
+    StringServletResponse stringResponse=new StringServletResponse(response);
+    ResourceResponseImpl resourceResponseImpl=ResourceResponseFactory.create(resourceRequestImpl,stringResponse,portletId,companyId);
+    resourceRequestImpl.defineObjects(portletConfig,resourceResponseImpl);
+    invokerPortlet.serveResource(resourceRequestImpl,resourceResponseImpl);
+    resourceResponseImpl.transferHeaders(response);
+    if (stringResponse.isCalledGetOutputStream()) {
+      InputStream is=new ByteArrayInputStream(stringResponse.getByteArrayMaker().toByteArray());
+      ServletResponseUtil.sendFile(response,resourceRequestImpl.getResourceID(),is,resourceResponseImpl.getContentType());
     }
  else {
-      byte[] content=stringServletRes.getString().getBytes(StringPool.UTF8);
-      ServletResponseUtil.sendFile(res,resourceReqImpl.getResourceID(),content,resourceResImpl.getContentType());
+      byte[] content=stringResponse.getString().getBytes(StringPool.UTF8);
+      ServletResponseUtil.sendFile(response,resourceRequestImpl.getResourceID(),content,resourceResponseImpl.getContentType());
     }
   }
   return portlet;

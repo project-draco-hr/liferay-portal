@@ -1,9 +1,9 @@
 {
-  HttpSession ses=req.getSession();
-  Company company=PortalUtil.getCompany(req);
+  HttpSession session=request.getSession();
+  Company company=PortalUtil.getCompany(request);
   long companyId=company.getCompanyId();
-  String cdnHost=ParamUtil.getString(req,"cdn_host",PortalUtil.getCDNHost());
-  String portalURL=PortalUtil.getPortalURL(req);
+  String cdnHost=ParamUtil.getString(request,"cdn_host",PortalUtil.getCDNHost());
+  String portalURL=PortalUtil.getPortalURL(request);
   String contextPath=PortalUtil.getPathContext();
   String friendlyURLPrivateGroupPath=PortalUtil.getPathFriendlyURLPrivateGroup();
   String friendlyURLPrivateUserPath=PortalUtil.getPathFriendlyURLPrivateUser();
@@ -17,7 +17,7 @@
   String realCompanyLogo=companyLogo;
   int realCompanyLogoHeight=companyLogoHeight;
   int realCompanyLogoWidth=companyLogoWidth;
-  User user=PortalUtil.getUser(req);
+  User user=PortalUtil.getUser(request);
   boolean signedIn=false;
   if (user == null) {
     user=company.getDefaultUser();
@@ -26,17 +26,17 @@
     signedIn=true;
   }
   User realUser=user;
-  Long realUserId=(Long)ses.getAttribute(WebKeys.USER_ID);
+  Long realUserId=(Long)session.getAttribute(WebKeys.USER_ID);
   if (realUserId != null) {
     if (user.getUserId() != realUserId.longValue()) {
       realUser=UserLocalServiceUtil.getUserById(realUserId.longValue());
     }
   }
-  String doAsUserId=ParamUtil.getString(req,"doAsUserId");
+  String doAsUserId=ParamUtil.getString(request,"doAsUserId");
   PermissionCheckerImpl permissionChecker=PermissionCheckerFactory.create(user,true);
   PermissionThreadLocal.setPermissionChecker(permissionChecker);
-  String i18nLanguageId=(String)req.getAttribute(WebKeys.I18N_LANGUAGE_ID);
-  Locale locale=(Locale)ses.getAttribute(Globals.LOCALE_KEY);
+  String i18nLanguageId=(String)request.getAttribute(WebKeys.I18N_LANGUAGE_ID);
+  Locale locale=(Locale)session.getAttribute(Globals.LOCALE_KEY);
   if (Validator.isNotNull(i18nLanguageId)) {
     locale=LocaleUtil.fromLanguageId(i18nLanguageId);
   }
@@ -45,12 +45,12 @@
       locale=user.getLocale();
     }
  else {
-      String languageId=CookieKeys.getCookie(req,CookieKeys.GUEST_LANGUAGE_ID);
+      String languageId=CookieKeys.getCookie(request,CookieKeys.GUEST_LANGUAGE_ID);
       if (Validator.isNotNull(languageId)) {
         locale=LocaleUtil.fromLanguageId(languageId);
       }
       if ((locale == null) && PropsValues.LOCALE_DEFAULT_REQUEST) {
-        locale=req.getLocale();
+        locale=request.getLocale();
       }
       if (locale == null) {
         locale=user.getLocale();
@@ -63,14 +63,14 @@
         locale=user.getLocale();
       }
     }
-    ses.setAttribute(Globals.LOCALE_KEY,locale);
-    LanguageUtil.updateCookie(res,locale);
+    session.setAttribute(Globals.LOCALE_KEY,locale);
+    LanguageUtil.updateCookie(response,locale);
   }
   try {
-    CookieKeys.validateSupportCookie(req);
+    CookieKeys.validateSupportCookie(request);
   }
  catch (  Exception e) {
-    CookieKeys.addSupportCookie(res);
+    CookieKeys.addSupportCookie(response);
   }
   TimeZone timeZone=user.getTimeZone();
   if (timeZone == null) {
@@ -92,14 +92,14 @@
   }
   Layout layout=null;
   List<Layout> layouts=null;
-  long plid=ParamUtil.getLong(req,"p_l_id");
+  long plid=ParamUtil.getLong(request,"p_l_id");
   if (plid > 0) {
     layout=LayoutLocalServiceUtil.getLayout(plid);
   }
  else {
-    long groupId=ParamUtil.getLong(req,"groupId");
-    boolean privateLayout=ParamUtil.getBoolean(req,"privateLayout");
-    long layoutId=ParamUtil.getLong(req,"layoutId");
+    long groupId=ParamUtil.getLong(request,"groupId");
+    boolean privateLayout=ParamUtil.getBoolean(request,"privateLayout");
+    long layoutId=ParamUtil.getLong(request,"layoutId");
     if ((groupId > 0) && layoutId > 0) {
       layout=LayoutLocalServiceUtil.getLayout(groupId,privateLayout,layoutId);
     }
@@ -107,7 +107,7 @@
   if (layout != null) {
     try {
       if (!signedIn && PropsValues.AUTH_FORWARD_BY_REDIRECT) {
-        req.setAttribute(WebKeys.REQUESTED_LAYOUT,layout);
+        request.setAttribute(WebKeys.REQUESTED_LAYOUT,layout);
       }
       boolean isViewableCommunity=isViewableCommunity(user,layout.getGroupId(),layout.isPrivateLayout(),permissionChecker);
       if (!isViewableCommunity) {
@@ -132,19 +132,19 @@
     }
   }
   if (layout == null) {
-    Object[] defaultLayout=getDefaultLayout(req,user,signedIn);
+    Object[] defaultLayout=getDefaultLayout(request,user,signedIn);
     layout=(Layout)defaultLayout[0];
     layouts=(List<Layout>)defaultLayout[1];
-    req.setAttribute(WebKeys.LAYOUT_DEFAULT,Boolean.TRUE);
+    request.setAttribute(WebKeys.LAYOUT_DEFAULT,Boolean.TRUE);
   }
-  Object[] viewableLayouts=getViewableLayouts(req,user,permissionChecker,layout,layouts);
+  Object[] viewableLayouts=getViewableLayouts(request,user,permissionChecker,layout,layouts);
   String layoutSetLogo=null;
   layout=(Layout)viewableLayouts[0];
   layouts=(List<Layout>)viewableLayouts[1];
   LayoutTypePortlet layoutTypePortlet=null;
   long portletGroupId=PortalUtil.getPortletGroupId(layout);
-  rememberVisitedGroupIds(req,portletGroupId);
-  layouts=mergeAdditionalLayouts(req,user,permissionChecker,layout,layouts);
+  rememberVisitedGroupIds(request,portletGroupId);
+  layouts=mergeAdditionalLayouts(request,user,permissionChecker,layout,layouts);
   if (layout != null) {
     if (company.isCommunityLogo()) {
       LayoutSet layoutSet=layout.getLayoutSet();
@@ -162,7 +162,7 @@
     layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
     LayoutClone layoutClone=LayoutCloneFactory.getInstance();
     if (layoutClone != null) {
-      String typeSettings=layoutClone.get(req,plid);
+      String typeSettings=layoutClone.get(request,plid);
       if (typeSettings != null) {
         Properties props=new SafeProperties();
         PropertiesUtil.load(props,typeSettings);
@@ -188,15 +188,15 @@
         layoutTypePortlet.setModePrint(modePrint);
       }
     }
-    req.setAttribute(WebKeys.LAYOUT,layout);
-    req.setAttribute(WebKeys.LAYOUTS,layouts);
+    request.setAttribute(WebKeys.LAYOUT,layout);
+    request.setAttribute(WebKeys.LAYOUTS,layouts);
     if (layout.isPrivateLayout()) {
       permissionChecker.setCheckGuest(false);
     }
   }
   Theme theme=null;
   ColorScheme colorScheme=null;
-  boolean wapTheme=BrowserSnifferUtil.is_wap(req);
+  boolean wapTheme=BrowserSnifferUtil.is_wap(request);
   if (layout != null) {
     if (wapTheme) {
       theme=layout.getWapTheme();
@@ -221,20 +221,20 @@
     theme=ThemeLocalServiceUtil.getTheme(companyId,themeId,wapTheme);
     colorScheme=ThemeLocalServiceUtil.getColorScheme(companyId,theme.getThemeId(),colorSchemeId,wapTheme);
   }
-  req.setAttribute(WebKeys.THEME,theme);
-  req.setAttribute(WebKeys.COLOR_SCHEME,colorScheme);
-  boolean themeCssFastLoad=ParamUtil.getBoolean(req,"css_fast_load",PropsValues.THEME_CSS_FAST_LOAD);
+  request.setAttribute(WebKeys.THEME,theme);
+  request.setAttribute(WebKeys.COLOR_SCHEME,colorScheme);
+  boolean themeCssFastLoad=ParamUtil.getBoolean(request,"css_fast_load",PropsValues.THEME_CSS_FAST_LOAD);
   boolean themeJsBarebone=PropsValues.JAVASCRIPT_BAREBONE_ENABLED;
   if (themeJsBarebone) {
     if (signedIn) {
       themeJsBarebone=false;
     }
   }
-  boolean themeJsFastLoad=ParamUtil.getBoolean(req,"js_fast_load",PropsValues.JAVASCRIPT_FAST_LOAD);
-  String lifecycle=ParamUtil.getString(req,"p_p_lifecycle");
-  String facebookCanvasPageURL=(String)req.getAttribute(WebKeys.FACEBOOK_CANVAS_PAGE_URL);
+  boolean themeJsFastLoad=ParamUtil.getBoolean(request,"js_fast_load",PropsValues.JAVASCRIPT_FAST_LOAD);
+  String lifecycle=ParamUtil.getString(request,"p_p_lifecycle");
+  String facebookCanvasPageURL=(String)request.getAttribute(WebKeys.FACEBOOK_CANVAS_PAGE_URL);
   boolean widget=false;
-  Boolean widgetObj=(Boolean)req.getAttribute(WebKeys.WIDGET);
+  Boolean widgetObj=(Boolean)request.getAttribute(WebKeys.WIDGET);
   if (widgetObj != null) {
     widget=widgetObj.booleanValue();
   }
@@ -269,16 +269,16 @@
   themeDisplay.setThemeCssFastLoad(themeCssFastLoad);
   themeDisplay.setThemeJsBarebone(themeJsBarebone);
   themeDisplay.setThemeJsFastLoad(themeJsFastLoad);
-  themeDisplay.setServerName(req.getServerName());
-  themeDisplay.setServerPort(req.getServerPort());
-  themeDisplay.setSecure(req.isSecure());
+  themeDisplay.setServerName(request.getServerName());
+  themeDisplay.setServerPort(request.getServerPort());
+  themeDisplay.setSecure(request.isSecure());
   themeDisplay.setLifecycle(lifecycle);
   themeDisplay.setLifecycleAction(lifecycle.equals("1"));
   themeDisplay.setLifecycleRender(lifecycle.equals("0"));
   themeDisplay.setLifecycleResource(lifecycle.equals("2"));
-  themeDisplay.setStateExclusive(LiferayWindowState.isExclusive(req));
-  themeDisplay.setStateMaximized(LiferayWindowState.isMaximized(req));
-  themeDisplay.setStatePopUp(LiferayWindowState.isPopUp(req));
+  themeDisplay.setStateExclusive(LiferayWindowState.isExclusive(request));
+  themeDisplay.setStateMaximized(LiferayWindowState.isMaximized(request));
+  themeDisplay.setStatePopUp(LiferayWindowState.isPopUp(request));
   themeDisplay.setPathApplet(contextPath + "/applets");
   themeDisplay.setPathCms(contextPath + "/cms");
   themeDisplay.setPathContext(contextPath);
@@ -298,13 +298,13 @@
   themeDisplay.setShowSignInIcon(!signedIn);
   themeDisplay.setShowSignOutIcon(signedIn);
   themeDisplay.setShowStagingIcon(false);
-  PortletURL createAccountURL=new PortletURLImpl(req,PortletKeys.MY_ACCOUNT,plid,PortletRequest.ACTION_PHASE);
+  PortletURL createAccountURL=new PortletURLImpl(request,PortletKeys.MY_ACCOUNT,plid,PortletRequest.ACTION_PHASE);
   createAccountURL.setWindowState(WindowState.MAXIMIZED);
   createAccountURL.setPortletMode(PortletMode.VIEW);
   createAccountURL.setParameter("saveLastPath","0");
   createAccountURL.setParameter("struts_action","/my_account/create_account");
   themeDisplay.setURLCreateAccount(createAccountURL);
-  String currentURL=PortalUtil.getCurrentURL(req);
+  String currentURL=PortalUtil.getCurrentURL(request);
   themeDisplay.setURLCurrent(currentURL);
   String urlHome=portalURL + contextPath;
   themeDisplay.setURLHome(urlHome);
@@ -315,7 +315,7 @@
       themeDisplay.setFreeformLayout(freeformLayout);
       boolean hasUpdateLayoutPermission=LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.UPDATE);
       if (hasUpdateLayoutPermission) {
-        if (!LiferayWindowState.isMaximized(req)) {
+        if (!LiferayWindowState.isMaximized(request)) {
           themeDisplay.setShowAddContentIcon(true);
         }
         themeDisplay.setShowLayoutTemplatesIcon(true);
@@ -331,7 +331,7 @@
     }
     if (hasManageLayoutsPermission) {
       themeDisplay.setShowPageSettingsIcon(true);
-      PortletURL pageSettingsURL=new PortletURLImpl(req,PortletKeys.LAYOUT_MANAGEMENT,plid,PortletRequest.RENDER_PHASE);
+      PortletURL pageSettingsURL=new PortletURLImpl(request,PortletKeys.LAYOUT_MANAGEMENT,plid,PortletRequest.RENDER_PHASE);
       pageSettingsURL.setWindowState(WindowState.MAXIMIZED);
       pageSettingsURL.setPortletMode(PortletMode.VIEW);
       pageSettingsURL.setParameter("struts_action","/layout_management/edit_pages");
@@ -345,7 +345,7 @@
       pageSettingsURL.setParameter("groupId",String.valueOf(portletGroupId));
       pageSettingsURL.setParameter("selPlid",String.valueOf(plid));
       themeDisplay.setURLPageSettings(pageSettingsURL);
-      PortletURL publishToLiveURL=new PortletURLImpl(req,PortletKeys.LAYOUT_MANAGEMENT,plid,PortletRequest.RENDER_PHASE);
+      PortletURL publishToLiveURL=new PortletURLImpl(request,PortletKeys.LAYOUT_MANAGEMENT,plid,PortletRequest.RENDER_PHASE);
       publishToLiveURL.setWindowState(LiferayWindowState.EXCLUSIVE);
       publishToLiveURL.setPortletMode(PortletMode.VIEW);
       publishToLiveURL.setParameter("struts_action","/layout_management/export_pages");
@@ -376,8 +376,8 @@
       }
     }
     String myAccountNamespace=PortalUtil.getPortletNamespace(PortletKeys.MY_ACCOUNT);
-    String myAccountRedirect=ParamUtil.getString(req,myAccountNamespace + "backURL",currentURL);
-    PortletURL myAccountURL=new PortletURLImpl(req,PortletKeys.MY_ACCOUNT,plid,PortletRequest.RENDER_PHASE);
+    String myAccountRedirect=ParamUtil.getString(request,myAccountNamespace + "backURL",currentURL);
+    PortletURL myAccountURL=new PortletURLImpl(request,PortletKeys.MY_ACCOUNT,plid,PortletRequest.RENDER_PHASE);
     myAccountURL.setWindowState(WindowState.MAXIMIZED);
     myAccountURL.setPortletMode(PortletMode.VIEW);
     myAccountURL.setParameter("struts_action","/my_account/edit_user");
@@ -396,18 +396,18 @@
   }
   themeDisplay.setURLSignIn(urlSignIn);
   themeDisplay.setURLSignOut(mainPath + "/portal/logout");
-  PortletURL updateManagerURL=new PortletURLImpl(req,PortletKeys.UPDATE_MANAGER,plid,PortletRequest.RENDER_PHASE);
+  PortletURL updateManagerURL=new PortletURLImpl(request,PortletKeys.UPDATE_MANAGER,plid,PortletRequest.RENDER_PHASE);
   updateManagerURL.setWindowState(WindowState.MAXIMIZED);
   updateManagerURL.setPortletMode(PortletMode.VIEW);
   updateManagerURL.setParameter("struts_action","/update_manager/view");
   themeDisplay.setURLUpdateManager(updateManagerURL);
-  req.setAttribute(WebKeys.THEME_DISPLAY,themeDisplay);
+  request.setAttribute(WebKeys.THEME_DISPLAY,themeDisplay);
   boolean parallelRenderEnable=true;
   if (layout != null) {
     if (layoutTypePortlet.getPortletIds().size() == 1) {
       parallelRenderEnable=false;
     }
   }
-  Boolean parallelRenderEnableObj=Boolean.valueOf(ParamUtil.getBoolean(req,"p_p_parallel",parallelRenderEnable));
-  req.setAttribute(WebKeys.PORTLET_PARALLEL_RENDER,parallelRenderEnableObj);
+  Boolean parallelRenderEnableObj=Boolean.valueOf(ParamUtil.getBoolean(request,"p_p_parallel",parallelRenderEnable));
+  request.setAttribute(WebKeys.PORTLET_PARALLEL_RENDER,parallelRenderEnableObj);
 }
