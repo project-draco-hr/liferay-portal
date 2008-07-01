@@ -1,17 +1,17 @@
 {
   if (!include) {
-    if (res instanceof MimeResponseImpl) {
-      MimeResponseImpl mimeResImpl=(MimeResponseImpl)res;
-      if (mimeResImpl.isCalledFlushBuffer()) {
+    if (portletResponse instanceof MimeResponseImpl) {
+      MimeResponseImpl mimeResponseImpl=(MimeResponseImpl)portletResponse;
+      if (mimeResponseImpl.isCalledFlushBuffer()) {
         throw new IllegalStateException();
       }
     }
   }
   try {
-    PortletRequestImpl reqImpl=(PortletRequestImpl)req;
-    PortletResponseImpl resImpl=PortletResponseImpl.getPortletResponseImpl(res);
-    HttpServletRequest httpReq=PortalUtil.getHttpServletRequest(req);
-    HttpServletResponse httpRes=PortalUtil.getHttpServletResponse(res);
+    PortletRequestImpl portletRequestImpl=(PortletRequestImpl)portletRequest;
+    PortletResponseImpl portletResponseImpl=PortletResponseImpl.getPortletResponseImpl(portletResponse);
+    HttpServletRequest request=PortalUtil.getHttpServletRequest(portletRequest);
+    HttpServletResponse response=PortalUtil.getHttpServletResponse(portletResponse);
     String pathInfo=null;
     String queryString=null;
     String requestURI=null;
@@ -39,29 +39,29 @@
             queryParams.put(name,newValues);
           }
         }
-        DynamicServletRequest dynamicReq=null;
-        if (reqImpl.isPrivateRequestAttributes()) {
-          String portletNamespace=PortalUtil.getPortletNamespace(reqImpl.getPortletName());
-          dynamicReq=new NamespaceServletRequest(httpReq,portletNamespace,portletNamespace);
+        DynamicServletRequest dynamicRequest=null;
+        if (portletRequestImpl.isPrivateRequestAttributes()) {
+          String portletNamespace=PortalUtil.getPortletNamespace(portletRequestImpl.getPortletName());
+          dynamicRequest=new NamespaceServletRequest(request,portletNamespace,portletNamespace);
         }
  else {
-          dynamicReq=new DynamicServletRequest(httpReq);
+          dynamicRequest=new DynamicServletRequest(request);
         }
         for (        Map.Entry<String,String[]> entry : queryParams.entrySet()) {
           String name=entry.getKey();
           String[] values=entry.getValue();
-          String[] oldValues=dynamicReq.getParameterValues(name);
+          String[] oldValues=dynamicRequest.getParameterValues(name);
           if (oldValues == null) {
-            dynamicReq.setParameterValues(name,values);
+            dynamicRequest.setParameterValues(name,values);
           }
  else {
             String[] newValues=ArrayUtil.append(values,oldValues);
-            dynamicReq.setParameterValues(name,newValues);
+            dynamicRequest.setParameterValues(name,newValues);
           }
         }
-        httpReq=dynamicReq;
+        request=dynamicRequest;
       }
-      Portlet portlet=reqImpl.getPortlet();
+      Portlet portlet=portletRequestImpl.getPortlet();
       PortletApp portletApp=portlet.getPortletApp();
       Set<String> servletURLPatterns=portletApp.getServletURLPatterns();
       for (      String urlPattern : servletURLPatterns) {
@@ -79,24 +79,24 @@
         pathInfo=StringPool.BLANK;
         servletPath=pathNoQueryString;
       }
-      requestURI=req.getContextPath() + pathNoQueryString;
+      requestURI=portletRequest.getContextPath() + pathNoQueryString;
     }
-    PortletServletRequest portletServletReq=new PortletServletRequest(httpReq,reqImpl,pathInfo,queryString,requestURI,servletPath,_named,include);
-    PortletServletResponse portletServletRes=new PortletServletResponse(httpRes,resImpl,include);
+    PortletServletRequest portletServletReq=new PortletServletRequest(request,portletRequestImpl,pathInfo,queryString,requestURI,servletPath,_named,include);
+    PortletServletResponse portletServletResponse=new PortletServletResponse(response,portletResponseImpl,include);
     URLEncoder urlEncoder=_portlet.getURLEncoderInstance();
     if (urlEncoder != null) {
-      resImpl.setURLEncoder(urlEncoder);
+      portletResponseImpl.setURLEncoder(urlEncoder);
     }
  else     if (strutsURLEncoder) {
-      ThemeDisplay themeDisplay=(ThemeDisplay)req.getAttribute(WebKeys.THEME_DISPLAY);
-      URLEncoder strutsURLEncoderObj=new StrutsURLEncoder(portletServletReq.getContextPath(),themeDisplay.getPathMain(),(String)_portletCtxImpl.getAttribute(Globals.SERVLET_KEY),(LiferayPortletURL)resImpl.createRenderURL());
-      resImpl.setURLEncoder(strutsURLEncoderObj);
+      ThemeDisplay themeDisplay=(ThemeDisplay)portletRequest.getAttribute(WebKeys.THEME_DISPLAY);
+      URLEncoder strutsURLEncoderObj=new StrutsURLEncoder(portletServletReq.getContextPath(),themeDisplay.getPathMain(),(String)_portletContextImpl.getAttribute(Globals.SERVLET_KEY),(LiferayPortletURL)portletResponseImpl.createRenderURL());
+      portletResponseImpl.setURLEncoder(strutsURLEncoderObj);
     }
     if (include) {
-      _rd.include(portletServletReq,portletServletRes);
+      _requestDispatcher.include(portletServletReq,portletServletResponse);
     }
  else {
-      _rd.forward(portletServletReq,portletServletRes);
+      _requestDispatcher.forward(portletServletReq,portletServletResponse);
     }
   }
  catch (  ServletException se) {

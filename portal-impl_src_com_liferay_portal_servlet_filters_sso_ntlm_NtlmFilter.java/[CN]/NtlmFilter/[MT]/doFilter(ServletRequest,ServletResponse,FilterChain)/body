@@ -1,8 +1,8 @@
 {
   try {
-    HttpServletRequest httpReq=(HttpServletRequest)req;
-    HttpServletResponse httpRes=(HttpServletResponse)res;
-    long companyId=PortalInstances.getCompanyId(httpReq);
+    HttpServletRequest request=(HttpServletRequest)servletRequest;
+    HttpServletResponse response=(HttpServletResponse)servletResponse;
+    long companyId=PortalInstances.getCompanyId(request);
     if (PortalLDAPUtil.isNtlmEnabled(companyId)) {
       if ((_config.getInitParameter("jcifs.http.domainController") == null) && (_config.getInitParameter("jcifs.smb.client.domain") == null)) {
         String domainController=PrefsPropsUtil.getString(companyId,PropsKeys.NTLM_DOMAIN_CONTROLLER);
@@ -15,7 +15,7 @@
           _log.debug("Domain " + domain);
         }
       }
-      String msg=httpReq.getHeader("Authorization");
+      String msg=request.getHeader("Authorization");
       if (msg != null && msg.startsWith("NTLM")) {
         byte[] src=Base64.decode(msg.substring(5));
         if (src[8] == 1) {
@@ -24,16 +24,16 @@
           Type1Message type1=new Type1Message(src);
           Type2Message type2=new Type2Message(type1,challenge,null);
           msg=Base64.encode(type2.toByteArray());
-          httpRes.setHeader("WWW-Authenticate","NTLM " + msg);
-          httpRes.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-          httpRes.setContentLength(0);
-          httpRes.flushBuffer();
+          response.setHeader("WWW-Authenticate","NTLM " + msg);
+          response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+          response.setContentLength(0);
+          response.flushBuffer();
           return;
         }
       }
-      String path=httpReq.getPathInfo();
+      String path=request.getPathInfo();
       if (path != null && path.endsWith("/login")) {
-        NtlmPasswordAuthentication ntlm=negotiate(httpReq,httpRes,false);
+        NtlmPasswordAuthentication ntlm=negotiate(request,response,false);
         if (ntlm == null) {
           return;
         }
@@ -45,12 +45,12 @@
         if (_log.isDebugEnabled()) {
           _log.debug("NTLM remote user " + remoteUser);
         }
-        req.setAttribute(WebKeys.NTLM_REMOTE_USER,remoteUser);
+        servletRequest.setAttribute(WebKeys.NTLM_REMOTE_USER,remoteUser);
       }
     }
   }
  catch (  Exception e) {
     _log.error(e);
   }
-  chain.doFilter(req,res);
+  chain.doFilter(servletRequest,servletResponse);
 }
