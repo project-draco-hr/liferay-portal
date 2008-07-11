@@ -1,0 +1,89 @@
+{
+  String projPath=projDir.getCanonicalPath();
+  String projName=StringUtil.extractLast(projPath,"/");
+  StringBuilder project=new StringBuilder();
+  project.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+  project.append("<projectDescription>\n");
+  project.append("\t<name>" + projName + "</name>\n");
+  project.append("\t<comment></comment>\n");
+  project.append("\t<projects></projects>\n");
+  project.append("\t<buildSpec>\n");
+  project.append("\t\t<buildCommand>\n");
+  project.append("\t\t\t<name>org.eclipse.jdt.core.javabuilder</name>\n");
+  project.append("\t\t\t<arguments></arguments>\n");
+  project.append("\t\t</buildCommand>\n");
+  project.append("\t</buildSpec>\n");
+  project.append("\t<natures>\n");
+  project.append("\t\t<nature>org.eclipse.jdt.core.javanature</nature>\n");
+  project.append("\t</natures>\n");
+  project.append("</projectDescription>");
+  File dotProject=new File(projPath + "/.project");
+  if (_rewriteToFile(dotProject,project.toString())) {
+    System.out.println("- Created new " + dotProject);
+  }
+ else {
+    System.out.println("- Up-to-date " + dotProject);
+  }
+  FilenameFilter filter=new FilenameFilter(){
+    public boolean accept(    File dir,    String name){
+      return name.endsWith(".jar");
+    }
+  }
+;
+  List<String> portalJars=ListUtil.toList(dependencyJars);
+  portalJars.add("commons-logging.jar");
+  portalJars.add("log4j.jar");
+  ListUtil.distinct(portalJars);
+  Collections.sort(portalJars);
+  List<String> customJars=ListUtil.toList(libDir.list(filter));
+  for (  String jar : portalJars) {
+    customJars.remove(jar);
+  }
+  Collections.sort(customJars);
+  StringBuilder classpath=new StringBuilder();
+  classpath.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+  classpath.append("<classpath>\n");
+  classpath.append("\t<classpathentry excluding=\"**/.svn/**|.svn/\" kind=\"src\" path=\"docroot/WEB-INF/src\"/>\n");
+  classpath.append("\t<classpathentry kind=\"src\" path=\"/portal\"/>\n");
+  classpath.append("\t<classpathentry kind=\"con\" path=\"org.eclipse.jdt.launching.JRE_CONTAINER\"/>\n");
+  classpath.append("\t<classpathentry kind=\"lib\" path=\"/portal/lib/development/mail.jar\"/>\n");
+  classpath.append("\t<classpathentry kind=\"lib\" path=\"/portal/lib/development/servlet.jar\"/>\n");
+  classpath.append("\t<classpathentry kind=\"lib\" path=\"/portal/lib/global/container.jar\"/>\n");
+  classpath.append("\t<classpathentry kind=\"lib\" path=\"/portal/lib/global/portlet-container.jar\"/>\n");
+  classpath.append("\t<classpathentry kind=\"lib\" path=\"/portal/lib/global/portlet.jar\"/>\n");
+  for (  String jar : portalJars) {
+    classpath.append("\t<classpathentry kind=\"lib\" path=\"/portal/lib/portal/" + jar + "\"/>\n");
+  }
+  classpath.append("\t<classpathentry kind=\"lib\" path=\"/portal/portal-kernel/portal-kernel.jar\"/>\n");
+  classpath.append("\t<classpathentry kind=\"lib\" path=\"/portal/portal-service/portal-service.jar\"/>\n");
+  classpath.append("\t<classpathentry kind=\"lib\" path=\"/portal/util-bridges/util-bridges.jar\"/>\n");
+  classpath.append("\t<classpathentry kind=\"lib\" path=\"/portal/util-java/util-java.jar\"/>\n");
+  classpath.append("\t<classpathentry kind=\"lib\" path=\"/portal/util-taglib/util-taglib.jar\"/>\n");
+  for (  String jar : customJars) {
+    classpath.append("\t<classpathentry kind=\"lib\" path=\"docroot/WEB-INF/lib/" + jar + "\"/>\n");
+  }
+  classpath.append("\t<classpathentry kind=\"output\" path=\"bin\"/>\n");
+  classpath.append("</classpath>");
+  File dotClasspath=new File(projPath + "/.classpath");
+  if (_rewriteToFile(dotClasspath,classpath.toString())) {
+    System.out.println("- Created new " + dotClasspath);
+  }
+ else {
+    System.out.println("- Up-to-date " + dotClasspath);
+  }
+  if (svn) {
+    try {
+      _execSVNCommand(_SVN_INFO + dotProject);
+    }
+ catch (    Exception e) {
+      _execSVNCommand(_SVN_ADD + dotProject);
+    }
+    try {
+      _execSVNCommand(_SVN_INFO + dotClasspath);
+    }
+ catch (    Exception e) {
+      _execSVNCommand(_SVN_ADD + dotClasspath);
+    }
+    _execSVNCommand(_SVN_SET_IGNORES + "bin " + projPath);
+  }
+}

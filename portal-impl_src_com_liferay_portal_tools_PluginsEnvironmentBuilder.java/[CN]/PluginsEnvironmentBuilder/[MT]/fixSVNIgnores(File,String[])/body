@@ -1,17 +1,12 @@
 {
   File tempFile=null;
   try {
-    Properties props=new Properties();
-    props.load(new FileInputStream(propsFile));
-    String[] dependencyJars=StringUtil.split(props.getProperty("portal.dependency.jars"));
-    Arrays.sort(dependencyJars);
-    File libDir=new File(propsFile.getParent() + "/lib");
-    String libPath=libDir.getAbsolutePath();
+    String libPath=libDir.getCanonicalPath();
     if (_isSourceControlled(libDir)) {
       String[] oldIgnores=_execSVNCommand(_SVN_GET_IGNORES + libPath);
       Arrays.sort(oldIgnores);
       if (Arrays.equals(oldIgnores,dependencyJars)) {
-        System.out.println("SVN ignores are valid for " + libPath);
+        System.out.println("- SVN ignores are valid for " + libPath);
         return;
       }
       tempFile=File.createTempFile("svn-ignore-",null,null);
@@ -21,10 +16,10 @@
         sb.append(jar + "\n");
       }
       _writeToFile(tempFile,sb.toString());
-      _execSVNCommand(_SVN_SET_IGNORES + tempFile.getAbsolutePath() + " "+ libPath);
+      _execSVNCommand(_SVN_SET_IGNORES + "-F " + tempFile.getCanonicalPath()+ " "+ libPath);
       String[] newIgnores=_execSVNCommand(_SVN_GET_IGNORES + libPath);
       if (newIgnores.length > 0) {
-        System.out.println("SVN ignores set for " + libPath);
+        System.out.println("- SVN ignores set for " + libPath);
         Arrays.sort(newIgnores);
         System.out.println("\tOld ignores: " + StringUtil.merge(oldIgnores));
         System.out.println("\tNew ignores: " + StringUtil.merge(newIgnores));
@@ -32,10 +27,7 @@
       }
     }
   }
- catch (  Exception e) {
-    e.printStackTrace();
-  }
- finally {
+  finally {
     if (tempFile != null) {
       tempFile.delete();
     }
