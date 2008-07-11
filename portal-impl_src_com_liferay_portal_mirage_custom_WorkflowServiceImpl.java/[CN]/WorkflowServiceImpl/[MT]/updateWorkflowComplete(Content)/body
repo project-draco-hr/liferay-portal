@@ -1,0 +1,57 @@
+{
+  JournalArticleContent articleContent=(JournalArticleContent)content;
+  JournalArticle article=articleContent.getArticle();
+  JournalArticleContent.CreationAttributes creationAttributes=articleContent.getCreationAttributes();
+  try {
+    com.liferay.portal.model.User user=userPersistence.findByPrimaryKey(article.getUserId());
+    Date now=new Date();
+    article=journalArticlePersistence.findByG_A_V(article.getGroupId(),article.getArticleId(),article.getVersion());
+    article.setModifiedDate(now);
+    article.setApproved(true);
+    article.setApprovedByUserId(user.getUserId());
+    article.setApprovedByUserName(user.getFullName());
+    article.setApprovedDate(now);
+    article.setExpired(false);
+    if ((article.getExpirationDate() != null) && (article.getExpirationDate().before(now))) {
+      article.setExpirationDate(null);
+    }
+    journalArticlePersistence.update(article,false);
+    articleContent.setArticle(article);
+  }
+ catch (  SystemException se) {
+    logger.log(Level.SEVERE,se.getMessage(),se);
+    throw new CMSException(se.getMessage(),se);
+  }
+catch (  NoSuchUserException nsue) {
+    logger.log(Level.SEVERE,nsue.getMessage(),nsue);
+    throw new CMSException(nsue.getMessage(),nsue);
+  }
+catch (  NoSuchArticleException nsae) {
+    logger.log(Level.SEVERE,nsae.getMessage(),nsae);
+    throw new CMSException(nsae.getMessage(),nsae);
+  }
+  try {
+    sendEmail(article,creationAttributes.getArticleURL(),creationAttributes.getPrefs(),"granted");
+  }
+ catch (  IOException ioe) {
+    throw new CMSException(ioe.getMessage(),ioe);
+  }
+catch (  PortalException pe) {
+    throw new CMSException(pe.getMessage(),pe);
+  }
+catch (  SystemException se) {
+    throw new CMSException(se.getMessage(),se);
+  }
+  try {
+    if (article.isIndexable()) {
+      String[] tagsEntries=tagsEntryLocalService.getEntryNames(JournalArticle.class.getName(),article.getResourcePrimKey());
+      Indexer.updateArticle(article.getCompanyId(),article.getGroupId(),article.getArticleId(),article.getVersion(),article.getTitle(),article.getDescription(),article.getContent(),article.getType(),article.getDisplayDate(),tagsEntries);
+    }
+  }
+ catch (  SearchException se) {
+    _log.error("Indexing " + article.getId(),se);
+  }
+catch (  SystemException se) {
+    _log.error("Indexing " + article.getId(),se);
+  }
+}

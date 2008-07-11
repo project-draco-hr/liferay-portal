@@ -1,31 +1,21 @@
 {
-  User user=userPersistence.findByPrimaryKey(userId);
-  Date now=new Date();
-  JournalArticle article=journalArticlePersistence.findByG_A_V(groupId,articleId,version);
-  article.setModifiedDate(now);
-  article.setApproved(true);
-  article.setApprovedByUserId(user.getUserId());
-  article.setApprovedByUserName(user.getFullName());
-  article.setApprovedDate(now);
-  article.setExpired(false);
-  if ((article.getExpirationDate() != null) && (article.getExpirationDate().before(now))) {
-    article.setExpirationDate(null);
-  }
-  journalArticlePersistence.update(article,false);
+  JournalArticle journalArticle=new JournalArticleImpl();
+  journalArticle.setUserId(userId);
+  journalArticle.setGroupId(groupId);
+  journalArticle.setArticleId(articleId);
+  journalArticle.setVersion(version);
+  JournalArticleContent articleContent=new JournalArticleContent(journalArticle);
+  JournalArticleContent.CreationAttributes creationAttributes=articleContent.new CreationAttributes();
+  creationAttributes.setArticleURL(articleURL);
+  creationAttributes.setPrefs(prefs);
+  articleContent.setCreationAttributes(creationAttributes);
+  WorkflowService workflowService=new WorkflowServiceImpl();
   try {
-    sendEmail(article,articleURL,prefs,"granted");
+    workflowService.updateWorkflowComplete(articleContent);
   }
- catch (  IOException ioe) {
-    throw new SystemException(ioe);
+ catch (  CMSException ce) {
+    _throwException(ce);
   }
-  try {
-    if (article.isIndexable()) {
-      String[] tagsEntries=tagsEntryLocalService.getEntryNames(JournalArticle.class.getName(),article.getResourcePrimKey());
-      Indexer.updateArticle(article.getCompanyId(),article.getGroupId(),article.getArticleId(),article.getVersion(),article.getTitle(),article.getDescription(),article.getContent(),article.getType(),article.getDisplayDate(),tagsEntries);
-    }
-  }
- catch (  SearchException se) {
-    _log.error("Indexing " + article.getId(),se);
-  }
-  return article;
+  journalArticle=articleContent.getArticle();
+  return journalArticle;
 }

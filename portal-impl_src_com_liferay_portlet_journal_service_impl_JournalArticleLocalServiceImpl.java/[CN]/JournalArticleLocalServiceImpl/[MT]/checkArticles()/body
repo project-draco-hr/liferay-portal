@@ -1,44 +1,54 @@
 {
-  Date now=new Date();
-  List<JournalArticle> articles=journalArticleFinder.findByExpirationDate(Boolean.FALSE,now,new Date(now.getTime() - CheckArticleJob.INTERVAL));
-  if (_log.isDebugEnabled()) {
-    _log.debug("Expiring " + articles.size() + " articles");
-  }
-  Set<Long> companyIds=new HashSet<Long>();
-  for (  JournalArticle article : articles) {
-    article.setApproved(false);
-    article.setExpired(true);
-    journalArticlePersistence.update(article,false);
-    try {
-      if (article.isIndexable()) {
-        Indexer.deleteArticle(article.getCompanyId(),article.getArticleId());
+  try {
+    Date now=new Date();
+    Date expirationDateGT=new Date(now.getTime() - CheckArticleJob.INTERVAL);
+    List<JournalArticle> expireArticles=_getArticlesByExpirationDate(now,expirationDateGT);
+    if (_log.isDebugEnabled()) {
+      _log.debug("Expiring " + expireArticles.size() + " articles");
+    }
+    Set<Long> companyIds=new HashSet<Long>();
+    JournalArticleContent articleContent=new JournalArticleContent();
+    ContentService contentService=MirageServiceFactory.getContentService();
+    for (    JournalArticle article : expireArticles) {
+      article.setApproved(false);
+      article.setExpired(true);
+      articleContent.setArticle(article);
+      contentService.updateContent(articleContent,null);
+      try {
+        if (article.isIndexable()) {
+          Indexer.deleteArticle(article.getCompanyId(),article.getArticleId());
+        }
+      }
+ catch (      SearchException se) {
+        _log.error("Removing index " + article.getId(),se);
+      }
+      JournalContentUtil.clearCache(article.getGroupId(),article.getArticleId(),article.getTemplateId());
+      companyIds.add(article.getCompanyId());
+    }
+    for (    long companyId : companyIds) {
+      LayoutCacheUtil.clearCache(companyId);
+    }
+    Date reviewDateGT=new Date(now.getTime() - CheckArticleJob.INTERVAL);
+    List<JournalArticle> reviewArticles=_getArticleByReviewDate(now,reviewDateGT);
+    if (_log.isDebugEnabled()) {
+      _log.debug("Sending review notifications for " + reviewArticles.size() + " articles");
+    }
+    for (    JournalArticle article : reviewArticles) {
+      String articleURL=StringPool.BLANK;
+      long ownerId=article.getGroupId();
+      int ownerType=PortletKeys.PREFS_OWNER_TYPE_GROUP;
+      long plid=PortletKeys.PREFS_PLID_SHARED;
+      String portletId=PortletKeys.JOURNAL;
+      PortletPreferences prefs=portletPreferencesLocalService.getPreferences(article.getCompanyId(),ownerId,ownerType,plid,portletId);
+      try {
+        sendEmail(article,articleURL,prefs,"review");
+      }
+ catch (      IOException ioe) {
+        throw new SystemException(ioe);
       }
     }
- catch (    SearchException se) {
-      _log.error("Removing index " + article.getId(),se);
-    }
-    JournalContentUtil.clearCache(article.getGroupId(),article.getArticleId(),article.getTemplateId());
-    companyIds.add(article.getCompanyId());
   }
-  for (  long companyId : companyIds) {
-    LayoutCacheUtil.clearCache(companyId);
-  }
-  articles=journalArticleFinder.findByReviewDate(now,new Date(now.getTime() - CheckArticleJob.INTERVAL));
-  if (_log.isDebugEnabled()) {
-    _log.debug("Sending review notifications for " + articles.size() + " articles");
-  }
-  for (  JournalArticle article : articles) {
-    String articleURL=StringPool.BLANK;
-    long ownerId=article.getGroupId();
-    int ownerType=PortletKeys.PREFS_OWNER_TYPE_GROUP;
-    long plid=PortletKeys.PREFS_PLID_SHARED;
-    String portletId=PortletKeys.JOURNAL;
-    PortletPreferences prefs=portletPreferencesLocalService.getPreferences(article.getCompanyId(),ownerId,ownerType,plid,portletId);
-    try {
-      sendEmail(article,articleURL,prefs,"review");
-    }
- catch (    IOException ioe) {
-      throw new SystemException(ioe);
-    }
+ catch (  CMSException ex) {
+    _throwException(ex);
   }
 }

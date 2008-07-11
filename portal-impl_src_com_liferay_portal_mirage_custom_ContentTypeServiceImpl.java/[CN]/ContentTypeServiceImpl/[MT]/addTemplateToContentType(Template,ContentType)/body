@@ -1,3 +1,81 @@
 {
-  throw new UnsupportedOperationException();
+  JournalMirageTemplate journalMirageTemplate=(JournalMirageTemplate)mirageTemplate;
+  JournalTemplate template=journalMirageTemplate.getTemplate();
+  JournalMirageTemplate.CreationAttributes creationAttributes=journalMirageTemplate.getCreationAttributes();
+  boolean formatXsl=creationAttributes.isFormatXsl();
+  boolean autoTemplateId=creationAttributes.isAutoTemplateId();
+  File smallFile=creationAttributes.getSmallFile();
+  String templateId=template.getTemplateId();
+  long userId=template.getUserId();
+  String langType=template.getLangType();
+  String xsl=template.getXsl();
+  long groupId=template.getGroupId();
+  String name=template.getName();
+  String description=template.getDescription();
+  boolean smallImage=template.getSmallImage();
+  String smallImageURL=template.getSmallImageURL();
+  String uuid=template.getUuid();
+  String structureId=template.getStructureId();
+  boolean cacheable=template.isCacheable();
+  try {
+    User user=userPersistence.findByPrimaryKey(userId);
+    templateId=templateId.trim().toUpperCase();
+    Date now=new Date();
+    try {
+      if (formatXsl) {
+        if (langType.equals(JournalTemplateImpl.LANG_TYPE_VM)) {
+          xsl=JournalUtil.formatVM(xsl);
+        }
+ else {
+          xsl=JournalUtil.formatXML(xsl);
+        }
+      }
+    }
+ catch (    DocumentException de) {
+      throw new TemplateXslException();
+    }
+catch (    IOException ioe) {
+      throw new TemplateXslException();
+    }
+    byte[] smallBytes=null;
+    try {
+      smallBytes=FileUtil.getBytes(smallFile);
+    }
+ catch (    IOException ioe) {
+    }
+    validate(groupId,templateId,autoTemplateId,name,description,xsl,smallImage,smallImageURL,smallFile,smallBytes);
+    if (autoTemplateId) {
+      templateId=String.valueOf(counterLocalService.increment());
+    }
+    long id=counterLocalService.increment();
+    JournalTemplate newTemplate=journalTemplatePersistence.create(id);
+    newTemplate.setUuid(uuid);
+    newTemplate.setGroupId(groupId);
+    newTemplate.setCompanyId(user.getCompanyId());
+    newTemplate.setUserId(user.getUserId());
+    newTemplate.setUserName(user.getFullName());
+    newTemplate.setCreateDate(now);
+    newTemplate.setModifiedDate(now);
+    newTemplate.setTemplateId(templateId);
+    newTemplate.setStructureId(structureId);
+    newTemplate.setName(name);
+    newTemplate.setDescription(description);
+    newTemplate.setXsl(xsl);
+    newTemplate.setLangType(langType);
+    newTemplate.setCacheable(cacheable);
+    newTemplate.setSmallImage(smallImage);
+    newTemplate.setSmallImageId(counterLocalService.increment());
+    newTemplate.setSmallImageURL(smallImageURL);
+    journalTemplatePersistence.update(newTemplate,false);
+    saveImages(smallImage,newTemplate.getSmallImageId(),smallFile,smallBytes);
+    journalMirageTemplate.setTemplate(newTemplate);
+  }
+ catch (  PortalException ex) {
+    _log.error(ex.getMessage(),ex);
+    throw new CMSException(ex.getMessage(),ex);
+  }
+catch (  SystemException ex) {
+    _log.error(ex.getMessage(),ex);
+    throw new CMSException(ex.getMessage(),ex);
+  }
 }
