@@ -1,0 +1,53 @@
+{
+  JournalArticleContent articleContent=(JournalArticleContent)content;
+  JournalArticle article=articleContent.getArticle();
+  JournalArticleContent.CreationAttributes creationAttributes=articleContent.getCreationAttributes();
+  try {
+    if (article.isApproved() && article.isIndexable()) {
+      Indexer.deleteArticle(article.getCompanyId(),article.getArticleId());
+    }
+  }
+ catch (  SearchException se) {
+    _log.error("Deleting index " + article.getPrimaryKey(),se);
+  }
+  try {
+    if ((creationAttributes.getPrefs() != null) && !article.isApproved() && isLatestVersion(article.getGroupId(),article.getArticleId(),article.getVersion())) {
+      try {
+        sendEmail(article,creationAttributes.getArticleURL(),creationAttributes.getPrefs(),"denied");
+      }
+ catch (      IOException ie) {
+        throw new CMSException(ie.getMessage(),ie);
+      }
+    }
+    _tagsAssetLocalService.deleteAsset(JournalArticle.class.getName(),article.getResourcePrimKey());
+    _ratingsStatsLocalService.deleteStats(JournalArticle.class.getName(),article.getResourcePrimKey());
+    _mbMessageLocalService.deleteDiscussionMessages(JournalArticle.class.getName(),article.getResourcePrimKey());
+    _journalContentSearchLocalService.deleteArticleContentSearches(article.getGroupId(),article.getArticleId());
+    _journalArticleImageLocalService.deleteImages(article.getGroupId(),article.getArticleId(),article.getVersion());
+    _imageLocalService.deleteImage(article.getSmallImageId());
+    if (_journalArticlePersistence.countByG_A(article.getGroupId(),article.getArticleId()) == 1) {
+      _resourceLocalService.deleteResource(article.getCompanyId(),JournalArticle.class.getName(),ResourceConstants.SCOPE_INDIVIDUAL,article.getResourcePrimKey());
+    }
+    if (_journalArticlePersistence.countByG_A(article.getGroupId(),article.getArticleId()) == 1) {
+      try {
+        _journalArticleResourceLocalService.deleteArticleResource(article.getGroupId(),article.getArticleId());
+      }
+ catch (      NoSuchArticleResourceException nsare) {
+        throw new CMSException(nsare.getMessage(),nsare);
+      }
+    }
+    _journalArticlePersistence.remove(article.getPrimaryKey());
+  }
+ catch (  NoSuchArticleException nsae) {
+    _log.error(nsae.getMessage(),nsae);
+    throw new CMSException(nsae.getMessage(),nsae);
+  }
+catch (  SystemException se) {
+    _log.error(se.getMessage(),se);
+    throw new CMSException(se.getMessage(),se);
+  }
+catch (  PortalException pe) {
+    _log.error(pe.getMessage(),pe);
+    throw new CMSException(pe.getMessage(),pe);
+  }
+}

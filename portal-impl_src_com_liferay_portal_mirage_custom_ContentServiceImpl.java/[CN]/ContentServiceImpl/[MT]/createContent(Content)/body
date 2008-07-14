@@ -1,3 +1,87 @@
 {
-  throw new UnsupportedOperationException();
+  JournalArticleContent articleContent=(JournalArticleContent)content;
+  JournalArticle article=articleContent.getArticle();
+  JournalArticleContent.CreationAttributes creationAttributes=articleContent.getCreationAttributes();
+  try {
+    com.liferay.portal.model.User user=_userPersistence.findByPrimaryKey(article.getUserId());
+    String articleId=article.getArticleId().trim().toUpperCase();
+    Date displayDate=PortalUtil.getDate(creationAttributes.getDisplayDateMonth(),creationAttributes.getDisplayDateDay(),creationAttributes.getDisplayDateYear(),creationAttributes.getDisplayDateHour(),creationAttributes.getDisplayDateMinute(),user.getTimeZone(),new ArticleDisplayDateException());
+    Date expirationDate=null;
+    if (!creationAttributes.isNeverExpire()) {
+      expirationDate=PortalUtil.getDate(creationAttributes.getExpirationDateMonth(),creationAttributes.getExpirationDateDay(),creationAttributes.getExpirationDateYear(),creationAttributes.getExpirationDateHour(),creationAttributes.getExpirationDateMinute(),user.getTimeZone(),new ArticleExpirationDateException());
+    }
+    Date reviewDate=null;
+    if (!creationAttributes.isNeverReview()) {
+      reviewDate=PortalUtil.getDate(creationAttributes.getReviewDateMonth(),creationAttributes.getReviewDateDay(),creationAttributes.getReviewDateYear(),creationAttributes.getReviewDateYear(),creationAttributes.getReviewDateMinute(),user.getTimeZone(),new ArticleReviewDateException());
+    }
+    byte[] smallBytes=null;
+    try {
+      smallBytes=FileUtil.getBytes(creationAttributes.getSmallFile());
+    }
+ catch (    IOException ioe) {
+    }
+    Date now=new Date();
+    validate(article.getGroupId(),articleId,creationAttributes.isAutoArticleId(),article.getVersion(),article.getTitle(),article.getContent(),article.getType(),article.getStructureId(),article.getTemplateId(),article.getSmallImage(),article.getSmallImageURL(),creationAttributes.getSmallFile(),smallBytes);
+    if (creationAttributes.isAutoArticleId()) {
+      articleId=String.valueOf(_counterLocalService.increment());
+    }
+    long id=_counterLocalService.increment();
+    long resourcePrimKey=_journalArticleResourceLocalService.getArticleResourcePrimKey(article.getGroupId(),articleId);
+    JournalArticle newArticle=_journalArticlePersistence.create(id);
+    String journalContent=format(article.getGroupId(),articleId,article.getVersion(),false,article.getContent(),article.getStructureId(),creationAttributes.getImages());
+    newArticle.setUuid(article.getUuid());
+    newArticle.setResourcePrimKey(resourcePrimKey);
+    newArticle.setGroupId(article.getGroupId());
+    newArticle.setCompanyId(user.getCompanyId());
+    newArticle.setUserId(user.getUserId());
+    newArticle.setUserName(user.getFullName());
+    newArticle.setCreateDate(now);
+    newArticle.setModifiedDate(now);
+    newArticle.setArticleId(articleId);
+    newArticle.setVersion(article.getVersion());
+    newArticle.setTitle(article.getTitle());
+    newArticle.setDescription(article.getDescription());
+    newArticle.setContent(journalContent);
+    newArticle.setType(article.getType());
+    newArticle.setStructureId(article.getStructureId());
+    newArticle.setTemplateId(article.getTemplateId());
+    newArticle.setDisplayDate(displayDate);
+    newArticle.setApproved(false);
+    if ((expirationDate == null) || expirationDate.after(now)) {
+      newArticle.setExpired(false);
+    }
+ else {
+      newArticle.setExpired(true);
+    }
+    newArticle.setExpirationDate(expirationDate);
+    newArticle.setReviewDate(reviewDate);
+    newArticle.setIndexable(article.isIndexable());
+    newArticle.setSmallImage(article.getSmallImage());
+    newArticle.setSmallImageId(_counterLocalService.increment());
+    newArticle.setSmallImageURL(article.getSmallImageURL());
+    _journalArticlePersistence.update(newArticle,false);
+    articleContent.setArticle(newArticle);
+    saveImages(article.getSmallImage(),article.getSmallImageId(),creationAttributes.getSmallFile(),smallBytes);
+    if ((creationAttributes.getAddCommunityPermissions() != null) && (creationAttributes.getAddGuestPermissions() != null)) {
+      Boolean addCommunityPermissions=creationAttributes.getAddCommunityPermissions();
+      Boolean addGuestPermissions=creationAttributes.getAddGuestPermissions();
+      addArticleResources(newArticle,addCommunityPermissions.booleanValue(),addGuestPermissions.booleanValue());
+    }
+ else {
+      addArticleResources(newArticle,articleContent.getCommunityPermissions(),articleContent.getGuestPermissions());
+    }
+    updateTagsAsset(article.getUserId(),newArticle,creationAttributes.getTagsEntries());
+    try {
+      sendEmail(article,creationAttributes.getArticleURL(),creationAttributes.getPrefs(),"requested");
+    }
+ catch (    IOException ioe) {
+      throw new SystemException(ioe);
+    }
+  }
+ catch (  PortalException ex) {
+    _log.error(ex.getMessage(),ex);
+  }
+catch (  SystemException ex) {
+    _log.error(ex.getMessage(),ex);
+  }
 }

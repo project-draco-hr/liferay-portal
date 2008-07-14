@@ -1,3 +1,66 @@
 {
-  throw new UnsupportedOperationException();
+  JournalMirageTemplate journalMirageTemplate=(JournalMirageTemplate)mirageTemplate;
+  JournalTemplate template=journalMirageTemplate.getTemplate();
+  JournalMirageTemplate.UpdateAttributes updateAttributes=journalMirageTemplate.getUpdateAttributes();
+  boolean formatXsl=updateAttributes.isFormatXsl();
+  File smallFile=updateAttributes.getSmallFile();
+  String templateId=template.getTemplateId();
+  String langType=template.getLangType();
+  String xsl=template.getXsl();
+  String name=template.getName();
+  String description=template.getDescription();
+  boolean smallImage=template.getSmallImage();
+  String smallImageURL=template.getSmallImageURL();
+  long groupId=template.getGroupId();
+  String structureId=template.getStructureId();
+  boolean cacheable=template.isCacheable();
+  try {
+    templateId=templateId.trim().toUpperCase();
+    try {
+      if (formatXsl) {
+        if (langType.equals(JournalTemplateImpl.LANG_TYPE_VM)) {
+          xsl=JournalUtil.formatVM(xsl);
+        }
+ else {
+          xsl=JournalUtil.formatXML(xsl);
+        }
+      }
+    }
+ catch (    DocumentException de) {
+      throw new TemplateXslException();
+    }
+catch (    IOException ioe) {
+      throw new TemplateXslException();
+    }
+    byte[] smallBytes=null;
+    try {
+      smallBytes=FileUtil.getBytes(smallFile);
+    }
+ catch (    IOException ioe) {
+    }
+    validate(name,description,xsl,smallImage,smallImageURL,smallFile,smallBytes);
+    JournalTemplate existingTemplate=journalTemplatePersistence.findByG_T(groupId,templateId);
+    existingTemplate.setModifiedDate(new Date());
+    if (Validator.isNull(existingTemplate.getStructureId()) && Validator.isNotNull(structureId)) {
+      existingTemplate.setStructureId(structureId);
+    }
+    existingTemplate.setName(name);
+    existingTemplate.setDescription(description);
+    existingTemplate.setXsl(xsl);
+    existingTemplate.setLangType(langType);
+    existingTemplate.setCacheable(cacheable);
+    existingTemplate.setSmallImage(smallImage);
+    existingTemplate.setSmallImageURL(smallImageURL);
+    journalTemplatePersistence.update(existingTemplate,false);
+    saveImages(smallImage,existingTemplate.getSmallImageId(),smallFile,smallBytes);
+    journalMirageTemplate.setTemplate(existingTemplate);
+  }
+ catch (  PortalException pe) {
+    _log.error(pe.getMessage(),pe);
+    throw new CMSException(pe.getMessage(),pe);
+  }
+catch (  SystemException se) {
+    _log.error(se.getMessage(),se);
+    throw new CMSException(se.getMessage(),se);
+  }
 }
