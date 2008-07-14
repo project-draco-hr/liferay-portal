@@ -1,8 +1,38 @@
 {
-  JournalArticle article=new JournalArticleImpl();
+  User user=userPersistence.findByPrimaryKey(userId);
+  articleId=articleId.trim().toUpperCase();
+  Date displayDate=PortalUtil.getDate(displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,user.getTimeZone(),new ArticleDisplayDateException());
+  Date expirationDate=null;
+  if (!neverExpire) {
+    expirationDate=PortalUtil.getDate(expirationDateMonth,expirationDateDay,expirationDateYear,expirationDateHour,expirationDateMinute,user.getTimeZone(),new ArticleExpirationDateException());
+  }
+  Date reviewDate=null;
+  if (!neverReview) {
+    reviewDate=PortalUtil.getDate(reviewDateMonth,reviewDateDay,reviewDateYear,reviewDateHour,reviewDateMinute,user.getTimeZone(),new ArticleReviewDateException());
+  }
+  byte[] smallBytes=null;
+  try {
+    smallBytes=FileUtil.getBytes(smallFile);
+  }
+ catch (  IOException ioe) {
+  }
+  Date now=new Date();
+  validate(groupId,articleId,autoArticleId,version,title,content,type,structureId,templateId,smallImage,smallImageURL,smallFile,smallBytes);
+  if (autoArticleId) {
+    articleId=String.valueOf(counterLocalService.increment());
+  }
+  long id=counterLocalService.increment();
+  long resourcePrimKey=journalArticleResourceLocalService.getArticleResourcePrimKey(groupId,articleId);
+  JournalArticle article=journalArticlePersistence.create(id);
+  content=format(groupId,articleId,version,false,content,structureId,images);
   article.setUuid(uuid);
-  article.setUserId(userId);
+  article.setResourcePrimKey(resourcePrimKey);
   article.setGroupId(groupId);
+  article.setCompanyId(user.getCompanyId());
+  article.setUserId(user.getUserId());
+  article.setUserName(user.getFullName());
+  article.setCreateDate(now);
+  article.setModifiedDate(now);
   article.setArticleId(articleId);
   article.setVersion(version);
   article.setTitle(title);
@@ -11,46 +41,34 @@
   article.setType(type);
   article.setStructureId(structureId);
   article.setTemplateId(templateId);
+  article.setDisplayDate(displayDate);
   article.setApproved(false);
+  if ((expirationDate == null) || expirationDate.after(now)) {
+    article.setExpired(false);
+  }
+ else {
+    article.setExpired(true);
+  }
+  article.setExpirationDate(expirationDate);
+  article.setReviewDate(reviewDate);
   article.setIndexable(indexable);
   article.setSmallImage(smallImage);
   article.setSmallImageId(counterLocalService.increment());
   article.setSmallImageURL(smallImageURL);
-  JournalArticleContent articleContent=new JournalArticleContent(article,communityPermissions,guestPermissions);
-  JournalArticleContent.CreationAttributes creationAttributes=articleContent.new CreationAttributes();
-  creationAttributes.setAutoArticleId(autoArticleId);
-  creationAttributes.setAddCommunityPermissions(addCommunityPermissions);
-  creationAttributes.setAddGuestPermissions(addGuestPermissions);
-  creationAttributes.setTagsEntries(tagsEntries);
-  creationAttributes.setArticleURL(articleURL);
-  creationAttributes.setPrefs(prefs);
-  creationAttributes.setDisplayDateDay(displayDateDay);
-  creationAttributes.setDisplayDateHour(displayDateHour);
-  creationAttributes.setDisplayDateMinute(displayDateMinute);
-  creationAttributes.setDisplayDateMonth(displayDateMonth);
-  creationAttributes.setDisplayDateYear(displayDateYear);
-  creationAttributes.setExpirationDateDay(expirationDateDay);
-  creationAttributes.setExpirationDateHour(expirationDateHour);
-  creationAttributes.setExpirationDateMinute(expirationDateMinute);
-  creationAttributes.setExpirationDateMonth(expirationDateMonth);
-  creationAttributes.setExpirationDateYear(expirationDateYear);
-  creationAttributes.setNeverExpire(neverExpire);
-  creationAttributes.setReviewDateDay(reviewDateDay);
-  creationAttributes.setReviewDateHour(reviewDateHour);
-  creationAttributes.setReviewDateMinute(reviewDateMinute);
-  creationAttributes.setReviewDateMonth(reviewDateMonth);
-  creationAttributes.setReviewDateYear(reviewDateYear);
-  creationAttributes.setNeverReview(neverReview);
-  creationAttributes.setSmallFile(smallFile);
-  creationAttributes.setImages(images);
-  articleContent.setCreationAttributes(creationAttributes);
-  ContentService contentService=MirageServiceFactory.getContentService();
+  journalArticlePersistence.update(article,false);
+  saveImages(smallImage,article.getSmallImageId(),smallFile,smallBytes);
+  if ((addCommunityPermissions != null) && (addGuestPermissions != null)) {
+    addArticleResources(article,addCommunityPermissions.booleanValue(),addGuestPermissions.booleanValue());
+  }
+ else {
+    addArticleResources(article,communityPermissions,guestPermissions);
+  }
+  updateTagsAsset(userId,article,tagsEntries);
   try {
-    contentService.createContent(articleContent);
+    sendEmail(article,articleURL,prefs,"requested");
   }
- catch (  CMSException ce) {
-    _throwException(ce);
+ catch (  IOException ioe) {
+    throw new SystemException(ioe);
   }
-  article=articleContent.getArticle();
   return article;
 }

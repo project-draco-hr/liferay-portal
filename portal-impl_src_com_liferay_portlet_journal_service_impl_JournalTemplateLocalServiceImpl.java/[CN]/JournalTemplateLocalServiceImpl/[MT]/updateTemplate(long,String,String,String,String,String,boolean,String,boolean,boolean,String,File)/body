@@ -1,27 +1,41 @@
 {
-  JournalTemplate template=new JournalTemplateImpl();
-  template.setTemplateId(templateId);
-  template.setLangType(langType);
-  template.setXsl(xsl);
+  templateId=templateId.trim().toUpperCase();
+  try {
+    if (formatXsl) {
+      if (langType.equals(JournalTemplateImpl.LANG_TYPE_VM)) {
+        xsl=JournalUtil.formatVM(xsl);
+      }
+ else {
+        xsl=JournalUtil.formatXML(xsl);
+      }
+    }
+  }
+ catch (  DocumentException de) {
+    throw new TemplateXslException();
+  }
+catch (  IOException ioe) {
+    throw new TemplateXslException();
+  }
+  byte[] smallBytes=null;
+  try {
+    smallBytes=FileUtil.getBytes(smallFile);
+  }
+ catch (  IOException ioe) {
+  }
+  validate(name,description,xsl,smallImage,smallImageURL,smallFile,smallBytes);
+  JournalTemplate template=journalTemplatePersistence.findByG_T(groupId,templateId);
+  template.setModifiedDate(new Date());
+  if (Validator.isNull(template.getStructureId()) && Validator.isNotNull(structureId)) {
+    template.setStructureId(structureId);
+  }
   template.setName(name);
   template.setDescription(description);
+  template.setXsl(xsl);
+  template.setLangType(langType);
+  template.setCacheable(cacheable);
   template.setSmallImage(smallImage);
   template.setSmallImageURL(smallImageURL);
-  template.setGroupId(groupId);
-  template.setStructureId(structureId);
-  template.setCacheable(cacheable);
-  JournalMirageTemplate journalMirageTemplate=new JournalMirageTemplate(template);
-  JournalMirageTemplate.UpdateAttributes updateAttributes=journalMirageTemplate.new UpdateAttributes(formatXsl,smallFile);
-  journalMirageTemplate.setUpdateAttributes(updateAttributes);
-  ContentTypeService contentTypeService=MirageServiceFactory.getContentTypeService();
-  try {
-    contentTypeService.updateTemplateOfContentType(journalMirageTemplate,null);
-  }
- catch (  ValidationException ex) {
-  }
-catch (  CMSException cmse) {
-    _throwException(cmse);
-  }
-  template=journalMirageTemplate.getTemplate();
+  journalTemplatePersistence.update(template,false);
+  saveImages(smallImage,template.getSmallImageId(),smallFile,smallBytes);
   return template;
 }

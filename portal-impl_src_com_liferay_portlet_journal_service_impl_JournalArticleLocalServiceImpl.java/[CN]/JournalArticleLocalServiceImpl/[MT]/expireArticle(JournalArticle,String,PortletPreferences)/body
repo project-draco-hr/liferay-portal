@@ -1,14 +1,22 @@
 {
-  JournalArticleContent articleContent=new JournalArticleContent(article);
-  JournalArticleContent.CreationAttributes creationAttributes=articleContent.new CreationAttributes();
-  creationAttributes.setArticleURL(articleURL);
-  creationAttributes.setPrefs(prefs);
-  articleContent.setCreationAttributes(creationAttributes);
-  WorkflowService workflowService=new WorkflowServiceImpl();
-  try {
-    workflowService.updateWorkflowContentRejected(articleContent);
+  if ((prefs != null) && !article.isApproved() && isLatestVersion(article.getGroupId(),article.getArticleId(),article.getVersion())) {
+    try {
+      sendEmail(article,articleURL,prefs,"denied");
+    }
+ catch (    IOException ioe) {
+      throw new SystemException(ioe);
+    }
   }
- catch (  CMSException ce) {
-    _throwException(ce);
+  article.setExpirationDate(new Date());
+  article.setApproved(false);
+  article.setExpired(true);
+  journalArticlePersistence.update(article,false);
+  try {
+    if (article.isIndexable()) {
+      Indexer.deleteArticle(article.getCompanyId(),article.getArticleId());
+    }
+  }
+ catch (  SearchException se) {
+    _log.error("Removing index " + article.getId(),se);
   }
 }
