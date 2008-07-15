@@ -1,26 +1,39 @@
 {
-  JournalStructure addedStructure=null;
+  User user=userPersistence.findByPrimaryKey(userId);
+  structureId=structureId.trim().toUpperCase();
+  Date now=new Date();
   try {
-    JournalStructure structure=new JournalStructureImpl();
-    structure.setUuid(uuid);
-    structure.setUserId(userId);
-    structure.setStructureId(structureId);
-    structure.setGroupId(groupId);
-    structure.setName(name);
-    structure.setDescription(description);
-    structure.setXsd(xsd);
-    JournalStructureContentType type=new JournalStructureContentType(structure,communityPermissions,guestPermissions);
-    JournalStructureContentType.CreationAttributes creationAttributes=type.new CreationAttributes();
-    creationAttributes.setAutoStructureId(autoStructureId);
-    creationAttributes.setAddCommunityPermissions(addCommunityPermissions);
-    creationAttributes.setAddGuestPermissions(addGuestPermissions);
-    type.setCreationAttributes(creationAttributes);
-    ContentTypeService ctService=MirageServiceFactory.getContentTypeService();
-    ctService.createContentType(type);
-    addedStructure=type.getStructure();
+    xsd=JournalUtil.formatXML(xsd);
   }
- catch (  CMSException ex) {
-    _throwException(ex);
+ catch (  DocumentException de) {
+    throw new StructureXsdException();
   }
-  return addedStructure;
+catch (  IOException ioe) {
+    throw new StructureXsdException();
+  }
+  validate(groupId,structureId,autoStructureId,name,description,xsd);
+  if (autoStructureId) {
+    structureId=String.valueOf(counterLocalService.increment());
+  }
+  long id=counterLocalService.increment();
+  JournalStructure structure=journalStructurePersistence.create(id);
+  structure.setUuid(uuid);
+  structure.setGroupId(groupId);
+  structure.setCompanyId(user.getCompanyId());
+  structure.setUserId(user.getUserId());
+  structure.setUserName(user.getFullName());
+  structure.setCreateDate(now);
+  structure.setModifiedDate(now);
+  structure.setStructureId(structureId);
+  structure.setName(name);
+  structure.setDescription(description);
+  structure.setXsd(xsd);
+  journalStructurePersistence.update(structure,false);
+  if ((addCommunityPermissions != null) && (addGuestPermissions != null)) {
+    addStructureResources(structure,addCommunityPermissions.booleanValue(),addGuestPermissions.booleanValue());
+  }
+ else {
+    addStructureResources(structure,communityPermissions,guestPermissions);
+  }
+  return structure;
 }
