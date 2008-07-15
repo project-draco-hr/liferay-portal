@@ -1,54 +1,30 @@
 {
-  User user=userPersistence.findByPrimaryKey(userId);
-  templateId=templateId.trim().toUpperCase();
-  Date now=new Date();
-  try {
-    if (formatXsl) {
-      if (langType.equals(JournalTemplateImpl.LANG_TYPE_VM)) {
-        xsl=JournalUtil.formatVM(xsl);
-      }
- else {
-        xsl=JournalUtil.formatXML(xsl);
-      }
-    }
-  }
- catch (  DocumentException de) {
-    throw new TemplateXslException();
-  }
-catch (  IOException ioe) {
-    throw new TemplateXslException();
-  }
-  byte[] smallBytes=null;
-  try {
-    smallBytes=FileUtil.getBytes(smallFile);
-  }
- catch (  IOException ioe) {
-  }
-  validate(groupId,templateId,autoTemplateId,name,description,xsl,smallImage,smallImageURL,smallFile,smallBytes);
-  if (autoTemplateId) {
-    templateId=String.valueOf(counterLocalService.increment());
-  }
-  long id=counterLocalService.increment();
-  JournalTemplate template=journalTemplatePersistence.create(id);
-  template.setUuid(uuid);
-  template.setGroupId(groupId);
-  template.setCompanyId(user.getCompanyId());
-  template.setUserId(user.getUserId());
-  template.setUserName(user.getFullName());
-  template.setCreateDate(now);
-  template.setModifiedDate(now);
+  JournalTemplate template=new JournalTemplateImpl();
+  JournalMirageTemplate mirageTemplate=new JournalMirageTemplate(template);
+  JournalMirageTemplate.CreationAttributes creationAttributes=mirageTemplate.new CreationAttributes(formatXsl,autoTemplateId,smallFile);
+  mirageTemplate.setCreationAttributes(creationAttributes);
   template.setTemplateId(templateId);
-  template.setStructureId(structureId);
+  template.setUserId(userId);
+  template.setLangType(langType);
+  template.setXsl(xsl);
+  template.setGroupId(groupId);
   template.setName(name);
   template.setDescription(description);
-  template.setXsl(xsl);
-  template.setLangType(langType);
-  template.setCacheable(cacheable);
   template.setSmallImage(smallImage);
-  template.setSmallImageId(counterLocalService.increment());
   template.setSmallImageURL(smallImageURL);
-  journalTemplatePersistence.update(template,false);
-  saveImages(smallImage,template.getSmallImageId(),smallFile,smallBytes);
+  template.setUuid(uuid);
+  template.setStructureId(structureId);
+  template.setCacheable(cacheable);
+  ContentTypeService contentTypeService=MirageServiceFactory.getContentTypeService();
+  try {
+    contentTypeService.addTemplateToContentType(mirageTemplate,null);
+  }
+ catch (  CMSException cmse) {
+    _throwException(cmse);
+  }
+catch (  ValidationException ve) {
+  }
+  template=mirageTemplate.getTemplate();
   if ((addCommunityPermissions != null) && (addGuestPermissions != null)) {
     addTemplateResources(template,addCommunityPermissions.booleanValue(),addGuestPermissions.booleanValue());
   }
