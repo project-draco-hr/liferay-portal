@@ -8,27 +8,47 @@
   }
   if (primKey != null) {
     Resource resource=addResource(companyId,name,ResourceConstants.SCOPE_INDIVIDUAL,primKey);
-    List<Permission> permissionsList=permissionLocalService.addPermissions(companyId,name,resource.getResourceId(),false);
-    PermissionsListFilter permissionsListFilter=PermissionsListFilterFactory.getInstance();
     long defaultUserId=userLocalService.getDefaultUserId(companyId);
-    if ((userId > 0) && (userId != defaultUserId)) {
-      List<Permission> userPermissionsList=permissionsListFilter.filterUserPermissions(companyId,groupId,userId,name,primKey,false,permissionsList);
-      userPersistence.addPermissions(userId,userPermissionsList);
+    PermissionsListFilter permissionsListFilter=PermissionsListFilterFactory.getInstance();
+    if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM != 5) {
+      List<Permission> permissionsList=permissionLocalService.addPermissions(companyId,name,resource.getResourceId(),false);
+      if ((userId > 0) && (userId != defaultUserId)) {
+        List<Permission> userPermissionsList=permissionsListFilter.filterUserPermissions(companyId,groupId,userId,name,primKey,false,permissionsList);
+        userPersistence.addPermissions(userId,userPermissionsList);
+      }
     }
     if (groupId > 0) {
-      groupPersistence.findByPrimaryKey(groupId);
+      Group group=groupPersistence.findByPrimaryKey(groupId);
       if (communityPermissions == null) {
         communityPermissions=new String[0];
       }
       List<Permission> communityPermissionsList=permissionLocalService.getPermissions(companyId,communityPermissions,resource.getResourceId());
       communityPermissionsList=permissionsListFilter.filterCommunityPermissions(companyId,groupId,userId,name,primKey,false,communityPermissionsList);
-      groupPersistence.addPermissions(groupId,communityPermissionsList);
+      if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 5) {
+        Role role=null;
+        if (group.isCommunity()) {
+          role=RoleLocalServiceUtil.getRole(companyId,RoleNames.COMMUNITY_MEMBER);
+        }
+ else         if (group.isOrganization()) {
+          role=RoleLocalServiceUtil.getRole(companyId,RoleNames.ORGANIZATION_MEMBER);
+        }
+        rolePersistence.addPermissions(role.getRoleId(),communityPermissionsList);
+      }
+ else {
+        groupPersistence.addPermissions(groupId,communityPermissionsList);
+      }
     }
     if (guestPermissions == null) {
       guestPermissions=new String[0];
     }
     List<Permission> guestPermissionsList=permissionLocalService.getPermissions(companyId,guestPermissions,resource.getResourceId());
     guestPermissionsList=permissionsListFilter.filterGuestPermissions(companyId,groupId,userId,name,primKey,false,guestPermissionsList);
-    userPersistence.addPermissions(defaultUserId,guestPermissionsList);
+    if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 5) {
+      Role guestRole=RoleLocalServiceUtil.getRole(companyId,RoleImpl.GUEST);
+      rolePersistence.addPermissions(guestRole.getRoleId(),guestPermissionsList);
+    }
+ else {
+      userPersistence.addPermissions(defaultUserId,guestPermissionsList);
+    }
   }
 }
