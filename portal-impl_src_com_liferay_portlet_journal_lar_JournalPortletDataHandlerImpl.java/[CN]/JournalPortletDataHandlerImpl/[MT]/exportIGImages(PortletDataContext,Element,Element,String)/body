@@ -1,0 +1,38 @@
+{
+  StringBuffer sb=new StringBuffer(text);
+  Pattern pattern=Pattern.compile("/image_gallery\\?(.*?)&(amp;)?t=");
+  Matcher matcher=pattern.matcher(text);
+  while (matcher.find()) {
+    try {
+      Map<String,String> detail=MapUtil.toLinkedHashMap(matcher.group(1).replace("&amp;","&").split("&"),StringPool.EQUAL);
+      IGImage image=null;
+      if (detail.containsKey("uuid")) {
+        String uuid=detail.get("uuid");
+        long groupId=GetterUtil.getLong(detail.get("groupId"));
+        image=IGImageLocalServiceUtil.getImageByUuidAndGroupId(uuid,groupId);
+      }
+ else       if (detail.containsKey("image_id") || detail.containsKey("img_id") || detail.containsKey("i_id")) {
+        long imageId=GetterUtil.getLong(detail.get("image_id"));
+        if (imageId <= 0) {
+          imageId=GetterUtil.getLong(detail.get("img_id"));
+          if (imageId <= 0) {
+            imageId=GetterUtil.getLong(detail.get("i_id"));
+          }
+        }
+        image=IGImageLocalServiceUtil.getIGImage(imageId);
+      }
+      if (image != null) {
+        IGPortletDataHandlerImpl.exportImage(context,igFoldersEl,imagesEl,image);
+        StringBuffer sb2=new StringBuffer();
+        sb2.append("uuid=");
+        sb2.append(image.getUuid());
+        sb2.append("&amp;groupId=@group_id@");
+        sb.replace(matcher.start(1),matcher.end(1),sb2.toString());
+      }
+    }
+ catch (    Exception e) {
+      _log.debug(e,e);
+    }
+  }
+  return sb.toString();
+}
