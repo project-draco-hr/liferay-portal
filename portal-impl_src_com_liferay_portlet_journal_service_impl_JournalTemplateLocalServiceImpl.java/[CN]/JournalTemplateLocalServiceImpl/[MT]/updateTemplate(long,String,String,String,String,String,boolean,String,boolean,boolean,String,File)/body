@@ -1,33 +1,8 @@
 {
-  templateId=templateId.trim().toUpperCase();
-  try {
-    if (formatXsl) {
-      if (langType.equals(JournalTemplateImpl.LANG_TYPE_VM)) {
-        xsl=JournalUtil.formatVM(xsl);
-      }
- else {
-        xsl=JournalUtil.formatXML(xsl);
-      }
-    }
-  }
- catch (  DocumentException de) {
-    throw new TemplateXslException();
-  }
-catch (  IOException ioe) {
-    throw new TemplateXslException();
-  }
-  byte[] smallBytes=null;
-  try {
-    smallBytes=FileUtil.getBytes(smallFile);
-  }
- catch (  IOException ioe) {
-  }
-  validate(name,description,xsl,smallImage,smallImageURL,smallFile,smallBytes);
-  JournalTemplate template=journalTemplatePersistence.findByG_T(groupId,templateId);
-  template.setModifiedDate(new Date());
-  if (Validator.isNull(template.getStructureId()) && Validator.isNotNull(structureId)) {
-    template.setStructureId(structureId);
-  }
+  JournalTemplate template=new JournalTemplateImpl();
+  template.setGroupId(groupId);
+  template.setTemplateId(templateId);
+  template.setStructureId(structureId);
   template.setName(name);
   template.setDescription(description);
   template.setXsl(xsl);
@@ -35,7 +10,17 @@ catch (  IOException ioe) {
   template.setCacheable(cacheable);
   template.setSmallImage(smallImage);
   template.setSmallImageURL(smallImageURL);
-  journalTemplatePersistence.update(template,false);
-  saveImages(smallImage,template.getSmallImageId(),smallFile,smallBytes);
-  return template;
+  MirageTemplate mirageTemplate=new MirageTemplate(template);
+  mirageTemplate.setFormatXsl(formatXsl);
+  mirageTemplate.setSmallFile(smallFile);
+  ContentTypeService contentTypeService=MirageServiceFactory.getContentTypeService();
+  try {
+    contentTypeService.updateTemplateOfContentType(mirageTemplate,null);
+  }
+ catch (  ValidationException ex) {
+  }
+catch (  CMSException cmse) {
+    ExceptionTranslator.translate(cmse);
+  }
+  return mirageTemplate.getTemplate();
 }
