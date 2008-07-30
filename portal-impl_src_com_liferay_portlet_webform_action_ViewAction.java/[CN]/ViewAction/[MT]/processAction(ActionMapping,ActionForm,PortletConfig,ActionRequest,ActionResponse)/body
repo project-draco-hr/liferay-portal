@@ -22,7 +22,16 @@
   for (int i=1; i <= WebFormUtil.MAX_FIELDS; i++) {
     fieldValues.add(actionRequest.getParameter("field" + i));
   }
-  if (validate(fieldValues,prefs)) {
+  Set<String> validationErrors=null;
+  try {
+    validationErrors=validate(fieldValues,prefs);
+  }
+ catch (  Exception e) {
+    actionRequest.setAttribute("validationScriptError",e.getMessage().trim());
+    setForward(actionRequest,"portlet.web_form.error");
+    return;
+  }
+  if (validationErrors.isEmpty()) {
     boolean emailSuccess=true;
     boolean databaseSuccess=true;
     boolean fileSuccess=true;
@@ -48,14 +57,14 @@
     }
   }
  else {
-    SessionErrors.add(actionRequest,"requiredFieldMissing");
+    for (    String badField : validationErrors) {
+      SessionErrors.add(actionRequest,"error" + badField);
+    }
   }
-  if (SessionErrors.isEmpty(actionRequest)) {
-    if (Validator.isNotNull(successURL)) {
-      actionResponse.sendRedirect(successURL);
-    }
+  if (SessionErrors.isEmpty(actionRequest) && Validator.isNotNull(successURL)) {
+    actionResponse.sendRedirect(successURL);
+  }
  else {
-      sendRedirect(actionRequest,actionResponse);
-    }
+    sendRedirect(actionRequest,actionResponse);
   }
 }
