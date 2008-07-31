@@ -1,0 +1,54 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  oldArticleId=oldArticleId.trim().toUpperCase();
+  newArticleId=newArticleId.trim().toUpperCase();
+  Date now=new Date();
+  JournalArticle oldArticle=journalArticlePersistence.findByG_A_V(groupId,oldArticleId,version);
+  if (autoArticleId) {
+    newArticleId=String.valueOf(counterLocalService.increment());
+  }
+ else {
+    validate(newArticleId);
+    JournalArticle newArticle=journalArticlePersistence.fetchByG_A_V(groupId,newArticleId,version);
+    if (newArticle != null) {
+      throw new DuplicateArticleIdException();
+    }
+  }
+  long id=counterLocalService.increment();
+  long resourcePrimKey=journalArticleResourceLocalService.getArticleResourcePrimKey(groupId,newArticleId);
+  JournalArticle newArticle=journalArticlePersistence.create(id);
+  newArticle.setResourcePrimKey(resourcePrimKey);
+  newArticle.setGroupId(groupId);
+  newArticle.setCompanyId(user.getCompanyId());
+  newArticle.setUserId(user.getUserId());
+  newArticle.setUserName(user.getFullName());
+  newArticle.setCreateDate(now);
+  newArticle.setModifiedDate(now);
+  newArticle.setArticleId(newArticleId);
+  newArticle.setVersion(JournalArticleImpl.DEFAULT_VERSION);
+  newArticle.setTitle(oldArticle.getTitle());
+  newArticle.setDescription(oldArticle.getDescription());
+  newArticle.setContent(oldArticle.getContent());
+  newArticle.setType(oldArticle.getType());
+  newArticle.setStructureId(oldArticle.getStructureId());
+  newArticle.setTemplateId(oldArticle.getTemplateId());
+  newArticle.setDisplayDate(oldArticle.getDisplayDate());
+  newArticle.setApproved(oldArticle.isApproved());
+  newArticle.setExpired(oldArticle.isExpired());
+  newArticle.setExpirationDate(oldArticle.getExpirationDate());
+  newArticle.setReviewDate(oldArticle.getReviewDate());
+  newArticle.setIndexable(oldArticle.isIndexable());
+  newArticle.setSmallImage(oldArticle.isSmallImage());
+  newArticle.setSmallImageId(counterLocalService.increment());
+  newArticle.setSmallImageURL(oldArticle.getSmallImageURL());
+  journalArticlePersistence.update(newArticle,false);
+  if (oldArticle.getSmallImage()) {
+    Image image=imageLocalService.getImage(oldArticle.getSmallImageId());
+    byte[] smallBytes=image.getTextObj();
+    imageLocalService.updateImage(newArticle.getSmallImageId(),smallBytes);
+  }
+  addArticleResources(newArticle,true,true);
+  String[] tagsEntries=tagsEntryLocalService.getEntryNames(JournalArticle.class.getName(),oldArticle.getResourcePrimKey());
+  updateTagsAsset(userId,newArticle,tagsEntries);
+  return null;
+}

@@ -1,0 +1,43 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  oldTemplateId=oldTemplateId.trim().toUpperCase();
+  newTemplateId=newTemplateId.trim().toUpperCase();
+  Date now=new Date();
+  JournalTemplate oldTemplate=journalTemplatePersistence.findByG_T(groupId,oldTemplateId);
+  if (autoTemplateId) {
+    newTemplateId=String.valueOf(counterLocalService.increment());
+  }
+ else {
+    validate(newTemplateId);
+    JournalTemplate newTemplate=journalTemplatePersistence.fetchByG_T(groupId,newTemplateId);
+    if (newTemplate != null) {
+      throw new DuplicateTemplateIdException();
+    }
+  }
+  long id=counterLocalService.increment();
+  JournalTemplate newTemplate=journalTemplatePersistence.create(id);
+  newTemplate.setGroupId(groupId);
+  newTemplate.setCompanyId(user.getCompanyId());
+  newTemplate.setUserId(user.getUserId());
+  newTemplate.setUserName(user.getFullName());
+  newTemplate.setCreateDate(now);
+  newTemplate.setModifiedDate(now);
+  newTemplate.setTemplateId(newTemplateId);
+  newTemplate.setStructureId(oldTemplate.getStructureId());
+  newTemplate.setName(oldTemplate.getName());
+  newTemplate.setDescription(oldTemplate.getDescription());
+  newTemplate.setXsl(oldTemplate.getXsl());
+  newTemplate.setLangType(oldTemplate.getLangType());
+  newTemplate.setCacheable(oldTemplate.isCacheable());
+  newTemplate.setSmallImage(oldTemplate.isSmallImage());
+  newTemplate.setSmallImageId(counterLocalService.increment());
+  newTemplate.setSmallImageURL(oldTemplate.getSmallImageURL());
+  journalTemplatePersistence.update(newTemplate,false);
+  if (oldTemplate.getSmallImage()) {
+    Image image=imageLocalService.getImage(oldTemplate.getSmallImageId());
+    byte[] smallBytes=image.getTextObj();
+    imageLocalService.updateImage(newTemplate.getSmallImageId(),smallBytes);
+  }
+  addTemplateResources(newTemplate,true,true);
+  return null;
+}
