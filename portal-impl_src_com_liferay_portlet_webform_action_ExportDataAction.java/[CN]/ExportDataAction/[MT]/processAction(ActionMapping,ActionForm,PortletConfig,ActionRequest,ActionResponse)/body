@@ -1,0 +1,38 @@
+{
+  PortletPreferences prefs=PortletPreferencesFactoryUtil.getPortletSetup(actionRequest);
+  String databaseTableName=prefs.getValue("databaseTableName",StringPool.BLANK);
+  String title=prefs.getValue("title","no-title");
+  StringBuilder sb=new StringBuilder();
+  List<String> fieldLabels=new ArrayList<String>();
+  for (int i=1; i <= WebFormUtil.MAX_FIELDS; i++) {
+    String fieldLabel=prefs.getValue("fieldLabel" + i,StringPool.BLANK);
+    if (Validator.isNotNull(fieldLabel)) {
+      fieldLabels.add(fieldLabel);
+      sb.append("\"");
+      sb.append(fieldLabel.replaceAll("\"","\\\""));
+      sb.append("\";");
+    }
+  }
+  sb.deleteCharAt(sb.length() - 1);
+  sb.append("\n");
+  if (Validator.isNotNull(databaseTableName)) {
+    List<ExpandoRow> rows=ExpandoRowLocalServiceUtil.getRows(WebFormUtil.class.getName(),databaseTableName,QueryUtil.ALL_POS,QueryUtil.ALL_POS);
+    for (    ExpandoRow row : rows) {
+      for (      String fieldName : fieldLabels) {
+        String data=ExpandoValueLocalServiceUtil.getData(WebFormUtil.class.getName(),databaseTableName,fieldName,row.getClassPK(),StringPool.BLANK);
+        data=data.replaceAll("\"","\\\"");
+        sb.append("\"");
+        sb.append(data);
+        sb.append("\";");
+      }
+      sb.deleteCharAt(sb.length() - 1);
+      sb.append("\n");
+    }
+  }
+  HttpServletResponse response=PortalUtil.getHttpServletResponse(actionResponse);
+  String fileName=title + ".csv";
+  InputStream is=new ByteArrayInputStream(sb.toString().getBytes());
+  String contentType=ContentTypes.APPLICATION_TEXT;
+  ServletResponseUtil.sendFile(response,fileName,is,contentType);
+  setForward(actionRequest,ActionConstants.COMMON_NULL);
+}
