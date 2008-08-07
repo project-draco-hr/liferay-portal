@@ -1,0 +1,23 @@
+{
+  MBMessage message=mbMessagePersistence.findByPrimaryKey(messageId);
+  if (message.isRoot()) {
+    return;
+  }
+  MBThread thread=mbThreadPersistence.findByPrimaryKey(message.getThreadId());
+  MBMessage rootMessage=mbMessagePersistence.findByPrimaryKey(thread.getRootMessageId());
+  MBMessagePermission.check(getPermissionChecker(),rootMessage.getMessageId(),ActionKeys.UPDATE);
+  MBMessageFlag messageFlag=mbMessageFlagPersistence.fetchByU_M_F(rootMessage.getUserId(),rootMessage.getMessageId(),MBMessageFlagImpl.QUESTION_FLAG);
+  if (messageFlag != null) {
+    messageFlag.setFlag(MBMessageFlagImpl.ANSWER_FLAG);
+    mbMessageFlagPersistence.update(messageFlag,false);
+  }
+  messageFlag=mbMessageFlagPersistence.fetchByU_M_F(message.getUserId(),message.getMessageId(),MBMessageFlagImpl.ANSWER_FLAG);
+  if (messageFlag == null) {
+    long messageFlagId=counterLocalService.increment();
+    messageFlag=mbMessageFlagPersistence.create(messageFlagId);
+    messageFlag.setUserId(message.getUserId());
+    messageFlag.setMessageId(message.getMessageId());
+    messageFlag.setFlag(MBMessageFlagImpl.ANSWER_FLAG);
+    mbMessageFlagPersistence.update(messageFlag,false);
+  }
+}
