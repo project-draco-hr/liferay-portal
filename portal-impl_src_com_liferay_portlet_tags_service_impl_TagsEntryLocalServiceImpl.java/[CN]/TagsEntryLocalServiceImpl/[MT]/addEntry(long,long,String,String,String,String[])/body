@@ -1,0 +1,57 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  Date now=new Date();
+  name=name.trim().toLowerCase();
+  validate(name);
+  if (hasEntry(user.getCompanyId(),name)) {
+    throw new DuplicateEntryException("A tag entry with the name " + name + " already exists");
+  }
+  long entryId=counterLocalService.increment();
+  TagsEntry entry=tagsEntryPersistence.create(entryId);
+  entry.setGroupId(groupId);
+  entry.setCompanyId(user.getCompanyId());
+  entry.setUserId(user.getUserId());
+  entry.setUserName(user.getFullName());
+  entry.setCreateDate(now);
+  entry.setModifiedDate(now);
+  entry.setName(name);
+  if (Validator.isNull(vocabularyName)) {
+    vocabularyName=PropsValues.TAGS_VOCABULARY_DEFAULT;
+  }
+  TagsVocabulary vocabulary=null;
+  try {
+    vocabulary=tagsVocabularyPersistence.findByG_N(groupId,vocabularyName);
+  }
+ catch (  NoSuchVocabularyException nsve) {
+    if (vocabularyName.equals(PropsValues.TAGS_VOCABULARY_DEFAULT)) {
+      vocabulary=tagsVocabularyLocalService.addVocabulary(userId,groupId,vocabularyName,true);
+    }
+ else {
+      throw nsve;
+    }
+  }
+  entry.setVocabularyId(vocabulary.getVocabularyId());
+  if (Validator.isNotNull(parentEntryName)) {
+    TagsEntry parentEntry=tagsEntryPersistence.findByG_N(groupId,parentEntryName);
+    entry.setParentEntryId(parentEntry.getEntryId());
+  }
+ else {
+    entry.setParentEntryId(TagsEntryConstants.DEFAULT_PARENT_ENTRY_ID);
+  }
+  tagsEntryPersistence.update(entry,false);
+  for (int i=0; i < properties.length; i++) {
+    String[] property=StringUtil.split(properties[i],StringPool.COLON);
+    String key=StringPool.BLANK;
+    if (property.length > 1) {
+      key=GetterUtil.getString(property[1]);
+    }
+    String value=StringPool.BLANK;
+    if (property.length > 2) {
+      value=GetterUtil.getString(property[2]);
+    }
+    if (Validator.isNotNull(key)) {
+      tagsPropertyLocalService.addProperty(userId,entryId,key,value);
+    }
+  }
+  return entry;
+}
