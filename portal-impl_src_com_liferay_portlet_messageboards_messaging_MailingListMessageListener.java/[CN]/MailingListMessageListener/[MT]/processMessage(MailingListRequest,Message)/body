@@ -1,0 +1,47 @@
+{
+  if (MBUtil.hasMailIDHeader(mailMessage)) {
+    return;
+  }
+  String from=null;
+  Address[] addresses=mailMessage.getFrom();
+  if (Validator.isNotNull(addresses)) {
+    from=addresses[0].toString();
+  }
+  Company company=CompanyLocalServiceUtil.getCompany(mailingListRequest.getCompanyId());
+  long categoryId=mailingListRequest.getCategoryId();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Category id " + categoryId);
+  }
+  boolean anonymous=false;
+  User user=UserLocalServiceUtil.getUserById(company.getCompanyId(),mailingListRequest.getUserId());
+  try {
+    user=UserLocalServiceUtil.getUserByEmailAddress(company.getCompanyId(),from);
+  }
+ catch (  NoSuchUserException nsue) {
+    anonymous=true;
+  }
+  long parentMessageId=MBUtil.getParentMessageId(mailMessage);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Parent message id " + parentMessageId);
+  }
+  MBMessage parentMessage=null;
+  try {
+    if (parentMessageId > 0) {
+      parentMessage=MBMessageLocalServiceUtil.getMessage(parentMessageId);
+    }
+  }
+ catch (  NoSuchMessageException nsme) {
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Parent message " + parentMessage);
+  }
+  MBMailMessage collector=new MBMailMessage();
+  MBUtil.collectPartContent(mailMessage,collector);
+  PermissionCheckerUtil.setThreadValues(user);
+  if (parentMessage == null) {
+    MBMessageServiceUtil.addMessage(categoryId,mailMessage.getSubject(),collector.getBody(),collector.getFiles(),anonymous,0.0,null,true,true);
+  }
+ else {
+    MBMessageServiceUtil.addMessage(categoryId,parentMessage.getThreadId(),parentMessage.getMessageId(),mailMessage.getSubject(),collector.getBody(),collector.getFiles(),anonymous,0.0,null,true,true);
+  }
+}
