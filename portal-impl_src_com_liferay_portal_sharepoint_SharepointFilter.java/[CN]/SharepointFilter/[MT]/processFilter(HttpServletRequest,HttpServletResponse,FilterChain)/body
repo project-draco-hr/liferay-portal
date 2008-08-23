@@ -1,0 +1,45 @@
+{
+  String method=request.getMethod();
+  String userAgent=request.getHeader(HttpHeaders.USER_AGENT);
+  if ((userAgent.startsWith("Microsoft Data Access Internet Publishing") || userAgent.startsWith("Microsoft Office Protocol Discovery")) && method.equals(HttpMethods.OPTIONS)) {
+    setOptionsHeaders(response);
+    return;
+  }
+  if (!isSharepointRequest(request.getRequestURI())) {
+    processFilter(SharepointFilter.class,request,response,filterChain);
+    return;
+  }
+  if (method.equals(HttpMethods.GET) || method.equals(HttpMethods.HEAD)) {
+    setGetHeaders(response);
+  }
+ else   if (method.equals(HttpMethods.POST)) {
+    setPostHeaders(response);
+  }
+  PermissionChecker permissionChecker=null;
+  try {
+    HttpSession session=request.getSession();
+    User user=(User)session.getAttribute(WebKeys.USER);
+    if (user == null) {
+      user=login(request,response);
+      if (user == null) {
+        throw new SharepointException("User is null");
+      }
+      session.setAttribute(WebKeys.USER,user);
+    }
+    PrincipalThreadLocal.setName(user.getUserId());
+    permissionChecker=PermissionCheckerFactory.create(user,false);
+    PermissionThreadLocal.setPermissionChecker(permissionChecker);
+    processFilter(SharepointFilter.class,request,response,filterChain);
+  }
+ catch (  Exception e) {
+    sendUnauthorized(response);
+    return;
+  }
+ finally {
+    try {
+      PermissionCheckerFactory.recycle(permissionChecker);
+    }
+ catch (    Exception e) {
+    }
+  }
+}

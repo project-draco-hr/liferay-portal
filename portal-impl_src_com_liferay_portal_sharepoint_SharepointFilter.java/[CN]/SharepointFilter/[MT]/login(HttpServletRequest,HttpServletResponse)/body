@@ -1,0 +1,49 @@
+{
+  User user=null;
+  String authorization=request.getHeader("Authorization");
+  if (authorization == null) {
+    return user;
+  }
+  StringTokenizer st=new StringTokenizer(authorization);
+  if (!st.hasMoreTokens()) {
+    return user;
+  }
+  String basic=st.nextToken();
+  if (!basic.equalsIgnoreCase(HttpServletRequest.BASIC_AUTH)) {
+    return user;
+  }
+  String encodedCredentials=st.nextToken();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Encoded credentials are " + encodedCredentials);
+  }
+  String decodedCredentials=new String(Base64.decode(encodedCredentials));
+  if (_log.isDebugEnabled()) {
+    _log.debug("Decoded credentials are " + decodedCredentials);
+  }
+  int pos=decodedCredentials.indexOf(StringPool.COLON);
+  if (pos == -1) {
+    return user;
+  }
+  Company company=PortalUtil.getCompany(request);
+  String login=GetterUtil.getString(decodedCredentials.substring(0,pos));
+  long userId=GetterUtil.getLong(login);
+  String password=decodedCredentials.substring(pos + 1);
+  Map<String,String[]> headerMap=new HashMap<String,String[]>();
+  Map<String,String[]> parameterMap=new HashMap<String,String[]>();
+  int authResult=Authenticator.FAILURE;
+  if (company.getAuthType().equals(CompanyConstants.AUTH_TYPE_EA)) {
+    authResult=UserLocalServiceUtil.authenticateByEmailAddress(company.getCompanyId(),login,password,headerMap,parameterMap);
+    userId=UserLocalServiceUtil.getUserIdByEmailAddress(company.getCompanyId(),login);
+  }
+ else   if (company.getAuthType().equals(CompanyConstants.AUTH_TYPE_SN)) {
+    authResult=UserLocalServiceUtil.authenticateByScreenName(company.getCompanyId(),login,password,headerMap,parameterMap);
+    userId=UserLocalServiceUtil.getUserIdByScreenName(company.getCompanyId(),login);
+  }
+ else   if (company.getAuthType().equals(CompanyConstants.AUTH_TYPE_ID)) {
+    authResult=UserLocalServiceUtil.authenticateByUserId(company.getCompanyId(),userId,password,headerMap,parameterMap);
+  }
+  if (authResult == Authenticator.SUCCESS) {
+    user=UserLocalServiceUtil.getUser(userId);
+  }
+  return user;
+}
