@@ -1,0 +1,62 @@
+{
+  List<ResponseElement> elements=new ArrayList<ResponseElement>();
+  String urlList=ParamUtil.getString(request.getHttpRequest(),"url_list");
+  urlList=urlList.substring(1,urlList.length() - 1);
+  String documentNames[]=urlList.split(StringPool.SEMICOLON);
+  List<DLFolder> folders=new ArrayList<DLFolder>();
+  List<DLFileEntry> entries=new ArrayList<DLFileEntry>();
+  for (  String documentName : documentNames) {
+    try {
+      long ids[]=SharepointUtil.getIds(documentName);
+      folders.add(DLFolderServiceUtil.getFolder(ids[1]));
+    }
+ catch (    Exception e) {
+      if (e instanceof NoSuchFolderException) {
+        try {
+          entries.add(SharepointUtil.getDLFileEntry(documentName));
+        }
+ catch (        Exception e2) {
+        }
+      }
+    }
+  }
+  Tree documentTree=new Tree();
+  Tree removedDocsTree=new Tree();
+  Tree failedDocsTree=new Tree();
+  for (  DLFileEntry entry : entries) {
+    try {
+      documentTree=SharepointUtil.getDocumentTree(entry);
+      DLFileEntryServiceUtil.deleteFileEntry(entry.getFolderId(),entry.getName());
+      removedDocsTree.addChild(documentTree);
+    }
+ catch (    Exception e) {
+      try {
+        failedDocsTree.addChild(documentTree);
+      }
+ catch (      Exception e2) {
+      }
+    }
+  }
+  Tree folderTree=new Tree();
+  Tree removedDirsTree=new Tree();
+  Tree failedDirsTree=new Tree();
+  for (  DLFolder folder : folders) {
+    try {
+      folderTree=SharepointUtil.getDLFolderTree(folder);
+      DLFolderServiceUtil.deleteFolder(folder.getFolderId());
+      removedDirsTree.addChild(folderTree);
+    }
+ catch (    Exception e) {
+      try {
+        failedDirsTree.addChild(folderTree);
+      }
+ catch (      Exception e2) {
+      }
+    }
+  }
+  elements.add(new Property("removed_docs",removedDocsTree));
+  elements.add(new Property("removed_dirs",removedDirsTree));
+  elements.add(new Property("failed_docs",failedDocsTree));
+  elements.add(new Property("failed_dirs",failedDirsTree));
+  return elements;
+}
