@@ -12,6 +12,7 @@
   String mailId=jsonObj.getString("mailId");
   String inReplyTo=jsonObj.getString("inReplyTo");
   boolean htmlFormat=jsonObj.getBoolean("htmlFormat");
+  boolean sourceMailingList=jsonObj.getBoolean("sourceMailingList");
   Set<Long> sent=new HashSet<Long>();
   if (_log.isInfoEnabled()) {
     _log.info("Sending notifications for {mailId=" + mailId + ", threadId="+ threadId+ ", categoryIds="+ categoryIds+ "}");
@@ -22,6 +23,29 @@
   for (  long categoryId : categoryIdsArray) {
     subscriptions=SubscriptionLocalServiceUtil.getSubscriptions(companyId,MBCategory.class.getName(),categoryId);
     sendEmail(userId,fromName,fromAddress,subject,body,subscriptions,sent,replyToAddress,mailId,inReplyTo,htmlFormat);
+  }
+  for (  long categoryId : categoryIdsArray) {
+    try {
+      MBMailingList mailingList=MBMailingListLocalServiceUtil.getCategoryMailingList(categoryId);
+      if (mailingList.isActive() && !sourceMailingList) {
+        String mailingListAddress=mailingList.getEmailAddress();
+        SMTPAccount account=null;
+        fromAddress=mailingList.getOutEmailAddress();
+        if (mailingList.isOutCustom()) {
+          String protocol=Account.PROTOCOL_SMTP;
+          if (mailingList.isOutUseSSL()) {
+            protocol=Account.PROTOCOL_SMTPS;
+          }
+          account=(SMTPAccount)Account.getInstance(protocol,mailingList.getOutServerPort());
+          account.setHost(mailingList.getOutServerName());
+          account.setUser(mailingList.getOutUserName());
+          account.setPassword(mailingList.getOutPassword());
+        }
+        sendEmail(fromAddress,subject,body,mailingListAddress,replyToAddress,mailId,inReplyTo,htmlFormat,account);
+      }
+    }
+ catch (    NoSuchMailingListException nsmle) {
+    }
   }
   if (_log.isInfoEnabled()) {
     _log.info("Finished sending notifications");
