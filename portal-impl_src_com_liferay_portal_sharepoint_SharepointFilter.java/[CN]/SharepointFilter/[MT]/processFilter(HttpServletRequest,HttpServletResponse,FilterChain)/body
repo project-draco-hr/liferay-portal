@@ -19,23 +19,30 @@
   try {
     HttpSession session=request.getSession();
     User user=(User)session.getAttribute(WebKeys.USER);
-    if (user == null) {
-      user=login(request,response);
+    try {
       if (user == null) {
-        throw new SharepointException("User is null");
+        user=login(request,response);
+        if (user == null) {
+          throw new PrincipalException("User is null");
+        }
+        session.setAttribute(WebKeys.USER,user);
       }
-      session.setAttribute(WebKeys.USER,user);
+      PrincipalThreadLocal.setName(user.getUserId());
+      permissionChecker=PermissionCheckerFactory.create(user,false);
+      PermissionThreadLocal.setPermissionChecker(permissionChecker);
     }
-    PrincipalThreadLocal.setName(user.getUserId());
-    permissionChecker=PermissionCheckerFactory.create(user,false);
-    PermissionThreadLocal.setPermissionChecker(permissionChecker);
-    processFilter(SharepointFilter.class,request,response,filterChain);
+ catch (    Exception e) {
+      sendUnauthorized(response);
+      return;
+    }
+    try {
+      processFilter(SharepointFilter.class,request,response,filterChain);
+    }
+ catch (    Exception e) {
+      _log.error(e,e);
+    }
   }
- catch (  Exception e) {
-    sendUnauthorized(response);
-    return;
-  }
- finally {
+  finally {
     try {
       PermissionCheckerFactory.recycle(permissionChecker);
     }
