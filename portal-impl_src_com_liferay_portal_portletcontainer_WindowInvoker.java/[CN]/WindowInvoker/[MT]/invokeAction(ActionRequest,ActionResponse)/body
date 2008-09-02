@@ -9,7 +9,20 @@
     HttpServletRequest request=actionRequestImpl.getOriginalHttpServletRequest();
     HttpServletResponse response=actionResponseImpl.getHttpServletResponse();
     _initUser(request,_portletModel);
-    ExecuteActionRequest executeActionRequest=ContainerRequestFactory.createExecuteActionRequest(request,_portletModel,actionRequestImpl.getWindowState(),actionRequestImpl.getPortletMode(),_getPlid(actionRequest),isFacesPortlet(),_remotePortlet);
+    WindowState currentWindowState=actionRequestImpl.getWindowState();
+    PortletMode currentPortletMode=actionRequestImpl.getPortletMode();
+    if (_remotePortlet) {
+      WindowRequestReader reqReader=new WSRPWindowRequestReader();
+      ChannelState newChannelState=reqReader.readNewWindowState(request);
+      if (newChannelState != null) {
+        currentWindowState=PortletAppEngineUtils.getWindowState(newChannelState);
+      }
+      ChannelMode newChannelMode=reqReader.readNewPortletWindowMode(request);
+      if (newChannelMode != null) {
+        currentPortletMode=PortletAppEngineUtils.getPortletMode(newChannelMode);
+      }
+    }
+    ExecuteActionRequest executeActionRequest=ContainerRequestFactory.createExecuteActionRequest(request,_portletModel,currentWindowState,currentPortletMode,_getPlid(actionRequest),isFacesPortlet(),_remotePortlet);
     _populateContainerRequest(request,response,executeActionRequest,actionRequest);
     ExecuteActionResponse executeActionResponse=ContainerResponseFactory.createExecuteActionResponse(response);
     ChannelURLType urlType=executeActionRequest.getWindowRequestReader().readURLType(request);
@@ -18,13 +31,21 @@
     if (redirectURL != null) {
       actionResponseImpl.setRedirectLocation(redirectURL.toString());
     }
-    ChannelState newWindowState=executeActionResponse.getNewWindowState();
-    if (newWindowState != null) {
-      actionResponseImpl.setWindowState(PortletAppEngineUtils.getWindowState(newWindowState));
-    }
-    ChannelMode newPortletMode=executeActionResponse.getNewChannelMode();
-    if (newPortletMode != null) {
-      actionResponseImpl.setPortletMode(PortletAppEngineUtils.getPortletMode(newPortletMode));
+ else {
+      ChannelState newWindowState=executeActionResponse.getNewWindowState();
+      if (newWindowState != null) {
+        actionResponseImpl.setWindowState(PortletAppEngineUtils.getWindowState(newWindowState));
+      }
+ else {
+        actionResponseImpl.setWindowState(currentWindowState);
+      }
+      ChannelMode newPortletMode=executeActionResponse.getNewChannelMode();
+      if (newPortletMode != null) {
+        actionResponseImpl.setPortletMode(PortletAppEngineUtils.getPortletMode(newPortletMode));
+      }
+ else {
+        actionResponseImpl.setPortletMode(currentPortletMode);
+      }
     }
   }
  catch (  Exception e) {
