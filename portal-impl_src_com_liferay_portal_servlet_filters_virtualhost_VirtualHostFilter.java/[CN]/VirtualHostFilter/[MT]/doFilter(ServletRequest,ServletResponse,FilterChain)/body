@@ -39,8 +39,8 @@
   }
   String contextPath=PortalUtil.getPathContext();
   String friendlyURL=request.getRequestURI();
-  if ((!contextPath.equals(StringPool.SLASH)) && (friendlyURL.indexOf(contextPath) != -1)) {
-    friendlyURL=friendlyURL.substring(contextPath.length(),friendlyURL.length());
+  if ((Validator.isNotNull(contextPath)) && (friendlyURL.indexOf(contextPath) != -1)) {
+    friendlyURL=friendlyURL.substring(contextPath.length());
   }
   friendlyURL=StringUtil.replace(friendlyURL,StringPool.DOUBLE_SLASH,StringPool.SLASH);
   String i18nLanguageId=null;
@@ -66,22 +66,34 @@
   }
   if (layoutSet != null) {
     try {
-      LastPath lastPath=new LastPath(StringPool.BLANK,friendlyURL,servletRequest.getParameterMap());
+      LastPath lastPath=new LastPath(contextPath,friendlyURL,servletRequest.getParameterMap());
       servletRequest.setAttribute(WebKeys.LAST_PATH,lastPath);
       StringBuilder prefix=new StringBuilder();
+      Group group=GroupLocalServiceUtil.getGroup(layoutSet.getGroupId());
       if (layoutSet.isPrivateLayout()) {
-        prefix.append(PortalUtil.getPathFriendlyURLPrivateGroup());
+        if (group.isUser()) {
+          prefix.append(_PRIVATE_USER_MAPPING);
+        }
+ else {
+          prefix.append(_PRIVATE_GROUP_MAPPING);
+        }
       }
  else {
-        prefix.append(PortalUtil.getPathFriendlyURLPublic());
+        prefix.append(_PUBLIC_GROUP_MAPPING);
       }
-      Group group=GroupLocalServiceUtil.getGroup(layoutSet.getGroupId());
       prefix.append(group.getFriendlyURL());
       StringBuilder redirect=new StringBuilder();
       if (i18nLanguageId != null) {
         redirect.append(i18nLanguageId);
       }
-      redirect.append(prefix);
+      if (friendlyURL.startsWith(PropsValues.WIDGET_SERVLET_MAPPING)) {
+        redirect.append(PropsValues.WIDGET_SERVLET_MAPPING);
+        friendlyURL=StringUtil.replaceFirst(friendlyURL,PropsValues.WIDGET_SERVLET_MAPPING,StringPool.BLANK);
+      }
+      long plid=PortalUtil.getPlidFromFriendlyURL(companyId,friendlyURL);
+      if (plid <= 0) {
+        redirect.append(prefix);
+      }
       redirect.append(friendlyURL);
       String query=request.getQueryString();
       if (query != null) {
