@@ -1,0 +1,59 @@
+{
+  byte[] bytes=null;
+  ClassLoader contextClassLoader=Thread.currentThread().getContextClassLoader();
+  try {
+    Thread.currentThread().setContextClassLoader(_classLoader);
+    Class classObj=Class.forName(_obj.getClass().getName(),true,_classLoader);
+    List<Class> parameterTypes=new ArrayList<Class>();
+    for (int i=0; i < args.length; i++) {
+      Object arg=args[i];
+      Class argClass=Class.forName(arg.getClass().getName(),true,_classLoader);
+      if (ClassUtil.isSubclass(argClass,PrimitiveWrapper.class)) {
+        MethodKey methodKey=new MethodKey(argClass.getName(),"getValue",null);
+        Method method=MethodCache.get(methodKey);
+        args[i]=method.invoke(arg,(Object[])null);
+        argClass=(Class)argClass.getField("TYPE").get(arg);
+      }
+      parameterTypes.add(argClass);
+    }
+    Method method=null;
+    try {
+      method=classObj.getMethod(methodName,parameterTypes.toArray(new Class[parameterTypes.size()]));
+    }
+ catch (    NoSuchMethodException nsme) {
+      Method[] methods=((Class<?>)classObj).getMethods();
+      for (int i=0; i < methods.length; i++) {
+        Class<?>[] methodParameterTypes=methods[i].getParameterTypes();
+        if (methods[i].getName().equals(methodName) && methodParameterTypes.length == parameterTypes.size()) {
+          boolean correctParams=true;
+          for (int j=0; j < parameterTypes.size(); j++) {
+            Class<?> a=(Class<?>)parameterTypes.get(j);
+            Class<?> b=methodParameterTypes[j];
+            if (!ClassUtil.isSubclass(a,b)) {
+              correctParams=false;
+              break;
+            }
+          }
+          if (correctParams) {
+            method=methods[i];
+            break;
+          }
+        }
+      }
+      if (method == null) {
+        throw nsme;
+      }
+    }
+    return method.invoke(_obj,args);
+  }
+ catch (  InvocationTargetException ite) {
+    throw translateThrowable(ite.getCause(),contextClassLoader);
+  }
+catch (  Throwable t) {
+    _log.error(t,t);
+    throw t;
+  }
+ finally {
+    Thread.currentThread().setContextClassLoader(contextClassLoader);
+  }
+}
