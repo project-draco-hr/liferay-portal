@@ -1,0 +1,49 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  long groupId=PortalUtil.getPortletGroupId(plid);
+  Date displayDate=PortalUtil.getDate(displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,user.getTimeZone(),new EntryDisplayDateException());
+  Date now=new Date();
+  validate(title,content);
+  long entryId=counterLocalService.increment();
+  BlogsEntry entry=blogsEntryPersistence.create(entryId);
+  entry.setUuid(uuid);
+  entry.setGroupId(groupId);
+  entry.setCompanyId(user.getCompanyId());
+  entry.setUserId(user.getUserId());
+  entry.setUserName(user.getFullName());
+  entry.setCreateDate(now);
+  entry.setModifiedDate(now);
+  entry.setTitle(title);
+  entry.setUrlTitle(getUniqueUrlTitle(entryId,groupId,title));
+  entry.setContent(content);
+  entry.setDisplayDate(displayDate);
+  entry.setDraft(draft);
+  entry.setAllowTrackbacks(allowTrackbacks);
+  blogsEntryPersistence.update(entry,false);
+  if ((addCommunityPermissions != null) && (addGuestPermissions != null)) {
+    addEntryResources(entry,addCommunityPermissions.booleanValue(),addGuestPermissions.booleanValue());
+  }
+ else {
+    addEntryResources(entry,communityPermissions,guestPermissions);
+  }
+  if (!draft) {
+    blogsStatsUserLocalService.updateStatsUser(groupId,userId,now);
+  }
+  if (!draft) {
+    socialActivityLocalService.addActivity(userId,groupId,BlogsEntry.class.getName(),entryId,BlogsActivityKeys.ADD_ENTRY,StringPool.BLANK,0);
+  }
+  updateTagsAsset(userId,entry,tagsEntries);
+  try {
+    if (!draft) {
+      Indexer.addEntry(entry.getCompanyId(),entry.getGroupId(),userId,entryId,title,content,tagsEntries);
+    }
+  }
+ catch (  SearchException se) {
+    _log.error("Indexing " + entryId,se);
+  }
+  if (!draft) {
+    pingGoogle(entry,themeDisplay);
+    pingTrackbacks(entry,trackbacks,false,themeDisplay);
+  }
+  return entry;
+}
