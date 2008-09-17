@@ -1,0 +1,119 @@
+{
+  String xml=FileUtil.readAsString(request.getInputStream());
+  String documentName=null;
+  int beginPos=xml.lastIndexOf("<document>");
+  int endPos=xml.lastIndexOf("</document>");
+  if (beginPos != -1) {
+    documentName=xml.substring(beginPos + 10,endPos);
+    documentName=HttpUtil.decodeURL(documentName);
+  }
+  String path=documentName;
+  int pos=documentName.lastIndexOf("sharepoint/");
+  if (pos != -1) {
+    path=path.substring(pos + 11);
+  }
+  Group group=GroupServiceUtil.getGroup(SharepointUtil.getGroupId(path));
+  boolean minimal=false;
+  beginPos=xml.lastIndexOf("<minimal>");
+  endPos=xml.lastIndexOf("</minimal>");
+  if (beginPos != -1) {
+    minimal=GetterUtil.getBoolean(xml.substring(beginPos + 9,endPos));
+  }
+  Document doc=SAXReaderUtil.createDocument();
+  Element root=doc.addElement("Results");
+  String url="http://" + request.getLocalAddr() + ":"+ request.getServerPort()+ "/sharepoint";
+  root.addElement("SubscribeUrl").setText(url);
+  root.addElement("MtgInstance");
+  root.addElement("SettingUrl").setText(url);
+  root.addElement("PermsUrl").setText(url);
+  root.addElement("UserInfoUrl").setText(url);
+  Element rolesEl=root.addElement("Roles");
+  List<Role> roles=RoleLocalServiceUtil.getRoles(PortalUtil.getCompanyId(request));
+  for (  Role role : roles) {
+    ResponseElement responseElement=new RoleResponseElement(role);
+    responseElement.addElement(rolesEl);
+  }
+  if (!minimal) {
+    Element schemaEl=root.addElement("Schema");
+    schemaEl.addAttribute("Name","Documents");
+    schemaEl.addAttribute("Url",group.getName());
+    Element fieldEl=schemaEl.addElement("Field");
+    fieldEl.addAttribute("Name","FileLeafRef");
+    fieldEl.addAttribute("Required","true");
+    fieldEl.addAttribute("Type","Invalid");
+    fieldEl.addElement("Choices");
+    fieldEl=schemaEl.addElement("Field");
+    fieldEl.addAttribute("Name","_SourceUrl");
+    fieldEl.addAttribute("Required","false");
+    fieldEl.addAttribute("Type","Text");
+    fieldEl.addElement("Choices");
+    fieldEl=schemaEl.addElement("Field");
+    fieldEl.addAttribute("Name","_SharedFileIndex");
+    fieldEl.addAttribute("Required","false");
+    fieldEl.addAttribute("Type","Text");
+    fieldEl.addElement("Choices");
+    fieldEl=schemaEl.addElement("Field");
+    fieldEl.addAttribute("Name","Order");
+    fieldEl.addAttribute("Required","false");
+    fieldEl.addAttribute("Type","Number");
+    fieldEl.addElement("Choices");
+    fieldEl=schemaEl.addElement("Field");
+    fieldEl.addAttribute("Name","Title");
+    fieldEl.addAttribute("Required","false");
+    fieldEl.addAttribute("Type","Text");
+    fieldEl.addElement("Choices");
+    Element listInfoEl=root.addElement("ListInfo");
+    listInfoEl.addAttribute("Name","Links");
+    listInfoEl.addElement("Moderated").setText(String.valueOf(false));
+    Element listPermissionsEl=listInfoEl.addElement("ListPermissions");
+    listPermissionsEl.addElement("DeleteListItems");
+    listPermissionsEl.addElement("EditListItems");
+    listPermissionsEl.addElement("InsertListItems");
+    listPermissionsEl.addElement("ManageRoles");
+    listPermissionsEl.addElement("ManageWeb");
+  }
+  Element permissionsEl=root.addElement("Permissions");
+  if (!minimal) {
+    permissionsEl.addElement("DeleteListItems");
+    permissionsEl.addElement("EditListItems");
+    permissionsEl.addElement("InsertListItems");
+    permissionsEl.addElement("ManageRoles");
+    permissionsEl.addElement("ManageWeb");
+  }
+  root.addElement("HasUniquePerm").setText(String.valueOf(true));
+  root.addElement("WorkspaceType").setText("DWS");
+  root.addElement("IsADMode").setText(String.valueOf(false));
+  root.addElement("DocUrl").setText(documentName);
+  root.addElement("Minimal").setText(String.valueOf(true));
+  Element resultsEl=root.addElement("Results");
+  resultsEl.addElement("Title").setText(group.getName());
+  resultsEl.addElement("LastUpdate");
+  User user=(User)request.getSession().getAttribute(WebKeys.USER);
+  ResponseElement responseElement=new MemberResponseElement(user,false);
+  responseElement.addElement(resultsEl);
+  Element membersEl=resultsEl.addElement("Members");
+  List<User> users=UserLocalServiceUtil.getGroupUsers(group.getGroupId());
+  for (  User member : users) {
+    responseElement=new MemberResponseElement(member,true);
+    responseElement.addElement(membersEl);
+  }
+  if (!minimal) {
+    Element assigneesEl=resultsEl.addElement("Assignees");
+    for (    User member : users) {
+      responseElement=new MemberResponseElement(member,true);
+      responseElement.addElement(assigneesEl);
+    }
+    Element listEl=resultsEl.addElement("List");
+    listEl.addAttribute("Name","Documents");
+    listEl.addElement("ID");
+    String parentFolderPath=path;
+    pos=parentFolderPath.lastIndexOf("/");
+    if (pos != -1) {
+      parentFolderPath=parentFolderPath.substring(0,pos);
+    }
+    SharepointStorage storage=SharepointUtil.getStorage(parentFolderPath);
+    SharepointRequest sharepointRequest=new SharepointRequest(parentFolderPath);
+    storage.addDocumentElements(sharepointRequest,listEl);
+  }
+  return doc.asXML();
+}
