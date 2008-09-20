@@ -1,32 +1,58 @@
 {
-  StringBuffer sb=new StringBuffer(text);
-  Pattern pattern=Pattern.compile("/get_file\\?([^\"']+)[\"']?");
-  Matcher matcher=pattern.matcher(text);
-  while (matcher.find()) {
+  StringBuilder sb=new StringBuilder(content);
+  int beginPos=content.length();
+  while (true) {
+    beginPos=content.lastIndexOf("/get_file?",beginPos);
+    int endPos1=content.indexOf(StringPool.APOSTROPHE,beginPos);
+    int endPos2=content.indexOf(StringPool.CLOSE_BRACKET,beginPos);
+    int endPos3=content.indexOf(StringPool.LESS_THAN,beginPos);
+    int endPos4=content.indexOf(StringPool.QUOTE,beginPos);
+    int endPos5=content.indexOf(StringPool.SPACE,beginPos);
+    int endPos=endPos1;
+    if ((endPos == -1) || ((endPos2 != -1) && (endPos2 < endPos))) {
+      endPos=endPos2;
+    }
+    if ((endPos == -1) || ((endPos3 != -1) && (endPos3 < endPos))) {
+      endPos=endPos3;
+    }
+    if ((endPos == -1) || ((endPos4 != -1) && (endPos4 < endPos))) {
+      endPos=endPos4;
+    }
+    if ((endPos == -1) || ((endPos5 != -1) && (endPos5 < endPos))) {
+      endPos=endPos5;
+    }
+    if ((beginPos == -1) || (endPos == -1)) {
+      break;
+    }
     try {
-      Map<String,String> detail=MapUtil.toLinkedHashMap(matcher.group(1).replace("&amp;","&").split("&"),StringPool.EQUAL);
+      String oldParameters=content.substring(beginPos,endPos);
+      oldParameters=oldParameters.substring(oldParameters.indexOf(StringPool.QUESTION) + 1);
+      oldParameters=oldParameters.replace(StringPool.AMPERSAND_ENCODED,StringPool.AMPERSAND);
+      Map<String,String> map=MapUtil.toLinkedHashMap(oldParameters.split(StringPool.AMPERSAND),StringPool.EQUAL);
       DLFileEntry fileEntry=null;
-      if (detail.containsKey("uuid")) {
-        String uuid=detail.get("uuid");
-        long groupId=GetterUtil.getLong(detail.get("groupId"));
+      if (map.containsKey("uuid")) {
+        String uuid=map.get("uuid");
+        long groupId=GetterUtil.getLong(map.get("groupId"));
         fileEntry=DLFileEntryLocalServiceUtil.getFileEntryByUuidAndGroupId(uuid,groupId);
       }
- else       if (detail.containsKey("folderId")) {
-        long folderId=GetterUtil.getLong(detail.get("folderId"));
-        String name=detail.get("name");
+ else       if (map.containsKey("folderId")) {
+        long folderId=GetterUtil.getLong(map.get("folderId"));
+        String name=map.get("name");
         fileEntry=DLFileEntryLocalServiceUtil.getFileEntry(folderId,name);
       }
       if (fileEntry == null) {
         continue;
       }
       DLPortletDataHandlerImpl.exportFileEntry(context,foldersEl,fileEntriesEl,fileRanks,fileEntry);
-      sb.replace(matcher.start(1),matcher.end(1),"uuid=" + fileEntry.getUuid() + "&amp;groupId=@group_id@");
+      String newParameters="/get_file?uuid=" + fileEntry.getUuid() + "&amp;groupId=@group_id@";
+      sb.replace(beginPos,endPos,newParameters);
     }
  catch (    Exception e) {
       if (_log.isWarnEnabled()) {
         _log.warn(e,e);
       }
     }
+    beginPos--;
   }
   return sb.toString();
 }

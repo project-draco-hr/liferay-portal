@@ -1,37 +1,72 @@
 {
-  StringBuffer sb=new StringBuffer(text);
-  Pattern pattern=Pattern.compile("/image_gallery\\?(.*?)&(amp;)?t=");
-  Matcher matcher=pattern.matcher(text);
-  while (matcher.find()) {
+  StringBuilder sb=new StringBuilder(content);
+  int beginPos=content.length();
+  while (true) {
+    beginPos=content.lastIndexOf("/image/image_gallery?",beginPos);
+    int endPos1=content.indexOf(StringPool.APOSTROPHE,beginPos);
+    int endPos2=content.indexOf(StringPool.CLOSE_BRACKET,beginPos);
+    int endPos3=content.indexOf(StringPool.LESS_THAN,beginPos);
+    int endPos4=content.indexOf(StringPool.QUOTE,beginPos);
+    int endPos5=content.indexOf(StringPool.SPACE,beginPos);
+    int endPos=endPos1;
+    if ((endPos == -1) || ((endPos2 != -1) && (endPos2 < endPos))) {
+      endPos=endPos2;
+    }
+    if ((endPos == -1) || ((endPos3 != -1) && (endPos3 < endPos))) {
+      endPos=endPos3;
+    }
+    if ((endPos == -1) || ((endPos4 != -1) && (endPos4 < endPos))) {
+      endPos=endPos4;
+    }
+    if ((endPos == -1) || ((endPos5 != -1) && (endPos5 < endPos))) {
+      endPos=endPos5;
+    }
+    if ((beginPos == -1) || (endPos == -1)) {
+      break;
+    }
     try {
-      Map<String,String> detail=MapUtil.toLinkedHashMap(matcher.group(1).replace("&amp;","&").split("&"),StringPool.EQUAL);
+      String oldParameters=content.substring(beginPos,endPos);
+      oldParameters=oldParameters.substring(oldParameters.indexOf(StringPool.QUESTION) + 1);
+      oldParameters=oldParameters.replace(StringPool.AMPERSAND_ENCODED,StringPool.AMPERSAND);
+      Map<String,String> map=MapUtil.toLinkedHashMap(oldParameters.split(StringPool.AMPERSAND),StringPool.EQUAL);
       IGImage image=null;
-      if (detail.containsKey("uuid")) {
-        String uuid=detail.get("uuid");
-        long groupId=GetterUtil.getLong(detail.get("groupId"));
+      if (map.containsKey("uuid")) {
+        String uuid=map.get("uuid");
+        long groupId=GetterUtil.getLong(map.get("groupId"));
         image=IGImageLocalServiceUtil.getImageByUuidAndGroupId(uuid,groupId);
       }
- else       if (detail.containsKey("image_id") || detail.containsKey("img_id") || detail.containsKey("i_id")) {
-        long imageId=GetterUtil.getLong(detail.get("image_id"));
+ else       if (map.containsKey("image_id") || map.containsKey("img_id") || map.containsKey("i_id")) {
+        long imageId=GetterUtil.getLong(map.get("image_id"));
         if (imageId <= 0) {
-          imageId=GetterUtil.getLong(detail.get("img_id"));
+          imageId=GetterUtil.getLong(map.get("img_id"));
           if (imageId <= 0) {
-            imageId=GetterUtil.getLong(detail.get("i_id"));
+            imageId=GetterUtil.getLong(map.get("i_id"));
           }
         }
-        image=IGImageLocalServiceUtil.getIGImage(imageId);
+        try {
+          image=IGImageLocalServiceUtil.getImageByLargeImageId(imageId);
+        }
+ catch (        Exception e) {
+          image=IGImageLocalServiceUtil.getImageBySmallImageId(imageId);
+        }
       }
       if (image == null) {
         continue;
       }
       IGPortletDataHandlerImpl.exportImage(context,foldersEl,imagesEl,image);
-      sb.replace(matcher.start(1),matcher.end(1),"uuid=" + image.getUuid() + "&amp;groupId=@group_id@");
+      String timestamp=map.get("t");
+      if (timestamp == null) {
+        timestamp=String.valueOf(System.currentTimeMillis());
+      }
+      String newParameters="/image/image_gallery?uuid=" + image.getUuid() + "&amp;groupId=@group_id@&amp;t="+ timestamp;
+      sb.replace(beginPos,endPos,newParameters);
     }
  catch (    Exception e) {
       if (_log.isWarnEnabled()) {
         _log.warn(e,e);
       }
     }
+    beginPos--;
   }
   return sb.toString();
 }
