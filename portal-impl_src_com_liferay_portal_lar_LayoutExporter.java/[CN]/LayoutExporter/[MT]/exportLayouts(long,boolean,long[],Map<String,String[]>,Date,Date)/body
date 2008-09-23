@@ -42,7 +42,7 @@
   header.addAttribute("theme-id",layoutSet.getThemeId());
   header.addAttribute("color-scheme-id",layoutSet.getColorSchemeId());
   Portlet layoutConfigurationPortlet=PortletLocalServiceUtil.getPortletById(context.getCompanyId(),PortletKeys.LAYOUT_CONFIGURATION);
-  Map<String,Long> portletIds=new LinkedHashMap<String,Long>();
+  Map<String,Object[]> portletIds=new LinkedHashMap<String,Object[]>();
   List<Layout> layouts=null;
   if ((layoutIds == null) || (layoutIds.length == 0)) {
     layouts=LayoutLocalServiceUtil.getLayouts(groupId,privateLayout);
@@ -87,16 +87,15 @@
     if (layout.getType().equals(LayoutConstants.TYPE_PORTLET)) {
       LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
       for (      String portletId : layoutTypePortlet.getPortletIds()) {
-        if (!portletIds.containsKey(portletId)) {
-          portletIds.put(portletId,new Long(layout.getPlid()));
-        }
+        String key=PortletPermissionUtil.getPrimaryKey(layout.getPlid(),portletId);
+        portletIds.put(key,new Object[]{portletId,new Long(layout.getPlid())});
       }
     }
     String layoutPath=context.getLayoutPath(layout.getLayoutId()) + "/layout.xml";
     Element el=layoutsEl.addElement("layout");
     el.addAttribute("layout-id",String.valueOf(layout.getLayoutId()));
     el.addAttribute("path",layoutPath);
-    _portletExporter.exportPortletData(context,layoutConfigurationPortlet,null,layoutEl);
+    _portletExporter.exportPortletData(context,layoutConfigurationPortlet,layout,null,layoutEl);
     try {
       context.addZipEntry(layoutPath,layoutDoc.formattedString());
     }
@@ -108,10 +107,13 @@
     exportLayoutRoles(layoutCache,companyId,groupId,rolesEl);
   }
   Element portletsEl=root.addElement("portlets");
-  for (  Map.Entry<String,Long> portletIdsEntry : portletIds.entrySet()) {
-    Layout layout=LayoutUtil.findByPrimaryKey(portletIdsEntry.getValue());
+  for (  Map.Entry<String,Object[]> portletIdsEntry : portletIds.entrySet()) {
+    String portletId=(String)portletIdsEntry.getValue()[0];
+    long plid=(Long)portletIdsEntry.getValue()[1];
+    Layout layout=LayoutUtil.findByPrimaryKey(plid);
     context.setPlid(layout.getPlid());
-    _portletExporter.exportPortlet(context,layoutCache,portletIdsEntry.getKey(),layout,portletsEl,defaultUserId,exportPortletData,exportPortletSetup,exportPortletArchivedSetups,exportPortletUserPreferences,exportPermissions,exportUserPermissions);
+    context.setOldPlid(layout.getPlid());
+    _portletExporter.exportPortlet(context,layoutCache,portletId,layout,portletsEl,defaultUserId,exportPermissions,exportPortletArchivedSetups,exportPortletData,exportPortletSetup,exportPortletUserPreferences,exportUserPermissions);
   }
   _portletExporter.exportComments(context,root);
   _portletExporter.exportRatings(context,root);
