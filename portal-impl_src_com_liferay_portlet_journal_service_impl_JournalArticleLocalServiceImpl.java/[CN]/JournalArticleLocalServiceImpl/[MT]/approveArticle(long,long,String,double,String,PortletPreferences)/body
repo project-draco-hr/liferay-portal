@@ -1,30 +1,31 @@
 {
-  Map<String,Object> customAttributes=new HashMap<String,Object>();
-  customAttributes.put("action","approve");
-  customAttributes.put("userId",userId);
-  customAttributes.put("groupId",groupId);
-  customAttributes.put("articleId",articleId);
-  customAttributes.put("version",version);
-  customAttributes.put("articleURL",articleURL);
-  customAttributes.put("portletPrefs",prefs);
-  SaveTaskVO saveTaskVO=new SaveTaskVO();
-  saveTaskVO.setCustomAttributesMap(customAttributes);
+  User user=userPersistence.findByPrimaryKey(userId);
+  Date now=new Date();
+  JournalArticle article=journalArticlePersistence.findByG_A_V(groupId,articleId,version);
+  article.setModifiedDate(now);
+  article.setApproved(true);
+  article.setApprovedByUserId(user.getUserId());
+  article.setApprovedByUserName(user.getFullName());
+  article.setApprovedDate(now);
+  article.setExpired(false);
+  if ((article.getExpirationDate() != null) && (article.getExpirationDate().before(now))) {
+    article.setExpirationDate(null);
+  }
+  journalArticlePersistence.update(article,false);
   try {
-    Workflow workflow=_getWorkflowImpl();
-    OutputVO outputVO=workflow.saveTasks(saveTaskVO);
-    Map<String,Object> customOutputMap=outputVO.getCustomResultsMap();
-    return (JournalArticle)customOutputMap.get("journalArticle");
+    sendEmail(article,articleURL,prefs,"granted");
   }
- catch (  WorkflowException we) {
-    Throwable cause=we.getCause();
-    if (cause instanceof PortalException) {
-      throw (PortalException)cause;
-    }
- else     if (cause instanceof SystemException) {
-      throw (SystemException)cause;
-    }
- else {
-      throw new PortalException(we);
+ catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+  try {
+    if (article.isIndexable()) {
+      String[] tagsEntries=tagsEntryLocalService.getEntryNames(JournalArticle.class.getName(),article.getResourcePrimKey());
+      Indexer.updateArticle(article.getCompanyId(),article.getGroupId(),article.getArticleId(),article.getVersion(),article.getTitle(),article.getDescription(),article.getContent(),article.getType(),article.getDisplayDate(),tagsEntries);
     }
   }
+ catch (  SearchException se) {
+    _log.error("Indexing " + article.getId(),se);
+  }
+  return article;
 }
