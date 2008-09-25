@@ -1,25 +1,22 @@
 {
-  Map<String,Object> customAttributes=new HashMap<String,Object>();
-  customAttributes.put("action","expire");
-  customAttributes.put("article",article);
-  customAttributes.put("articleURL",articleURL);
-  customAttributes.put("portletPrefs",prefs);
-  SaveTaskVO saveTaskVO=new SaveTaskVO();
-  saveTaskVO.setCustomAttributesMap(customAttributes);
-  try {
-    Workflow workflow=_getWorkflowImpl();
-    workflow.saveTasks(saveTaskVO);
+  if ((prefs != null) && !article.isApproved() && isLatestVersion(article.getGroupId(),article.getArticleId(),article.getVersion())) {
+    try {
+      sendEmail(article,articleURL,prefs,"denied");
+    }
+ catch (    IOException ioe) {
+      throw new SystemException(ioe);
+    }
   }
- catch (  WorkflowException we) {
-    Throwable cause=we.getCause();
-    if (cause instanceof PortalException) {
-      throw (PortalException)cause;
+  article.setExpirationDate(new Date());
+  article.setApproved(false);
+  article.setExpired(true);
+  journalArticlePersistence.update(article,false);
+  try {
+    if (article.isIndexable()) {
+      Indexer.deleteArticle(article.getCompanyId(),article.getArticleId());
     }
- else     if (cause instanceof SystemException) {
-      throw (SystemException)cause;
-    }
- else {
-      throw new PortalException(we);
-    }
+  }
+ catch (  SearchException se) {
+    _log.error("Removing index " + article.getId(),se);
   }
 }
