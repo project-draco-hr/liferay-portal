@@ -1,15 +1,24 @@
 {
   Resource resource=getResource(webDavRequest);
   Lock lock=null;
-  if (resource instanceof DLFileEntryResourceImpl) {
-    DLFileEntry fileEntry=(DLFileEntry)resource.getModel();
-    try {
+  try {
+    if (resource instanceof DLFileEntryResourceImpl) {
+      DLFileEntry fileEntry=(DLFileEntry)resource.getModel();
       lock=DLFileEntryServiceUtil.lockFileEntry(fileEntry.getFolderId(),fileEntry.getName(),owner,timeout);
     }
- catch (    Exception e) {
-      if (!(e instanceof DuplicateLockException)) {
-        throw new WebDAVException(e);
+ else {
+      boolean inheritable=false;
+      long depth=WebDAVUtil.getDepth(webDavRequest.getHttpServletRequest());
+      if (depth != 0) {
+        inheritable=true;
       }
+      DLFolder folder=(DLFolder)resource.getModel();
+      lock=DLFolderServiceUtil.lockFolder(folder.getFolderId(),owner,inheritable,timeout);
+    }
+  }
+ catch (  Exception e) {
+    if (!(e instanceof DuplicateLockException)) {
+      throw new WebDAVException(e);
     }
   }
   return lock;

@@ -1,0 +1,33 @@
+{
+  if ((expirationTime <= 0) || (expirationTime > DLFolderImpl.LOCK_EXPIRATION_TIME)) {
+    expirationTime=DLFolderImpl.LOCK_EXPIRATION_TIME;
+  }
+  Lock folderLock=lockService.lock(DLFolder.class.getName(),folderId,getUser().getUserId(),owner,inheritable,expirationTime);
+  Set<String> fileNames=new HashSet<String>();
+  try {
+    List<DLFileEntry> entries=dlFileEntryService.getFileEntries(folderId);
+    for (    DLFileEntry entry : entries) {
+      dlFileEntryService.lockFileEntry(folderId,entry.getName(),owner,expirationTime);
+      fileNames.add(entry.getName());
+    }
+  }
+ catch (  Exception e) {
+    for (    String name : fileNames) {
+      dlFileEntryService.unlockFileEntry(folderId,name);
+    }
+    unlockFolder(folderId,folderLock.getUuid());
+    if (e instanceof PortalException) {
+      throw (PortalException)e;
+    }
+ else     if (e instanceof SystemException) {
+      throw (SystemException)e;
+    }
+ else     if (e instanceof RemoteException) {
+      throw (RemoteException)e;
+    }
+ else {
+      throw new PortalException(e);
+    }
+  }
+  return folderLock;
+}
