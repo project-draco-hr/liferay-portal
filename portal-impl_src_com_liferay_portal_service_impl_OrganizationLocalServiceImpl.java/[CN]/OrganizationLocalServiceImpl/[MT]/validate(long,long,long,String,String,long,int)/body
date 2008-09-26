@@ -1,0 +1,53 @@
+{
+  if ((parentOrganizationId == OrganizationConstants.DEFAULT_PARENT_ORGANIZATION_ID)) {
+    if (!OrganizationImpl.isRootable(type)) {
+      throw new OrganizationParentException("Organization of type " + type + " cannot be a root");
+    }
+  }
+ else {
+    String[] childrenTypes=OrganizationImpl.getChildrenTypes(type);
+    if (childrenTypes.length == 0) {
+      throw new OrganizationParentException("Organization of type " + type + " cannot have children");
+    }
+ else {
+      Organization parentOrganization=organizationPersistence.fetchByPrimaryKey(parentOrganizationId);
+      if (parentOrganization != null) {
+        if ((companyId != parentOrganization.getCompanyId()) || (parentOrganizationId == organizationId)) {
+          throw new OrganizationParentException();
+        }
+ else         if (!ArrayUtil.contains(childrenTypes,String.valueOf(parentOrganization.getType()))) {
+          throw new OrganizationParentException("Type " + type + " not allowed as child of "+ parentOrganization.getType());
+        }
+      }
+ else {
+        throw new OrganizationParentException("Organization " + parentOrganizationId + " doesn't exist");
+      }
+    }
+  }
+  if ((organizationId > 0) && (parentOrganizationId != OrganizationConstants.DEFAULT_PARENT_ORGANIZATION_ID)) {
+    if (isParentOrganization(organizationId,parentOrganizationId)) {
+      throw new OrganizationParentException();
+    }
+  }
+  if (Validator.isNull(name)) {
+    throw new OrganizationNameException();
+  }
+ else {
+    Organization organization=organizationPersistence.fetchByC_N(companyId,name);
+    if ((organization != null) && (organization.getName().equalsIgnoreCase(name))) {
+      if ((organizationId <= 0) || (organization.getOrganizationId() != organizationId)) {
+        throw new DuplicateOrganizationException();
+      }
+    }
+  }
+  boolean countryRequired=GetterUtil.getBoolean(PropsUtil.get(PropsKeys.ORGANIZATIONS_TYPES_COUNTRY_REQUIRED,new Filter(type)));
+  try {
+    if ((countryId > 0) || countryRequired) {
+      countryPersistence.findByPrimaryKey(countryId);
+    }
+    listTypeService.validate(statusId,ListTypeImpl.ORGANIZATION_STATUS);
+  }
+ catch (  RemoteException re) {
+    throw new SystemException(re);
+  }
+}

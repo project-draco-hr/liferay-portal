@@ -1,0 +1,75 @@
+{
+  names=CustomSQLUtil.keywords(names);
+  streets=CustomSQLUtil.keywords(streets);
+  cities=CustomSQLUtil.keywords(cities);
+  zips=CustomSQLUtil.keywords(zips);
+  if (params != null) {
+    Long resourceId=(Long)params.get("permissionsResourceId");
+    Long groupId=(Long)params.get("permissionsGroupId");
+    if (Validator.isNotNull(groupId) && Validator.isNotNull(resourceId)) {
+      return countByPermissions(companyId,parentOrganizationId,parentOrganizationComparator,names,type,streets,cities,zips,regionId,countryId,resourceId.longValue(),groupId.longValue(),andOperator);
+    }
+  }
+  Session session=null;
+  try {
+    session=openSession();
+    String sql=null;
+    if (Validator.isNotNull(type)) {
+      sql=CustomSQLUtil.get(COUNT_BY_C_PO_N_L_S_C_Z_R_C);
+    }
+ else {
+      sql=CustomSQLUtil.get(COUNT_BY_C_PO_N_S_C_Z_R_C);
+    }
+    sql=CustomSQLUtil.replaceKeywords(sql,"lower(Organization_.name)",StringPool.LIKE,false,names);
+    sql=CustomSQLUtil.replaceKeywords(sql,"lower(Address.street1)",StringPool.LIKE,true,streets);
+    sql=CustomSQLUtil.replaceKeywords(sql,"lower(Address.street2)",StringPool.LIKE,true,streets);
+    sql=CustomSQLUtil.replaceKeywords(sql,"lower(Address.street3)",StringPool.LIKE,true,streets);
+    sql=CustomSQLUtil.replaceKeywords(sql,"lower(Address.city)",StringPool.LIKE,false,cities);
+    sql=CustomSQLUtil.replaceKeywords(sql,"lower(Address.zip)",StringPool.LIKE,true,zips);
+    if (regionId == null) {
+      sql=StringUtil.replace(sql,REGION_ID_SQL,StringPool.BLANK);
+    }
+    if (countryId == null) {
+      sql=StringUtil.replace(sql,COUNTRY_ID_SQL,StringPool.BLANK);
+    }
+    sql=StringUtil.replace(sql,"[$JOIN$]",getJoin(params));
+    sql=StringUtil.replace(sql,"[$WHERE$]",getWhere(params));
+    sql=StringUtil.replace(sql,"[$PARENT_ORGANIZATION_ID_COMPARATOR$]",parentOrganizationComparator);
+    sql=CustomSQLUtil.replaceAndOperator(sql,andOperator);
+    SQLQuery q=session.createSQLQuery(sql);
+    q.addScalar(COUNT_COLUMN_NAME,Type.LONG);
+    QueryPos qPos=QueryPos.getInstance(q);
+    setJoin(qPos,params);
+    qPos.add(companyId);
+    qPos.add(parentOrganizationId);
+    if (Validator.isNotNull(type)) {
+      qPos.add(type);
+    }
+    qPos.add(names,2);
+    qPos.add(streets,6);
+    if (regionId != null) {
+      qPos.add(regionId);
+      qPos.add(regionId);
+    }
+    if (countryId != null) {
+      qPos.add(countryId);
+      qPos.add(countryId);
+    }
+    qPos.add(cities,2);
+    qPos.add(zips,2);
+    Iterator<Long> itr=q.list().iterator();
+    if (itr.hasNext()) {
+      Long count=itr.next();
+      if (count != null) {
+        return count.intValue();
+      }
+    }
+    return 0;
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+}
