@@ -1,0 +1,56 @@
+{
+  HttpServletRequest request=PortalUtil.getHttpServletRequest(actionRequest);
+  HttpSession session=request.getSession();
+  ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  Company company=themeDisplay.getCompany();
+  boolean autoPassword=true;
+  String password1=null;
+  String password2=null;
+  boolean autoScreenName=false;
+  String screenName=ParamUtil.getString(actionRequest,"screenName");
+  String emailAddress=ParamUtil.getString(actionRequest,"emailAddress");
+  String firstName=ParamUtil.getString(actionRequest,"firstName");
+  String middleName=ParamUtil.getString(actionRequest,"middleName");
+  String lastName=ParamUtil.getString(actionRequest,"lastName");
+  int prefixId=ParamUtil.getInteger(actionRequest,"prefixId");
+  int suffixId=ParamUtil.getInteger(actionRequest,"suffixId");
+  boolean male=ParamUtil.get(actionRequest,"male",true);
+  int birthdayMonth=ParamUtil.getInteger(actionRequest,"birthdayMonth");
+  int birthdayDay=ParamUtil.getInteger(actionRequest,"birthdayDay");
+  int birthdayYear=ParamUtil.getInteger(actionRequest,"birthdayYear");
+  String jobTitle=ParamUtil.getString(actionRequest,"jobTitle");
+  long[] organizationIds=StringUtil.split(ParamUtil.getString(actionRequest,"organizationIds"),0L);
+  boolean sendEmail=true;
+  String openId=ParamUtil.getString(actionRequest,"openId");
+  boolean openIdAuth=false;
+  Boolean openIdLoginPending=(Boolean)session.getAttribute(WebKeys.OPEN_ID_LOGIN_PENDING);
+  if ((openIdLoginPending != null) && (openIdLoginPending.booleanValue()) && (Validator.isNotNull(openId))) {
+    sendEmail=false;
+    openIdAuth=true;
+  }
+  if (PropsValues.CAPTCHA_CHECK_PORTAL_CREATE_ACCOUNT) {
+    CaptchaUtil.check(actionRequest);
+  }
+  User user=UserServiceUtil.addUser(company.getCompanyId(),autoPassword,password1,password2,autoScreenName,screenName,emailAddress,themeDisplay.getLocale(),firstName,middleName,lastName,prefixId,suffixId,male,birthdayMonth,birthdayDay,birthdayYear,jobTitle,organizationIds,sendEmail);
+  if (openIdAuth) {
+    UserLocalServiceUtil.updateOpenId(user.getUserId(),openId);
+    session.setAttribute(WebKeys.OPEN_ID_LOGIN,new Long(user.getUserId()));
+    session.removeAttribute(WebKeys.OPEN_ID_LOGIN_PENDING);
+  }
+ else {
+    SessionMessages.add(request,"user_added",user.getEmailAddress());
+    SessionMessages.add(request,"user_added_password",user.getPasswordUnencrypted());
+  }
+  String login=null;
+  if (company.getAuthType().equals(CompanyConstants.AUTH_TYPE_ID)) {
+    login=String.valueOf(user.getUserId());
+  }
+ else   if (company.getAuthType().equals(CompanyConstants.AUTH_TYPE_SN)) {
+    login=user.getScreenName();
+  }
+ else {
+    login=user.getEmailAddress();
+  }
+  String redirect=HttpUtil.addParameter(themeDisplay.getURLSignIn(),"login",login);
+  actionResponse.sendRedirect(redirect);
+}
