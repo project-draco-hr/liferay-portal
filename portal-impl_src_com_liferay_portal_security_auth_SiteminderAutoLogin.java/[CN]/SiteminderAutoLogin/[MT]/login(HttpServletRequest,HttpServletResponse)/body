@@ -1,0 +1,37 @@
+{
+  try {
+    String[] credentials=null;
+    Company company=PortalUtil.getCompany(request);
+    if (!PrefsPropsUtil.getBoolean(company.getCompanyId(),PropsKeys.SITEMINDER_AUTH_ENABLED,PropsValues.SITEMINDER_AUTH_ENABLED)) {
+      return credentials;
+    }
+    String smUserHeader=request.getHeader(PropsValues.SITEMINDER_USER_HEADER);
+    if (smUserHeader != null) {
+      User user=null;
+      try {
+        if (company.getAuthType().equals(CompanyConstants.AUTH_TYPE_EA)) {
+          user=UserLocalServiceUtil.getUserByEmailAddress(company.getCompanyId(),smUserHeader);
+        }
+ else         if (company.getAuthType().equals(CompanyConstants.AUTH_TYPE_SN)) {
+          user=UserLocalServiceUtil.getUserByScreenName(company.getCompanyId(),smUserHeader);
+        }
+      }
+ catch (      NoSuchUserException nsue) {
+        if (PrefsPropsUtil.getBoolean(company.getCompanyId(),PropsKeys.SITEMINDER_IMPORT_FROM_LDAP,PropsValues.SITEMINDER_AUTH_ENABLED)) {
+          user=addUser(company.getCompanyId(),smUserHeader);
+        }
+ else {
+          throw nsue;
+        }
+      }
+      credentials=new String[3];
+      credentials[0]=String.valueOf(user.getUserId());
+      credentials[1]=user.getPassword();
+      credentials[2]=Boolean.TRUE.toString();
+    }
+    return credentials;
+  }
+ catch (  Exception e) {
+    throw new AutoLoginException(e);
+  }
+}
