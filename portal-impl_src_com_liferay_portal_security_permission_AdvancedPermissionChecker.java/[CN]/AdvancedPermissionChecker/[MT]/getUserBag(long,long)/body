@@ -1,0 +1,46 @@
+{
+  PermissionCheckerBag bag=PermissionCacheUtil.getBag(userId,groupId);
+  if (bag != null) {
+    return bag;
+  }
+  List<Group> userGroups=new ArrayList<Group>();
+  if (groupId > 0) {
+    if (GroupLocalServiceUtil.hasUserGroup(userId,groupId)) {
+      Group group=GroupLocalServiceUtil.getGroup(groupId);
+      userGroups.add(group);
+    }
+  }
+  List<Organization> userOrgs=getUserOrgs(userId);
+  List<Group> userOrgGroups=GroupLocalServiceUtil.getOrganizationsGroups(userOrgs);
+  List<UserGroup> userUserGroups=UserGroupLocalServiceUtil.getUserUserGroups(userId);
+  List<Group> userUserGroupGroups=GroupLocalServiceUtil.getUserGroupsGroups(userUserGroups);
+  List<Group> groups=new ArrayList<Group>(userGroups.size() + userOrgGroups.size() + userUserGroupGroups.size());
+  groups.addAll(userGroups);
+  groups.addAll(userOrgGroups);
+  groups.addAll(userUserGroupGroups);
+  List<Role> roles=new ArrayList<Role>(10);
+  if ((PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 3) || (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 4) || (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 5)) {
+    if (groups.size() > 0) {
+      roles=RoleLocalServiceUtil.getUserRelatedRoles(userId,groups);
+    }
+ else {
+      roles.addAll(RoleLocalServiceUtil.getUserRoles(userId));
+    }
+    if (userGroups.size() > 0) {
+      Role role=RoleLocalServiceUtil.getRole(user.getCompanyId(),RoleConstants.COMMUNITY_MEMBER);
+      roles.add(role);
+    }
+    if (userOrgs.size() > 0) {
+      Role role=RoleLocalServiceUtil.getRole(user.getCompanyId(),RoleConstants.ORGANIZATION_MEMBER);
+      roles.add(role);
+    }
+    List<Role> userGroupRoles=RoleLocalServiceUtil.getUserGroupRoles(userId,groupId);
+    roles.addAll(userGroupRoles);
+  }
+ else {
+    roles=new ArrayList<Role>();
+  }
+  bag=new PermissionCheckerBagImpl(userId,userGroups,userOrgs,userOrgGroups,userUserGroupGroups,groups,roles);
+  PermissionCacheUtil.putBag(userId,groupId,bag);
+  return bag;
+}
