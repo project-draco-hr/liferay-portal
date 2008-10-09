@@ -1,0 +1,41 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  Layout layout=themeDisplay.getLayout();
+  PortletPreferences preferences=PortletPreferencesFactoryUtil.getLayoutPortletSetup(layout,portlet.getPortletId());
+  long scopeLayoutId=ParamUtil.getLong(actionRequest,"scopeLayoutId");
+  long oldScopeLayoutId=GetterUtil.getLong(preferences.getValue("lfr-scope-layout-id","0"));
+  String title=getPortletTitle(themeDisplay,portletConfig,preferences);
+  String newTitle=title;
+  if (oldScopeLayoutId > 0) {
+    Layout oldScopeLayout=LayoutLocalServiceUtil.getLayout(layout.getGroupId(),layout.isPrivateLayout(),oldScopeLayoutId);
+    StringBuilder sb=new StringBuilder();
+    sb.append(StringPool.SPACE);
+    sb.append(StringPool.OPEN_PARENTHESIS);
+    sb.append(oldScopeLayout.getName(themeDisplay.getLocale()));
+    sb.append(StringPool.CLOSE_PARENTHESIS);
+    String suffix=sb.toString();
+    if (newTitle.endsWith(suffix)) {
+      newTitle=newTitle.substring(0,title.length() - suffix.length());
+    }
+  }
+  if (scopeLayoutId > 0) {
+    Layout scopeLayout=LayoutLocalServiceUtil.getLayout(layout.getGroupId(),layout.isPrivateLayout(),scopeLayoutId);
+    if (!scopeLayout.hasScopeGroup()) {
+      String name=String.valueOf(scopeLayout.getPlid());
+      GroupLocalServiceUtil.addGroup(themeDisplay.getUserId(),Layout.class.getName(),scopeLayout.getPlid(),name,null,0,null,true);
+    }
+    StringBuilder sb=new StringBuilder();
+    sb.append(newTitle);
+    sb.append(StringPool.SPACE);
+    sb.append(StringPool.OPEN_PARENTHESIS);
+    sb.append(scopeLayout.getName(themeDisplay.getLocale()));
+    sb.append(StringPool.CLOSE_PARENTHESIS);
+    newTitle=sb.toString();
+  }
+  if (!newTitle.equals(title)) {
+    preferences.setValue("portlet-setup-title-" + themeDisplay.getLanguageId(),newTitle);
+    preferences.setValue("portlet-setup-use-custom-title","true");
+  }
+  preferences.setValue("lfr-scope-layout-id",String.valueOf(scopeLayoutId));
+  preferences.store();
+}
