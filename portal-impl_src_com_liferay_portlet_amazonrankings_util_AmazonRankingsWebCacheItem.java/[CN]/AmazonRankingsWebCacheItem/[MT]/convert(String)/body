@@ -1,45 +1,74 @@
 {
   String isbn=_isbn;
   AmazonRankings amazonRankings=null;
+  AmazonA2S a2service=new AmazonA2SClient(AmazonRankingsUtil.getAmazonAccessKeyId(),AmazonRankingsUtil.getAmazonAssociateTag(),AmazonA2SLocale.US);
+  ItemLookupRequest itemLookupRequest=getItemLookupRequest(isbn);
   try {
-    URL url=new URL("http://xml.amazon.com/onca/xml2?t=webservices-20&dev-t=" + AmazonRankingsUtil.getAmazonKey() + "&AsinSearch="+ isbn+ "&type=heavy&f=xml");
-    Document doc=SAXReaderUtil.read(url);
-    Iterator<Element> itr=doc.getRootElement().elements("ErrorMsg").iterator();
-    if (itr.hasNext()) {
-      Element el=itr.next();
-      String errorMsg=el.getText();
-      throw new WebCacheException(isbn + " " + errorMsg);
+    ItemLookupResponse itemLookupResponse=a2service.itemLookup(itemLookupRequest);
+    Item item=getItem(itemLookupResponse);
+    if (!item.isSetItemAttributes()) {
+      throw new AmazonA2SException("Item attributes not set");
     }
-    Element details=doc.getRootElement().elements("Details").iterator().next();
-    String productName=details.elementText("ProductName");
-    String catalog=details.elementText("Catalog");
-    List<Element> authorsList=details.element("Authors").elements("Author");
-    String[] authors=new String[authorsList.size()];
-    for (int i=0; i < authorsList.size(); i++) {
-      Element author=authorsList.get(i);
-      authors[i]=author.getTextTrim();
+    ItemAttributes itemAttributes=item.getItemAttributes();
+    String[] authors=null;
+    if (itemAttributes.isSetAuthor()) {
+      List<String> authorsList=itemAttributes.getAuthor();
+      authorsList.toArray(new String[authorsList.size()]);
     }
-    String releaseDateAsString=details.elementText("ReleaseDate");
-    Date releaseDate=GetterUtil.getDate(releaseDateAsString,new SimpleDateFormat("dd MMMMM,yyyy",Locale.US));
-    String manufacturer=details.elementText("Manufacturer");
-    String smallImageURL=details.elementText("ImageUrlSmall");
-    String mediumImageURL=details.elementText("ImageUrlMedium");
-    String largeImageURL=details.elementText("ImageUrlLarge");
-    double listPrice=GetterUtil.getDouble(details.elementText("ListPrice"));
-    double ourPrice=GetterUtil.getDouble(details.elementText("OurPrice"),listPrice);
-    double usedPrice=GetterUtil.getDouble(details.elementText("UsedPrice"));
-    double collectiblePrice=GetterUtil.getDouble(details.elementText("CollectiblePrice"));
-    double thirdPartyNewPrice=GetterUtil.getDouble(details.elementText("ThirdPartyNewPrice"));
-    int salesRank=GetterUtil.getInteger(details.elementText("SalesRank"));
-    String media=details.elementText("Media");
-    String availability=details.elementText("Availability");
+    String releaseDateAsString=null;
+    Date releaseDate=null;
+    if (itemAttributes.isSetPublicationDate()) {
+      releaseDateAsString=itemAttributes.getPublicationDate();
+      SimpleDateFormat df=null;
+      if (releaseDateAsString.length() > 7) {
+        df=new SimpleDateFormat("yyyy-MM-dd",Locale.US);
+      }
+ else {
+        df=new SimpleDateFormat("yyyy-MM",Locale.US);
+      }
+      releaseDate=GetterUtil.getDate(releaseDateAsString,df);
+    }
+    String smallImageURL=null;
+    String mediumImageURL=null;
+    String largeImageURL=null;
+    if (item.isSetSmallImage()) {
+      smallImageURL=item.getSmallImage().getURL();
+    }
+    if (item.isSetMediumImage()) {
+      mediumImageURL=item.getMediumImage().getURL();
+    }
+    if (item.isSetLargeImage()) {
+      largeImageURL=item.getLargeImage().getURL();
+    }
+    double listPrice=0;
+    double ourPrice=0;
+    double usedPrice=0;
+    double collectiblePrice=0;
+    double thirdPartyNewPrice=0;
+    listPrice=getPrice(itemAttributes.getListPrice());
+    OfferListing offerListing=getOfferListing(item);
+    if (offerListing != null) {
+      ourPrice=getPrice(offerListing.getPrice());
+    }
+    if (item.isSetOfferSummary()) {
+      OfferSummary offerSummary=item.getOfferSummary();
+      usedPrice=getPrice(offerSummary.getLowestUsedPrice());
+      collectiblePrice=getPrice(offerSummary.getLowestCollectiblePrice());
+      thirdPartyNewPrice=getPrice(offerSummary.getLowestNewPrice());
+    }
+    String availability=null;
+    if (offerListing != null) {
+      availability=offerListing.getAvailability();
+    }
+    String productName=itemAttributes.getTitle();
+    String catalog=StringPool.BLANK;
+    String manufacturer=itemAttributes.getManufacturer();
+    int salesRank=GetterUtil.getInteger(item.getSalesRank());
+    String media=StringPool.BLANK;
     amazonRankings=new AmazonRankings(isbn,productName,catalog,authors,releaseDate,releaseDateAsString,manufacturer,smallImageURL,mediumImageURL,largeImageURL,listPrice,ourPrice,usedPrice,collectiblePrice,thirdPartyNewPrice,salesRank,media,availability);
   }
- catch (  WebCacheException ce) {
-    throw ce;
-  }
-catch (  Exception e) {
-    throw new WebCacheException(isbn + " " + e.toString());
+ catch (  AmazonA2SException ae) {
+    throw new WebCacheException(isbn + " " + ae.toString());
   }
   return amazonRankings;
 }
