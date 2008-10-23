@@ -15,17 +15,6 @@
   ClassLoader portletClassLoader=event.getContextClassLoader();
   Document doc=SAXReaderUtil.read(xml,true);
   Element root=doc.getRootElement();
-  ModelListenersContainer modelListenersContainer=new ModelListenersContainer();
-  _modelListenersContainerMap.put(servletContextName,modelListenersContainer);
-  List<Element> modelListenerEls=root.elements("model-listener");
-  for (  Element modelListenerEl : modelListenerEls) {
-    String modelListenerClass=modelListenerEl.elementText("model-listener-class");
-    String modelName=modelListenerEl.elementText("model-name");
-    ModelListener modelListener=initModelListener(modelListenerClass,modelName,portletClassLoader);
-    if (modelListener != null) {
-      modelListenersContainer.addModelListener(modelName,modelListener);
-    }
-  }
   String portalPropertiesLocation=root.elementText("portal-properties");
   if (Validator.isNotNull(portalPropertiesLocation)) {
     Configuration portalPropertiesConfiguration=null;
@@ -45,6 +34,8 @@
       if (portalProperties.size() > 0) {
         _portalPropertiesMap.put(servletContextName,portalProperties);
         initPortalProperties(portalProperties);
+        initModelListeners(servletContextName,portletClassLoader,portalProperties);
+        initEvents(servletContextName,portletClassLoader,portalProperties);
       }
     }
   }
@@ -98,15 +89,32 @@
       initCustomJspBag(customJspBag);
     }
   }
-  EventsContainer eventsContainer=new EventsContainer();
-  _eventsContainerMap.put(servletContextName,eventsContainer);
+  ModelListenersContainer modelListenersContainer=_modelListenersContainerMap.get(servletContextName);
+  if (modelListenersContainer == null) {
+    modelListenersContainer=new ModelListenersContainer();
+    _modelListenersContainerMap.put(servletContextName,modelListenersContainer);
+  }
+  List<Element> modelListenerEls=root.elements("model-listener");
+  for (  Element modelListenerEl : modelListenerEls) {
+    String modelName=modelListenerEl.elementText("model-name");
+    String modelListenerClass=modelListenerEl.elementText("model-listener-class");
+    ModelListener modelListener=initModelListener(modelName,modelListenerClass,portletClassLoader);
+    if (modelListener != null) {
+      modelListenersContainer.addModelListener(modelName,modelListener);
+    }
+  }
+  EventsContainer eventsContainer=_eventsContainerMap.get(servletContextName);
+  if (eventsContainer == null) {
+    eventsContainer=new EventsContainer();
+    _eventsContainerMap.put(servletContextName,eventsContainer);
+  }
   List<Element> eventEls=root.elements("event");
   for (  Element eventEl : eventEls) {
+    String eventName=eventEl.elementText("event-type");
     String eventClass=eventEl.elementText("event-class");
-    String eventType=eventEl.elementText("event-type");
-    Object obj=initEvent(eventClass,eventType,portletClassLoader);
+    Object obj=initEvent(eventName,eventClass,portletClassLoader);
     if (obj != null) {
-      eventsContainer.addEvent(eventType,obj);
+      eventsContainer.addEvent(eventName,obj);
     }
   }
   if (_log.isInfoEnabled()) {
