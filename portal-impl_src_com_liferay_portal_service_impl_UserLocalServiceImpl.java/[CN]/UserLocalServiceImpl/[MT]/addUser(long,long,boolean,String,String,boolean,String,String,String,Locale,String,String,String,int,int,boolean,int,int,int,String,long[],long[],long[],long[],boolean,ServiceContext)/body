@@ -1,0 +1,130 @@
+{
+  Company company=companyPersistence.findByPrimaryKey(companyId);
+  screenName=getScreenName(screenName);
+  emailAddress=emailAddress.trim().toLowerCase();
+  openId=openId.trim();
+  Date now=new Date();
+  if (PropsValues.USERS_SCREEN_NAME_ALWAYS_AUTOGENERATE) {
+    autoScreenName=true;
+  }
+  long userId=counterLocalService.increment();
+  validate(companyId,userId,autoPassword,password1,password2,autoScreenName,screenName,emailAddress,firstName,lastName,organizationIds);
+  if (autoPassword) {
+    password1=PwdToolkitUtil.generate();
+  }
+  if (autoScreenName) {
+    ScreenNameGenerator screenNameGenerator=(ScreenNameGenerator)InstancePool.get(PropsValues.USERS_SCREEN_NAME_GENERATOR);
+    try {
+      screenName=screenNameGenerator.generate(companyId,userId,emailAddress);
+    }
+ catch (    Exception e) {
+      throw new SystemException(e);
+    }
+  }
+  User defaultUser=getDefaultUser(companyId);
+  String fullName=ContactConstants.getFullName(firstName,middleName,lastName);
+  String greeting=LanguageUtil.format(companyId,locale,"welcome-x"," " + fullName);
+  User user=userPersistence.create(userId);
+  user.setCompanyId(companyId);
+  user.setCreateDate(now);
+  user.setModifiedDate(now);
+  user.setDefaultUser(false);
+  user.setContactId(counterLocalService.increment());
+  user.setPassword(PwdEncryptor.encrypt(password1));
+  user.setPasswordUnencrypted(password1);
+  user.setPasswordEncrypted(true);
+  user.setPasswordReset(false);
+  user.setScreenName(screenName);
+  user.setEmailAddress(emailAddress);
+  user.setOpenId(openId);
+  user.setLanguageId(locale.toString());
+  user.setTimeZoneId(defaultUser.getTimeZoneId());
+  user.setGreeting(greeting);
+  user.setActive(true);
+  userPersistence.update(user,false);
+  String creatorUserName=StringPool.BLANK;
+  if (creatorUserId <= 0) {
+    creatorUserId=user.getUserId();
+  }
+ else {
+    User creatorUser=userPersistence.findByPrimaryKey(creatorUserId);
+    creatorUserName=creatorUser.getFullName();
+  }
+  resourceLocalService.addResources(companyId,0,creatorUserId,User.class.getName(),user.getUserId(),false,false,false);
+  ExpandoBridge expandoBridge=user.getExpandoBridge();
+  expandoBridge.setAttributes(serviceContext);
+  if (user.hasCompanyMx()) {
+    mailService.addUser(userId,password1,firstName,middleName,lastName,emailAddress);
+  }
+  Date birthday=PortalUtil.getDate(birthdayMonth,birthdayDay,birthdayYear,new ContactBirthdayException());
+  Contact contact=contactPersistence.create(user.getContactId());
+  contact.setCompanyId(user.getCompanyId());
+  contact.setUserId(creatorUserId);
+  contact.setUserName(creatorUserName);
+  contact.setCreateDate(now);
+  contact.setModifiedDate(now);
+  contact.setAccountId(company.getAccountId());
+  contact.setParentContactId(ContactConstants.DEFAULT_PARENT_CONTACT_ID);
+  contact.setFirstName(firstName);
+  contact.setMiddleName(middleName);
+  contact.setLastName(lastName);
+  contact.setPrefixId(prefixId);
+  contact.setSuffixId(suffixId);
+  contact.setMale(male);
+  contact.setBirthday(birthday);
+  contact.setJobTitle(jobTitle);
+  contactPersistence.update(contact,false);
+  groupLocalService.addGroup(user.getUserId(),User.class.getName(),user.getUserId(),null,null,0,StringPool.SLASH + screenName,true);
+  Set<Long> groupIdsSet=SetUtil.fromArray(groupIds);
+  String[] defaultGroupNames=PrefsPropsUtil.getStringArray(companyId,PropsKeys.ADMIN_DEFAULT_GROUP_NAMES,StringPool.NEW_LINE,PropsValues.ADMIN_DEFAULT_GROUP_NAMES);
+  for (  String defaultGroupName : defaultGroupNames) {
+    try {
+      Group group=groupFinder.findByC_N(companyId,defaultGroupName);
+      groupIdsSet.add(group.getGroupId());
+    }
+ catch (    NoSuchGroupException nsge) {
+    }
+  }
+  groupIds=ArrayUtil.toArray(groupIdsSet.toArray(new Long[groupIdsSet.size()]));
+  groupLocalService.addUserGroups(userId,groupIds);
+  updateOrganizations(userId,organizationIds);
+  Set<Long> roleIdsSet=SetUtil.fromArray(roleIds);
+  String[] defaultRoleNames=PrefsPropsUtil.getStringArray(companyId,PropsKeys.ADMIN_DEFAULT_ROLE_NAMES,StringPool.NEW_LINE,PropsValues.ADMIN_DEFAULT_ROLE_NAMES);
+  for (  String defaultRoleName : defaultRoleNames) {
+    try {
+      Role role=roleFinder.findByC_N(companyId,defaultRoleName);
+      roleIdsSet.add(role.getRoleId());
+    }
+ catch (    NoSuchRoleException nsge) {
+    }
+  }
+  roleIds=ArrayUtil.toArray(roleIdsSet.toArray(new Long[roleIdsSet.size()]));
+  userPersistence.setRoles(userId,roleIds);
+  List<UserGroup> userGroups=new ArrayList<UserGroup>();
+  String[] defaultUserGroupNames=PrefsPropsUtil.getStringArray(companyId,PropsKeys.ADMIN_DEFAULT_USER_GROUP_NAMES,StringPool.NEW_LINE,PropsValues.ADMIN_DEFAULT_USER_GROUP_NAMES);
+  for (int i=0; i < defaultUserGroupNames.length; i++) {
+    try {
+      UserGroup userGroup=userGroupFinder.findByC_N(companyId,defaultUserGroupNames[i]);
+      userGroups.add(userGroup);
+      copyUserGroupLayouts(userGroup.getUserGroupId(),new long[]{userId});
+    }
+ catch (    NoSuchUserGroupException nsuge) {
+    }
+  }
+  userPersistence.setUserGroups(userId,userGroups);
+  if (sendEmail) {
+    try {
+      sendEmail(user,password1);
+    }
+ catch (    IOException ioe) {
+      throw new SystemException(ioe);
+    }
+  }
+  try {
+    UserIndexer.addUser(user.getCompanyId(),userId,screenName,emailAddress,firstName,middleName,lastName,jobTitle,true,groupIds,organizationIds,roleIds,userGroupIds,expandoBridge);
+  }
+ catch (  SearchException se) {
+    _log.error("Indexing " + userId,se);
+  }
+  return user;
+}
