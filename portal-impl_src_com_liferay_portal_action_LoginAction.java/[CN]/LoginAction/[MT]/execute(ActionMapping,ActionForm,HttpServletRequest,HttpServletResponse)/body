@@ -57,13 +57,54 @@
       }
     }
   }
- else   if (cmd.equals("forgot-password")) {
+ else   if (cmd.equals("forgot-password-email")) {
+    if (PropsValues.USERS_REMINDER_QUERIES_ENABLED) {
+      try {
+        if (PropsValues.CAPTCHA_CHECK_PORTAL_SEND_PASSWORD) {
+          CaptchaUtil.check(request);
+        }
+        String emailAddress=ParamUtil.getString(request,"emailAddress");
+        User user=UserLocalServiceUtil.getUserByEmailAddress(PortalUtil.getCompanyId(request),emailAddress);
+        if (Validator.isNull(user.getReminderQueryQuestion())) {
+          throw new EmptyUserReminderQueryException();
+        }
+      }
+ catch (      Exception e) {
+        if (e instanceof CaptchaTextException || e instanceof EmptyUserReminderQueryException || e instanceof NoSuchUserException|| e instanceof SendPasswordException|| e instanceof UserEmailAddressException) {
+          SessionErrors.add(request,e.getClass().getName());
+          return mapping.findForward("portal.login");
+        }
+ else {
+          PortalUtil.sendError(e,request,response);
+          return null;
+        }
+      }
+      return mapping.findForward("portal.reminder_query");
+    }
+ else {
+      try {
+        sendPassword(request);
+        return mapping.findForward("portal.login");
+      }
+ catch (      Exception e) {
+        if (e instanceof CaptchaTextException || e instanceof NoSuchUserException || e instanceof SendPasswordException|| e instanceof UserEmailAddressException) {
+          SessionErrors.add(request,e.getClass().getName());
+          return mapping.findForward("portal.login");
+        }
+ else {
+          PortalUtil.sendError(e,request,response);
+          return null;
+        }
+      }
+    }
+  }
+ else   if (cmd.equals("forgot-password-reminder-query")) {
     try {
       sendPassword(request);
       return mapping.findForward("portal.login");
     }
  catch (    Exception e) {
-      if (e instanceof CaptchaTextException || e instanceof NoSuchUserException || e instanceof SendPasswordException|| e instanceof UserEmailAddressException) {
+      if (e instanceof CaptchaTextException || e instanceof NoSuchUserException || e instanceof UserReminderQueryException|| e instanceof SendPasswordException|| e instanceof UserEmailAddressException) {
         SessionErrors.add(request,e.getClass().getName());
         return mapping.findForward("portal.login");
       }
