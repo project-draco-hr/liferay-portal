@@ -1,0 +1,47 @@
+{
+  if (Validator.isNull(serviceContext.getPortalURL()) && Validator.isNull(serviceContext.getLayoutURL())) {
+    return;
+  }
+  Map<String,String> parts=new HashMap<String,String>();
+  String excerpt=StringUtil.shorten(HtmlUtil.extractText(entry.getContent()),PropsValues.BLOGS_TRACKBACK_EXCERPT_LENGTH);
+  String url=serviceContext.getPortalURL() + serviceContext.getLayoutURL() + "/-/blogs/"+ entry.getUrlTitle();
+  parts.put("title",entry.getTitle());
+  parts.put("excerpt",excerpt);
+  parts.put("url",url);
+  parts.put("blog_name",entry.getUserName());
+  Set<String> trackbacksSet=null;
+  if (Validator.isNotNull(trackbacks)) {
+    trackbacksSet=SetUtil.fromArray(trackbacks);
+  }
+ else {
+    trackbacksSet=new HashSet<String>();
+  }
+  if (pingOldTrackbacks) {
+    trackbacksSet.addAll(SetUtil.fromArray(StringUtil.split(entry.getTrackbacks())));
+    entry.setTrackbacks(StringPool.BLANK);
+    blogsEntryPersistence.update(entry,false);
+  }
+  Set<String> oldTrackbacks=SetUtil.fromArray(StringUtil.split(entry.getTrackbacks()));
+  Set<String> validTrackbacks=new HashSet<String>();
+  for (  String trackback : trackbacksSet) {
+    if (oldTrackbacks.contains(trackback)) {
+      continue;
+    }
+    try {
+      if (pingTrackback(trackback,parts)) {
+        validTrackbacks.add(trackback);
+      }
+    }
+ catch (    Exception e) {
+      _log.error("Error while pinging trackback at " + trackback,e);
+    }
+  }
+  if (!validTrackbacks.isEmpty()) {
+    String newTrackbacks=StringUtil.merge(validTrackbacks);
+    if (Validator.isNotNull(entry.getTrackbacks())) {
+      newTrackbacks+=StringPool.COMMA + entry.getTrackbacks();
+    }
+    entry.setTrackbacks(newTrackbacks);
+    blogsEntryPersistence.update(entry,false);
+  }
+}
