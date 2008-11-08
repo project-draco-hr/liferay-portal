@@ -1,12 +1,4 @@
 {
-  if (PropsValues.COMPANY_SECURITY_AUTH_REQUIRES_HTTPS && !request.isSecure()) {
-    ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
-    StringBuilder sb=new StringBuilder();
-    sb.append(PortalUtil.getPortalURL(request,true));
-    sb.append(themeDisplay.getURLSignIn());
-    response.sendRedirect(sb.toString());
-    return null;
-  }
   HttpSession session=request.getSession();
   ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
   if (session.getAttribute("j_username") != null && session.getAttribute("j_password") != null) {
@@ -18,72 +10,21 @@
       return null;
     }
   }
-  String cmd=ParamUtil.getString(request,Constants.CMD);
-  if (cmd.equals("already-registered")) {
-    try {
-      login(request,response);
-      if (PropsValues.PORTAL_JAAS_ENABLE) {
-        return mapping.findForward("/portal/touch_protected.jsp");
-      }
- else {
-        String redirect=ParamUtil.getString(request,"redirect");
-        if (Validator.isNotNull(redirect)) {
-          response.sendRedirect(redirect);
-        }
- else {
-          response.sendRedirect(themeDisplay.getPathMain());
-        }
-        return null;
-      }
-    }
- catch (    Exception e) {
-      if (e instanceof AuthException) {
-        Throwable cause=e.getCause();
-        if (cause instanceof PasswordExpiredException || cause instanceof UserLockoutException) {
-          SessionErrors.add(request,cause.getClass().getName());
-        }
- else {
-          SessionErrors.add(request,e.getClass().getName());
-        }
-        return mapping.findForward("portal.login");
-      }
- else       if (e instanceof CookieNotSupportedException || e instanceof NoSuchUserException || e instanceof PasswordExpiredException|| e instanceof UserEmailAddressException|| e instanceof UserIdException|| e instanceof UserLockoutException|| e instanceof UserPasswordException|| e instanceof UserScreenNameException) {
-        SessionErrors.add(request,e.getClass().getName());
-        return mapping.findForward("portal.login");
-      }
- else {
-        PortalUtil.sendError(e,request,response);
-        return null;
-      }
-    }
+  String redirect=PortalUtil.getCommunityLoginURL(themeDisplay);
+  if (Validator.isNull(redirect)) {
+    redirect=PropsValues.AUTH_LOGIN_URL;
   }
- else   if (cmd.equals("forgot-password")) {
-    try {
-      sendPassword(request);
-      return mapping.findForward("portal.login");
-    }
- catch (    Exception e) {
-      if (e instanceof CaptchaTextException || e instanceof NoSuchUserException || e instanceof SendPasswordException|| e instanceof UserEmailAddressException) {
-        SessionErrors.add(request,e.getClass().getName());
-        return mapping.findForward("portal.login");
-      }
- else {
-        PortalUtil.sendError(e,request,response);
-        return null;
-      }
-    }
+  if (Validator.isNull(redirect)) {
+    PortletURL portletURL=new PortletURLImpl(request,PortletKeys.LOGIN,themeDisplay.getPlid(),PortletRequest.RENDER_PHASE);
+    portletURL.setWindowState(WindowState.MAXIMIZED);
+    portletURL.setPortletMode(PortletMode.VIEW);
+    portletURL.setParameter("saveLastPath","0");
+    portletURL.setParameter("struts_action","/login/login");
+    redirect=portletURL.toString();
   }
- else {
-    String authLoginURL=PortalUtil.getCommunityLoginURL(themeDisplay);
-    if (Validator.isNull(authLoginURL)) {
-      authLoginURL=PropsValues.AUTH_LOGIN_URL;
-    }
-    if (Validator.isNotNull(authLoginURL)) {
-      response.sendRedirect(authLoginURL);
-      return null;
-    }
- else {
-      return mapping.findForward("portal.login");
-    }
+  if (PropsValues.COMPANY_SECURITY_AUTH_REQUIRES_HTTPS) {
+    redirect=HttpUtil.protocolize(redirect,true);
   }
+  response.sendRedirect(redirect);
+  return null;
 }
