@@ -1,0 +1,57 @@
+{
+  long userId=context.getUserId(null);
+  String creator=entryEl.elementText(SAXReaderUtil.createQName("creator",_dcNs));
+  if (userMap.containsKey(creator)) {
+    userId=userMap.get(creator);
+  }
+  String title=entryEl.elementTextTrim("title");
+  if (Validator.isNull(title)) {
+    title=entryEl.elementTextTrim(SAXReaderUtil.createQName("post_name",_wpNs));
+  }
+  String content=entryEl.elementText(SAXReaderUtil.createQName("encoded",_contentNs));
+  content=content.replaceAll("\\n","\n<br/>");
+  String dateText=entryEl.elementTextTrim(SAXReaderUtil.createQName("post_date_gmt",_wpNs));
+  Date postDate=new Date();
+  try {
+    postDate=dateFormater.parse(dateText);
+  }
+ catch (  ParseException pe) {
+    _log.warn("Parse " + dateText,pe);
+  }
+  Calendar cal=Calendar.getInstance();
+  cal.setTime(postDate);
+  int displayDateMonth=cal.get(Calendar.MONTH);
+  int displayDateDay=cal.get(Calendar.DAY_OF_MONTH);
+  int displayDateYear=cal.get(Calendar.YEAR);
+  int displayDateHour=cal.get(Calendar.HOUR_OF_DAY);
+  int displayDateMinute=cal.get(Calendar.MINUTE);
+  String statusText=entryEl.elementTextTrim(SAXReaderUtil.createQName("status",_wpNs));
+  boolean draft=statusText.equalsIgnoreCase("draft");
+  String pingStatusText=entryEl.elementTextTrim(SAXReaderUtil.createQName("ping_status",_wpNs));
+  boolean allowTrackbacks=pingStatusText.equalsIgnoreCase("open");
+  String[] tagsEntries=null;
+  String categoryText=entryEl.elementTextTrim("category");
+  if (Validator.isNotNull(categoryText)) {
+    tagsEntries=new String[]{categoryText};
+  }
+  ServiceContext serviceContext=new ServiceContext();
+  serviceContext.setTagsEntries(tagsEntries);
+  serviceContext.setAddCommunityPermissions(true);
+  serviceContext.setAddGuestPermissions(true);
+  serviceContext.setPlid(context.getPlid());
+  BlogsEntry entry=null;
+  try {
+    entry=BlogsEntryLocalServiceUtil.addEntry(userId,title,content.toString(),displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,draft,allowTrackbacks,null,serviceContext);
+  }
+ catch (  Exception e) {
+    _log.error("Add entry " + title,e);
+    return;
+  }
+  MBMessageDisplay messageDisplay=MBMessageLocalServiceUtil.getDiscussionMessageDisplay(userId,BlogsEntry.class.getName(),entry.getEntryId());
+  Map<Long,Long> messageIdMap=new HashMap<Long,Long>();
+  List<Node> commentNodes=entryEl.selectNodes("wp:comment","wp:comment_parent/text()");
+  for (  Node commentNode : commentNodes) {
+    Element commentEl=(Element)commentNode;
+    importComment(context,defaultUser,messageDisplay,messageIdMap,entry,commentEl);
+  }
+}
