@@ -1,35 +1,49 @@
 {
-  name=name.trim().toLowerCase();
   if (Validator.isNull(vocabularyName)) {
     vocabularyName=PropsValues.TAGS_VOCABULARY_DEFAULT;
   }
-  validate(name);
   TagsEntry entry=tagsEntryPersistence.findByPrimaryKey(entryId);
-  if (!entry.getName().equals(name) && hasEntry(entry.getGroupId(),name)) {
-    throw new DuplicateEntryException();
-  }
   entry.setModifiedDate(new Date());
-  if (Validator.isNotNull(parentEntryName)) {
-    TagsEntry parentEntry=getEntry(entry.getGroupId(),parentEntryName);
-    entry.setParentEntryId(parentEntry.getEntryId());
-  }
- else {
-    entry.setParentEntryId(TagsEntryConstants.DEFAULT_PARENT_ENTRY_ID);
-  }
-  entry.setName(name);
   TagsVocabulary vocabulary=null;
   try {
     vocabulary=tagsVocabularyPersistence.findByG_N(entry.getGroupId(),vocabularyName);
   }
  catch (  NoSuchVocabularyException nsve) {
     if (vocabularyName.equals(PropsValues.TAGS_VOCABULARY_DEFAULT)) {
-      vocabulary=tagsVocabularyLocalService.addVocabularyToGroup(entry.getUserId(),entry.getGroupId(),vocabularyName,true,Boolean.TRUE,Boolean.TRUE,null,null);
+      vocabulary=tagsVocabularyLocalService.addVocabularyToGroup(entry.getUserId(),entry.getGroupId(),vocabularyName,TagsEntryImpl.TAG,Boolean.TRUE,Boolean.TRUE,null,null);
     }
  else {
       throw nsve;
     }
   }
   entry.setVocabularyId(vocabulary.getVocabularyId());
+  boolean folksonomy=vocabulary.isFolksonomy();
+  name=name.trim();
+  if (folksonomy) {
+    name=name.toLowerCase();
+    if (!entry.getName().equals(name) && hasEntry(entry.getGroupId(),name,folksonomy)) {
+      throw new DuplicateEntryException("A tag entry with the name " + name + " already exists");
+    }
+  }
+  if (!entry.getName().equals(name)) {
+    try {
+      TagsEntry existingTag=getEntry(entry.getGroupId(),name,folksonomy);
+      if (existingTag.getEntryId() != entryId) {
+        throw new DuplicateEntryException("A tag entry with the name " + name + " already exists");
+      }
+    }
+ catch (    NoSuchEntryException nsee) {
+    }
+  }
+  validate(name);
+  entry.setName(name);
+  if (Validator.isNotNull(parentEntryName)) {
+    TagsEntry parentEntry=getEntry(entry.getGroupId(),parentEntryName,folksonomy);
+    entry.setParentEntryId(parentEntry.getEntryId());
+  }
+ else {
+    entry.setParentEntryId(TagsEntryConstants.DEFAULT_PARENT_ENTRY_ID);
+  }
   tagsEntryPersistence.update(entry,false);
   Set<Long> newProperties=new HashSet<Long>();
   List<TagsProperty> oldProperties=tagsPropertyPersistence.findByEntryId(entryId);

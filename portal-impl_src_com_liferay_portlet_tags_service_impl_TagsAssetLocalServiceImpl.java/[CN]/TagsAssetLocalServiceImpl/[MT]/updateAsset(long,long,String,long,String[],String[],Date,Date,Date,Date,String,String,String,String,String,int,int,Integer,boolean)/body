@@ -1,0 +1,107 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  long classNameId=PortalUtil.getClassNameId(className);
+  if (entryNames == null) {
+    entryNames=new String[0];
+  }
+  if (categoryNames == null) {
+    categoryNames=new String[0];
+  }
+  title=StringUtil.shorten(title,300,StringPool.BLANK);
+  Date now=new Date();
+  validate(className,entryNames);
+  TagsAsset asset=tagsAssetPersistence.fetchByC_C(classNameId,classPK);
+  if (asset == null) {
+    long assetId=counterLocalService.increment();
+    asset=tagsAssetPersistence.create(assetId);
+    asset.setCompanyId(user.getCompanyId());
+    asset.setUserId(user.getUserId());
+    asset.setUserName(user.getFullName());
+    asset.setCreateDate(now);
+    asset.setClassNameId(classNameId);
+    asset.setClassPK(classPK);
+    asset.setPublishDate(publishDate);
+    asset.setExpirationDate(expirationDate);
+    if (priority == null) {
+      asset.setPriority(0);
+    }
+    asset.setViewCount(0);
+  }
+  asset.setGroupId(groupId);
+  asset.setModifiedDate(now);
+  asset.setStartDate(startDate);
+  asset.setEndDate(endDate);
+  asset.setPublishDate(publishDate);
+  asset.setExpirationDate(expirationDate);
+  asset.setMimeType(mimeType);
+  asset.setTitle(title);
+  asset.setDescription(description);
+  asset.setSummary(summary);
+  asset.setUrl(url);
+  asset.setHeight(height);
+  asset.setWidth(width);
+  if (priority != null) {
+    asset.setPriority(priority.intValue());
+  }
+  tagsAssetPersistence.update(asset,false);
+  List<TagsEntry> entries=new ArrayList<TagsEntry>(entryNames.length);
+  for (int i=0; i < entryNames.length; i++) {
+    TagsEntry tag=null;
+    try {
+      tag=tagsEntryLocalService.getEntry(groupId,entryNames[i],TagsEntryImpl.TAG);
+    }
+ catch (    NoSuchEntryException nsee) {
+      tag=tagsEntryLocalService.addEntryToGroup(user.getUserId(),groupId,null,entryNames[i],null,PropsValues.TAGS_PROPERTIES_DEFAULT,Boolean.TRUE,Boolean.TRUE,null,null);
+    }
+    if (tag != null) {
+      entries.add(tag);
+    }
+  }
+  for (int i=0; i < categoryNames.length; i++) {
+    try {
+      TagsEntry category=tagsEntryLocalService.getEntry(groupId,categoryNames[i],TagsEntryImpl.CATEGORY);
+      entries.add(category);
+    }
+ catch (    NoSuchEntryException nsee) {
+    }
+  }
+  tagsAssetPersistence.setTagsEntries(asset.getAssetId(),entries);
+  if (!sync) {
+    return asset;
+  }
+  if (className.equals(BlogsEntry.class.getName())) {
+    BlogsEntry entry=blogsEntryPersistence.findByPrimaryKey(classPK);
+    entry.setTitle(title);
+    blogsEntryPersistence.update(entry,false);
+  }
+ else   if (className.equals(BookmarksEntry.class.getName())) {
+    BookmarksEntry entry=bookmarksEntryPersistence.findByPrimaryKey(classPK);
+    entry.setName(title);
+    entry.setComments(description);
+    entry.setUrl(url);
+    bookmarksEntryPersistence.update(entry,false);
+  }
+ else   if (className.equals(DLFileEntry.class.getName())) {
+    DLFileEntry fileEntry=dlFileEntryPersistence.findByPrimaryKey(classPK);
+    fileEntry.setTitle(title);
+    fileEntry.setDescription(description);
+    dlFileEntryPersistence.update(fileEntry,false);
+  }
+ else   if (className.equals(JournalArticle.class.getName())) {
+    JournalArticle article=journalArticlePersistence.findByPrimaryKey(classPK);
+    article.setTitle(title);
+    article.setDescription(description);
+    journalArticlePersistence.update(article,false);
+  }
+ else   if (className.equals(MBMessage.class.getName())) {
+    MBMessage message=mbMessagePersistence.findByPrimaryKey(classPK);
+    message.setSubject(title);
+    mbMessagePersistence.update(message,false);
+  }
+ else   if (className.equals(WikiPage.class.getName())) {
+    WikiPage page=wikiPagePersistence.findByPrimaryKey(classPK);
+    page.setTitle(title);
+    wikiPagePersistence.update(page,false);
+  }
+  return asset;
+}
