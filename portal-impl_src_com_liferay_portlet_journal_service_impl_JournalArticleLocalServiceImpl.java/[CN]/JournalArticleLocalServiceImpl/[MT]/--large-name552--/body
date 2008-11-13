@@ -1,0 +1,93 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  articleId=articleId.trim().toUpperCase();
+  Date displayDate=PortalUtil.getDate(displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,user.getTimeZone(),new ArticleDisplayDateException());
+  Date expirationDate=null;
+  if (!neverExpire) {
+    expirationDate=PortalUtil.getDate(expirationDateMonth,expirationDateDay,expirationDateYear,expirationDateHour,expirationDateMinute,user.getTimeZone(),new ArticleExpirationDateException());
+  }
+  Date reviewDate=null;
+  if (!neverReview) {
+    reviewDate=PortalUtil.getDate(reviewDateMonth,reviewDateDay,reviewDateYear,reviewDateHour,reviewDateMinute,user.getTimeZone(),new ArticleReviewDateException());
+  }
+  byte[] smallBytes=null;
+  try {
+    smallBytes=FileUtil.getBytes(smallFile);
+  }
+ catch (  IOException ioe) {
+  }
+  Date now=new Date();
+  validate(groupId,title,content,type,structureId,templateId,smallImage,smallImageURL,smallFile,smallBytes);
+  JournalArticle oldArticle=journalArticlePersistence.findByG_A_V(groupId,articleId,version);
+  JournalArticle article=null;
+  if (incrementVersion) {
+    double latestVersion=getLatestVersion(groupId,articleId);
+    long id=counterLocalService.increment();
+    article=journalArticlePersistence.create(id);
+    article.setResourcePrimKey(oldArticle.getResourcePrimKey());
+    article.setGroupId(oldArticle.getGroupId());
+    article.setCompanyId(user.getCompanyId());
+    article.setUserId(user.getUserId());
+    article.setUserName(user.getFullName());
+    article.setCreateDate(now);
+    article.setArticleId(articleId);
+    article.setVersion(MathUtil.format(latestVersion + 0.1,1,1));
+    article.setSmallImageId(oldArticle.getSmallImageId());
+  }
+ else {
+    article=oldArticle;
+  }
+  content=format(groupId,articleId,article.getVersion(),incrementVersion,content,structureId,images);
+  boolean approved=oldArticle.isApproved();
+  if (incrementVersion) {
+    approved=false;
+  }
+  article.setModifiedDate(now);
+  article.setTitle(title);
+  article.setDescription(description);
+  article.setContent(content);
+  article.setType(type);
+  article.setStructureId(structureId);
+  article.setTemplateId(templateId);
+  article.setDisplayDate(displayDate);
+  article.setApproved(approved);
+  if ((expirationDate == null) || expirationDate.after(now)) {
+    article.setExpired(false);
+  }
+ else {
+    article.setExpired(true);
+  }
+  article.setExpirationDate(expirationDate);
+  article.setReviewDate(reviewDate);
+  article.setIndexable(indexable);
+  article.setSmallImage(smallImage);
+  if (article.getSmallImageId() == 0) {
+    article.setSmallImageId(counterLocalService.increment());
+  }
+  article.setSmallImageURL(smallImageURL);
+  journalArticlePersistence.update(article,false);
+  saveImages(smallImage,article.getSmallImageId(),smallFile,smallBytes);
+  updateTagsAsset(userId,article,tagsEntries,categoriesEntries);
+  if (incrementVersion) {
+    try {
+      sendEmail(article,articleURL,preferences,"requested");
+    }
+ catch (    IOException ioe) {
+      throw new SystemException(ioe);
+    }
+  }
+  try {
+    if (article.isIndexable()) {
+      if (article.isApproved()) {
+        Indexer.updateArticle(article.getCompanyId(),article.getGroupId(),article.getArticleId(),article.getVersion(),article.getTitle(),article.getDescription(),article.getContent(),article.getType(),article.getDisplayDate(),tagsEntries,article.getExpandoBridge());
+      }
+ else {
+        Indexer.deleteArticle(article.getCompanyId(),article.getArticleId());
+      }
+    }
+  }
+ catch (  SearchException se) {
+    _log.error("Indexing " + article.getPrimaryKey(),se);
+  }
+  return article;
+}
