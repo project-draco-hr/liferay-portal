@@ -1,8 +1,13 @@
 {
   StringBuilder sb=new StringBuilder(content);
   int beginPos=content.length();
+  int initialPos=beginPos;
   while (true) {
-    beginPos=content.lastIndexOf("/get_file?",beginPos);
+    initialPos=beginPos;
+    beginPos=content.lastIndexOf("/image/image_gallery?",initialPos);
+    if (beginPos == -1) {
+      beginPos=content.lastIndexOf("@image_path@/image_gallery?",initialPos);
+    }
     if (beginPos == -1) {
       return sb.toString();
     }
@@ -34,26 +39,40 @@
         oldParameters=oldParameters.replace(StringPool.AMPERSAND_ENCODED,StringPool.AMPERSAND);
       }
       Map<String,String> map=MapUtil.toLinkedHashMap(oldParameters.split(StringPool.AMPERSAND),StringPool.EQUAL);
-      DLFileEntry fileEntry=null;
+      IGImage image=null;
       if (map.containsKey("uuid")) {
         String uuid=map.get("uuid");
         String groupIdString=map.get("groupId");
         long groupId=GetterUtil.getLong(groupIdString);
         if (groupIdString.equals("@group_id@")) {
-          groupId=context.getGroupId();
+          groupId=entityGroupId;
         }
-        fileEntry=DLFileEntryLocalServiceUtil.getFileEntryByUuidAndGroupId(uuid,groupId);
+        image=IGImageLocalServiceUtil.getImageByUuidAndGroupId(uuid,groupId);
       }
- else       if (map.containsKey("folderId")) {
-        long folderId=GetterUtil.getLong(map.get("folderId"));
-        String name=map.get("name");
-        fileEntry=DLFileEntryLocalServiceUtil.getFileEntry(folderId,name);
+ else       if (map.containsKey("image_id") || map.containsKey("img_id") || map.containsKey("i_id")) {
+        long imageId=GetterUtil.getLong(map.get("image_id"));
+        if (imageId <= 0) {
+          imageId=GetterUtil.getLong(map.get("img_id"));
+          if (imageId <= 0) {
+            imageId=GetterUtil.getLong(map.get("i_id"));
+          }
+        }
+        try {
+          image=IGImageLocalServiceUtil.getImageByLargeImageId(imageId);
+        }
+ catch (        Exception e) {
+          image=IGImageLocalServiceUtil.getImageBySmallImageId(imageId);
+        }
       }
-      if (fileEntry == null) {
+      if (image == null) {
         continue;
       }
-      DLPortletDataHandlerImpl.exportFileEntry(context,foldersEl,fileEntriesEl,fileRanks,fileEntry);
-      String newParameters="/get_file?uuid=" + fileEntry.getUuid() + "&amp;groupId=@group_id@";
+      IGPortletDataHandlerImpl.exportImage(context,foldersEl,imagesEl,image);
+      String timestamp=map.get("t");
+      if (timestamp == null) {
+        timestamp=String.valueOf(System.currentTimeMillis());
+      }
+      String newParameters="/image/image_gallery?uuid=" + image.getUuid() + "&amp;groupId=@group_id@&amp;t="+ timestamp;
       sb.replace(beginPos,endPos,newParameters);
     }
  catch (    Exception e) {
