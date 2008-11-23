@@ -1,0 +1,38 @@
+{
+  long categoryId=CompanyConstants.SYSTEM;
+  if (Validator.isNull(subject)) {
+    subject="N/A";
+  }
+  List<ObjectValuePair<String,byte[]>> files=new ArrayList<ObjectValuePair<String,byte[]>>();
+  boolean anonymous=false;
+  double priority=0.0;
+  serviceContext.setAddCommunityPermissions(true);
+  serviceContext.setAddGuestPermissions(true);
+  mbCategoryLocalService.getSystemCategory();
+  MBMessage message=addMessage(userId,userName,categoryId,threadId,parentMessageId,subject,body,files,anonymous,priority,serviceContext);
+  if ((className.equals(BlogsEntry.class.getName())) && (serviceContext != null)) {
+    BlogsEntry entry=blogsEntryPersistence.findByPrimaryKey(classPK);
+    JSONObject extraData=JSONFactoryUtil.createJSONObject();
+    extraData.put("messageId",message.getMessageId());
+    socialActivityLocalService.addActivity(userId,entry.getGroupId(),BlogsEntry.class.getName(),classPK,BlogsActivityKeys.ADD_COMMENT,extraData.toString(),entry.getUserId());
+    try {
+      sendBlogsCommentsEmail(userId,entry,message,serviceContext);
+    }
+ catch (    Exception e) {
+      _log.error(e,e);
+    }
+  }
+  if (parentMessageId == MBMessageImpl.DEFAULT_PARENT_MESSAGE_ID) {
+    long classNameId=PortalUtil.getClassNameId(className);
+    MBDiscussion discussion=mbDiscussionPersistence.fetchByC_C(classNameId,classPK);
+    if (discussion == null) {
+      long discussionId=counterLocalService.increment();
+      discussion=mbDiscussionPersistence.create(discussionId);
+      discussion.setClassNameId(PortalUtil.getClassNameId(className));
+      discussion.setClassPK(classPK);
+    }
+    discussion.setThreadId(message.getThreadId());
+    mbDiscussionPersistence.update(discussion,false);
+  }
+  return message;
+}
