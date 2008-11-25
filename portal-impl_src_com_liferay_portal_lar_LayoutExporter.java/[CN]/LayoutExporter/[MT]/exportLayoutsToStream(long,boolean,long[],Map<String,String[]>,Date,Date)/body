@@ -1,0 +1,163 @@
+{
+  boolean exportPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PERMISSIONS);
+  boolean exportUserPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.USER_PERMISSIONS);
+  boolean exportPortletData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_DATA);
+  boolean exportPortletSetup=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_SETUP);
+  boolean exportPortletArchivedSetups=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_ARCHIVED_SETUPS);
+  boolean exportPortletUserPreferences=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_USER_PREFERENCES);
+  boolean exportTheme=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.THEME);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Export permissions " + exportPermissions);
+    _log.debug("Export user permissions " + exportUserPermissions);
+    _log.debug("Export portlet data " + exportPortletData);
+    _log.debug("Export portlet setup " + exportPortletSetup);
+    _log.debug("Export portlet archived setups " + exportPortletArchivedSetups);
+    _log.debug("Export portlet user preferences " + exportPortletUserPreferences);
+    _log.debug("Export theme " + exportTheme);
+  }
+  StopWatch stopWatch=null;
+  if (_log.isInfoEnabled()) {
+    stopWatch=new StopWatch();
+    stopWatch.start();
+  }
+  LayoutCache layoutCache=new LayoutCache();
+  LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(groupId,privateLayout);
+  long companyId=layoutSet.getCompanyId();
+  long defaultUserId=UserLocalServiceUtil.getDefaultUserId(companyId);
+  ZipWriter zipWriter=new ZipWriter();
+  PortletDataContext context=new PortletDataContextImpl(companyId,groupId,parameterMap,new HashSet<String>(),startDate,endDate,zipWriter);
+  Group guestGroup=GroupLocalServiceUtil.getGroup(companyId,GroupConstants.GUEST);
+  Document doc=SAXReaderUtil.createDocument();
+  Element root=doc.addElement("root");
+  Element header=root.addElement("header");
+  header.addAttribute("build-number",String.valueOf(ReleaseInfo.getBuildNumber()));
+  header.addAttribute("export-date",Time.getRFC822());
+  if (context.hasDateRange()) {
+    header.addAttribute("start-date",String.valueOf(context.getStartDate()));
+    header.addAttribute("end-date",String.valueOf(context.getEndDate()));
+  }
+  header.addAttribute("type","layout-set");
+  header.addAttribute("group-id",String.valueOf(groupId));
+  header.addAttribute("private-layout",String.valueOf(privateLayout));
+  header.addAttribute("theme-id",layoutSet.getThemeId());
+  header.addAttribute("color-scheme-id",layoutSet.getColorSchemeId());
+  Portlet layoutConfigurationPortlet=PortletLocalServiceUtil.getPortletById(context.getCompanyId(),PortletKeys.LAYOUT_CONFIGURATION);
+  Map<String,Object[]> portletIds=new LinkedHashMap<String,Object[]>();
+  List<Layout> layouts=null;
+  if ((layoutIds == null) || (layoutIds.length == 0)) {
+    layouts=LayoutLocalServiceUtil.getLayouts(groupId,privateLayout);
+  }
+ else {
+    layouts=LayoutLocalServiceUtil.getLayouts(groupId,privateLayout,layoutIds);
+  }
+  Element layoutsEl=root.addElement("layouts");
+  for (  Layout layout : layouts) {
+    context.setPlid(layout.getPlid());
+    Document layoutDoc=SAXReaderUtil.createDocument();
+    Element layoutEl=layoutDoc.addElement("layout");
+    layoutEl.addAttribute("old-plid",String.valueOf(layout.getPlid()));
+    layoutEl.addAttribute("layout-id",String.valueOf(layout.getLayoutId()));
+    layoutEl.addElement("parent-layout-id").addText(String.valueOf(layout.getParentLayoutId()));
+    layoutEl.addElement("name").addCDATA(layout.getName());
+    layoutEl.addElement("title").addCDATA(layout.getTitle());
+    layoutEl.addElement("description").addText(layout.getDescription());
+    layoutEl.addElement("type").addText(layout.getType());
+    layoutEl.addElement("type-settings").addCDATA(layout.getTypeSettings());
+    layoutEl.addElement("hidden").addText(String.valueOf(layout.getHidden()));
+    layoutEl.addElement("friendly-url").addText(layout.getFriendlyURL());
+    layoutEl.addElement("icon-image").addText(String.valueOf(layout.getIconImage()));
+    if (layout.isIconImage()) {
+      Image image=ImageLocalServiceUtil.getImage(layout.getIconImageId());
+      if (image != null) {
+        String iconPath=getLayoutIconPath(context,layout,image);
+        layoutEl.addElement("icon-image-path").addText(iconPath);
+        context.addZipEntry(iconPath,image.getTextObj());
+      }
+    }
+    layoutEl.addElement("theme-id").addText(layout.getThemeId());
+    layoutEl.addElement("color-scheme-id").addText(layout.getColorSchemeId());
+    layoutEl.addElement("wap-theme-id").addText(layout.getWapThemeId());
+    layoutEl.addElement("wap-color-scheme-id").addText(layout.getWapColorSchemeId());
+    layoutEl.addElement("css").addCDATA(layout.getCss());
+    layoutEl.addElement("priority").addText(String.valueOf(layout.getPriority()));
+    if (exportPermissions) {
+      Element permissionsEl=layoutEl.addElement("permissions");
+      String resourceName=Layout.class.getName();
+      String resourcePrimKey=String.valueOf(layout.getPlid());
+      if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 5) {
+        exportLayoutPermissions_5(layoutCache,companyId,groupId,resourceName,resourcePrimKey,permissionsEl);
+      }
+ else {
+        exportLayoutPermissions_4(layoutCache,companyId,groupId,guestGroup,resourceName,resourcePrimKey,permissionsEl,exportUserPermissions);
+      }
+    }
+    if (layout.getType().equals(LayoutConstants.TYPE_PORTLET)) {
+      LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
+      for (      String portletId : layoutTypePortlet.getPortletIds()) {
+        String key=PortletPermissionUtil.getPrimaryKey(layout.getPlid(),portletId);
+        portletIds.put(key,new Object[]{portletId,layout.getPlid()});
+      }
+    }
+    String layoutPath=context.getLayoutPath(layout.getLayoutId()) + "/layout.xml";
+    Element el=layoutsEl.addElement("layout");
+    el.addAttribute("layout-id",String.valueOf(layout.getLayoutId()));
+    el.addAttribute("path",layoutPath);
+    _portletExporter.exportPortletData(context,layoutConfigurationPortlet,layout,null,layoutEl);
+    try {
+      context.addZipEntry(layoutPath,layoutDoc.formattedString());
+    }
+ catch (    IOException ioe) {
+    }
+  }
+  if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM != 5) {
+    Element rolesEl=root.addElement("roles");
+    if (exportPermissions) {
+      exportLayoutRoles(layoutCache,companyId,groupId,rolesEl);
+    }
+  }
+  Element portletsEl=root.addElement("portlets");
+  for (  Map.Entry<String,Object[]> portletIdsEntry : portletIds.entrySet()) {
+    String portletId=(String)portletIdsEntry.getValue()[0];
+    String rootPortletId=PortletConstants.getRootPortletId(portletId);
+    long plid=(Long)portletIdsEntry.getValue()[1];
+    Layout layout=LayoutUtil.findByPrimaryKey(plid);
+    context.setPlid(layout.getPlid());
+    context.setOldPlid(layout.getPlid());
+    boolean exportCurPortletData=exportPortletData;
+    boolean exportCurPortletSetup=exportPortletSetup;
+    Portlet portlet=PortletLocalServiceUtil.getPortletById(context.getCompanyId(),portletId);
+    if (portlet != null) {
+      String portletDataHandlerClass=portlet.getPortletDataHandlerClass();
+      if (portletDataHandlerClass != null) {
+        exportCurPortletData=exportPortletData && MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_DATA + StringPool.UNDERLINE + rootPortletId);
+        exportCurPortletSetup=exportPortletSetup && MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_SETUP + StringPool.UNDERLINE + rootPortletId);
+      }
+    }
+    _portletExporter.exportPortlet(context,layoutCache,portletId,layout,portletsEl,defaultUserId,exportPermissions,exportPortletArchivedSetups,exportCurPortletData,exportCurPortletSetup,exportPortletUserPreferences,exportUserPermissions);
+  }
+  _portletExporter.exportComments(context,root);
+  _portletExporter.exportRatings(context,root);
+  _portletExporter.exportTags(context,root);
+  InputStream themeZip=null;
+  try {
+    if (exportTheme) {
+      themeZip=exportTheme(layoutSet).getFileInputStream();
+    }
+  }
+ catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Exporting layouts takes " + stopWatch.getTime() + " ms");
+  }
+  try {
+    context.addZipEntry("/manifest.xml",doc.formattedString());
+    if (themeZip != null) {
+      context.addZipEntry("/theme.zip",themeZip);
+    }
+    return zipWriter.finishWithStream();
+  }
+ catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+}
