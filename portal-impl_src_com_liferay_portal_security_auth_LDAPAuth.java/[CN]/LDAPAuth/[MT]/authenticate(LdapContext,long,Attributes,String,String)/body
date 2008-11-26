@@ -1,14 +1,16 @@
 {
   LDAPAuthResult ldapAuthResult=new LDAPAuthResult();
   String authMethod=PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_AUTH_METHOD);
+  InitialLdapContext innerCtx=null;
   if (authMethod.equals(AUTH_METHOD_BIND)) {
     try {
-      Hashtable<String,String> env=(Hashtable<String,String>)ctx.getEnvironment();
+      Hashtable<String,Object> env=(Hashtable<String,Object>)ctx.getEnvironment();
       env.put(Context.SECURITY_PRINCIPAL,userDN);
       env.put(Context.SECURITY_CREDENTIALS,password);
       env.put(Context.REFERRAL,PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_REFERRAL));
-      ctx=new InitialLdapContext(env,null);
-      Control[] responseControls=ctx.getResponseControls();
+      env.put("com.sun.jndi.ldap.connect.pool","false");
+      innerCtx=new InitialLdapContext(env,null);
+      Control[] responseControls=innerCtx.getResponseControls();
       ldapAuthResult.setAuthenticated(true);
       ldapAuthResult.setResponseControl(responseControls);
     }
@@ -19,6 +21,11 @@
       _log.error("Failed to bind to the LDAP server: " + e.getMessage());
       ldapAuthResult.setAuthenticated(false);
       ldapAuthResult.setErrorMessage(e.getMessage());
+    }
+ finally {
+      if (innerCtx != null) {
+        innerCtx.close();
+      }
     }
   }
  else   if (authMethod.equals(AUTH_METHOD_PASSWORD_COMPARE)) {
