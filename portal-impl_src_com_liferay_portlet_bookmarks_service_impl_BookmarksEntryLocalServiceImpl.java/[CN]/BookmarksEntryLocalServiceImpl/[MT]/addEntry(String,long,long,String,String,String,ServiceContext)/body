@@ -1,0 +1,35 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  BookmarksFolder folder=bookmarksFolderPersistence.findByPrimaryKey(folderId);
+  if (Validator.isNull(name)) {
+    name=url;
+  }
+  Date now=new Date();
+  validate(url);
+  long entryId=counterLocalService.increment();
+  BookmarksEntry entry=bookmarksEntryPersistence.create(entryId);
+  entry.setUuid(uuid);
+  entry.setCompanyId(user.getCompanyId());
+  entry.setUserId(user.getUserId());
+  entry.setCreateDate(now);
+  entry.setModifiedDate(now);
+  entry.setFolderId(folderId);
+  entry.setName(name);
+  entry.setUrl(url);
+  entry.setComments(comments);
+  bookmarksEntryPersistence.update(entry,false);
+  if ((serviceContext.getAddCommunityPermissions() != null) && (serviceContext.getAddGuestPermissions() != null)) {
+    addEntryResources(folder,entry,serviceContext.getAddCommunityPermissions(),serviceContext.getAddGuestPermissions());
+  }
+ else {
+    addEntryResources(folder,entry,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
+  }
+  updateTagsAsset(userId,entry,serviceContext.getTagsEntries());
+  try {
+    Indexer.addEntry(entry.getCompanyId(),folder.getGroupId(),folderId,entryId,name,url,comments,serviceContext.getTagsEntries(),entry.getExpandoBridge());
+  }
+ catch (  SearchException se) {
+    _log.error("Indexing " + entryId,se);
+  }
+  return entry;
+}
