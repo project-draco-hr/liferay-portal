@@ -1,0 +1,74 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  long groupId=serviceContext.getScopeGroupId();
+  if (Validator.isNull(vocabularyName)) {
+    vocabularyName=PropsValues.TAGS_VOCABULARY_DEFAULT;
+  }
+  if (properties == null) {
+    properties=new String[0];
+  }
+  Date now=new Date();
+  long entryId=counterLocalService.increment();
+  TagsEntry entry=tagsEntryPersistence.create(entryId);
+  entry.setGroupId(groupId);
+  entry.setCompanyId(user.getCompanyId());
+  entry.setUserId(user.getUserId());
+  entry.setUserName(user.getFullName());
+  entry.setCreateDate(now);
+  entry.setModifiedDate(now);
+  TagsVocabulary vocabulary=null;
+  try {
+    vocabulary=tagsVocabularyPersistence.findByG_N(groupId,vocabularyName);
+  }
+ catch (  NoSuchVocabularyException nsve) {
+    if (vocabularyName.equals(PropsValues.TAGS_VOCABULARY_DEFAULT)) {
+      ServiceContext vocabularyServiceContext=new ServiceContext();
+      vocabularyServiceContext.setAddCommunityPermissions(true);
+      vocabularyServiceContext.setAddGuestPermissions(true);
+      vocabularyServiceContext.setScopeGroupId(groupId);
+      vocabulary=tagsVocabularyLocalService.addVocabulary(userId,vocabularyName,TagsEntryConstants.FOLKSONOMY_TAG,vocabularyServiceContext);
+    }
+ else {
+      throw nsve;
+    }
+  }
+  entry.setVocabularyId(vocabulary.getVocabularyId());
+  boolean folksonomy=vocabulary.isFolksonomy();
+  name=name.trim();
+  if (folksonomy) {
+    name=name.toLowerCase();
+  }
+  if (hasEntry(groupId,name,folksonomy)) {
+    throw new DuplicateEntryException("A tag entry with the name " + name + " already exists");
+  }
+  entry.setName(name);
+  if (Validator.isNotNull(parentEntryName)) {
+    TagsEntry parentEntry=getEntry(groupId,parentEntryName,folksonomy);
+    entry.setParentEntryId(parentEntry.getEntryId());
+  }
+ else {
+    entry.setParentEntryId(TagsEntryConstants.DEFAULT_PARENT_ENTRY_ID);
+  }
+  tagsEntryPersistence.update(entry,false);
+  if ((serviceContext.getAddCommunityPermissions() != null) && (serviceContext.getAddGuestPermissions() != null)) {
+    addEntryResources(entry,serviceContext.getAddCommunityPermissions(),serviceContext.getAddGuestPermissions());
+  }
+ else {
+    addEntryResources(entry,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
+  }
+  for (int i=0; i < properties.length; i++) {
+    String[] property=StringUtil.split(properties[i],StringPool.COLON);
+    String key=StringPool.BLANK;
+    if (property.length > 1) {
+      key=GetterUtil.getString(property[1]);
+    }
+    String value=StringPool.BLANK;
+    if (property.length > 2) {
+      value=GetterUtil.getString(property[2]);
+    }
+    if (Validator.isNotNull(key)) {
+      tagsPropertyLocalService.addProperty(userId,entryId,key,value);
+    }
+  }
+  return entry;
+}
