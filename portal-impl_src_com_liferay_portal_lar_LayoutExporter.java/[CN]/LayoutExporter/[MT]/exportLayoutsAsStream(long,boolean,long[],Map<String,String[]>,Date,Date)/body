@@ -97,9 +97,19 @@
     }
     if (layout.getType().equals(LayoutConstants.TYPE_PORTLET)) {
       LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
+      long scopeGroupId=groupId;
       for (      String portletId : layoutTypePortlet.getPortletIds()) {
+        javax.portlet.PortletPreferences jxPrefs=PortletPreferencesFactoryUtil.getLayoutPortletSetup(layout,portletId);
+        long scopeLayoutId=GetterUtil.getLong(jxPrefs.getValue("lfr-scope-layout-id",null));
+        if (scopeLayoutId != 0) {
+          Layout scopeLayout=LayoutLocalServiceUtil.getLayout(groupId,layout.isPrivateLayout(),scopeLayoutId);
+          Group scopeGroup=scopeLayout.getScopeGroup();
+          if (scopeGroup != null) {
+            scopeGroupId=scopeGroup.getGroupId();
+          }
+        }
         String key=PortletPermissionUtil.getPrimaryKey(layout.getPlid(),portletId);
-        portletIds.put(key,new Object[]{portletId,layout.getPlid()});
+        portletIds.put(key,new Object[]{portletId,layout.getPlid(),scopeGroupId,scopeLayoutId});
       }
     }
     String layoutPath=context.getLayoutPath(layout.getLayoutId()) + "/layout.xml";
@@ -123,9 +133,13 @@
   for (  Map.Entry<String,Object[]> portletIdsEntry : portletIds.entrySet()) {
     String portletId=(String)portletIdsEntry.getValue()[0];
     long plid=(Long)portletIdsEntry.getValue()[1];
+    long scopeGroupId=(Long)portletIdsEntry.getValue()[2];
+    long scopeLayoutId=(Long)portletIdsEntry.getValue()[3];
     Layout layout=LayoutUtil.findByPrimaryKey(plid);
     context.setPlid(layout.getPlid());
     context.setOldPlid(layout.getPlid());
+    context.setScopeGroupId(scopeGroupId);
+    context.setScopeLayoutId(scopeLayoutId);
     boolean[] exportPortletControls=getExportPortletControls(context.getCompanyId(),portletId,context,parameterMap);
     _portletExporter.exportPortlet(context,layoutCache,portletId,layout,portletsEl,defaultUserId,exportPermissions,exportPortletArchivedSetups,exportPortletControls[0],exportPortletControls[1],exportPortletUserPreferences,exportUserPermissions);
   }
