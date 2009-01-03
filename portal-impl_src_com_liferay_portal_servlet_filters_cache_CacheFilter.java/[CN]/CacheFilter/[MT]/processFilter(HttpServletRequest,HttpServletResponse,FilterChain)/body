@@ -1,0 +1,24 @@
+{
+  String completeURL=HttpUtil.getCompleteURL(request);
+  String requestURI=request.getRequestURI();
+  File tempFile=new File(SystemProperties.get(SystemProperties.TMP_DIR) + "/liferay/filter_cache" + requestURI+ ".gz");
+  File realFile=new File(getFilterConfig().getServletContext().getRealPath(requestURI));
+  if (!tempFile.exists() || tempFile.lastModified() < realFile.lastModified()) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Compressing " + completeURL);
+    }
+    processFilter(CacheFilter.class,request,response,filterChain);
+  }
+ else {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Not compressing " + completeURL);
+    }
+    byte[] compressedBytes=FileUtil.getBytes(tempFile);
+    ServletOutputStream output=response.getOutputStream();
+    response.setContentLength(compressedBytes.length);
+    response.addHeader(_CONTENT_ENCODING,_GZIP);
+    output.write(compressedBytes);
+    output.flush();
+    output.close();
+  }
+}
