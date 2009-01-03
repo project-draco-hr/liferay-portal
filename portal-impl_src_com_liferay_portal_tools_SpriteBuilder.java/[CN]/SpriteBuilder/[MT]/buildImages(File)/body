@@ -1,0 +1,44 @@
+{
+  List<File> images=new ArrayList<File>();
+  File[] files=dir.listFiles();
+  for (  File file : files) {
+    if (file.isDirectory()) {
+      buildImages(file);
+    }
+ else     if (file.getName().endsWith(".png")) {
+      images.add(file);
+    }
+  }
+  if (images.size() <= 1) {
+    return;
+  }
+  List<RenderedImage> renderedImages=new ArrayList<RenderedImage>();
+  Properties properties=new SortedProperties();
+  float x=0;
+  float y=0;
+  for (  File file : images) {
+    String fileName=file.getName();
+    if (fileName.equals(_outputFileName)) {
+      continue;
+    }
+    RenderedOp renderedOp=FileLoadDescriptor.create(file.toString(),null,null,null);
+    RenderedImage renderedImage=convert(renderedOp);
+    int height=renderedImage.getHeight();
+    int width=renderedImage.getWidth();
+    if ((height <= _maxHeight) && (width <= _maxWidth)) {
+      renderedImage=TranslateDescriptor.create(renderedImage,x,y,null,null);
+      renderedImages.add(renderedImage);
+      String key=StringUtil.replace(file.toString(),StringPool.BACK_SLASH,StringPool.SLASH);
+      key=key.substring(_inputDir.toString().length() + 1);
+      String value=(int)y + "," + height+ ","+ width;
+      properties.setProperty(key,value);
+      y+=renderedOp.getHeight();
+    }
+  }
+  if (renderedImages.size() <= 1) {
+    return;
+  }
+  RenderedOp renderedOp=MosaicDescriptor.create((RenderedImage[])renderedImages.toArray(new RenderedImage[renderedImages.size()]),MosaicDescriptor.MOSAIC_TYPE_OVERLAY,null,null,null,null,null);
+  ImageIO.write(renderedOp,"png",new File(dir.toString() + "/" + _outputFileName));
+  _fileUtil.write(dir.toString() + "/" + _propertiesFileName,PropertiesUtil.toString(properties));
+}
