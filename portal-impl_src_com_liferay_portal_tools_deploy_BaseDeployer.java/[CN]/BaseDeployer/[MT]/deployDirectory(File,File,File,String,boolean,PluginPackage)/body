@@ -16,44 +16,65 @@
   updateGeronimoWebXml(srcFile,displayName,pluginPackage);
   File webXml=new File(srcFile + "/WEB-INF/web.xml");
   updateWebXml(webXml,srcFile,displayName,pluginPackage);
-  if ((deployDir != null) && !baseDir.equals(destDir)) {
-    updateDeployDirectory(srcFile);
-    String excludes=StringPool.BLANK;
-    if (appServerType.startsWith("jboss")) {
-      excludes+="**/WEB-INF/lib/log4j.jar,";
+  if ((deployDir == null) || baseDir.equals(destDir)) {
+    return;
+  }
+  updateDeployDirectory(srcFile);
+  String excludes=StringPool.BLANK;
+  if (appServerType.startsWith("jboss")) {
+    excludes+="**/WEB-INF/lib/log4j.jar,";
+  }
+ else   if (appServerType.equals(ServerDetector.TOMCAT_ID)) {
+    String[] libs=FileUtil.listFiles(tomcatLibDir);
+    for (int i=0; i < libs.length; i++) {
+      excludes+="**/WEB-INF/lib/" + libs[i] + ",";
     }
- else     if (appServerType.equals(ServerDetector.TOMCAT_ID)) {
-      String[] libs=FileUtil.listFiles(tomcatLibDir);
-      for (int i=0; i < libs.length; i++) {
-        excludes+="**/WEB-INF/lib/" + libs[i] + ",";
-      }
-      File contextXml=new File(srcFile + "/META-INF/context.xml");
-      if (contextXml.exists()) {
-        String content=FileUtil.read(contextXml);
-        if (content.indexOf(_PORTAL_CLASS_LOADER) != -1) {
-          excludes+="**/WEB-INF/lib/util-bridges.jar,";
-          excludes+="**/WEB-INF/lib/util-java.jar,";
-          excludes+="**/WEB-INF/lib/util-taglib.jar,";
-        }
-      }
-      try {
-        Class.forName("javax.el.ELContext");
-        excludes+="**/WEB-INF/lib/el-api.jar,";
-      }
- catch (      ClassNotFoundException cnfe) {
+    File contextXml=new File(srcFile + "/META-INF/context.xml");
+    if (contextXml.exists()) {
+      String content=FileUtil.read(contextXml);
+      if (content.indexOf(_PORTAL_CLASS_LOADER) != -1) {
+        excludes+="**/WEB-INF/lib/util-bridges.jar,";
+        excludes+="**/WEB-INF/lib/util-java.jar,";
+        excludes+="**/WEB-INF/lib/util-taglib.jar,";
       }
     }
-    if (!unpackWar || appServerType.equals("websphere")) {
-      JEEDeploymentUtil.deployDirectory(displayName,srcFile,deployDir,webXml);
+    try {
+      Class.forName("javax.el.ELContext");
+      excludes+="**/WEB-INF/lib/el-api.jar,";
+    }
+ catch (    ClassNotFoundException cnfe) {
+    }
+  }
+  if (!unpackWar || appServerType.equals("websphere")) {
+    File tempDir=new File(SystemProperties.get(SystemProperties.TMP_DIR) + File.separator + Time.getTimestamp());
+    WarTask.war(srcFile,tempDir,"WEB-INF/web.xml",webXml);
+    if (isJEEDeploymentEnabled()) {
+      File tempWarDir=new File(tempDir.getParent(),deployDir.getName());
+      if (tempWarDir.exists()) {
+        tempWarDir.delete();
+      }
+      if (!tempDir.renameTo(tempWarDir)) {
+        tempWarDir=tempDir;
+      }
+      DeploymentHandler deploymentHandler=getDeploymentHandler();
+      deploymentHandler.deploy(tempWarDir,displayName);
+      deploymentHandler.releaseDeploymentManager();
+      DeleteTask.deleteDirectory(tempWarDir);
     }
  else {
-      excludes+="**/WEB-INF/web.xml";
-      CopyTask.copyDirectory(srcFile,deployDir,StringPool.BLANK,excludes,overwrite,true);
-      CopyTask.copyDirectory(srcFile,deployDir,"**/WEB-INF/web.xml",StringPool.BLANK,true,false);
-      if (appServerType.equals(ServerDetector.TOMCAT_ID)) {
-        File deployWebXml=new File(deployDir + "/WEB-INF/web.xml");
-        deployWebXml.setLastModified(System.currentTimeMillis() + (Time.SECOND * 6));
+      if (!tempDir.renameTo(deployDir)) {
+        WarTask.war(srcFile,deployDir,"WEB-INF/web.xml",webXml);
       }
+      DeleteTask.deleteDirectory(tempDir);
+    }
+  }
+ else {
+    excludes+="**/WEB-INF/web.xml";
+    CopyTask.copyDirectory(srcFile,deployDir,StringPool.BLANK,excludes,overwrite,true);
+    CopyTask.copyDirectory(srcFile,deployDir,"**/WEB-INF/web.xml",StringPool.BLANK,true,false);
+    if (appServerType.equals(ServerDetector.TOMCAT_ID)) {
+      File deployWebXml=new File(deployDir + "/WEB-INF/web.xml");
+      deployWebXml.setLastModified(System.currentTimeMillis() + (Time.SECOND * 6));
     }
   }
 }

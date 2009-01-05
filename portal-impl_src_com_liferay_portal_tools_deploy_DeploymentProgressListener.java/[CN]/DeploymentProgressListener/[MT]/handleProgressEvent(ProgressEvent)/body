@@ -1,32 +1,30 @@
 {
-  _log.info(event.getDeploymentStatus().getMessage());
-  if (event.getDeploymentStatus().isCompleted()) {
+  DeploymentStatus deploymentStatus=progressEvent.getDeploymentStatus();
+  if (_log.isInfoEnabled()) {
+    _log.info(deploymentStatus.getMessage());
+  }
+  if (deploymentStatus.isCompleted()) {
     try {
-      TargetModuleID[] ids=_deployManager.getNonRunningModules(ModuleType.WAR,_deployManager.getTargets());
-      TargetModuleID[] myIDs=new TargetModuleID[1];
-      for (      TargetModuleID id : ids) {
-        if (_warContext.equals(id.getModuleID())) {
-          myIDs[0]=id;
-          ProgressObject startProgress=_deployManager.start(myIDs);
-          startProgress.addProgressListener(new ModuleStartProgressListener(_handler));
+      TargetModuleID[] targetModuleIDs=_deploymentManager.getNonRunningModules(ModuleType.WAR,_deploymentManager.getTargets());
+      for (      TargetModuleID targetModuleID : targetModuleIDs) {
+        if (!_warContext.equals(targetModuleID.getModuleID())) {
+          continue;
         }
+        ProgressObject startProgress=_deploymentManager.start(new TargetModuleID[]{targetModuleID});
+        startProgress.addProgressListener(new StartProgressListener(_deploymentHandler));
+        _deploymentHandler.setError(false);
+        _deploymentHandler.setStarted(true);
+        break;
       }
-      _handler.setError(false);
-      _handler.setAppStarted(true);
     }
- catch (    IllegalStateException ise) {
-      _log.warn(ise);
-      _handler.setError(true);
-      _handler.setAppStarted(false);
-    }
-catch (    TargetException te) {
-      _log.warn(te);
-      _handler.setError(true);
-      _handler.setAppStarted(false);
+ catch (    Exception e) {
+      _log.error(e,e);
+      _deploymentHandler.setError(true);
+      _deploymentHandler.setStarted(false);
     }
   }
- else   if (event.getDeploymentStatus().isFailed()) {
-    _handler.setError(true);
-    _handler.setAppStarted(false);
+ else   if (deploymentStatus.isFailed()) {
+    _deploymentHandler.setError(true);
+    _deploymentHandler.setStarted(false);
   }
 }
