@@ -2,44 +2,43 @@
   StringWriter output=new StringWriter();
   boolean load=false;
   try {
-    VelocityContext velocityContext=VelocityEngineUtil.getWrappedRestrictedToolsContext();
+    VelocityContext context=new VelocityContext();
     Document doc=SAXReaderUtil.read(xml);
     Element root=doc.getRootElement();
     List<TemplateNode> nodes=_extractDynamicContents(root);
     for (    TemplateNode node : nodes) {
-      velocityContext.put(node.getName(),node);
+      context.put(node.getName(),node);
     }
-    velocityContext.put("xmlRequest",root.element("request").asXML());
-    velocityContext.put("request",_insertRequestVariables(root.element("request")));
+    context.put("xmlRequest",root.element("request").asXML());
+    context.put("request",_insertRequestVariables(root.element("request")));
     long companyId=GetterUtil.getLong(tokens.get("company_id"));
     Company company=CompanyLocalServiceUtil.getCompanyById(companyId);
     long groupId=GetterUtil.getLong(tokens.get("group_id"));
-    String templateId=tokens.get("template_id");
     String journalTemplatesPath=VelocityResourceListener.JOURNAL_SEPARATOR + StringPool.SLASH + companyId+ StringPool.SLASH+ groupId;
     String randomNamespace=PwdGenerator.getPassword(PwdGenerator.KEY3,4) + StringPool.UNDERLINE;
-    velocityContext.put("company",company);
-    velocityContext.put("companyId",String.valueOf(companyId));
-    velocityContext.put("groupId",String.valueOf(groupId));
-    velocityContext.put("journalTemplatesPath",journalTemplatesPath);
-    velocityContext.put("viewMode",viewMode);
-    velocityContext.put("locale",LocaleUtil.fromLanguageId(languageId));
-    velocityContext.put("permissionChecker",PermissionThreadLocal.getPermissionChecker());
-    velocityContext.put("randomNamespace",randomNamespace);
+    context.put("company",company);
+    context.put("companyId",String.valueOf(companyId));
+    context.put("groupId",String.valueOf(groupId));
+    context.put("journalTemplatesPath",journalTemplatesPath);
+    context.put("viewMode",viewMode);
+    context.put("locale",LocaleUtil.fromLanguageId(languageId));
+    context.put("permissionChecker",PermissionThreadLocal.getPermissionChecker());
+    context.put("randomNamespace",randomNamespace);
+    VelocityVariables.insertHelperUtilities(context,_TEMPLATE_VELOCITY_RESTRICTED_VARIABLES);
     script=_injectEditInPlace(xml,script);
     try {
-      String scriptId=templateId + groupId + companyId;
-      load=VelocityEngineUtil.mergeTemplate(scriptId,script,velocityContext,output);
+      load=Velocity.evaluate(context,output,JournalVmUtil.class.getName(),script);
     }
  catch (    VelocityException ve) {
-      velocityContext.put("exception",ve.getMessage());
-      velocityContext.put("script",script);
+      context.put("exception",ve.getMessage());
+      context.put("script",script);
       if (ve instanceof ParseErrorException) {
         ParseErrorException pe=(ParseErrorException)ve;
-        velocityContext.put("column",new Integer(pe.getColumnNumber()));
-        velocityContext.put("line",new Integer(pe.getLineNumber()));
+        context.put("column",new Integer(pe.getColumnNumber()));
+        context.put("line",new Integer(pe.getLineNumber()));
       }
       String errorTemplate=ContentUtil.get(PropsValues.JOURNAL_ERROR_TEMPLATE_VELOCITY);
-      load=VelocityEngineUtil.mergeTemplate(PropsValues.JOURNAL_ERROR_TEMPLATE_VELOCITY,errorTemplate,velocityContext,output);
+      load=Velocity.evaluate(context,output,JournalVmUtil.class.getName(),errorTemplate);
     }
   }
  catch (  Exception e) {
