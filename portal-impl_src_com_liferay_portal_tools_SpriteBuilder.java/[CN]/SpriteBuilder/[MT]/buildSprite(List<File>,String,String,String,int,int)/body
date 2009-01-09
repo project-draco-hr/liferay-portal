@@ -1,0 +1,67 @@
+{
+  if (images.size() < 1) {
+    return null;
+  }
+  File dir=images.get(0).getParentFile();
+  File spritePropertiesFile=new File(dir.toString() + "/" + spritePropertiesFileName);
+  boolean build=false;
+  long lastModified=0;
+  if (spritePropertiesFile.exists()) {
+    lastModified=spritePropertiesFile.lastModified();
+    for (    File image : images) {
+      if (image.lastModified() > lastModified) {
+        build=true;
+        break;
+      }
+    }
+  }
+ else {
+    build=true;
+  }
+  if (!build) {
+    String spritePropertiesString=FileUtil.read(spritePropertiesFile);
+    if (Validator.isNull(spritePropertiesString)) {
+      return null;
+    }
+ else {
+      return PropertiesUtil.load(spritePropertiesString);
+    }
+  }
+  List<RenderedImage> renderedImages=new ArrayList<RenderedImage>();
+  Properties spriteProperties=new SortedProperties();
+  float x=0;
+  float y=0;
+  for (  File file : images) {
+    String fileName=file.getName();
+    RenderedOp renderedOp=FileLoadDescriptor.create(file.toString(),null,null,null);
+    RenderedImage renderedImage=convert(renderedOp);
+    int height=renderedImage.getHeight();
+    int width=renderedImage.getWidth();
+    if ((height <= maxHeight) && (width <= maxWidth)) {
+      renderedImage=TranslateDescriptor.create(renderedImage,x,y,null,null);
+      renderedImages.add(renderedImage);
+      String key=StringUtil.replace(file.toString(),StringPool.BACK_SLASH,StringPool.SLASH);
+      key=key.substring(spritePropertiesRootPath.toString().length());
+      String value=(int)y + "," + height+ ","+ width;
+      spriteProperties.setProperty(key,value);
+      y+=renderedOp.getHeight();
+    }
+  }
+  if (renderedImages.size() <= 1) {
+    renderedImages.clear();
+    spriteProperties.clear();
+  }
+ else {
+    RenderedOp renderedOp=MosaicDescriptor.create((RenderedImage[])renderedImages.toArray(new RenderedImage[renderedImages.size()]),MosaicDescriptor.MOSAIC_TYPE_OVERLAY,null,null,null,null,null);
+    File spriteFile=new File(dir.toString() + "/" + spriteFileName);
+    ImageIO.write(renderedOp,"png",spriteFile);
+    if (lastModified > 0) {
+      spriteFile.setLastModified(lastModified);
+    }
+  }
+  FileUtil.write(spritePropertiesFile,PropertiesUtil.toString(spriteProperties));
+  if (lastModified > 0) {
+    spritePropertiesFile.setLastModified(lastModified);
+  }
+  return spriteProperties;
+}
