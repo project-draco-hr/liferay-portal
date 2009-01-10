@@ -1,0 +1,66 @@
+{
+  String minifierType=ParamUtil.getString(request,"minifierType");
+  String minifierBundleId=ParamUtil.getString(request,"minifierBundleId");
+  String minifierBundleDir=ParamUtil.getString(request,"minifierBundleDir");
+  if (Validator.isNull(minifierType) || Validator.isNotNull(minifierBundleId) || Validator.isNotNull(minifierBundleDir)) {
+    return null;
+  }
+  String requestURI=request.getRequestURI();
+  String realPath=StringUtil.replace(_servletContext.getRealPath(requestURI),StringPool.BACK_SLASH,StringPool.SLASH);
+  if (realPath == null) {
+    return null;
+  }
+  File file=new File(realPath);
+  if (!file.exists()) {
+    if (Validator.isNotNull(_servletContextName)) {
+      realPath=StringUtil.replaceFirst(realPath,StringPool.SLASH + _servletContextName,StringPool.BLANK);
+      file=new File(realPath);
+    }
+  }
+  if (!file.exists()) {
+    return null;
+  }
+  String cacheFileName=_tempDir + requestURI;
+  String queryString=request.getQueryString();
+  if (queryString != null) {
+    cacheFileName+=_QUESTION_SEPARATOR + queryString;
+  }
+  String minifiedContent=null;
+  File cacheFile=new File(cacheFileName);
+  if ((cacheFile.exists()) && (cacheFile.lastModified() >= file.lastModified())) {
+    minifiedContent=FileUtil.read(cacheFile);
+  }
+ else {
+    if (realPath.endsWith(_CSS_EXTENSION)) {
+      if (_log.isInfoEnabled()) {
+        _log.info("Minifying CSS " + file);
+      }
+      minifiedContent=minifyCss(file);
+    }
+ else     if (realPath.endsWith(_JAVASCRIPT_EXTENSION)) {
+      if (_log.isInfoEnabled()) {
+        _log.info("Minifying JavaScript " + file);
+      }
+      minifiedContent=minifyJavaScript(file);
+    }
+ else     if (realPath.endsWith(_JSP_EXTENSION)) {
+      if (_log.isInfoEnabled()) {
+        _log.info("Minifying JSP " + file);
+      }
+      CacheResponse cacheResponse=new CacheResponse(response,StringPool.UTF8);
+      processFilter(MinifierFilter.class,request,cacheResponse,filterChain);
+      minifiedContent=new String(cacheResponse.getData(),StringPool.UTF8);
+      if (minifierType.equals("css")) {
+        minifiedContent=minifyCss(minifiedContent);
+      }
+ else       if (minifierType.equals("js")) {
+        minifiedContent=minifyJavaScript(minifiedContent);
+      }
+    }
+ else {
+      return null;
+    }
+    FileUtil.write(cacheFile,minifiedContent);
+  }
+  return minifiedContent;
+}

@@ -1,0 +1,44 @@
+{
+  String minifierType=ParamUtil.getString(request,"minifierType");
+  String minifierBundleId=ParamUtil.getString(request,"minifierBundleId");
+  String minifierBundleDir=ParamUtil.getString(request,"minifierBundleDir");
+  if (Validator.isNull(minifierType) || Validator.isNull(minifierBundleId) || Validator.isNull(minifierBundleDir)) {
+    return null;
+  }
+  String bundleDirRealPath=_servletContext.getRealPath(minifierBundleDir);
+  if (bundleDirRealPath == null) {
+    return null;
+  }
+  String cacheFileName=_tempDir + request.getRequestURI();
+  String queryString=request.getQueryString();
+  if (queryString != null) {
+    cacheFileName+=_QUESTION_SEPARATOR + queryString;
+  }
+  String[] fileNames=PropsUtil.getArray(minifierBundleId);
+  File cacheFile=new File(cacheFileName);
+  if (cacheFile.exists()) {
+    boolean staleCache=false;
+    for (    String fileName : fileNames) {
+      File file=new File(bundleDirRealPath + StringPool.SLASH + fileName);
+      if (file.lastModified() > cacheFile.lastModified()) {
+        staleCache=true;
+        break;
+      }
+    }
+    if (!staleCache) {
+      return FileUtil.read(cacheFile);
+    }
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Minifying JavaScript bundle " + minifierBundleId);
+  }
+  StringBuilder sb=new StringBuilder();
+  for (  String fileName : fileNames) {
+    String content=FileUtil.read(bundleDirRealPath + StringPool.SLASH + fileName);
+    sb.append(content);
+    sb.append("\n");
+  }
+  String minifiedContent=minifyJavaScript(sb.toString());
+  FileUtil.write(cacheFile,minifiedContent);
+  return minifiedContent;
+}
