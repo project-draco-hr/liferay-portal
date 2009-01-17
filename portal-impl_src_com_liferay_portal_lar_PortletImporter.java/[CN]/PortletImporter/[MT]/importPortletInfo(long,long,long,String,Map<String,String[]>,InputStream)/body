@@ -1,0 +1,75 @@
+{
+  boolean deletePortletData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.DELETE_PORTLET_DATA);
+  boolean importPortletData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_DATA);
+  boolean importPortletArchivedSetups=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_ARCHIVED_SETUPS);
+  boolean importPortletSetup=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_SETUP);
+  boolean importUserPreferences=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_USER_PREFERENCES);
+  String userIdStrategy=MapUtil.getString(parameterMap,PortletDataHandlerKeys.USER_ID_STRATEGY);
+  StopWatch stopWatch=null;
+  if (_log.isInfoEnabled()) {
+    stopWatch=new StopWatch();
+    stopWatch.start();
+  }
+  Layout layout=LayoutLocalServiceUtil.getLayout(plid);
+  long companyId=layout.getCompanyId();
+  User user=UserUtil.findByPrimaryKey(userId);
+  UserIdStrategy strategy=getUserIdStrategy(user,userIdStrategy);
+  ZipReader zipReader=new ZipReader(is);
+  PortletDataContext context=new PortletDataContextImpl(companyId,groupId,parameterMap,new HashSet<String>(),strategy,zipReader);
+  context.setPlid(plid);
+  context.setPrivateLayout(layout.isPrivateLayout());
+  Element root=null;
+  String xml=context.getZipEntryAsString("/manifest.xml");
+  try {
+    Document doc=SAXReaderUtil.read(xml);
+    root=doc.getRootElement();
+  }
+ catch (  Exception e) {
+    throw new LARFileException("Cannot locate a manifest in this LAR file.");
+  }
+  Element header=root.element("header");
+  int buildNumber=ReleaseInfo.getBuildNumber();
+  int importBuildNumber=GetterUtil.getInteger(header.attributeValue("build-number"));
+  if (buildNumber != importBuildNumber) {
+    throw new LayoutImportException("LAR build number " + importBuildNumber + " does not match "+ "portal build number "+ buildNumber);
+  }
+  String type=header.attributeValue("type");
+  if (!type.equals("portlet")) {
+    throw new LARTypeException("Invalid type of LAR file (" + type + ")");
+  }
+  String rootPortletId=header.attributeValue("root-portlet-id");
+  if (!PortletConstants.getRootPortletId(portletId).equals(rootPortletId)) {
+    throw new PortletIdException("Invalid portlet id " + rootPortletId);
+  }
+  long sourceGroupId=GetterUtil.getLong(header.attributeValue("group-id"));
+  context.setSourceGroupId(sourceGroupId);
+  readCategories(context,root);
+  readComments(context,root);
+  readRatings(context,root);
+  readTags(context,root);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Deleting portlet data");
+  }
+  if (deletePortletData) {
+    deletePortletData(context,portletId,plid);
+  }
+  Element portletRefEl=root.element("portlet");
+  Element portletEl=null;
+  try {
+    Document portletDoc=SAXReaderUtil.read(context.getZipEntryAsString(portletRefEl.attributeValue("path")));
+    portletEl=portletDoc.getRootElement();
+  }
+ catch (  DocumentException de) {
+    throw new SystemException(de);
+  }
+  importPortletPreferences(context,layout.getCompanyId(),groupId,layout,portletId,portletEl,importPortletSetup,importPortletArchivedSetups,importUserPreferences,true);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Importing portlet data");
+  }
+  if (importPortletData) {
+    importPortletData(context,portletId,plid,portletEl.element("portlet-data"));
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Importing portlet data takes " + stopWatch.getTime() + " ms");
+  }
+}
