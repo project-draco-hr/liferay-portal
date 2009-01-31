@@ -1,0 +1,42 @@
+{
+  if (_deployedServletContextNames.contains(event.getServletContextName())) {
+    return;
+  }
+  boolean hasDependencies=true;
+  Set<String> dependentServletContextNames=event.getDependentServletContextNames();
+  for (  String dependentServletContextName : dependentServletContextNames) {
+    if (!_deployedServletContextNames.contains(dependentServletContextName)) {
+      hasDependencies=false;
+      break;
+    }
+  }
+  if (hasDependencies) {
+    if (_dependentEvents.contains(event)) {
+      if (_log.isInfoEnabled()) {
+        _log.info("Deploy " + event.getServletContextName() + " from queue");
+      }
+    }
+    for (    HotDeployListener listener : _listeners) {
+      try {
+        listener.invokeDeploy(event);
+      }
+ catch (      HotDeployException hde) {
+        _log.error(hde,hde);
+      }
+    }
+    _deployedServletContextNames.add(event.getServletContextName());
+    _dependentEvents.remove(event);
+    List<HotDeployEvent> dependentEvents=new ArrayList<HotDeployEvent>(_dependentEvents);
+    for (    HotDeployEvent dependentEvent : dependentEvents) {
+      _doFireDeployEvent(dependentEvent);
+    }
+  }
+ else {
+    if (!_dependentEvents.contains(event)) {
+      if (_log.isInfoEnabled()) {
+        _log.info("Queue " + event.getServletContextName() + " for deploy because its dependencies are not "+ "available");
+      }
+      _dependentEvents.add(event);
+    }
+  }
+}
