@@ -5,13 +5,25 @@
   String layoutTemplateId=preferences.getValue("layout-template-id",PropsValues.NESTED_PORTLETS_LAYOUT_TEMPLATE_DEFAULT);
   String velocityTemplateId=StringPool.BLANK;
   String velocityTemplateContent=StringPool.BLANK;
+  Map<String,String> velocityColumns=new HashMap<String,String>();
   if (Validator.isNotNull(layoutTemplateId)) {
     Theme theme=themeDisplay.getTheme();
     LayoutTemplate layoutTemplate=LayoutTemplateLocalServiceUtil.getLayoutTemplate(layoutTemplateId,false,theme.getThemeId());
+    String content=layoutTemplate.getContent();
+    Matcher processColumnMatcher=_processColumnPattern.matcher(content);
+    while (processColumnMatcher.find()) {
+      if (Validator.isNotNull(processColumnMatcher.group(2))) {
+        velocityColumns.put(processColumnMatcher.group(2),portlet.getPortletId() + "_" + processColumnMatcher.group(2));
+      }
+    }
+    processColumnMatcher.reset();
+    content=processColumnMatcher.replaceAll("$1\\${$2}$3");
     velocityTemplateId=theme.getThemeId() + LayoutTemplateConstants.CUSTOM_SEPARATOR + layoutTemplateId;
-    velocityTemplateContent=renameTemplateColumnsAndIds(layoutTemplate.getContent(),portlet);
+    Matcher tagIdMatcher=_columnIdPattern.matcher(content);
+    velocityTemplateContent=tagIdMatcher.replaceAll("$1" + portlet.getPortletId() + "$2$3");
   }
   renderRequest.setAttribute(WebKeys.NESTED_PORTLET_VELOCITY_TEMPLATE_ID,velocityTemplateId);
   renderRequest.setAttribute(WebKeys.NESTED_PORTLET_VELOCITY_TEMPLATE_CONTENT,velocityTemplateContent);
+  renderRequest.setAttribute(WebKeys.VM_VARIABLES,velocityColumns);
   return mapping.findForward("portlet.nested_portlets.view");
 }
