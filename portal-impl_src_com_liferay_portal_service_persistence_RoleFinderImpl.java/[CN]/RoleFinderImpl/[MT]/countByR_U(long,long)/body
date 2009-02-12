@@ -1,54 +1,38 @@
 {
-  String finderSQL=Role.class.getName();
-  boolean[] finderClassNamesCacheEnabled=new boolean[]{GroupModelImpl.CACHE_ENABLED,RoleModelImpl.CACHE_ENABLED,GroupModelImpl.CACHE_ENABLED_GROUPS_ROLES,UserModelImpl.CACHE_ENABLED_USERS_GROUPS,UserModelImpl.CACHE_ENABLED_USERS_ORGS,UserModelImpl.CACHE_ENABLED_USERS_ROLES,UserModelImpl.CACHE_ENABLED_USERS_USERGROUPS};
-  String[] finderClassNames=new String[]{Group.class.getName(),Role.class.getName(),"Groups_Roles","Users_Groups","Users_Orgs","Users_Roles","Users_UserGroups"};
-  String finderMethodName="customCountByR_U";
-  String finderParams[]=new String[]{Long.class.getName(),Long.class.getName()};
-  Object finderArgs[]=new Object[]{new Long(roleId),new Long(userId)};
-  Object result=null;
-  if (!ArrayUtil.contains(finderClassNamesCacheEnabled,false)) {
-    result=FinderCacheUtil.getResult(finderSQL,finderClassNames,finderMethodName,finderParams,finderArgs,this);
+  Session session=null;
+  try {
+    session=openSession();
+    StringBuilder sb=new StringBuilder();
+    sb.append("(");
+    sb.append(CustomSQLUtil.get(COUNT_BY_COMMUNITY));
+    sb.append(") UNION (");
+    sb.append(CustomSQLUtil.get(COUNT_BY_ORGANIZATION));
+    sb.append(") UNION (");
+    sb.append(CustomSQLUtil.get(COUNT_BY_USER));
+    sb.append(") UNION (");
+    sb.append(CustomSQLUtil.get(COUNT_BY_USER_GROUP));
+    sb.append(")");
+    SQLQuery q=session.createSQLQuery(sb.toString());
+    q.addScalar(COUNT_COLUMN_NAME,Type.LONG);
+    QueryPos qPos=QueryPos.getInstance(q);
+    for (int i=0; i < 4; i++) {
+      qPos.add(roleId);
+      qPos.add(userId);
+    }
+    int count=0;
+    Iterator<Long> itr=q.list().iterator();
+    while (itr.hasNext()) {
+      Long l=itr.next();
+      if (l != null) {
+        count+=l.intValue();
+      }
+    }
+    return count;
   }
-  if (result == null) {
-    Session session=null;
-    try {
-      session=openSession();
-      StringBuilder sb=new StringBuilder();
-      sb.append("(");
-      sb.append(CustomSQLUtil.get(COUNT_BY_COMMUNITY));
-      sb.append(") UNION (");
-      sb.append(CustomSQLUtil.get(COUNT_BY_ORGANIZATION));
-      sb.append(") UNION (");
-      sb.append(CustomSQLUtil.get(COUNT_BY_USER));
-      sb.append(") UNION (");
-      sb.append(CustomSQLUtil.get(COUNT_BY_USER_GROUP));
-      sb.append(")");
-      SQLQuery q=session.createSQLQuery(sb.toString());
-      q.addScalar(COUNT_COLUMN_NAME,Type.LONG);
-      QueryPos qPos=QueryPos.getInstance(q);
-      for (int i=0; i < 4; i++) {
-        qPos.add(roleId);
-        qPos.add(userId);
-      }
-      int count=0;
-      Iterator<Long> itr=q.list().iterator();
-      while (itr.hasNext()) {
-        Long l=itr.next();
-        if (l != null) {
-          count+=l.intValue();
-        }
-      }
-      FinderCacheUtil.putResult(finderSQL,finderClassNamesCacheEnabled,finderClassNames,finderMethodName,finderParams,finderArgs,new Long(count));
-      return count;
-    }
- catch (    Exception e) {
-      throw new SystemException(e);
-    }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
  finally {
-      closeSession(session);
-    }
-  }
- else {
-    return ((Long)result).intValue();
+    closeSession(session);
   }
 }
