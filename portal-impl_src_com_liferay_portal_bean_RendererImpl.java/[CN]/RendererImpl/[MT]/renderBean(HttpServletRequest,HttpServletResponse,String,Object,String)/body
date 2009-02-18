@@ -1,0 +1,49 @@
+{
+  if (bean == null) {
+    return null;
+  }
+  String className=_normalizeClassName(bean.getClass().getName());
+  if (Validator.isNotNull(varientSuffix)) {
+    className=varientSuffix;
+  }
+  long companyId=PortalUtil.getCompanyId(request);
+  String velocityTemplateContent=null;
+  PortletPreferences preferences=_getPortletPreferences(request);
+  if (preferences != null) {
+    velocityTemplateContent=preferences.getValue(RENDERER_TEMPLATE_PREFIX + className,StringPool.BLANK);
+  }
+  if (Validator.isNull(velocityTemplateContent) && Validator.isNotNull(servletContextName)) {
+    if (servletContextName.startsWith(StringPool.SLASH)) {
+      servletContextName=servletContextName.substring(1);
+    }
+    try {
+      BeanLocator locator=PortletBeanLocatorUtil.getBeanLocator(servletContextName);
+      velocityTemplateContent=ContentUtil.get(locator.getClassLoader(),PropsUtil.get(RENDERER_TEMPLATE_PREFIX + className));
+    }
+ catch (    Exception e) {
+    }
+  }
+  if (Validator.isNull(velocityTemplateContent)) {
+    try {
+      velocityTemplateContent=PrefsPropsUtil.getContent(companyId,RENDERER_TEMPLATE_PREFIX + className);
+    }
+ catch (    Exception e) {
+    }
+  }
+  if (Validator.isNull(velocityTemplateContent)) {
+    _log.warn("No entity renderer template found for " + className);
+    return null;
+  }
+  VelocityContext velocityContext=VelocityEngineUtil.getWrappedStandardToolsContext();
+  VelocityVariables.insertVariables(velocityContext,request);
+  velocityContext.put(_BEAN,bean);
+  try {
+    StringWriter stringWriter=new StringWriter();
+    VelocityEngineUtil.mergeTemplate(className,velocityTemplateContent,velocityContext,stringWriter);
+    return stringWriter.toString();
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+    throw new RendererException(e);
+  }
+}
