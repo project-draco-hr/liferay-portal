@@ -15,54 +15,10 @@
     _log.fatal(msg);
     throw new RuntimeException(msg);
   }
-  boolean ranUpgradeProcess=false;
-  String[] upgradeProcesses=PropsUtil.getArray(PropsKeys.UPGRADE_PROCESSES);
-  for (int i=0; i < upgradeProcesses.length; i++) {
-    if (_log.isDebugEnabled()) {
-      _log.debug("Initializing upgrade " + upgradeProcesses[i]);
-    }
-    UpgradeProcess upgradeProcess=(UpgradeProcess)InstancePool.get(upgradeProcesses[i]);
-    if (upgradeProcess == null) {
-      _log.error(upgradeProcesses[i] + " cannot be found");
-      continue;
-    }
-    if ((upgradeProcess.getThreshold() == 0) || (upgradeProcess.getThreshold() > buildNumber)) {
-      if (_log.isDebugEnabled()) {
-        _log.debug("Running upgrade " + upgradeProcesses[i]);
-      }
-      upgradeProcess.upgrade();
-      if (_log.isDebugEnabled()) {
-        _log.debug("Finished upgrade " + upgradeProcesses[i]);
-      }
-      ranUpgradeProcess=true;
-    }
- else {
-      if (_log.isDebugEnabled()) {
-        _log.debug("Upgrade threshold " + upgradeProcess.getThreshold() + " will not trigger upgrade");
-        _log.debug("Skipping upgrade " + upgradeProcesses[i]);
-      }
-    }
-  }
+  StartupHelperUtil.upgradeProcess(buildNumber);
   ClassNameLocalServiceUtil.checkClassNames();
-  try {
-    deleteTemporaryImages();
-  }
- catch (  Exception e) {
-    _log.error(e,e);
-  }
-  if (ranUpgradeProcess) {
-    try {
-      if (_log.isInfoEnabled()) {
-        _log.info("Adding indexes");
-      }
-      DBUtil.getInstance().runSQLTemplate("indexes.sql",false);
-    }
- catch (    Exception e) {
-      _log.error(e,e);
-    }
-  }
-  CacheRegistry.setActive(true);
-  if (ranUpgradeProcess) {
+  StartupHelperUtil.cleanupDatabase();
+  if (StartupHelperUtil.isUpgraded()) {
     MultiVMPoolUtil.clear();
   }
   MessageBus messageBus=(MessageBus)PortalBeanLocatorUtil.locate(MessageBus.class.getName());
@@ -72,41 +28,7 @@
   SchedulerEngineUtil.init(new SchedulerEngineProxy());
   SchedulerEngineUtil.start();
   Release release=ReleaseLocalServiceUtil.getRelease();
-  boolean tempIndexReadOnly=PropsValues.INDEX_READ_ONLY;
-  PropsValues.INDEX_READ_ONLY=true;
-  int verifyFrequency=GetterUtil.getInteger(PropsUtil.get(PropsKeys.VERIFY_FREQUENCY));
-  boolean verified=release.isVerified();
-  if ((verifyFrequency == VerifyProcess.ALWAYS) || ((verifyFrequency == VerifyProcess.ONCE) && !verified) || (ranUpgradeProcess)) {
-    if (!ranUpgradeProcess) {
-      PropsUtil.set(PropsKeys.INDEX_ON_STARTUP,"true");
-    }
-    String[] verifyProcesses=PropsUtil.getArray(PropsKeys.VERIFY_PROCESSES);
-    for (int i=0; i < verifyProcesses.length; i++) {
-      if (_log.isDebugEnabled()) {
-        _log.debug("Initializing verification " + verifyProcesses[i]);
-      }
-      try {
-        VerifyProcess verifyProcess=(VerifyProcess)Class.forName(verifyProcesses[i]).newInstance();
-        if (_log.isDebugEnabled()) {
-          _log.debug("Running verification " + verifyProcesses[i]);
-        }
-        verifyProcess.verify();
-        if (_log.isDebugEnabled()) {
-          _log.debug("Finished verification " + verifyProcesses[i]);
-        }
-        verified=true;
-      }
- catch (      ClassNotFoundException cnfe) {
-        _log.error(verifyProcesses[i] + " cannot be found");
-      }
-catch (      IllegalAccessException iae) {
-        _log.error(verifyProcesses[i] + " cannot be accessed");
-      }
-catch (      InstantiationException ie) {
-        _log.error(verifyProcesses[i] + " cannot be initiated");
-      }
-    }
-  }
-  PropsValues.INDEX_READ_ONLY=tempIndexReadOnly;
-  ReleaseLocalServiceUtil.updateRelease(verified);
+  StartupHelperUtil.verifyProcess(release.isVerified());
+  ReleaseLocalServiceUtil.updateRelease(StartupHelperUtil.isVerified());
+  CacheRegistry.setActive(true);
 }
