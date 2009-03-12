@@ -1,0 +1,38 @@
+{
+  String shardName=PropsValues.SHARD_DEFAULT;
+  String methodName=call.getSignature().getName();
+  Object[] arguments=call.getArgs();
+  if (methodName.equals("addCompany")) {
+    shardName=(String)arguments[3];
+  }
+ else   if (methodName.equals("checkCompany")) {
+    String webId=(String)arguments[0];
+    if (!webId.equals(PropsValues.COMPANY_DEFAULT_WEB_ID)) {
+      if (arguments.length == 3) {
+        shardName=(String)arguments[2];
+      }
+      try {
+        Company company=CompanyLocalServiceUtil.getCompanyByWebId(webId);
+        shardName=company.getShardName();
+      }
+ catch (      NoSuchCompanyException nsce) {
+      }
+    }
+  }
+ else   if (methodName.startsWith("update")) {
+    Long companyId=(Long)arguments[0];
+    shardName=ShardLocalServiceUtil.getShardNameByCompanyId(companyId);
+  }
+ else {
+    return call.proceed();
+  }
+  Object retVal=null;
+  pushCompanyService(shardName);
+  try {
+    retVal=call.proceed();
+  }
+  finally {
+    popCompanyService();
+  }
+  return retVal;
+}
