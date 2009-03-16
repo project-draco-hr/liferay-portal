@@ -7,30 +7,29 @@
     return null;
   }
   String serlializerClassName=StringUtil.replace(className,"ServiceUtil","JSONSerializer");
-  Class<?> serviceClassObj=Class.forName(className);
-  Class<?> serializerClassObj=Class.forName(serlializerClassName);
-  Object[] methodAndParameterTypes=getMethodAndParameterTypes(serviceClassObj,methodName,serviceParameters,serviceParameterTypes);
+  Class<?> classObj=Class.forName(className);
+  Object[] methodAndParameterTypes=getMethodAndParameterTypes(classObj,methodName,serviceParameters,serviceParameterTypes);
   if (methodAndParameterTypes != null) {
     Method method=(Method)methodAndParameterTypes[0];
     Class<?>[] parameterTypes=(Class[])methodAndParameterTypes[1];
     Object[] args=new Object[serviceParameters.length];
     for (int i=0; i < serviceParameters.length; i++) {
-      args[i]=getArgValue(request,serviceClassObj,methodName,serviceParameters[i],parameterTypes[i]);
+      args[i]=getArgValue(request,classObj,methodName,serviceParameters[i],parameterTypes[i]);
     }
     try {
       if (_log.isDebugEnabled()) {
-        _log.debug("Invoking class " + serviceClassObj + " on method "+ method.getName()+ " with args "+ args);
+        _log.debug("Invoking class " + classObj + " on method "+ method.getName()+ " with args "+ args);
       }
-      Object returnObj=method.invoke(serviceClassObj,args);
+      Object returnObj=method.invoke(classObj,args);
       if (returnObj != null) {
         if (returnObj instanceof BaseModel) {
-          Method toJSONObject=serializerClassObj.getMethod("toJSONObject",BaseModel.class);
-          JSONObject jsonObj=(JSONObject)toJSONObject.invoke(null,returnObj);
+          MethodWrapper methodWrapper=new MethodWrapper(serlializerClassName,"toJSONObject",returnObj);
+          JSONObject jsonObj=(JSONObject)MethodInvoker.invoke(methodWrapper);
           return jsonObj.toString();
         }
  else         if (returnObj instanceof List) {
-          Method toJSONArray=serializerClassObj.getMethod("toJSONArray",List.class);
-          JSONArray jsonArray=(JSONArray)toJSONArray.invoke(null,returnObj);
+          MethodWrapper methodWrapper=new MethodWrapper(serlializerClassName,"toJSONArray",returnObj);
+          JSONArray jsonArray=(JSONArray)MethodInvoker.invoke(methodWrapper);
           return jsonArray.toString();
         }
  else         if (returnObj instanceof JSONObject) {
@@ -45,7 +44,7 @@
  else {
           String returnValue=getReturnValue(returnObj);
           if (returnValue == null) {
-            _log.error("Unsupported return type for class " + serviceClassObj + " and method "+ methodName);
+            _log.error("Unsupported return type for class " + classObj + " and method "+ methodName);
           }
           return returnValue;
         }
