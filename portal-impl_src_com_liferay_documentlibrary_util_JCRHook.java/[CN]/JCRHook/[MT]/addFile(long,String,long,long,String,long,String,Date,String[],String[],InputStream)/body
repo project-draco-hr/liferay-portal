@@ -1,0 +1,34 @@
+{
+  Session session=null;
+  try {
+    session=JCRFactoryUtil.createSession();
+    Node rootNode=getRootNode(session,companyId);
+    Node repositoryNode=getFolderNode(rootNode,repositoryId);
+    if (repositoryNode.hasNode(fileName)) {
+      throw new DuplicateFileException(fileName);
+    }
+ else {
+      Node fileNode=repositoryNode.addNode(fileName,JCRConstants.NT_FILE);
+      Node contentNode=fileNode.addNode(JCRConstants.JCR_CONTENT,JCRConstants.NT_RESOURCE);
+      contentNode.addMixin(JCRConstants.MIX_VERSIONABLE);
+      contentNode.setProperty(JCRConstants.JCR_MIME_TYPE,"text/plain");
+      contentNode.setProperty(JCRConstants.JCR_DATA,is);
+      contentNode.setProperty(JCRConstants.JCR_LAST_MODIFIED,Calendar.getInstance());
+      session.save();
+      Version version=contentNode.checkin();
+      contentNode.getVersionHistory().addVersionLabel(version.getName(),String.valueOf(DEFAULT_VERSION),false);
+      Indexer.addFile(companyId,portletId,groupId,repositoryId,fileName,fileEntryId,properties,modifiedDate,tagsCategories,tagsEntries);
+    }
+  }
+ catch (  RepositoryException re) {
+    throw new SystemException(re);
+  }
+catch (  SearchException se) {
+    throw new SystemException(se);
+  }
+ finally {
+    if (session != null) {
+      session.logout();
+    }
+  }
+}

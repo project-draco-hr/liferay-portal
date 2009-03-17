@@ -1,0 +1,45 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  folderId=getFolderId(user.getCompanyId(),folderId);
+  DLFolder folder=dlFolderPersistence.findByPrimaryKey(folderId);
+  Date now=new Date();
+  if (Validator.isNull(title)) {
+    title=name;
+  }
+  name=getName(name);
+  title=DLFileEntryImpl.stripExtension(name,title);
+  validate(folder.getGroupId(),folderId,name,title,is);
+  long fileEntryId=counterLocalService.increment();
+  DLFileEntry fileEntry=dlFileEntryPersistence.create(fileEntryId);
+  fileEntry.setUuid(uuid);
+  fileEntry.setCompanyId(user.getCompanyId());
+  fileEntry.setUserId(user.getUserId());
+  fileEntry.setUserName(user.getFullName());
+  fileEntry.setVersionUserId(user.getUserId());
+  fileEntry.setVersionUserName(user.getFullName());
+  fileEntry.setCreateDate(now);
+  fileEntry.setModifiedDate(now);
+  fileEntry.setFolderId(folderId);
+  fileEntry.setName(name);
+  fileEntry.setTitle(title);
+  fileEntry.setDescription(description);
+  fileEntry.setVersion(DLFileEntryImpl.DEFAULT_VERSION);
+  fileEntry.setSize((int)size);
+  fileEntry.setReadCount(DLFileEntryImpl.DEFAULT_READ_COUNT);
+  fileEntry.setExtraSettings(extraSettings);
+  dlFileEntryPersistence.update(fileEntry,false);
+  if (serviceContext.getAddCommunityPermissions() || serviceContext.getAddGuestPermissions()) {
+    addFileEntryResources(folder,fileEntry,serviceContext.getAddCommunityPermissions(),serviceContext.getAddGuestPermissions());
+  }
+ else {
+    addFileEntryResources(folder,fileEntry,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
+  }
+  ExpandoBridge expandoBridge=fileEntry.getExpandoBridge();
+  expandoBridge.setAttributes(serviceContext);
+  dlLocalService.addFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,folder.getGroupId(),folderId,name,fileEntryId,fileEntry.getLuceneProperties(),fileEntry.getModifiedDate(),serviceContext.getTagsCategories(),serviceContext.getTagsEntries(),is);
+  socialActivityLocalService.addActivity(userId,folder.getGroupId(),DLFileEntry.class.getName(),fileEntryId,DLActivityKeys.ADD_FILE_ENTRY,StringPool.BLANK,0);
+  updateTagsAsset(userId,fileEntry,serviceContext.getTagsCategories(),serviceContext.getTagsEntries());
+  folder.setLastPostDate(fileEntry.getModifiedDate());
+  dlFolderPersistence.update(folder,false);
+  return fileEntry;
+}
