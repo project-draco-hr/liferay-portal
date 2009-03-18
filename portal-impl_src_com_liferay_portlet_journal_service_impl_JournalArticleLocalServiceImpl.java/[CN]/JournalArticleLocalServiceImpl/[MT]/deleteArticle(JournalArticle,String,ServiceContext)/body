@@ -1,0 +1,37 @@
+{
+  try {
+    if (article.isApproved() && article.isIndexable()) {
+      Indexer.deleteArticle(article.getCompanyId(),article.getArticleId());
+    }
+  }
+ catch (  SearchException se) {
+    _log.error("Deleting index " + article.getPrimaryKey(),se);
+  }
+  if ((serviceContext.getPortletPreferencesIds() != null) && (!article.isApproved()) && (isLatestVersion(article.getGroupId(),article.getArticleId(),article.getVersion()))) {
+    PortletPreferences preferences=portletPreferencesLocalService.getPreferences(serviceContext.getPortletPreferencesIds());
+    try {
+      sendEmail(article,articleURL,preferences,"denied");
+    }
+ catch (    IOException ioe) {
+      throw new SystemException(ioe);
+    }
+  }
+  tagsAssetLocalService.deleteAsset(JournalArticle.class.getName(),article.getResourcePrimKey());
+  expandoValueLocalService.deleteValues(JournalArticle.class.getName(),article.getResourcePrimKey());
+  ratingsStatsLocalService.deleteStats(JournalArticle.class.getName(),article.getResourcePrimKey());
+  mbMessageLocalService.deleteDiscussionMessages(JournalArticle.class.getName(),article.getResourcePrimKey());
+  journalContentSearchLocalService.deleteArticleContentSearches(article.getGroupId(),article.getArticleId());
+  journalArticleImageLocalService.deleteImages(article.getGroupId(),article.getArticleId(),article.getVersion());
+  imageLocalService.deleteImage(article.getSmallImageId());
+  if (journalArticlePersistence.countByG_A(article.getGroupId(),article.getArticleId()) == 1) {
+    resourceLocalService.deleteResource(article.getCompanyId(),JournalArticle.class.getName(),ResourceConstants.SCOPE_INDIVIDUAL,article.getResourcePrimKey());
+  }
+  if (journalArticlePersistence.countByG_A(article.getGroupId(),article.getArticleId()) == 1) {
+    try {
+      journalArticleResourceLocalService.deleteArticleResource(article.getGroupId(),article.getArticleId());
+    }
+ catch (    NoSuchArticleResourceException nsare) {
+    }
+  }
+  journalArticlePersistence.remove(article);
+}

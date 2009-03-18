@@ -1,0 +1,24 @@
+{
+  if ((serviceContext.getPortletPreferencesIds() != null) && (!article.isApproved()) && (isLatestVersion(article.getGroupId(),article.getArticleId(),article.getVersion()))) {
+    PortletPreferences preferences=portletPreferencesLocalService.getPreferences(serviceContext.getPortletPreferencesIds());
+    try {
+      sendEmail(article,articleURL,preferences,"denied");
+    }
+ catch (    IOException ioe) {
+      throw new SystemException(ioe);
+    }
+  }
+  article.setExpirationDate(new Date());
+  article.setApproved(false);
+  article.setExpired(true);
+  journalArticlePersistence.update(article,false);
+  tagsAssetLocalService.updateVisible(JournalArticle.class.getName(),article.getResourcePrimKey(),false);
+  try {
+    if (article.isIndexable()) {
+      Indexer.deleteArticle(article.getCompanyId(),article.getArticleId());
+    }
+  }
+ catch (  SearchException se) {
+    _log.error("Removing index " + article.getId(),se);
+  }
+}
