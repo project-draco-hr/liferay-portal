@@ -1,0 +1,58 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  templateId=templateId.trim().toUpperCase();
+  Date now=new Date();
+  try {
+    if (formatXsl) {
+      if (langType.equals(JournalTemplateImpl.LANG_TYPE_VM)) {
+        xsl=JournalUtil.formatVM(xsl);
+      }
+ else {
+        xsl=JournalUtil.formatXML(xsl);
+      }
+    }
+  }
+ catch (  Exception e) {
+    throw new TemplateXslException();
+  }
+  byte[] smallBytes=null;
+  try {
+    smallBytes=FileUtil.getBytes(smallFile);
+  }
+ catch (  IOException ioe) {
+  }
+  validate(groupId,templateId,autoTemplateId,name,description,xsl,smallImage,smallImageURL,smallFile,smallBytes);
+  if (autoTemplateId) {
+    templateId=String.valueOf(counterLocalService.increment());
+  }
+  long id=counterLocalService.increment();
+  JournalTemplate template=journalTemplatePersistence.create(id);
+  template.setUuid(uuid);
+  template.setGroupId(groupId);
+  template.setCompanyId(user.getCompanyId());
+  template.setUserId(user.getUserId());
+  template.setUserName(user.getFullName());
+  template.setCreateDate(now);
+  template.setModifiedDate(now);
+  template.setTemplateId(templateId);
+  template.setStructureId(structureId);
+  template.setName(name);
+  template.setDescription(description);
+  template.setXsl(xsl);
+  template.setLangType(langType);
+  template.setCacheable(cacheable);
+  template.setSmallImage(smallImage);
+  template.setSmallImageId(counterLocalService.increment());
+  template.setSmallImageURL(smallImageURL);
+  journalTemplatePersistence.update(template,false);
+  saveImages(smallImage,template.getSmallImageId(),smallFile,smallBytes);
+  if (serviceContext.getAddCommunityPermissions() || serviceContext.getAddGuestPermissions()) {
+    addTemplateResources(template,serviceContext.getAddCommunityPermissions(),serviceContext.getAddGuestPermissions());
+  }
+ else {
+    addTemplateResources(template,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
+  }
+  ExpandoBridge expandoBridge=template.getExpandoBridge();
+  expandoBridge.setAttributes(serviceContext);
+  return template;
+}
