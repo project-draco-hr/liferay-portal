@@ -1,15 +1,23 @@
 {
-  String methodName=proceedingJointPoint.getSignature().getName();
-  Object[] arguments=proceedingJointPoint.getArgs();
+  String methodName=call.getSignature().getName();
+  Object[] arguments=call.getArgs();
   String shardName=PropsValues.SHARD_DEFAULT_NAME;
   if (methodName.equals("addCompany")) {
+    String webId=(String)arguments[0];
+    String virtualHost=(String)arguments[1];
+    String mx=(String)arguments[2];
     shardName=(String)arguments[3];
+    shardName=_getCompanyShardSelection(webId,virtualHost,mx,shardName);
+    arguments[3]=shardName;
   }
  else   if (methodName.equals("checkCompany")) {
     String webId=(String)arguments[0];
     if (!webId.equals(PropsValues.COMPANY_DEFAULT_WEB_ID)) {
       if (arguments.length == 3) {
+        String mx=(String)arguments[1];
         shardName=(String)arguments[2];
+        shardName=_getCompanyShardSelection(webId,null,mx,shardName);
+        arguments[2]=shardName;
       }
       try {
         Company company=CompanyLocalServiceUtil.getCompanyByWebId(webId);
@@ -25,12 +33,15 @@
     shardName=shard.getName();
   }
  else {
-    return proceedingJointPoint.proceed();
+    return call.proceed();
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Company service being set to shard " + shardName + " for "+ _getSignature(call));
   }
   Object returnValue=null;
   pushCompanyService(shardName);
   try {
-    returnValue=proceedingJointPoint.proceed();
+    returnValue=call.proceed(arguments);
   }
   finally {
     popCompanyService();
