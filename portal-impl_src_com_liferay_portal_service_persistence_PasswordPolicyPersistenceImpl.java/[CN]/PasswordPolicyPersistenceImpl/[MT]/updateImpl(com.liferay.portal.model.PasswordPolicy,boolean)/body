@@ -1,16 +1,31 @@
 {
+  boolean isNew=passwordPolicy.isNew();
   Session session=null;
   try {
     session=openSession();
     BatchSessionUtil.update(session,passwordPolicy,merge);
     passwordPolicy.setNew(false);
-    return passwordPolicy;
   }
  catch (  Exception e) {
     throw processException(e);
   }
  finally {
     closeSession(session);
-    FinderCacheUtil.clearCache(PasswordPolicy.class.getName());
   }
+  FinderCacheUtil.clearCache(FINDER_CLASS_NAME_LIST);
+  PasswordPolicyModelImpl passwordPolicyModelImpl=(PasswordPolicyModelImpl)passwordPolicy;
+  if (!isNew && ((passwordPolicy.getCompanyId() != passwordPolicyModelImpl.getOriginalCompanyId()) || (passwordPolicy.getDefaultPolicy() != passwordPolicyModelImpl.getOriginalDefaultPolicy()))) {
+    FinderCacheUtil.removeResult(FINDER_PATH_FETCH_BY_C_DP,new Object[]{new Long(passwordPolicyModelImpl.getOriginalCompanyId()),Boolean.valueOf(passwordPolicyModelImpl.getOriginalDefaultPolicy())});
+  }
+  if (isNew || ((passwordPolicy.getCompanyId() != passwordPolicyModelImpl.getOriginalCompanyId()) || (passwordPolicy.getDefaultPolicy() != passwordPolicyModelImpl.getOriginalDefaultPolicy()))) {
+    FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_C_DP,new Object[]{new Long(passwordPolicy.getCompanyId()),Boolean.valueOf(passwordPolicy.getDefaultPolicy())},passwordPolicy);
+  }
+  if (!isNew && ((passwordPolicy.getCompanyId() != passwordPolicyModelImpl.getOriginalCompanyId()) || !passwordPolicy.getName().equals(passwordPolicyModelImpl.getOriginalName()))) {
+    FinderCacheUtil.removeResult(FINDER_PATH_FETCH_BY_C_N,new Object[]{new Long(passwordPolicyModelImpl.getOriginalCompanyId()),passwordPolicyModelImpl.getOriginalName()});
+  }
+  if (isNew || ((passwordPolicy.getCompanyId() != passwordPolicyModelImpl.getOriginalCompanyId()) || !passwordPolicy.getName().equals(passwordPolicyModelImpl.getOriginalName()))) {
+    FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_C_N,new Object[]{new Long(passwordPolicy.getCompanyId()),passwordPolicy.getName()},passwordPolicy);
+  }
+  EntityCacheUtil.putResult(PasswordPolicyModelImpl.ENTITY_CACHE_ENABLED,PasswordPolicy.class,passwordPolicy.getPrimaryKey(),passwordPolicy);
+  return passwordPolicy;
 }

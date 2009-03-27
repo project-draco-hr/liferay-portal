@@ -1,4 +1,5 @@
 {
+  boolean isNew=calEvent.isNew();
   if (Validator.isNull(calEvent.getUuid())) {
     String uuid=PortalUUIDUtil.generate();
     calEvent.setUuid(uuid);
@@ -8,13 +9,21 @@
     session=openSession();
     BatchSessionUtil.update(session,calEvent,merge);
     calEvent.setNew(false);
-    return calEvent;
   }
  catch (  Exception e) {
     throw processException(e);
   }
  finally {
     closeSession(session);
-    FinderCacheUtil.clearCache(CalEvent.class.getName());
   }
+  FinderCacheUtil.clearCache(FINDER_CLASS_NAME_LIST);
+  CalEventModelImpl calEventModelImpl=(CalEventModelImpl)calEvent;
+  if (!isNew && (!calEvent.getUuid().equals(calEventModelImpl.getOriginalUuid()) || (calEvent.getGroupId() != calEventModelImpl.getOriginalGroupId()))) {
+    FinderCacheUtil.removeResult(FINDER_PATH_FETCH_BY_UUID_G,new Object[]{calEventModelImpl.getOriginalUuid(),new Long(calEventModelImpl.getOriginalGroupId())});
+  }
+  if (isNew || (!calEvent.getUuid().equals(calEventModelImpl.getOriginalUuid()) || (calEvent.getGroupId() != calEventModelImpl.getOriginalGroupId()))) {
+    FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_UUID_G,new Object[]{calEvent.getUuid(),new Long(calEvent.getGroupId())},calEvent);
+  }
+  EntityCacheUtil.putResult(CalEventModelImpl.ENTITY_CACHE_ENABLED,CalEvent.class,calEvent.getPrimaryKey(),calEvent);
+  return calEvent;
 }

@@ -1,4 +1,5 @@
 {
+  boolean isNew=blogsEntry.isNew();
   if (Validator.isNull(blogsEntry.getUuid())) {
     String uuid=PortalUUIDUtil.generate();
     blogsEntry.setUuid(uuid);
@@ -8,13 +9,27 @@
     session=openSession();
     BatchSessionUtil.update(session,blogsEntry,merge);
     blogsEntry.setNew(false);
-    return blogsEntry;
   }
  catch (  Exception e) {
     throw processException(e);
   }
  finally {
     closeSession(session);
-    FinderCacheUtil.clearCache(BlogsEntry.class.getName());
   }
+  FinderCacheUtil.clearCache(FINDER_CLASS_NAME_LIST);
+  BlogsEntryModelImpl blogsEntryModelImpl=(BlogsEntryModelImpl)blogsEntry;
+  if (!isNew && (!blogsEntry.getUuid().equals(blogsEntryModelImpl.getOriginalUuid()) || (blogsEntry.getGroupId() != blogsEntryModelImpl.getOriginalGroupId()))) {
+    FinderCacheUtil.removeResult(FINDER_PATH_FETCH_BY_UUID_G,new Object[]{blogsEntryModelImpl.getOriginalUuid(),new Long(blogsEntryModelImpl.getOriginalGroupId())});
+  }
+  if (isNew || (!blogsEntry.getUuid().equals(blogsEntryModelImpl.getOriginalUuid()) || (blogsEntry.getGroupId() != blogsEntryModelImpl.getOriginalGroupId()))) {
+    FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_UUID_G,new Object[]{blogsEntry.getUuid(),new Long(blogsEntry.getGroupId())},blogsEntry);
+  }
+  if (!isNew && ((blogsEntry.getGroupId() != blogsEntryModelImpl.getOriginalGroupId()) || !blogsEntry.getUrlTitle().equals(blogsEntryModelImpl.getOriginalUrlTitle()))) {
+    FinderCacheUtil.removeResult(FINDER_PATH_FETCH_BY_G_UT,new Object[]{new Long(blogsEntryModelImpl.getOriginalGroupId()),blogsEntryModelImpl.getOriginalUrlTitle()});
+  }
+  if (isNew || ((blogsEntry.getGroupId() != blogsEntryModelImpl.getOriginalGroupId()) || !blogsEntry.getUrlTitle().equals(blogsEntryModelImpl.getOriginalUrlTitle()))) {
+    FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_G_UT,new Object[]{new Long(blogsEntry.getGroupId()),blogsEntry.getUrlTitle()},blogsEntry);
+  }
+  EntityCacheUtil.putResult(BlogsEntryModelImpl.ENTITY_CACHE_ENABLED,BlogsEntry.class,blogsEntry.getPrimaryKey(),blogsEntry);
+  return blogsEntry;
 }

@@ -1,16 +1,31 @@
 {
+  boolean isNew=shard.isNew();
   Session session=null;
   try {
     session=openSession();
     BatchSessionUtil.update(session,shard,merge);
     shard.setNew(false);
-    return shard;
   }
  catch (  Exception e) {
     throw processException(e);
   }
  finally {
     closeSession(session);
-    FinderCacheUtil.clearCache(Shard.class.getName());
   }
+  FinderCacheUtil.clearCache(FINDER_CLASS_NAME_LIST);
+  ShardModelImpl shardModelImpl=(ShardModelImpl)shard;
+  if (!isNew && (!shard.getName().equals(shardModelImpl.getOriginalName()))) {
+    FinderCacheUtil.removeResult(FINDER_PATH_FETCH_BY_NAME,new Object[]{shardModelImpl.getOriginalName()});
+  }
+  if (isNew || (!shard.getName().equals(shardModelImpl.getOriginalName()))) {
+    FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_NAME,new Object[]{shard.getName()},shard);
+  }
+  if (!isNew && ((shard.getClassNameId() != shardModelImpl.getOriginalClassNameId()) || (shard.getClassPK() != shardModelImpl.getOriginalClassPK()))) {
+    FinderCacheUtil.removeResult(FINDER_PATH_FETCH_BY_C_C,new Object[]{new Long(shardModelImpl.getOriginalClassNameId()),new Long(shardModelImpl.getOriginalClassPK())});
+  }
+  if (isNew || ((shard.getClassNameId() != shardModelImpl.getOriginalClassNameId()) || (shard.getClassPK() != shardModelImpl.getOriginalClassPK()))) {
+    FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_C_C,new Object[]{new Long(shard.getClassNameId()),new Long(shard.getClassPK())},shard);
+  }
+  EntityCacheUtil.putResult(ShardModelImpl.ENTITY_CACHE_ENABLED,Shard.class,shard.getPrimaryKey(),shard);
+  return shard;
 }

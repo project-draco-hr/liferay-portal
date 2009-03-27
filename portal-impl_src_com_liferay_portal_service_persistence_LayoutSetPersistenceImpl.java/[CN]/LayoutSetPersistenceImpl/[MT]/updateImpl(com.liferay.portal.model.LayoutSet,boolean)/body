@@ -1,16 +1,31 @@
 {
+  boolean isNew=layoutSet.isNew();
   Session session=null;
   try {
     session=openSession();
     BatchSessionUtil.update(session,layoutSet,merge);
     layoutSet.setNew(false);
-    return layoutSet;
   }
  catch (  Exception e) {
     throw processException(e);
   }
  finally {
     closeSession(session);
-    FinderCacheUtil.clearCache(LayoutSet.class.getName());
   }
+  FinderCacheUtil.clearCache(FINDER_CLASS_NAME_LIST);
+  LayoutSetModelImpl layoutSetModelImpl=(LayoutSetModelImpl)layoutSet;
+  if (!isNew && (!layoutSet.getVirtualHost().equals(layoutSetModelImpl.getOriginalVirtualHost()))) {
+    FinderCacheUtil.removeResult(FINDER_PATH_FETCH_BY_VIRTUALHOST,new Object[]{layoutSetModelImpl.getOriginalVirtualHost()});
+  }
+  if (isNew || (!layoutSet.getVirtualHost().equals(layoutSetModelImpl.getOriginalVirtualHost()))) {
+    FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_VIRTUALHOST,new Object[]{layoutSet.getVirtualHost()},layoutSet);
+  }
+  if (!isNew && ((layoutSet.getGroupId() != layoutSetModelImpl.getOriginalGroupId()) || (layoutSet.getPrivateLayout() != layoutSetModelImpl.getOriginalPrivateLayout()))) {
+    FinderCacheUtil.removeResult(FINDER_PATH_FETCH_BY_G_P,new Object[]{new Long(layoutSetModelImpl.getOriginalGroupId()),Boolean.valueOf(layoutSetModelImpl.getOriginalPrivateLayout())});
+  }
+  if (isNew || ((layoutSet.getGroupId() != layoutSetModelImpl.getOriginalGroupId()) || (layoutSet.getPrivateLayout() != layoutSetModelImpl.getOriginalPrivateLayout()))) {
+    FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_G_P,new Object[]{new Long(layoutSet.getGroupId()),Boolean.valueOf(layoutSet.getPrivateLayout())},layoutSet);
+  }
+  EntityCacheUtil.putResult(LayoutSetModelImpl.ENTITY_CACHE_ENABLED,LayoutSet.class,layoutSet.getPrimaryKey(),layoutSet);
+  return layoutSet;
 }
