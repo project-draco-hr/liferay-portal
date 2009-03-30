@@ -9,29 +9,33 @@
       sessionFactory.closeSession(session);
     }
   }
-  PortalCache portalCache=_getPortalCache(classObj.getName());
-  String key=_encodeKey(primaryKeyObj);
-  Object result=_multiVMPool.get(portalCache,key);
-  if (result != null) {
-    result=_objectToResult(result);
-  }
- else {
-    if (_log.isDebugEnabled()) {
-      _log.debug("Load " + classObj + " "+ primaryKeyObj+ " from session");
-    }
-    Session session=null;
-    try {
-      session=sessionFactory.openSession();
-      result=session.load(classObj,primaryKeyObj);
-    }
-  finally {
-      if (result == null) {
-        result=StringPool.BLANK;
+  Map<String,Object> localCache=_localCache.get();
+  String localCacheKey=_encodeLocalCacheKey(classObj,primaryKeyObj);
+  Object result=localCache.get(localCacheKey);
+  if (result == null) {
+    PortalCache portalCache=_getPortalCache(classObj.getName());
+    String cacheKey=_encodeCacheKey(primaryKeyObj);
+    result=_multiVMPool.get(portalCache,cacheKey);
+    if (result == null) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Load " + classObj + " "+ primaryKeyObj+ " from session");
       }
-      result=_objectToResult(result);
-      _multiVMPool.put(portalCache,key,result);
-      sessionFactory.closeSession(session);
+      Session session=null;
+      try {
+        session=sessionFactory.openSession();
+        result=session.load(classObj,primaryKeyObj);
+      }
+  finally {
+        if (result == null) {
+          result=StringPool.BLANK;
+        }
+        result=_objectToResult(result);
+        _multiVMPool.put(portalCache,cacheKey,result);
+        sessionFactory.closeSession(session);
+      }
     }
+    localCache.put(localCacheKey,result);
   }
+  result=_objectToResult(result);
   return result;
 }
