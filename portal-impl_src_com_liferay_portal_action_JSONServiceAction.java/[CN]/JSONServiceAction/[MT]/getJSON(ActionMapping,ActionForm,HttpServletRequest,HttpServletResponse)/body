@@ -6,7 +6,6 @@
   if (!isValidRequest(request)) {
     return null;
   }
-  String serlializerClassName=StringUtil.replace(className,new String[]{".service.","ServiceUtil"},new String[]{".service.http.","JSONSerializer"});
   Class<?> classObj=Class.forName(className);
   Object[] methodAndParameterTypes=getMethodAndParameterTypes(classObj,methodName,serviceParameters,serviceParameterTypes);
   if (methodAndParameterTypes != null) {
@@ -23,13 +22,20 @@
       Object returnObj=method.invoke(classObj,args);
       if (returnObj != null) {
         if (returnObj instanceof BaseModel) {
+          String serlializerClassName=getSerializerClassName(returnObj);
           MethodWrapper methodWrapper=new MethodWrapper(serlializerClassName,"toJSONObject",returnObj);
           JSONObject jsonObj=(JSONObject)MethodInvoker.invoke(methodWrapper,false);
           return jsonObj.toString();
         }
  else         if (returnObj instanceof List) {
-          MethodWrapper methodWrapper=new MethodWrapper(serlializerClassName,"toJSONArray",returnObj);
-          JSONArray jsonArray=(JSONArray)MethodInvoker.invoke(methodWrapper,false);
+          JSONArray jsonArray=JSONFactoryUtil.createJSONArray();
+          List returnList=(List)returnObj;
+          if (!returnList.isEmpty()) {
+            Object returnItem0=returnList.get(0);
+            String serlializerClassName=getSerializerClassName(returnItem0);
+            MethodWrapper methodWrapper=new MethodWrapper(serlializerClassName,"toJSONArray",returnObj);
+            jsonArray=(JSONArray)MethodInvoker.invoke(methodWrapper,false);
+          }
           return jsonArray.toString();
         }
  else         if (returnObj instanceof JSONObject) {
@@ -54,14 +60,19 @@
         return jsonObj.toString();
       }
     }
- catch (    IllegalArgumentException iae) {
+ catch (    Exception e) {
       JSONObject jsonObj=JSONFactoryUtil.createJSONObject();
-      jsonObj.put("exception",iae.getMessage());
-      return jsonObj.toString();
-    }
-catch (    InvocationTargetException ite) {
-      JSONObject jsonObj=JSONFactoryUtil.createJSONObject();
-      jsonObj.put("exception",ite.getCause().toString());
+      if (e instanceof IllegalArgumentException) {
+        IllegalArgumentException iae=(IllegalArgumentException)e;
+        jsonObj.put("exception",iae.getMessage());
+      }
+ else       if (e instanceof InvocationTargetException) {
+        InvocationTargetException ite=(InvocationTargetException)e;
+        jsonObj.put("exception",ite.getCause().toString());
+      }
+ else {
+        jsonObj.put("exception",e.getMessage());
+      }
       return jsonObj.toString();
     }
   }
