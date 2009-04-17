@@ -94,6 +94,7 @@
   _portletImporter.readRatings(context,root);
   _portletImporter.readTags(context,root);
   List<Layout> previousLayouts=LayoutUtil.findByG_P(groupId,privateLayout);
+  List<Layout> newLayouts=new ArrayList<Layout>();
   Set<Long> newLayoutIds=new HashSet<Long>();
   Map<Long,Long> newLayoutIdPlidMap=(Map<Long,Long>)context.getNewPrimaryKeysMap(Layout.class);
   List<Element> layoutEls=root.element("layouts").elements("layout");
@@ -216,6 +217,7 @@
     context.setOldPlid(oldPlid);
     newLayoutIdPlidMap.put(oldLayoutId,layout.getPlid());
     newLayoutIds.add(layoutId);
+    newLayouts.add(layout);
     Element permissionsEl=layoutEl.element("permissions");
     if (importPermissions && (permissionsEl != null)) {
       String resourceName=Layout.class.getName();
@@ -307,5 +309,14 @@
   LayoutSetLocalServiceUtil.updatePageCount(groupId,privateLayout);
   if (_log.isInfoEnabled()) {
     _log.info("Importing layouts takes " + stopWatch.getTime() + " ms");
+  }
+  for (  Layout layout : newLayouts) {
+    UnicodeProperties typeSettingsProperties=layout.getTypeSettingsProperties();
+    String articleId=typeSettingsProperties.getProperty("article-id");
+    if (Validator.isNotNull(articleId)) {
+      Map<String,String> articleIds=(Map<String,String>)context.getNewPrimaryKeysMap(JournalArticle.class);
+      typeSettingsProperties.setProperty("article-id",MapUtil.getString(articleIds,articleId,articleId));
+      LayoutUtil.update(layout,false);
+    }
   }
 }
