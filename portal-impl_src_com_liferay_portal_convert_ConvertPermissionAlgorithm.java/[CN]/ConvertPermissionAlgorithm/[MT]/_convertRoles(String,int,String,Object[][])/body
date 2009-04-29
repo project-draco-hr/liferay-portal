@@ -4,143 +4,115 @@
   BufferedWriter legacyFileExtRolesPermissionsWriter=new BufferedWriter(new FileWriter(legacyFile + _EXT_ROLES_PERMIMISSIONS));
   BufferedWriter legacyFileExtOtherRolesWriter=new BufferedWriter(new FileWriter(legacyFile + _EXT_OTHER_ROLES));
   try {
-    ExpandoTable expandoTable=ExpandoTableLocalServiceUtil.addTable(_CLASS_NAME_ID,_RBAC_TABLE);
-    ExpandoColumn expandoColumn=ExpandoColumnLocalServiceUtil.addColumn(expandoTable.getTableId(),"values",ExpandoColumnConstants.STRING_ARRAY);
+    MultiValueMap mvp=new MultiValueMap();
     String line=null;
     while ((line=legacyFileReader.readLine()) != null) {
       String[] values=StringUtil.split(line);
       long resourceId=PermissionView.getResourceId(values);
-      String data="";
-      try {
-        ExpandoValue expandoValue=ExpandoValueLocalServiceUtil.getValue(_CLASS_NAME_ID,expandoTable.getTableId(),expandoColumn.getColumnId(),resourceId);
-        data=expandoValue.getData();
-      }
- catch (      NoSuchValueException nsve) {
-      }
-      if (data.length() > 0) {
-        data+=StringPool.COMMA + _encode(line);
-      }
- else {
-        data=_encode(line);
-      }
-      ExpandoValueLocalServiceUtil.addValue(_CLASS_NAME_ID,expandoTable.getTableId(),expandoColumn.getColumnId(),resourceId,data);
+      mvp.put(resourceId,values);
     }
-    if (_log.isInfoEnabled()) {
-      _log.info("Organized data in expando");
-    }
-    List<ExpandoRow> rows=null;
-    int total=ExpandoRowLocalServiceUtil.getRowsCount(expandoTable.getTableId());
-    int start=0;
-    int end=0;
-    for (; ; ) {
-      start=end;
-      end+=_PAGINATION_SIZE;
-      if (end > total) {
-        end=total;
+    for (    Long key : (Set<Long>)mvp.keySet()) {
+      List<String[]> valuesList=new ArrayList<String[]>(mvp.getCollection(key));
+      String[] values=valuesList.get(0);
+      long companyId=PermissionView.getCompanyId(values);
+      long groupId=PermissionView.getPrimaryKey(values);
+      String name=PermissionView.getNameId(values);
+      int scope=PermissionView.getScopeId(values);
+      List<String> actionsIds=new ArrayList<String>();
+      List<Long> permissionIds=new ArrayList<Long>();
+      for (      String[] curValues : valuesList) {
+        String actionId=PermissionView.getActionId(curValues);
+        long permissionId=PermissionView.getPermissionId(curValues);
+        actionsIds.add(actionId);
+        permissionIds.add(permissionId);
       }
-      if (start == total) {
-        break;
-      }
-      rows=ExpandoRowLocalServiceUtil.getRows(expandoTable.getTableId(),start,end);
-      for (      ExpandoRow row : rows) {
-        ExpandoValue expandoValue=ExpandoValueLocalServiceUtil.getValue(_CLASS_NAME_ID,expandoTable.getTableId(),expandoColumn.getColumnId(),row.getClassPK());
-        String[] lines=expandoValue.getStringArray();
-        String[] values=StringUtil.split(_decode(lines[0]));
-        long companyId=PermissionView.getCompanyId(values);
-        long groupId=PermissionView.getPrimaryKey(values);
-        String name=PermissionView.getName(values);
-        int scope=PermissionView.getScope(values);
-        List<String> actionsIds=new ArrayList<String>();
-        List<Long> permissionIds=new ArrayList<Long>();
-        for (        String line2 : lines) {
-          String[] values2=StringUtil.split(_decode(line2));
-          String actionId=PermissionView.getActionId(values2);
-          long permissionId=PermissionView.getPermissionId(values2);
-          actionsIds.add(actionId);
-          permissionIds.add(permissionId);
-        }
-        if ((type != RoleConstants.TYPE_ORGANIZATION) && (scope == ResourceConstants.SCOPE_INDIVIDUAL)) {
-          List<String> defaultActions=null;
-          if (type == RoleConstants.TYPE_REGULAR) {
-            defaultActions=ResourceActionsUtil.getResourceActions(name);
+      if ((type != RoleConstants.TYPE_ORGANIZATION) && (scope == ResourceConstants.SCOPE_INDIVIDUAL)) {
+        List<String> defaultActions=null;
+        if (type == RoleConstants.TYPE_REGULAR) {
+          if (name.contains(StringPool.PERIOD)) {
+            defaultActions=ResourceActionsUtil.getModelResourceActions(name);
           }
  else {
-            defaultActions=ResourceActionsUtil.getResourceCommunityDefaultActions(name);
+            defaultActions=ResourceActionsUtil.getPortletResourceActions(name);
           }
-          Role defaultRole=null;
-          if (type == RoleConstants.TYPE_REGULAR) {
-            Collections.sort(actionsIds);
-            Collections.sort(defaultActions);
-            if (defaultActions.equals(actionsIds)) {
-              defaultRole=_ownerRolesMap.get(companyId);
+        }
+ else {
+          if (name.contains(StringPool.PERIOD)) {
+            defaultActions=ResourceActionsUtil.getModelResourceCommunityDefaultActions(name);
+          }
+ else {
+            defaultActions=ResourceActionsUtil.getPortletResourceCommunityDefaultActions(name);
+          }
+        }
+        Role defaultRole=null;
+        if (type == RoleConstants.TYPE_REGULAR) {
+          Collections.sort(actionsIds);
+          Collections.sort(defaultActions);
+          if (defaultActions.equals(actionsIds)) {
+            defaultRole=_ownerRolesMap.get(companyId);
+          }
+        }
+ else {
+          if (defaultActions.containsAll(actionsIds)) {
+            Role[] defaultRoles=_defaultRolesMap.get(companyId);
+            Group group=_groupsMap.get(groupId);
+            if (group.isCommunity()) {
+              defaultRole=defaultRoles[0];
+            }
+ else             if (group.isOrganization()) {
+              defaultRole=defaultRoles[1];
+            }
+ else             if (group.isUser() || group.isUserGroup()) {
+              defaultRole=defaultRoles[2];
             }
           }
- else {
-            if (defaultActions.containsAll(actionsIds)) {
-              Role[] defaultRoles=_defaultRolesMap.get(companyId);
-              Group group=_groupsMap.get(groupId);
-              if (group.isCommunity()) {
-                defaultRole=defaultRoles[0];
-              }
- else               if (group.isOrganization()) {
-                defaultRole=defaultRoles[1];
-              }
- else               if (group.isUser() || group.isUserGroup()) {
-                defaultRole=defaultRoles[2];
-              }
+        }
+        if (defaultRole != null) {
+          long roleId=defaultRole.getRoleId();
+          for (          Long permissionId : permissionIds) {
+            String curKey=roleId + "_" + permissionId;
+            if (_rolesPermissions.contains(curKey)) {
+              continue;
             }
-          }
-          if (defaultRole != null) {
-            long roleId=defaultRole.getRoleId();
-            for (            Long permissionId : permissionIds) {
-              String curKey=roleId + "_" + permissionId;
-              if (_rolesPermissions.contains(curKey)) {
-                continue;
-              }
  else {
-                _rolesPermissions.add(curKey);
-              }
-              legacyFileExtRolesPermissionsWriter.write(roleId + "," + permissionId+ ",\n");
+              _rolesPermissions.add(curKey);
             }
-            continue;
+            legacyFileExtRolesPermissionsWriter.write(roleId + "," + permissionId+ ",\n");
           }
+          continue;
         }
-        long roleId=CounterLocalServiceUtil.increment();
-        String roleName=StringUtil.upperCaseFirstLetter(RoleConstants.getTypeLabel(type));
-        roleName+=" " + Long.toHexString(roleId);
-        String[] roleColumns=new String[]{String.valueOf(roleId),String.valueOf(companyId),String.valueOf(ClassNameLocalServiceUtil.getClassNameId(Role.class)),String.valueOf(roleId),roleName,StringPool.BLANK,"Autogenerated role from portal upgrade",String.valueOf(type),"lfr-permission-algorithm-5"};
-        for (int i=0; i < roleColumns.length; i++) {
-          legacyFileExtRoleWriter.write(roleColumns[i] + StringPool.COMMA);
-          if (i == (roleColumns.length - 1)) {
-            legacyFileExtRoleWriter.write(StringPool.NEW_LINE);
-          }
-        }
-        for (        Long permissionId : permissionIds) {
-          String curKey=roleId + "_" + permissionId;
-          if (_rolesPermissions.contains(curKey)) {
-            continue;
-          }
- else {
-            _rolesPermissions.add(curKey);
-          }
-          legacyFileExtRolesPermissionsWriter.write(roleId + "," + permissionId+ ",\n");
-        }
-        for (int i=0; i < newColumns.length - 1; i++) {
-          legacyFileExtOtherRolesWriter.write(values[i] + StringPool.COMMA);
-        }
-        legacyFileExtOtherRolesWriter.write(roleId + ",\n");
       }
+      long roleId=CounterLocalServiceUtil.increment();
+      String roleName=StringUtil.upperCaseFirstLetter(RoleConstants.getTypeLabel(type));
+      roleName+=" " + Long.toHexString(roleId);
+      String[] roleColumns=new String[]{String.valueOf(roleId),String.valueOf(companyId),String.valueOf(ClassNameLocalServiceUtil.getClassNameId(Role.class)),String.valueOf(roleId),roleName,StringPool.BLANK,"Autogenerated role from portal upgrade",String.valueOf(type),"lfr-permission-algorithm-5"};
+      for (int i=0; i < roleColumns.length; i++) {
+        legacyFileExtRoleWriter.write(roleColumns[i] + StringPool.COMMA);
+        if (i == (roleColumns.length - 1)) {
+          legacyFileExtRoleWriter.write(StringPool.NEW_LINE);
+        }
+      }
+      for (      Long permissionId : permissionIds) {
+        String curKey=roleId + "_" + permissionId;
+        if (_rolesPermissions.contains(curKey)) {
+          continue;
+        }
+ else {
+          _rolesPermissions.add(curKey);
+        }
+        legacyFileExtRolesPermissionsWriter.write(roleId + "," + permissionId+ ",\n");
+      }
+      for (int i=0; i < newColumns.length - 1; i++) {
+        legacyFileExtOtherRolesWriter.write(values[i] + StringPool.COMMA);
+      }
+      legacyFileExtOtherRolesWriter.write(roleId + ",\n");
     }
   }
   finally {
-    if (_log.isInfoEnabled()) {
-      _log.info("Completed sorting new roles");
-    }
     legacyFileReader.close();
     legacyFileExtRoleWriter.close();
     legacyFileExtRolesPermissionsWriter.close();
     legacyFileExtOtherRolesWriter.close();
-    ExpandoTableLocalServiceUtil.deleteTable(getClass().getName(),_RBAC_TABLE);
   }
   Table roleTable=new Table(RoleModelImpl.TABLE_NAME,RoleModelImpl.TABLE_COLUMNS);
   roleTable.populateTable(legacyFile + _EXT_ROLE);
