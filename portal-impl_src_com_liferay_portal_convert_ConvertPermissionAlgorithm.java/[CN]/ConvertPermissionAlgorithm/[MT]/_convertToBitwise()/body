@@ -1,0 +1,40 @@
+{
+  MaintenanceUtil.appendStatus("Generating ResourceAction and ResourcePermission data");
+  Table table=new Table(ResourceCodeModelImpl.TABLE_NAME,ResourceCodeModelImpl.TABLE_COLUMNS);
+  table.setSelectSQL("SELECT * FROM " + ResourceCodeModelImpl.TABLE_NAME + " GROUP BY name");
+  String tempFile=table.generateTempFile();
+  BufferedReader resourceNameReader=new BufferedReader(new FileReader(tempFile));
+  BufferedWriter resourcePermissionWriter=new BufferedWriter(new FileWriter(tempFile + _EXT_RESOURCE_PERMISSION));
+  PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM=6;
+  try {
+    String line=null;
+    while (Validator.isNotNull(line=resourceNameReader.readLine())) {
+      String[] values=StringUtil.split(line);
+      String name=values[2];
+      List<String> defaultActionIds=ResourceActionsUtil.getResourceActions(name);
+      ResourceActionLocalServiceUtil.checkResourceActions(name,defaultActionIds);
+      _convertResourcePermission(resourcePermissionWriter,name);
+    }
+    resourcePermissionWriter.close();
+    MaintenanceUtil.appendStatus("Updating ResourcePermission table");
+    Table resourcePermissionTable=new Table(ResourcePermissionModelImpl.TABLE_NAME,ResourcePermissionModelImpl.TABLE_COLUMNS);
+    resourcePermissionTable.populateTable(tempFile + _EXT_RESOURCE_PERMISSION);
+  }
+ catch (  Exception e) {
+    PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM=5;
+    throw e;
+  }
+ finally {
+    resourceNameReader.close();
+    resourcePermissionWriter.close();
+    FileUtil.delete(tempFile);
+    FileUtil.delete(tempFile + _EXT_RESOURCE_PERMISSION);
+  }
+  MaintenanceUtil.appendStatus("Cleanup legacy tables");
+  DBUtil dbUtil=DBUtil.getInstance();
+  dbUtil.runSQL("DELETE FROM " + ResourceCodeModelImpl.TABLE_NAME);
+  dbUtil.runSQL("DELETE FROM " + PermissionModelImpl.TABLE_NAME);
+  dbUtil.runSQL("DELETE FROM " + ResourceModelImpl.TABLE_NAME);
+  dbUtil.runSQL("DELETE FROM Roles_Permissions");
+  MaintenanceUtil.appendStatus("Conversion to bitwise permission complete");
+}
