@@ -1,0 +1,54 @@
+{
+  String pollerRequest=ParamUtil.getString(request,"pollerRequest");
+  if (Validator.isNull(pollerRequest)) {
+    return null;
+  }
+  pollerRequest=StringUtil.replace(pollerRequest,new String[]{StringPool.OPEN_CURLY_BRACE,StringPool.CLOSE_CURLY_BRACE},new String[]{_OPEN_HASH_MAP_WRAPPER,StringPool.DOUBLE_CLOSE_CURLY_BRACE});
+  StringBuilder sb=new StringBuilder();
+  Map<String,Object>[] pollerRequestEntries=(Map<String,Object>[])JSONFactoryUtil.deserialize(pollerRequest);
+  for (int i=0; i < pollerRequestEntries.length; i++) {
+    Map<String,Object> pollerRequestEntry=pollerRequestEntries[i];
+    PollerHeader pollerHeader=null;
+    if (i == 0) {
+      long companyId=GetterUtil.getLong((String)pollerRequestEntry.get("companyId"));
+      String userIdString=GetterUtil.getString((String)pollerRequestEntry.get("userId"));
+      long timestamp=GetterUtil.getLong((String)pollerRequestEntry.get("timestamp"));
+      long browserKey=GetterUtil.getLong((String)pollerRequestEntry.get("browserKey"));
+      boolean startPolling=GetterUtil.getBoolean((String)pollerRequestEntry.get("startPolling"));
+      long userId=getUserId(companyId,userIdString);
+      if (userId == 0) {
+        return null;
+      }
+      pollerHeader=new PollerHeader(userId,timestamp,browserKey);
+      boolean suspendPolling=false;
+      if (startPolling) {
+        BrowserTrackerLocalServiceUtil.updateBrowserTracker(userId,browserKey);
+      }
+ else {
+        BrowserTracker browserTracker=BrowserTrackerLocalServiceUtil.getBrowserTracker(userId,browserKey);
+        if (browserTracker.getBrowserKey() != browserKey) {
+          suspendPolling=true;
+        }
+      }
+      sb.append("[{\"userId\":");
+      sb.append(userId);
+      sb.append(",\"timestamp\":");
+      sb.append(timestamp);
+      sb.append(",\"suspendPolling\":");
+      sb.append(suspendPolling);
+      sb.append("\"}");
+    }
+ else {
+      String portletId=(String)pollerRequestEntry.get("portletId");
+      Map<String,String> parameterMap=(Map<String,String>)pollerRequestEntry.get("data");
+      try {
+        process(pollerHeader,portletId,parameterMap,sb);
+      }
+ catch (      Exception e) {
+        _log.error(e,e);
+      }
+    }
+  }
+  sb.append(StringPool.CLOSE_BRACKET);
+  return sb.toString();
+}
