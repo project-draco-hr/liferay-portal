@@ -1,0 +1,33 @@
+{
+  _messageFromMB.put("sourceMailingList",false);
+  MBMailingListNotificationMessageListener listener=new MBMailingListNotificationMessageListener(_mockMBMailingListService,new MessageSender(){
+    public void send(    String destination,    Message message){
+      _toMailService=message;
+    }
+  }
+);
+  final MBMailingList mailingListConfig=new MockMBMailingListImpl("mail-list@liferay.com",true,true);
+  mailingListConfig.setOutServerPort(25);
+  mailingListConfig.setOutServerName("mail.liferay.com");
+  mailingListConfig.setOutUserName("userName");
+  mailingListConfig.setOutPassword("password");
+  _mockery.checking(new Expectations(){
+{
+      one(_mockMBMailingListService).getCategoryMailingList(1);
+      will(returnValue(mailingListConfig));
+      one(_mockSender).send(with(equal(DestinationNames.MAIL)),with(any(Message.class)));
+    }
+  }
+);
+  listener.receive(_messageFromMB);
+  assertNotNull(_toMailService);
+  MailMessage sentToMailService=(MailMessage)_toMailService.getPayload();
+  SMTPAccount account=sentToMailService.getSMTPAccount();
+  assertNotNull(account);
+  assertEquals(Account.PROTOCOL_SMTP,account.getProtocol());
+  assertTrue(mailingListConfig.getOutServerPort() == account.getPort());
+  assertEquals(mailingListConfig.getOutServerName(),account.getHost());
+  assertEquals(mailingListConfig.getOutUserName(),account.getUser());
+  assertEquals(mailingListConfig.getOutPassword(),account.getPassword());
+  _assertToMailServiceMessage(mailingListConfig,sentToMailService);
+}

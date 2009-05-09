@@ -1,0 +1,40 @@
+{
+  MBSubscriptionNotificationMessageListener listener=new MBSubscriptionNotificationMessageListener(new MessageSender(){
+    public void send(    String destination,    Message message){
+      _toMailService.add(message);
+    }
+  }
+,_subscriptionLocalService,_userLocalService);
+  _messageFromMB.put("categoryIds","2");
+  final List<Subscription> threadSubscriptions=Arrays.asList(new Subscription[]{new MockSubscriptionImpl(1,1,1)});
+  final MockUserImpl threadSubscriber=new MockUserImpl(1,"test@liferay.com","Joe","","Bloggs",true);
+  final List<Subscription> categorySubscriptions=Arrays.asList(new Subscription[]{new MockSubscriptionImpl(1,2,2)});
+  final MockUserImpl categorySubscriber=new MockUserImpl(2,"test2@liferay.com","Joe2","","Bloggs2",true);
+  _mockery.checking(new Expectations(){
+{
+      one(_subscriptionLocalService).getSubscriptions(with(any(Long.class)),with(equal(MBThread.class.getName())),with(any(Long.class)));
+      will(returnValue(threadSubscriptions));
+      exactly(threadSubscriptions.size()).of(_userLocalService).getUserById(with(any(Long.class)));
+      will(returnValue(threadSubscriber));
+      never(_subscriptionLocalService).deleteSubscription(with(any(Long.class)));
+      exactly(StringUtil.split(_messageFromMB.getString("categoryIds")).length).of(_subscriptionLocalService).getSubscriptions(with(any(Long.class)),with(equal(MBCategory.class.getName())),with(any(Long.class)));
+      will(returnValue(categorySubscriptions));
+      exactly(categorySubscriptions.size()).of(_userLocalService).getUserById(with(any(Long.class)));
+      will(returnValue(categorySubscriber));
+      never(_subscriptionLocalService).deleteSubscription(with(any(Long.class)));
+    }
+  }
+);
+  listener.receive(_messageFromMB);
+  assertTrue(_toMailService.size() == 2);
+  MailMessage toThreadSubscriber=(MailMessage)_toMailService.get(0).getPayload();
+  assertNull(toThreadSubscriber.getSMTPAccount());
+  _assertToMailServiceMessage(toThreadSubscriber);
+  assertEquals(threadSubscriber.getEmailAddress(),toThreadSubscriber.getBulkAddresses()[0].getAddress());
+  assertEquals(threadSubscriber.getFullName(),toThreadSubscriber.getBulkAddresses()[0].getPersonal());
+  MailMessage toCategorySubscriber=(MailMessage)_toMailService.get(1).getPayload();
+  assertNull(toCategorySubscriber.getSMTPAccount());
+  _assertToMailServiceMessage(toCategorySubscriber);
+  assertEquals(categorySubscriber.getEmailAddress(),toCategorySubscriber.getBulkAddresses()[0].getAddress());
+  assertEquals(categorySubscriber.getFullName(),toCategorySubscriber.getBulkAddresses()[0].getPersonal());
+}
