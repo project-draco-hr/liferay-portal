@@ -3,6 +3,10 @@
   if (!BlogsEntryPermission.contains(permissionChecker,activity.getClassPK(),ActionKeys.VIEW)) {
     return null;
   }
+  String groupName=StringPool.BLANK;
+  if (activity.getGroupId() != themeDisplay.getScopeGroupId()) {
+    groupName=getGroupName(activity.getGroupId(),themeDisplay);
+  }
   String creatorUserName=getUserName(activity.getUserId(),themeDisplay);
   String receiverUserName=getUserName(activity.getReceiverUserId(),themeDisplay);
   int activityType=activity.getType();
@@ -12,50 +16,28 @@
   }
   BlogsEntry entry=BlogsEntryLocalServiceUtil.getEntry(activity.getClassPK());
   String link=themeDisplay.getURLPortal() + themeDisplay.getPathMain() + "/blogs/find_entry?entryId="+ activity.getClassPK();
-  String groupName=StringPool.BLANK;
-  if (activity.getGroupId() != themeDisplay.getScopeGroupId()) {
-    Group group=GroupLocalServiceUtil.getGroup(activity.getGroupId());
-    groupName=group.getDescriptiveName();
-  }
   String titlePattern=null;
-  Object[] titleArguments=null;
+  StringBuilder sb=new StringBuilder();
+  sb.append("<a href=\"");
+  sb.append(link);
+  sb.append("\">\"");
+  sb.append(cleanContent(entry.getTitle()));
+  sb.append("\"</a>");
+  String entryTitle=sb.toString();
   if (activityType == BlogsActivityKeys.ADD_COMMENT) {
     titlePattern="activity-blogs-add-comment";
     if (Validator.isNotNull(groupName)) {
       titlePattern+="-in";
     }
-    titleArguments=new Object[]{creatorUserName,receiverUserName,groupName};
   }
  else   if (activityType == BlogsActivityKeys.ADD_ENTRY) {
     titlePattern="activity-blogs-add-entry";
     if (Validator.isNotNull(groupName)) {
       titlePattern+="-in";
     }
-    titleArguments=new Object[]{creatorUserName,groupName};
   }
+  Object[] titleArguments=new Object[]{groupName,creatorUserName,receiverUserName,entryTitle};
   String title=themeDisplay.translate(titlePattern,titleArguments);
-  StringBuilder sb=new StringBuilder();
-  sb.append("<a href=\"");
-  sb.append(link);
-  sb.append("\">");
-  if (activityType == BlogsActivityKeys.ADD_COMMENT) {
-    long messageId=extraData.getInt("messageId");
-    try {
-      MBMessage message=MBMessageLocalServiceUtil.getMessage(messageId);
-      sb.append(cleanContent(message.getBody()));
-    }
- catch (    NoSuchMessageException nsme) {
-      SocialActivityLocalServiceUtil.deleteActivity(activity.getActivityId());
-      return null;
-    }
-  }
- else   if (activityType == BlogsActivityKeys.ADD_ENTRY) {
-    sb.append(entry.getTitle());
-  }
-  sb.append("</a><br />");
-  if (activityType == BlogsActivityKeys.ADD_ENTRY) {
-    sb.append(cleanContent(entry.getContent()));
-  }
-  String body=sb.toString();
+  String body=StringPool.BLANK;
   return new SocialActivityFeedEntry(link,title,body);
 }
