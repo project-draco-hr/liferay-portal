@@ -18,17 +18,53 @@
   Company company=companyPersistence.findByPrimaryKey(page.getCompanyId());
   Group group=groupPersistence.findByPrimaryKey(node.getGroupId());
   User user=userPersistence.findByPrimaryKey(page.getUserId());
-  String pageURL=StringPool.BLANK;
   String portalURL=serviceContext.getPortalURL();
   String layoutURL=serviceContext.getLayoutURL();
-  if (Validator.isNotNull(layoutURL) && Validator.isNotNull(portalURL)) {
-    pageURL=portalURL + layoutURL + Portal.FRIENDLY_URL_SEPARATOR+ "wiki/"+ node.getNodeId()+ StringPool.SLASH+ HttpUtil.encodeURL(page.getTitle());
-  }
   String portletName=PortalUtil.getPortletTitle(PortletKeys.WIKI,user);
   String fromName=WikiUtil.getEmailFromName(preferences);
   String fromAddress=WikiUtil.getEmailFromAddress(preferences);
   String replyToAddress=fromAddress;
   String mailId=WikiUtil.getMailId(company.getMx(),page.getNodeId(),page.getPageId());
+  WikiPage previousVersionPage=getPreviousVersionPage(page);
+  String attachmentURLPrefix=portalURL + serviceContext.getPathMain() + "/wiki/get_page_attachment?"+ "p_l_id="+ serviceContext.getPlid()+ "&nodeId="+ page.getNodeId()+ "&title="+ HttpUtil.encodeURL(page.getTitle())+ "&fileName=";
+  String pageDiffs=StringPool.BLANK;
+  try {
+    pageDiffs=WikiUtil.diffHtml(previousVersionPage,page,null,null,attachmentURLPrefix);
+  }
+ catch (  Exception e) {
+  }
+  String pageContent;
+  if (Validator.equals(page.getFormat(),"creole")) {
+    pageContent=WikiUtil.convert(page,null,null,attachmentURLPrefix);
+  }
+ else {
+    pageContent=page.getContent();
+    pageContent=WikiUtil.processContent(pageContent);
+  }
+  String pageURL=StringPool.BLANK;
+  String diffsURL=StringPool.BLANK;
+  if (Validator.isNotNull(layoutURL) && Validator.isNotNull(portalURL)) {
+    pageURL=portalURL + layoutURL + Portal.FRIENDLY_URL_SEPARATOR+ "wiki/"+ node.getNodeId()+ StringPool.SLASH+ HttpUtil.encodeURL(page.getTitle());
+    if (previousVersionPage != null) {
+      StringBuilder sb=new StringBuilder();
+      sb.append(portalURL);
+      sb.append(layoutURL);
+      sb.append("?p_p_id=");
+      sb.append(PortletKeys.WIKI);
+      sb.append("&p_p_state=");
+      sb.append(WindowState.MAXIMIZED);
+      sb.append("&struts_action=/wiki/compare_versions");
+      sb.append("&type=html&nodeId=");
+      sb.append(node.getNodeId());
+      sb.append("&title=");
+      sb.append(HttpUtil.encodeURL(page.getTitle()));
+      sb.append("&sourceVersion=");
+      sb.append(previousVersionPage.getVersion());
+      sb.append("&targetVersion=");
+      sb.append(page.getVersion());
+      diffsURL=sb.toString();
+    }
+  }
   fromName=StringUtil.replace(fromName,new String[]{"[$COMPANY_ID$]","[$COMPANY_MX$]","[$COMPANY_NAME$]","[$COMMUNITY_NAME$]","[$PAGE_USER_ADDRESS$]","[$PAGE_USER_NAME$]","[$PORTLET_NAME$]"},new String[]{String.valueOf(company.getCompanyId()),company.getMx(),company.getName(),group.getName(),user.getEmailAddress(),user.getFullName(),portletName});
   fromAddress=StringUtil.replace(fromAddress,new String[]{"[$COMPANY_ID$]","[$COMPANY_MX$]","[$COMPANY_NAME$]","[$COMMUNITY_NAME$]","[$PAGE_USER_ADDRESS$]","[$PAGE_USER_NAME$]","[$PORTLET_NAME$]"},new String[]{String.valueOf(company.getCompanyId()),company.getMx(),company.getName(),group.getName(),user.getEmailAddress(),user.getFullName(),portletName});
   String subjectPrefix=null;
@@ -45,13 +81,13 @@
     signature=WikiUtil.getEmailPageAddedSignature(preferences);
   }
   if (Validator.isNotNull(signature)) {
-    body+="\n--\n" + signature;
+    body+="\n" + signature;
   }
-  subjectPrefix=StringUtil.replace(subjectPrefix,new String[]{"[$COMPANY_ID$]","[$COMPANY_MX$]","[$COMPANY_NAME$]","[$COMMUNITY_NAME$]","[$FROM_ADDRESS$]","[$FROM_NAME$]","[$NODE_NAME$]","[$PAGE_CONTENT$]","[$PAGE_ID$]","[$PAGE_TITLE$]","[$PAGE_USER_ADDRESS$]","[$PAGE_USER_NAME$]","[$PORTAL_URL$]","[$PORTLET_NAME$]"},new String[]{String.valueOf(company.getCompanyId()),company.getMx(),company.getName(),group.getName(),fromAddress,fromName,node.getName(),page.getContent(),String.valueOf(page.getPageId()),page.getTitle(),user.getEmailAddress(),user.getFullName(),company.getVirtualHost(),portletName});
-  body=StringUtil.replace(body,new String[]{"[$COMPANY_ID$]","[$COMPANY_MX$]","[$COMPANY_NAME$]","[$COMMUNITY_NAME$]","[$FROM_ADDRESS$]","[$FROM_NAME$]","[$NODE_NAME$]","[$PAGE_CONTENT$]","[$PAGE_ID$]","[$PAGE_TITLE$]","[$PAGE_URL$]","[$PAGE_USER_ADDRESS$]","[$PAGE_USER_NAME$]","[$PORTAL_URL$]","[$PORTLET_NAME$]"},new String[]{String.valueOf(company.getCompanyId()),company.getMx(),company.getName(),group.getName(),fromAddress,fromName,node.getName(),page.getContent(),String.valueOf(page.getPageId()),page.getTitle(),pageURL,user.getEmailAddress(),user.getFullName(),company.getVirtualHost(),portletName});
+  subjectPrefix=StringUtil.replace(subjectPrefix,new String[]{"[$COMPANY_ID$]","[$COMPANY_MX$]","[$COMPANY_NAME$]","[$COMMUNITY_NAME$]","[$FROM_ADDRESS$]","[$FROM_NAME$]","[$NODE_NAME$]","[$PAGE_CONTENT$]","[$PAGE_ID$]","[$PAGE_TITLE$]","[$PAGE_USER_ADDRESS$]","[$PAGE_USER_NAME$]","[$PORTAL_URL$]","[$PORTLET_NAME$]"},new String[]{String.valueOf(company.getCompanyId()),company.getMx(),company.getName(),group.getName(),fromAddress,fromName,node.getName(),pageContent,String.valueOf(page.getPageId()),page.getTitle(),user.getEmailAddress(),user.getFullName(),company.getVirtualHost(),portletName});
+  body=StringUtil.replace(body,new String[]{"[$COMPANY_ID$]","[$COMPANY_MX$]","[$COMPANY_NAME$]","[$COMMUNITY_NAME$]","[$FROM_ADDRESS$]","[$FROM_NAME$]","[$NODE_NAME$]","[$PAGE_CONTENT$]","[$PAGE_DATE_UPDATE$]","[$PAGE_DIFFS$]","[$PAGE_ID$]","[$PAGE_SUMMARY$]","[$PAGE_TITLE$]","[$PAGE_URL$]","[$DIFFS_URL$]","[$PAGE_USER_ADDRESS$]","[$PAGE_USER_NAME$]","[$PORTAL_URL$]","[$PORTLET_NAME$]"},new String[]{String.valueOf(company.getCompanyId()),company.getMx(),company.getName(),group.getName(),fromAddress,fromName,node.getName(),pageContent,String.valueOf(page.getModifiedDate()),replaceStyles(pageDiffs),String.valueOf(page.getPageId()),page.getSummary(),page.getTitle(),pageURL,diffsURL,user.getEmailAddress(),user.getFullName(),company.getVirtualHost(),portletName});
   String subject=page.getTitle();
   if (subject.indexOf(subjectPrefix) == -1) {
-    subject=subjectPrefix + subject;
+    subject=subjectPrefix + StringPool.SPACE + subject;
   }
   Message message=new Message();
   message.put("companyId",node.getCompanyId());
@@ -64,5 +100,6 @@
   message.put("body",body);
   message.put("replyToAddress",replyToAddress);
   message.put("mailId",mailId);
+  message.put("htmlFormat",Boolean.TRUE);
   MessageBusUtil.sendMessage(DestinationNames.WIKI,message);
 }

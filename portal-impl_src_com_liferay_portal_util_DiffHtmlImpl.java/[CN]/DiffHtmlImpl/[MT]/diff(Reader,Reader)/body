@@ -1,0 +1,30 @@
+{
+  InputSource oldSource=new InputSource(source);
+  InputSource newSource=new InputSource(target);
+  String prefix="diff";
+  Locale locale=LocaleUtil.getDefault();
+  StringWriter writer=new StringWriter();
+  SAXTransformerFactory tf=(SAXTransformerFactory)TransformerFactory.newInstance();
+  TransformerHandler handler=tf.newTransformerHandler();
+  handler.setResult(new StreamResult(writer));
+  XslFilter filter=new XslFilter();
+  ContentHandler postProcess=filter.xsl(handler,"com/liferay/portal/util/dependencies/diff_html.xsl");
+  HtmlCleaner cleaner=new HtmlCleaner();
+  DomTreeBuilder oldHandler=new DomTreeBuilder();
+  cleaner.cleanAndParse(oldSource,oldHandler);
+  TextNodeComparator leftComparator=new TextNodeComparator(oldHandler,locale);
+  DomTreeBuilder newHandler=new DomTreeBuilder();
+  cleaner.cleanAndParse(newSource,newHandler);
+  TextNodeComparator rightComparator=new TextNodeComparator(newHandler,locale);
+  postProcess.startDocument();
+  postProcess.startElement("","diffreport","diffreport",new AttributesImpl());
+  postProcess.startElement("","diff","diff",new AttributesImpl());
+  HtmlSaxDiffOutput output=new HtmlSaxDiffOutput(postProcess,prefix);
+  HTMLDiffer differ=new HTMLDiffer(output);
+  differ.diff(leftComparator,rightComparator);
+  postProcess.endElement("","diff","diff");
+  postProcess.endElement("","diffreport","diffreport");
+  postProcess.endDocument();
+  writer.flush();
+  return writer.toString();
+}
