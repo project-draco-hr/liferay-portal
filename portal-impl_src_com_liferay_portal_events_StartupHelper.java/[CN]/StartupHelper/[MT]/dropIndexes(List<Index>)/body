@@ -1,34 +1,20 @@
 {
-  if (!_dropIndexes) {
-    return;
+  Set<String> validIndexNames=new HashSet<String>();
+  if (indexes.isEmpty()) {
+    return validIndexNames;
   }
-  List<Index> indexes=null;
-  DBUtil dbUtil=DBUtil.getInstance();
-  String type=dbUtil.getType();
-  if (type.equals(DBUtil.TYPE_DB2)) {
-    indexes=getDB2Indexes();
-  }
- else   if (type.equals(DBUtil.TYPE_MYSQL)) {
-    indexes=getMySQLIndexes();
-  }
- else   if (type.equals(DBUtil.TYPE_ORACLE)) {
-    indexes=getOracleIndexes();
-  }
- else   if (type.equals(DBUtil.TYPE_POSTGRESQL)) {
-    indexes=getPostgreSQLIndexes();
-  }
- else   if (type.equals(DBUtil.TYPE_SQLSERVER)) {
-    indexes=getSQLServerIndexes();
-  }
- else   if (type.equals(DBUtil.TYPE_SYBASE)) {
-    indexes=getSybaseIndexes();
-  }
-  if ((indexes == null) || indexes.isEmpty()) {
-    return;
+  if (_dropIndexes) {
+    for (    Index index : indexes) {
+      String indexName=index.getIndexName().toUpperCase();
+      validIndexNames.add(indexName);
+    }
+    return validIndexNames;
   }
   if (_log.isInfoEnabled()) {
     _log.info("Dropping stale indexes");
   }
+  DBUtil dbUtil=DBUtil.getInstance();
+  String type=dbUtil.getType();
   Thread currentThread=Thread.currentThread();
   ClassLoader classLoader=currentThread.getContextClassLoader();
   String indexPropertiesString=StringUtil.read(classLoader,"com/liferay/portal/tools/sql/dependencies/indexes.properties");
@@ -48,7 +34,7 @@
     String tableName=index.getTableName();
     String tableNameLowerCase=tableName.toLowerCase();
     boolean unique=index.isUnique();
-    existingIndexNames.add(indexName);
+    validIndexNames.add(indexName);
     if (indexProperties.containsKey(indexNameLowerCase)) {
       if (unique && indexesSQLString.contains("create unique index " + indexNameLowerCase + " ")) {
         continue;
@@ -62,7 +48,7 @@
         continue;
       }
     }
-    existingIndexNames.remove(indexName);
+    validIndexNames.remove(indexName);
     String sql="drop index " + indexName;
     if (type.equals(DBUtil.TYPE_MYSQL) || type.equals(DBUtil.TYPE_SQLSERVER)) {
       sql+=" on " + tableName;
@@ -72,4 +58,5 @@
     }
     dbUtil.runSQL(sql);
   }
+  return validIndexNames;
 }
