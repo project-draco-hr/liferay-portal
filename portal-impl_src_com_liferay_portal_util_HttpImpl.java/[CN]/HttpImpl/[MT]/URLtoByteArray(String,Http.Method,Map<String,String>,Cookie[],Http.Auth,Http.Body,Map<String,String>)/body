@@ -1,6 +1,6 @@
 {
   byte[] bytes=null;
-  HttpMethod method=null;
+  HttpMethod httpMethod=null;
   try {
     if (location == null) {
       return bytes;
@@ -10,14 +10,19 @@
     }
     HostConfiguration hostConfig=getHostConfig(location);
     HttpClient client=getClient(hostConfig);
-    if (post) {
-      method=new PostMethod(location);
+    if ((method == Http.Method.POST) || (method == Http.Method.PUT)) {
+      if (method == Http.Method.POST) {
+        httpMethod=new PostMethod(location);
+      }
+ else {
+        httpMethod=new PutMethod(location);
+      }
       if (body != null) {
         RequestEntity requestEntity=new StringRequestEntity(body.getContent(),body.getContentType(),body.getCharset());
-        PostMethod postMethod=(PostMethod)method;
-        postMethod.setRequestEntity(requestEntity);
+        EntityEnclosingMethod entityEnclosingMethod=(EntityEnclosingMethod)httpMethod;
+        entityEnclosingMethod.setRequestEntity(requestEntity);
       }
- else       if ((parts != null) && (parts.size() > 0)) {
+ else       if ((parts != null) && (parts.size() > 0) && (method == Http.Method.POST)) {
         List<NameValuePair> nvpList=new ArrayList<NameValuePair>();
         for (        Map.Entry<String,String> entry : parts.entrySet()) {
           String key=entry.getKey();
@@ -27,18 +32,27 @@
           }
         }
         NameValuePair[] nvpArray=nvpList.toArray(new NameValuePair[nvpList.size()]);
-        PostMethod postMethod=(PostMethod)method;
+        PostMethod postMethod=(PostMethod)httpMethod;
         postMethod.setRequestBody(nvpArray);
       }
     }
- else {
-      method=new GetMethod(location);
+ else     if (method == Http.Method.DELETE) {
+      httpMethod=new DeleteMethod(location);
     }
-    method.addRequestHeader("Content-Type","application/x-www-form-urlencoded");
-    method.addRequestHeader("User-agent","Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)");
+ else {
+      httpMethod=new GetMethod(location);
+    }
+    if ((method == Http.Method.POST) || (method == Http.Method.PUT) && (body != null)) {
+    }
+ else     if (!_hasRequestHeader(httpMethod,HttpHeaders.CONTENT_TYPE)) {
+      httpMethod.addRequestHeader(HttpHeaders.CONTENT_TYPE,ContentTypes.APPLICATION_X_WWW_FORM_URLENCODED);
+    }
+    if (!_hasRequestHeader(httpMethod,HttpHeaders.USER_AGENT)) {
+      httpMethod.addRequestHeader(HttpHeaders.USER_AGENT,_DEFAULT_USER_AGENT);
+    }
     if (headers != null) {
       for (      Map.Entry<String,String> header : headers.entrySet()) {
-        method.addRequestHeader(header.getKey(),header.getValue());
+        httpMethod.addRequestHeader(header.getKey(),header.getValue());
       }
     }
     HttpState state=new HttpState();
@@ -49,19 +63,19 @@
         commonsCookies[i]=new org.apache.commons.httpclient.Cookie(cookie.getDomain(),cookie.getName(),cookie.getValue(),cookie.getPath(),cookie.getMaxAge(),cookie.getSecure());
       }
       state.addCookies(commonsCookies);
-      method.getParams().setCookiePolicy(CookiePolicy.BROWSER_COMPATIBILITY);
+      httpMethod.getParams().setCookiePolicy(CookiePolicy.BROWSER_COMPATIBILITY);
     }
     if (auth != null) {
-      method.setDoAuthentication(true);
+      httpMethod.setDoAuthentication(true);
       state.setCredentials(new AuthScope(auth.getHost(),auth.getPort(),auth.getRealm()),new UsernamePasswordCredentials(auth.getUsername(),auth.getPassword()));
     }
     proxifyState(state,hostConfig);
-    client.executeMethod(hostConfig,method,state);
-    Header locationHeader=method.getResponseHeader("location");
+    client.executeMethod(hostConfig,httpMethod,state);
+    Header locationHeader=httpMethod.getResponseHeader("location");
     if ((locationHeader != null) && !locationHeader.equals(location)) {
-      return URLtoByteArray(locationHeader.getValue(),headers,cookies,auth,body,parts,post);
+      return URLtoByteArray(locationHeader.getValue(),Http.Method.GET,headers,cookies,auth,body,parts);
     }
-    InputStream is=method.getResponseBodyAsStream();
+    InputStream is=httpMethod.getResponseBodyAsStream();
     if (is != null) {
       bytes=FileUtil.getBytes(is);
       is.close();
@@ -70,8 +84,8 @@
   }
   finally {
     try {
-      if (method != null) {
-        method.releaseConnection();
+      if (httpMethod != null) {
+        httpMethod.releaseConnection();
       }
     }
  catch (    Exception e) {
