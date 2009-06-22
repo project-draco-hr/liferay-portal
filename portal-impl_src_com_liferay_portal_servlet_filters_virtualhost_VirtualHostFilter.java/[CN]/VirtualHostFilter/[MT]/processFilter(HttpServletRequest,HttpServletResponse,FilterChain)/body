@@ -1,2 +1,105 @@
 {
+  request.setCharacterEncoding(StringPool.UTF8);
+  response=new AbsoluteRedirectsResponse(request,response);
+  long companyId=PortalInstances.getCompanyId(request);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Company id " + companyId);
+  }
+  PortalUtil.getCurrentCompleteURL(request);
+  PortalUtil.getCurrentURL(request);
+  HttpSession session=request.getSession();
+  Boolean httpsInitial=(Boolean)session.getAttribute(WebKeys.HTTPS_INITIAL);
+  if (httpsInitial == null) {
+    httpsInitial=Boolean.valueOf(request.isSecure());
+    session.setAttribute(WebKeys.HTTPS_INITIAL,httpsInitial);
+    if (_log.isDebugEnabled()) {
+      _log.debug("Setting httpsInitial to " + httpsInitial);
+    }
+  }
+  if (!isFilterEnabled()) {
+    processFilter(VirtualHostFilter.class,request,response,filterChain);
+    return;
+  }
+  StringBuffer requestURL=request.getRequestURL();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Received " + requestURL);
+  }
+  if (!isValidRequestURL(requestURL)) {
+    processFilter(VirtualHostFilter.class,request,response,filterChain);
+    return;
+  }
+  String contextPath=PortalUtil.getPathContext();
+  String friendlyURL=request.getRequestURI();
+  if ((Validator.isNotNull(contextPath)) && (friendlyURL.indexOf(contextPath) != -1)) {
+    friendlyURL=friendlyURL.substring(contextPath.length());
+  }
+  friendlyURL=StringUtil.replace(friendlyURL,StringPool.DOUBLE_SLASH,StringPool.SLASH);
+  String i18nLanguageId=null;
+  Set<String> languageIds=I18nServlet.getLanguageIds();
+  for (  String languageId : languageIds) {
+    if (friendlyURL.startsWith(languageId)) {
+      int pos=friendlyURL.indexOf(StringPool.SLASH,1);
+      if (pos == -1) {
+        continue;
+      }
+      i18nLanguageId=friendlyURL.substring(0,pos);
+      friendlyURL=friendlyURL.substring(pos);
+      break;
+    }
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Friendly URL " + friendlyURL);
+  }
+  if (!friendlyURL.equals(StringPool.SLASH) && !isValidFriendlyURL(friendlyURL)) {
+    _log.debug("Friendly URL is not valid");
+    processFilter(VirtualHostFilter.class,request,response,filterChain);
+    return;
+  }
+  LayoutSet layoutSet=(LayoutSet)request.getAttribute(WebKeys.VIRTUAL_HOST_LAYOUT_SET);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Layout set " + layoutSet);
+  }
+  if (layoutSet != null) {
+    try {
+      LastPath lastPath=new LastPath(contextPath,friendlyURL,request.getParameterMap());
+      request.setAttribute(WebKeys.LAST_PATH,lastPath);
+      StringBuilder prefix=new StringBuilder();
+      Group group=GroupLocalServiceUtil.getGroup(layoutSet.getGroupId());
+      if (layoutSet.isPrivateLayout()) {
+        if (group.isUser()) {
+          prefix.append(_PRIVATE_USER_SERVLET_MAPPING);
+        }
+ else {
+          prefix.append(_PRIVATE_GROUP_SERVLET_MAPPING);
+        }
+      }
+ else {
+        prefix.append(_PUBLIC_GROUP_SERVLET_MAPPING);
+      }
+      prefix.append(group.getFriendlyURL());
+      StringBuilder forwardURL=new StringBuilder();
+      if (i18nLanguageId != null) {
+        forwardURL.append(i18nLanguageId);
+      }
+      if (friendlyURL.startsWith(PropsValues.WIDGET_SERVLET_MAPPING)) {
+        forwardURL.append(PropsValues.WIDGET_SERVLET_MAPPING);
+        friendlyURL=StringUtil.replaceFirst(friendlyURL,PropsValues.WIDGET_SERVLET_MAPPING,StringPool.BLANK);
+      }
+      long plid=PortalUtil.getPlidFromFriendlyURL(companyId,friendlyURL);
+      if (plid <= 0) {
+        forwardURL.append(prefix);
+      }
+      forwardURL.append(friendlyURL);
+      if (_log.isDebugEnabled()) {
+        _log.debug("Forward to " + forwardURL);
+      }
+      RequestDispatcher requestDispatcher=_servletContext.getRequestDispatcher(forwardURL.toString());
+      requestDispatcher.forward(request,response);
+      return;
+    }
+ catch (    Exception e) {
+      _log.error(e,e);
+    }
+  }
+  processFilter(VirtualHostFilter.class,request,response,filterChain);
 }
