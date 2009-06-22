@@ -1,7 +1,5 @@
 {
   try {
-    HttpServletRequest request=(HttpServletRequest)servletRequest;
-    HttpServletResponse response=(HttpServletResponse)servletResponse;
     long companyId=PortalInstances.getCompanyId(request);
     if (PortalLDAPUtil.isNtlmEnabled(companyId)) {
       String domainController=_filterConfig.getInitParameter("jcifs.http.domainController");
@@ -17,16 +15,16 @@
           _log.debug("Domain " + domain);
         }
       }
-      String msg=request.getHeader("Authorization");
-      if (msg != null && msg.startsWith("NTLM")) {
-        byte[] src=Base64.decode(msg.substring(5));
+      String authorization=GetterUtil.getString(request.getHeader(HttpHeaders.AUTHORIZATION));
+      if (authorization.startsWith("NTLM")) {
+        byte[] src=Base64.decode(authorization.substring(5));
         if (src[8] == 1) {
           UniAddress dc=UniAddress.getByName(Config.getProperty("jcifs.http.domainController"),true);
           byte[] challenge=SmbSession.getChallenge(dc);
           Type1Message type1=new Type1Message(src);
           Type2Message type2=new Type2Message(type1,challenge,null);
-          msg=Base64.encode(type2.toByteArray());
-          response.setHeader("WWW-Authenticate","NTLM " + msg);
+          authorization=Base64.encode(type2.toByteArray());
+          response.setHeader(HttpHeaders.WWW_AUTHENTICATE,"NTLM " + authorization);
           response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
           response.setContentLength(0);
           response.flushBuffer();
@@ -47,12 +45,12 @@
         if (_log.isDebugEnabled()) {
           _log.debug("NTLM remote user " + remoteUser);
         }
-        servletRequest.setAttribute(WebKeys.NTLM_REMOTE_USER,remoteUser);
+        request.setAttribute(WebKeys.NTLM_REMOTE_USER,remoteUser);
       }
     }
+    filterChain.doFilter(request,response);
   }
  catch (  Exception e) {
-    _log.error(e);
+    _log.error(e,e);
   }
-  filterChain.doFilter(servletRequest,servletResponse);
 }
