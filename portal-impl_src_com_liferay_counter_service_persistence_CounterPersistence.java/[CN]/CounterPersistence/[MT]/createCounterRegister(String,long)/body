@@ -1,32 +1,40 @@
 {
-  long rangeMin=0;
-  long rangeMax=0;
-  Session session=null;
+  long rangeMin=-1;
+  long rangeMax=-1;
+  Connection con=null;
+  PreparedStatement psQuery=null;
+  PreparedStatement psUpdate=null;
+  ResultSet rs=null;
   try {
-    Connection connection=getConnection();
-    session=_sessionFactory.openNewSession(connection);
-    Counter counter=(Counter)session.get(Counter.class,name,LockMode.UPGRADE);
-    if (counter == null) {
-      rangeMin=_DEFAULT_CURRENT_ID;
-      counter=new Counter();
-      counter.setName(name);
+    con=getConnection();
+    psQuery=con.prepareStatement(_SQL_SELECT_ID_BY_NAME);
+    psQuery.setString(1,name);
+    rs=psQuery.executeQuery();
+    if (rs.next()) {
+      rangeMin=rs.getLong(1);
+      rangeMax=rangeMin + _COUNTER_INCREMENT;
+      psUpdate=con.prepareStatement(_SQL_UPDATE_ID_BY_NAME);
+      psUpdate.setLong(1,rangeMax);
+      psUpdate.setString(2,name);
     }
  else {
-      rangeMin=counter.getCurrentId();
+      rangeMin=_DEFAULT_CURRENT_ID;
+      rangeMax=rangeMin + _COUNTER_INCREMENT;
+      psUpdate=con.prepareStatement(_SQL_INSERT);
+      psUpdate.setString(1,name);
+      psUpdate.setLong(2,rangeMax);
     }
-    if (size >= _DEFAULT_CURRENT_ID) {
-      rangeMin=size;
-    }
-    rangeMax=rangeMin + _COUNTER_INCREMENT;
-    counter.setCurrentId(rangeMax);
-    session.save(counter);
-    session.flush();
+    psUpdate.executeUpdate();
   }
  catch (  Exception e) {
     throw processException(e);
   }
  finally {
-    session.close();
+    DataAccess.cleanUp(psUpdate);
+    DataAccess.cleanUp(con,psQuery,rs);
+  }
+  if (size > rangeMin) {
+    rangeMin=size;
   }
   CounterRegister register=new CounterRegister(name,rangeMin,rangeMax,_COUNTER_INCREMENT);
   return register;

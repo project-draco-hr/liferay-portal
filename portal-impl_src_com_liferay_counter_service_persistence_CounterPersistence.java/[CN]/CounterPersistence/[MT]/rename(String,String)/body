@@ -4,18 +4,14 @@ synchronized (register) {
     if (_registerLookup.containsKey(newName)) {
       throw new SystemException("Cannot rename " + oldName + " to "+ newName);
     }
-    Session session=null;
+    Connection con=null;
+    PreparedStatement ps=null;
     try {
-      Connection connection=getConnection();
-      session=_sessionFactory.openNewSession(connection);
-      Counter counter=(Counter)session.load(Counter.class,oldName);
-      long currentId=counter.getCurrentId();
-      session.delete(counter);
-      counter=new Counter();
-      counter.setName(newName);
-      counter.setCurrentId(currentId);
-      session.save(counter);
-      session.flush();
+      con=getConnection();
+      ps=con.prepareStatement(_SQL_UPDATE_NAME_BY_NAME);
+      ps.setString(1,newName);
+      ps.setString(2,oldName);
+      ps.executeUpdate();
     }
  catch (    ObjectNotFoundException onfe) {
     }
@@ -23,7 +19,7 @@ catch (    Exception e) {
       throw processException(e);
     }
  finally {
-      session.close();
+      DataAccess.cleanUp(con,ps);
     }
     register.setName(newName);
     _registerLookup.put(newName,register);
