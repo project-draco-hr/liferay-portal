@@ -1,0 +1,103 @@
+{
+  StringBuilder sb=new StringBuilder();
+  sb.append(sqlPrefix);
+  sb.append("FROM AssetEntry ");
+  if (!entryQuery.isTagIdsAndOperator() && entryQuery.getTagIds().length > 0) {
+    sb.append("INNER JOIN ");
+    sb.append("AssetEntries_AssetTags ON ");
+    sb.append("(AssetEntries_AssetTags.entryId = ");
+    sb.append("AssetEntry.entryId) ");
+    sb.append("INNER JOIN ");
+    sb.append("AssetTag ON ");
+    sb.append("(AssetTag.tagId = AssetEntries_AssetTags.tagId) ");
+  }
+  if (!entryQuery.isCategoryIdsAndOperator() && entryQuery.getCategoryIds().length > 0) {
+    sb.append("INNER JOIN ");
+    sb.append("AssetEntries_AssetCategories ON ");
+    sb.append("(AssetEntries_AssetCategories.entryId = ");
+    sb.append("AssetEntry.entryId) ");
+    sb.append("INNER JOIN ");
+    sb.append("AssetCategory ON ");
+    sb.append("(AssetCategory.categoryId = ");
+    sb.append("AssetEntries_AssetCategories.categoryId) ");
+  }
+  sb.append("WHERE (1 = 1)");
+  if (entryQuery.getVisible() != null) {
+    sb.append(" AND (visible = ?)");
+  }
+  if (entryQuery.isExcludeZeroViewCount()) {
+    sb.append(" AND (AssetEntry.viewCount > 0)");
+  }
+  if (entryQuery.isCategoryIdsAndOperator() && entryQuery.getCategoryIds().length > 0) {
+    buildAndCategoriesSQL(entryQuery,sb);
+  }
+  if (entryQuery.isNotCategoryIdsAndOperator() && entryQuery.getNotCategoryIds().length > 0) {
+    buildAndNotCategoriesSQL(entryQuery,sb);
+  }
+  if (entryQuery.isNotTagIdsAndOperator() && entryQuery.getNotTagIds().length > 0) {
+    buildAndNotTagsSQL(entryQuery,sb);
+  }
+  if (entryQuery.isTagIdsAndOperator() && entryQuery.getTagIds().length > 0) {
+    buildAndTagsSQL(entryQuery,sb);
+  }
+  if (!entryQuery.isCategoryIdsAndOperator() && entryQuery.getCategoryIds().length > 0) {
+    sb.append(" AND (");
+    sb.append(getCategoryIds(entryQuery.getCategoryIds(),StringPool.EQUAL));
+    sb.append(") ");
+  }
+  if (!entryQuery.isNotCategoryIdsAndOperator() && entryQuery.getNotCategoryIds().length > 0) {
+    sb.append(" AND (");
+    sb.append(getNotCategoryIds(entryQuery.getNotCategoryIds()));
+    sb.append(") ");
+  }
+  if (!entryQuery.isTagIdsAndOperator() && entryQuery.getTagIds().length > 0) {
+    sb.append(" AND (");
+    sb.append(getTagIds(entryQuery.getTagIds(),StringPool.EQUAL));
+    sb.append(") ");
+  }
+  if (!entryQuery.isNotTagIdsAndOperator() && entryQuery.getNotTagIds().length > 0) {
+    sb.append(" AND (");
+    sb.append(getNotTagIds(entryQuery.getNotTagIds()));
+    sb.append(") ");
+  }
+  sb.append("[$DATES$]");
+  if (entryQuery.getGroupId() > 0) {
+    sb.append(" AND (AssetEntry.groupId = ?)");
+  }
+  sb.append(getClassNameIds(entryQuery.getClassNameIds()));
+  if (!count) {
+    sb.append(" ORDER BY AssetEntry.");
+    sb.append(entryQuery.getOrderByCol1());
+    sb.append(StringPool.SPACE);
+    sb.append(entryQuery.getOrderByType1());
+    if (Validator.isNotNull(entryQuery.getOrderByCol2()) && !entryQuery.getOrderByCol1().equals(entryQuery.getOrderByCol2())) {
+      sb.append(", AssetEntry.");
+      sb.append(entryQuery.getOrderByCol2());
+      sb.append(StringPool.SPACE);
+      sb.append(entryQuery.getOrderByType2());
+    }
+  }
+  String sql=sb.toString();
+  sql=getDates(sql,entryQuery.getPublishDate(),entryQuery.getExpirationDate());
+  SQLQuery q=session.createSQLQuery(sql);
+  if (count) {
+    q.addScalar(COUNT_COLUMN_NAME,Type.LONG);
+  }
+ else {
+    q.addEntity("AssetEntry",AssetEntryImpl.class);
+  }
+  QueryPos qPos=QueryPos.getInstance(q);
+  if (entryQuery.getVisible() != null) {
+    qPos.add(entryQuery.getVisible().booleanValue());
+  }
+  setCategoryIds(qPos,entryQuery.getCategoryIds());
+  setCategoryIds(qPos,entryQuery.getNotCategoryIds());
+  setTagIds(qPos,entryQuery.getNotTagIds());
+  setTagIds(qPos,entryQuery.getTagIds());
+  setDates(qPos,entryQuery.getPublishDate(),entryQuery.getExpirationDate());
+  if (entryQuery.getGroupId() > 0) {
+    setGroupId(qPos,entryQuery.getGroupId());
+  }
+  setClassNamedIds(qPos,entryQuery.getClassNameIds());
+  return q;
+}
