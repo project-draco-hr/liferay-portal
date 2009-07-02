@@ -8,6 +8,7 @@
     Element root=doc.getRootElement();
     List<Element> vocabularies=root.elements("vocabulary");
     for (    Element vocabularyEl : vocabularies) {
+      String vocabularyUuid=GetterUtil.getString(vocabularyEl.attributeValue("uuid"));
       String vocabularyName=GetterUtil.getString(vocabularyEl.attributeValue("name"));
       String userUuid=GetterUtil.getString(vocabularyEl.attributeValue("userUuid"));
       ServiceContext serviceContext=new ServiceContext();
@@ -15,21 +16,31 @@
       serviceContext.setAddGuestPermissions(true);
       serviceContext.setScopeGroupId(context.getGroupId());
       AssetVocabulary assetVocabulary=null;
-      try {
-        assetVocabulary=AssetVocabularyLocalServiceUtil.getGroupVocabulary(context.getScopeGroupId(),vocabularyName);
+      AssetVocabulary existingAssetVocabulary=null;
+      if (context.getDataStrategy().equals(PortletDataHandlerKeys.DATA_STRATEGY_MIRROR)) {
+        existingAssetVocabulary=AssetVocabularyUtil.fetchByUUID_G(vocabularyUuid,context.getGroupId());
+        if (existingAssetVocabulary == null) {
+          assetVocabulary=AssetVocabularyLocalServiceUtil.addVocabulary(vocabularyUuid,context.getUserId(userUuid),vocabularyName,serviceContext);
+        }
+ else {
+          assetVocabulary=AssetVocabularyLocalServiceUtil.updateVocabulary(existingAssetVocabulary.getVocabularyId(),vocabularyName);
+        }
       }
- catch (      NoSuchVocabularyException nsve) {
+ else {
         assetVocabulary=AssetVocabularyLocalServiceUtil.addVocabulary(context.getUserId(userUuid),vocabularyName,serviceContext);
       }
       List<Element> categories=vocabularyEl.elements("category");
       for (      Element category : categories) {
-        long parentCategoryId=GetterUtil.getLong(category.attributeValue("parentCategoryId"));
+        String categoryUuid=GetterUtil.getString(category.attributeValue("uuid"));
+        String parentCategoryUuid=GetterUtil.getString(category.attributeValue("parentCategoryUuid"));
         String categoryName=GetterUtil.getString(category.attributeValue("name"));
         String[] properties=null;
         try {
-          AssetCategoryLocalServiceUtil.addCategory(context.getUserId(userUuid),parentCategoryId,categoryName,assetVocabulary.getVocabularyId(),properties,serviceContext);
+          importCategory(context,categoryUuid,userUuid,parentCategoryUuid,categoryName,assetVocabulary.getVocabularyId(),properties,serviceContext);
         }
  catch (        DuplicateCategoryException dce) {
+        }
+catch (        NoSuchCategoryException nsce) {
         }
       }
     }
