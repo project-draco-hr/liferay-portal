@@ -1,0 +1,31 @@
+{
+  final Set<Long> testRoleIds=new HashSet<Long>();
+  final long testRoleId1=101;
+  final long testRoleId2=102;
+  final boolean finished=true;
+  testRoleIds.add(testRoleId1);
+  testRoleIds.add(testRoleId2);
+  MessageListener getListener=new MessageListener(){
+    public void receive(    Message message){
+      TaskInstanceRequest request=(TaskInstanceRequest)message.getPayload();
+      assertNotNull(request);
+      assertEquals(TaskInstanceRequestType.GET,request.getType());
+      Set<Long> roleIds=request.getRoleIds();
+      assertEquals(2,roleIds.size());
+      assertTrue(roleIds.contains(testRoleId1));
+      assertTrue(roleIds.contains(testRoleId2));
+      assertEquals(finished,request.isFinished());
+      assertFalse(request.isGetAll());
+      String responseDestination=message.getResponseDestination();
+      if (responseDestination != null) {
+        message.setPayload(new ArrayList<TaskInstanceInfo>());
+        messageBus.sendMessage(responseDestination,message);
+      }
+    }
+  }
+;
+  messageBus.registerMessageListener(DestinationNames.WORKFLOW_TASK,getListener);
+  List<TaskInstanceInfo> instances=_proxy.getTaskInstanceInfosByRoles(testRoleIds,finished);
+  assertNotNull(instances);
+  assertEquals(0,instances.size());
+}
