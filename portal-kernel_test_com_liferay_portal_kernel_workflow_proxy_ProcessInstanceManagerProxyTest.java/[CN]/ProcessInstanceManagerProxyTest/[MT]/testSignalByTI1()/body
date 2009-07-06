@@ -1,0 +1,31 @@
+{
+  final long testProcessInstanceId=101;
+  final int testProcessInstanceVersion=2;
+  final long testTokenId=101;
+  final String testTokenName="testTokenName";
+  final String testNodeName="testNodeName";
+  final Date testStartDate=new Date();
+  final Date testEndDate=new Date();
+  MessageListener signalListener=new MessageListener(){
+    public void receive(    Message message){
+      ProcessInstanceRequest request=(ProcessInstanceRequest)message.getPayload();
+      assertEquals(ProcessInstanceRequestType.SIGNAL,request.getType());
+      assertEquals(testTokenId,request.getTokenId());
+      String responseDestination=message.getResponseDestination();
+      if (responseDestination != null) {
+        ProcessInstanceInfo instance=new ProcessInstanceInfo(testProcessInstanceId,testProcessInstanceVersion);
+        TokenInfo tokenInfo=new TokenInfo(testTokenId,testTokenName,testNodeName,testStartDate,testEndDate);
+        instance.setTokenInfo(tokenInfo);
+        message.setPayload(new WorkflowResultContainer<ProcessInstanceInfo>(instance));
+        messageBus.sendMessage(responseDestination,message);
+      }
+    }
+  }
+;
+  messageBus.registerMessageListener(DestinationNames.WORKFLOW_INSTANCE,signalListener);
+  ProcessInstanceInfo instance=_proxy.signalProcessInstanceByTokenId(testTokenId,null);
+  assertNotNull(instance);
+  TokenInfo tokenInfo=instance.getTokenInfo();
+  assertNotNull(tokenInfo);
+  assertEquals(testTokenId,tokenInfo.getTokenId());
+}

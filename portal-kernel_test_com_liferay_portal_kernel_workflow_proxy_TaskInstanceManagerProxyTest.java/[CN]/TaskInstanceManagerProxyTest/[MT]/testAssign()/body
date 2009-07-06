@@ -1,0 +1,37 @@
+{
+  final long testTaskInstanceId=101;
+  final long testUserId=102;
+  final Date testCreateDate=new Date();
+  final String testDescription="testDescription";
+  final Map<String,Object> contextInfo=new HashMap<String,Object>();
+  final String testKey="testKey";
+  final String testValue="testValue";
+  contextInfo.put(testKey,testValue);
+  MessageListener assignListener=new MessageListener(){
+    public void receive(    Message message){
+      TaskInstanceRequest request=(TaskInstanceRequest)message.getPayload();
+      assertNotNull(request);
+      assertEquals(TaskInstanceRequestType.ASSIGN,request.getType());
+      assertEquals(testTaskInstanceId,request.getTaskInstanceId());
+      assertEquals(testUserId,request.getUserId());
+      assertEquals(testDescription,request.getDescription());
+      assertEquals(testValue,request.getContextInfo().get(testKey));
+      String responseDestination=message.getResponseDestination();
+      if (responseDestination != null) {
+        TaskInstanceInfo instance=new TaskInstanceInfo(testTaskInstanceId,testUserId,testCreateDate);
+        instance.setDescription(testDescription);
+        instance.setContextInfo(contextInfo);
+        message.setPayload(new WorkflowResultContainer<TaskInstanceInfo>(instance));
+        messageBus.sendMessage(responseDestination,message);
+      }
+    }
+  }
+;
+  messageBus.registerMessageListener(DestinationNames.WORKFLOW_TASK,assignListener);
+  TaskInstanceInfo instance=_proxy.assignTaskInstance(testTaskInstanceId,testUserId,testDescription,contextInfo);
+  assertNotNull(instance);
+  assertEquals(testTaskInstanceId,instance.getTaskInstanceId());
+  assertEquals(testUserId,instance.getUserId());
+  assertEquals(testDescription,instance.getDescription());
+  assertEquals(testValue,instance.getContextInfo().get(testKey));
+}
