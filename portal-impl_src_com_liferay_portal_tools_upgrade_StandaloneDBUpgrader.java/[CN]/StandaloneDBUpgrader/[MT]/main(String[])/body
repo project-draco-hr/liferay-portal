@@ -1,0 +1,48 @@
+{
+  String updateProperties="com/liferay/portal/tools/dependencies/portal-upgrade.properties";
+  if (args.length == 1) {
+    updateProperties=args[0];
+  }
+  if (System.getProperty("external-properties") == null) {
+    System.setProperty("external-properties",updateProperties);
+  }
+  System.out.println("Upgrading with properties: " + updateProperties);
+  try {
+    InitUtil.initWithSpring();
+    CacheRegistry.setActive(false);
+    int buildNumber=ReleaseLocalServiceUtil.getBuildNumberOrCreate();
+    if (buildNumber < ReleaseInfo.RELEASE_4_2_1_BUILD_NUMBER) {
+      String msg="You must first upgrade to Liferay Portal 4.2.1";
+      throw new RuntimeException(msg);
+    }
+    System.out.println("Upgrading database schemas...");
+    StartupHelperUtil.upgradeProcess(buildNumber);
+    ClassNameLocalServiceUtil.checkClassNames();
+    ResourceActionsUtil.init();
+    ResourceActionLocalServiceUtil.checkResourceActions();
+    ResourceCodeLocalServiceUtil.checkResourceCodes();
+    StartupHelperUtil.deleteTempImages();
+    if (StartupHelperUtil.isUpgraded()) {
+      MultiVMPoolUtil.clear();
+    }
+    System.out.println("Verifying database...");
+    Release release=ReleaseLocalServiceUtil.getRelease();
+    StartupHelperUtil.verifyProcess(release.isVerified());
+    if (StartupHelperUtil.isUpgraded()) {
+      StartupHelperUtil.updateIndexes();
+    }
+    boolean verified=StartupHelperUtil.isVerified();
+    if (release.isVerified()) {
+      verified=true;
+    }
+    System.out.println("Updating release information...");
+    ReleaseLocalServiceUtil.updateRelease(verified);
+    System.out.println("Successfully completed upgrade process.  Exiting...");
+    System.exit(0);
+  }
+ catch (  Exception e) {
+    System.out.println("Unable to complete upgrade process: ");
+    e.printStackTrace();
+    System.exit(1);
+  }
+}
