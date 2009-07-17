@@ -1,0 +1,52 @@
+{
+  long userId=1;
+  TaskInstanceInfo info1=context.mock(TaskInstanceInfo.class,"info1");
+  TaskInstanceInfo info2=context.mock(TaskInstanceInfo.class,"info2");
+  List<TaskInstanceInfo> infoList=new ArrayList<TaskInstanceInfo>();
+  infoList.add(info1);
+  infoList.add(info2);
+  ignored(4,0);
+  final TaskInstanceRequest request=TaskInstanceRequest.createGetTaskInstanceInfosByUserRequest(userId);
+  final WorkflowResultContainer<List<TaskInstanceInfo>> correctResult=new WorkflowResultContainer<List<TaskInstanceInfo>>(infoList);
+  context.checking(new Expectations(){
+{
+      oneOf(synchronousMessageSender).send(with(equal(request)));
+      will(returnValue(correctResult));
+    }
+  }
+);
+  assertSame(infoList,taskInstanceManagerProxy.getTaskInstanceInfosByUser(userId));
+  final WorkflowResultContainer<TaskInstanceInfo> errorResult=new WorkflowResultContainer<TaskInstanceInfo>();
+  errorResult.setException(new WorkflowException());
+  context.checking(new Expectations(){
+{
+      oneOf(synchronousMessageSender).send(with(equal(request)));
+      will(returnValue(errorResult));
+    }
+  }
+);
+  boolean errorFlag=false;
+  try {
+    taskInstanceManagerProxy.getTaskInstanceInfosByUser(userId);
+  }
+ catch (  WorkflowException ex) {
+    errorFlag=true;
+  }
+  assertTrue(errorFlag);
+  final MessageBusException exception=new MessageBusException();
+  context.checking(new Expectations(){
+{
+      oneOf(synchronousMessageSender).send(with(equal(request)));
+      will(throwException(exception));
+    }
+  }
+);
+  errorFlag=false;
+  try {
+    taskInstanceManagerProxy.getTaskInstanceInfosByUser(userId);
+  }
+ catch (  WorkflowException ex) {
+    errorFlag=true;
+  }
+  assertTrue(errorFlag);
+}

@@ -1,0 +1,52 @@
+{
+  String workflowDefinitionName="workflowDefinitionName";
+  Integer workflowDefinitionVersion=1;
+  Map<String,Object> variables=new HashMap<String,Object>();
+  long callingUserId=1;
+  String activityName="activityName";
+  WorkflowInstanceInfo info=context.mock(WorkflowInstanceInfo.class);
+  ignored(4,callingUserId);
+  final WorkflowInstanceRequest request=WorkflowInstanceRequest.createStartWorkflowInstanceRequest(workflowDefinitionName,workflowDefinitionVersion,variables,callingUserId,activityName);
+  final WorkflowResultContainer<WorkflowInstanceInfo> correctResult=new WorkflowResultContainer<WorkflowInstanceInfo>(info);
+  context.checking(new Expectations(){
+{
+      oneOf(synchronousMessageSender).send(with(equal(request)));
+      will(returnValue(correctResult));
+    }
+  }
+);
+  assertSame(info,workflowInstanceManagerProxy.startWorkflowInstance(workflowDefinitionName,workflowDefinitionVersion,variables,callingUserId,activityName));
+  final WorkflowResultContainer<WorkflowInstanceInfo> errorResult=new WorkflowResultContainer<WorkflowInstanceInfo>();
+  errorResult.setException(new WorkflowException());
+  context.checking(new Expectations(){
+{
+      oneOf(synchronousMessageSender).send(with(equal(request)));
+      will(returnValue(errorResult));
+    }
+  }
+);
+  boolean errorFlag=false;
+  try {
+    workflowInstanceManagerProxy.startWorkflowInstance(workflowDefinitionName,workflowDefinitionVersion,variables,callingUserId,activityName);
+  }
+ catch (  WorkflowException ex) {
+    errorFlag=true;
+  }
+  assertTrue(errorFlag);
+  final MessageBusException exception=new MessageBusException();
+  context.checking(new Expectations(){
+{
+      oneOf(synchronousMessageSender).send(with(equal(request)));
+      will(throwException(exception));
+    }
+  }
+);
+  errorFlag=false;
+  try {
+    workflowInstanceManagerProxy.startWorkflowInstance(workflowDefinitionName,workflowDefinitionVersion,variables,callingUserId,activityName);
+  }
+ catch (  WorkflowException ex) {
+    errorFlag=true;
+  }
+  assertTrue(errorFlag);
+}
