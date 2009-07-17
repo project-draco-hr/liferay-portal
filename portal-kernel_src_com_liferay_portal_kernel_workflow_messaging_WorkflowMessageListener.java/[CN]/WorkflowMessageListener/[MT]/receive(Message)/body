@@ -1,30 +1,33 @@
 {
   Object payload=message.getPayload();
-  if (payload == null) {
-    _log.error("Missing TaskInstanceRequest.");
-  }
- else   if (!_requestClazz.isAssignableFrom(payload.getClass())) {
-    _log.error("Payload type is not from expected type [" + _requestClazz.getName() + "], but was ["+ payload.getClass().getName()+ "]");
-  }
+  String responseDestination=message.getResponseDestinationName();
+  WorkflowResultContainer resultContainer=new WorkflowResultContainer();
+  WorkflowException workflowException=null;
+  try {
+    if (payload == null) {
+      workflowException=new WorkflowException(MISSING_REQUEST_ERROR);
+      _log.error(MISSING_REQUEST_ERROR);
+    }
+ else     if (!_requestClazz.isAssignableFrom(payload.getClass())) {
+      String errorMessage=new Formatter().format(WRONG_REQUEST_ERROR,_requestClazz.getName(),payload.getClass().getName()).toString();
+      workflowException=new WorkflowException(errorMessage);
+      _log.error(errorMessage);
+    }
  else {
-    BaseRequest request=(BaseRequest)payload;
-    String responseDestination=message.getResponseDestinationName();
-    Object result=null;
-    try {
-      result=request.execute(_manager);
-      if (request.hasReturnValue() == false) {
-        result=new Object();
-      }
+      BaseRequest request=(BaseRequest)payload;
+      resultContainer.setResult(request.execute(_manager));
     }
- catch (    WorkflowException ex) {
-      _log.error("Unable to execute request.",ex);
-    }
+  }
+ catch (  WorkflowException ex) {
+    workflowException=new WorkflowException(EXECUTE_ERROR);
+    _log.error(EXECUTE_ERROR,ex);
+  }
  finally {
-      if (Validator.isNotNull(responseDestination)) {
-        Message responseMessage=MessageBusUtil.createResponseMessage(message);
-        responseMessage.setPayload(new WorkflowResultContainer<Object>(result));
-        MessageBusUtil.sendMessage(responseDestination,responseMessage);
-      }
+    if (Validator.isNotNull(responseDestination)) {
+      Message responseMessage=MessageBusUtil.createResponseMessage(message);
+      resultContainer.setException(workflowException);
+      responseMessage.setPayload(resultContainer);
+      _messageBus.sendMessage(responseDestination,responseMessage);
     }
   }
 }
