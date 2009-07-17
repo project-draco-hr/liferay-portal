@@ -1,0 +1,39 @@
+{
+  File javadocFile=new File(basedir + fileName + "doc");
+  if (!javadocFile.exists()) {
+    return;
+  }
+  File file=new File(basedir + fileName);
+  String oldContent=FileUtil.read(file);
+  String[] lines=StringUtil.split(oldContent,"\n");
+  JavaClass javaClass=_getJavaClass(fileName);
+  Document javadocDocument=SAXReaderUtil.read(javadocFile);
+  Element rootElement=javadocDocument.getRootElement();
+  Map<Integer,String> commentsMap=new TreeMap<Integer,String>();
+  commentsMap.put(javaClass.getLineNumber(),_getJavaClassComment(rootElement,javaClass));
+  Map<String,Element> methodElementsMap=new HashMap<String,Element>();
+  List<Element> methodElements=rootElement.elements("method");
+  for (  Element methodElement : methodElements) {
+    String methodKey=_getMethodKey(methodElement);
+    methodElementsMap.put(methodKey,methodElement);
+  }
+  JavaMethod[] javaMethods=javaClass.getMethods();
+  for (  JavaMethod javaMethod : javaMethods) {
+    commentsMap.put(javaMethod.getLineNumber(),_getJavaMethodComment(lines,methodElementsMap,javaMethod));
+  }
+  StringBuilder sb=new StringBuilder(oldContent.length());
+  for (int lineNumber=1; lineNumber <= lines.length; lineNumber++) {
+    String line=lines[lineNumber - 1];
+    String comments=commentsMap.get(lineNumber);
+    if (comments != null) {
+      sb.append(comments);
+    }
+    sb.append(line);
+    sb.append("\n");
+  }
+  String newContent=sb.toString().trim();
+  if ((oldContent == null) || !oldContent.equals(newContent)) {
+    FileUtil.write(file,newContent);
+    System.out.println("Writing " + file);
+  }
+}
