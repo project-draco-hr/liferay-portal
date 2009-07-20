@@ -4,11 +4,13 @@
     return;
   }
   File file=new File(basedir + fileName);
-  String oldContent=FileUtil.read(file);
+  if (oldContent == null) {
+    oldContent=FileUtil.read(file);
+  }
   String[] lines=StringUtil.split(oldContent,"\n");
-  JavaClass javaClass=_getJavaClass(fileName);
-  Document javadocDocument=SAXReaderUtil.read(javadocFile);
-  Element rootElement=javadocDocument.getRootElement();
+  JavaClass javaClass=_getJavaClass(fileName,new StringReader(oldContent));
+  Document document=SAXReaderUtil.read(javadocFile);
+  Element rootElement=document.getRootElement();
   Map<Integer,String> commentsMap=new TreeMap<Integer,String>();
   commentsMap.put(javaClass.getLineNumber(),_getJavaClassComment(rootElement,javaClass));
   Map<String,Element> methodElementsMap=new HashMap<String,Element>();
@@ -20,6 +22,16 @@
   JavaMethod[] javaMethods=javaClass.getMethods();
   for (  JavaMethod javaMethod : javaMethods) {
     commentsMap.put(javaMethod.getLineNumber(),_getJavaMethodComment(lines,methodElementsMap,javaMethod));
+  }
+  Map<String,Element> fieldElementsMap=new HashMap<String,Element>();
+  List<Element> fieldElements=rootElement.elements("field");
+  for (  Element fieldElement : fieldElements) {
+    String fieldKey=_getFieldKey(fieldElement);
+    fieldElementsMap.put(fieldKey,fieldElement);
+  }
+  JavaField[] javaFields=javaClass.getFields();
+  for (  JavaField javaField : javaFields) {
+    commentsMap.put(javaField.getLineNumber(),_getJavaFieldComment(lines,fieldElementsMap,javaField));
   }
   StringBuilder sb=new StringBuilder(oldContent.length());
   for (int lineNumber=1; lineNumber <= lines.length; lineNumber++) {
