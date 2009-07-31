@@ -1,0 +1,52 @@
+{
+  Enumeration<String> names=request.getParameterNames();
+  while (names.hasMoreElements()) {
+    String name=names.nextElement();
+    QName qName=PortletQNameUtil.getQName(name);
+    PublicRenderParameter publicRenderParameter;
+    if (qName == null) {
+      String preferencesMappingKey=PublicRenderParameterConfiguration.MAPPING_PREFIX + name;
+      String mapping=preferences.getValue(preferencesMappingKey,StringPool.BLANK);
+      if (Validator.isNull(mapping)) {
+        continue;
+      }
+      publicRenderParameter=_portlet.getPublicRenderParameter(mapping);
+    }
+ else {
+      publicRenderParameter=_portlet.getPublicRenderParameter(qName.getNamespaceURI(),qName.getLocalPart());
+    }
+    if (publicRenderParameter != null) {
+      String preferencesIgnoreKey=PublicRenderParameterConfiguration.IGNORE_PREFIX + publicRenderParameter.getIdentifier();
+      boolean ignore=GetterUtil.getBoolean(preferences.getValue(preferencesIgnoreKey,StringPool.FALSE));
+      if (!ignore) {
+        renderParameters.put(publicRenderParameter.getIdentifier(),request.getParameterValues(name));
+      }
+    }
+  }
+  String ppidNamespace=PortalUtil.getPortletNamespace(ppid);
+  Map<String,String[]> ppidRenderParameters=RenderParametersPool.get(request,plid,ppid);
+  for (  Map.Entry<String,String[]> entry : ppidRenderParameters.entrySet()) {
+    String name=entry.getKey();
+    String[] values=entry.getValue();
+    if (name.startsWith(ppidNamespace)) {
+      name=name.substring(ppidNamespace.length());
+    }
+    PublicRenderParameter publicRenderParameter=_portlet.getPublicRenderParameter(name);
+    if (publicRenderParameter != null) {
+      String preferencesIgnoreKey=PublicRenderParameterConfiguration.IGNORE_PREFIX + publicRenderParameter.getIdentifier();
+      boolean ignore=GetterUtil.getBoolean(preferences.getValue(preferencesIgnoreKey,StringPool.FALSE));
+      if (!ignore) {
+        String preferencesMapToKey=PublicRenderParameterConfiguration.MAPPING_PREFIX + publicRenderParameter.getIdentifier();
+        String mappingValue=preferences.getValue(preferencesMapToKey,StringPool.BLANK);
+        if (!StringPool.BLANK.equals(mappingValue)) {
+          if (ppidRenderParameters.containsKey(mappingValue)) {
+            renderParameters.put(publicRenderParameter.getIdentifier(),ppidRenderParameters.get(mappingValue));
+          }
+        }
+ else {
+          renderParameters.put(publicRenderParameter.getIdentifier(),values);
+        }
+      }
+    }
+  }
+}

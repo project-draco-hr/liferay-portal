@@ -1,0 +1,37 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)renderRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  Layout layout=themeDisplay.getLayout();
+  PortletPreferences preferences=PortletPreferencesFactoryUtil.getLayoutPortletSetup(layout,portlet.getPortletId());
+  Set<PublicRenderParameter> portletPublicRenderParameters=portlet.getPublicRenderParameters();
+  Set<PublicRenderParameter> layoutPublicRenderParameters=(Set<PublicRenderParameter>)renderRequest.getAttribute(WebKeys.LAYOUT_PUBLIC_RENDER_PARAMETERS);
+  Map<String,String> prpMappings=new HashMap<String,String>();
+  if (SessionErrors.isEmpty(renderRequest)) {
+    for (    PublicRenderParameter layoutPrp : layoutPublicRenderParameters) {
+      String portletPrpId=preferences.getValue(_MAPPING_PREFIX + layoutPrp.getIdentifier(),StringPool.BLANK);
+      if (Validator.isNotNull(portletPrpId)) {
+        prpMappings.put(portletPrpId,layoutPrp.getIdentifier());
+      }
+    }
+  }
+ else {
+    for (    PublicRenderParameter portletPrp : portletPublicRenderParameters) {
+      String prpIdentifier=portletPrp.getIdentifier();
+      String layoutPrpId=ParamUtil.getString(renderRequest,_MAPPING_PREFIX + prpIdentifier);
+      prpMappings.put(portletPrp.getIdentifier(),layoutPrpId);
+    }
+  }
+  List<PublicRenderParameterConfiguration> prpConfigurationList=new ArrayList<PublicRenderParameterConfiguration>();
+  for (  PublicRenderParameter publicRenderParameter : portletPublicRenderParameters) {
+    String ignoreKey=_IGNORE_PREFIX + publicRenderParameter.getIdentifier();
+    boolean ignore;
+    if (SessionErrors.isEmpty(renderRequest)) {
+      ignore=GetterUtil.getBoolean(preferences.getValue(ignoreKey,StringPool.FALSE));
+    }
+ else {
+      ignore=GetterUtil.getBoolean(ParamUtil.getString(renderRequest,ignoreKey));
+    }
+    prpConfigurationList.add(new PublicRenderParameterConfiguration(publicRenderParameter,prpMappings.get(publicRenderParameter.getIdentifier()),ignore));
+  }
+  Collections.sort(prpConfigurationList,new PublicRenderParameterIdentifierConfigurationComparator());
+  renderRequest.setAttribute(WebKeys.PUBLIC_RENDER_PARAMETER_CONFIGURATION_LIST,prpConfigurationList);
+}

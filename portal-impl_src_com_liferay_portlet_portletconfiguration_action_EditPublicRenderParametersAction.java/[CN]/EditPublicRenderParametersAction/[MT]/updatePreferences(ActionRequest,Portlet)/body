@@ -1,0 +1,39 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  Layout layout=themeDisplay.getLayout();
+  PortletPreferences preferences=PortletPreferencesFactoryUtil.getLayoutPortletSetup(layout,portlet.getPortletId());
+  Set<PublicRenderParameter> publicRenderParameters=portlet.getPublicRenderParameters();
+  List<String> prpPreferenceNames=new ArrayList<String>();
+  for (Enumeration e=preferences.getNames(); e.hasMoreElements(); ) {
+    String preferenceName=(String)e.nextElement();
+    if (preferenceName.startsWith(_MAPPING_PREFIX) || preferenceName.startsWith(_IGNORE_PREFIX)) {
+      prpPreferenceNames.add(preferenceName);
+    }
+  }
+  for (  String preferenceName : prpPreferenceNames) {
+    preferences.reset(preferenceName);
+  }
+  for (  PublicRenderParameter publicRenderParameter : publicRenderParameters) {
+    String ignoreParamName=_IGNORE_PREFIX + publicRenderParameter.getIdentifier();
+    if (Validator.isNotNull(ParamUtil.getString(actionRequest,ignoreParamName))) {
+      preferences.setValue(ignoreParamName,StringPool.TRUE);
+    }
+ else {
+      String mappingParamName=_MAPPING_PREFIX + publicRenderParameter.getIdentifier();
+      String mappingParamValue=ParamUtil.getString(actionRequest,mappingParamName);
+      if (Validator.isNotNull(mappingParamValue)) {
+        String mappingPreferenceKey=_MAPPING_PREFIX + mappingParamValue;
+        if (Validator.isNull(preferences.getValue(mappingPreferenceKey,StringPool.BLANK))) {
+          preferences.setValue(mappingPreferenceKey,publicRenderParameter.getIdentifier());
+        }
+ else {
+          SessionErrors.add(actionRequest,"duplicatedMapping");
+          break;
+        }
+      }
+    }
+  }
+  if (SessionErrors.isEmpty(actionRequest)) {
+    preferences.store();
+  }
+}
