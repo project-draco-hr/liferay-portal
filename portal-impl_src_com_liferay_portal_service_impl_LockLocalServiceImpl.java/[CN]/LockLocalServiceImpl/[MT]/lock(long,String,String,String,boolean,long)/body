@@ -1,0 +1,30 @@
+{
+  Date now=new Date();
+  Lock lock=lockPersistence.fetchByC_K(className,key);
+  if (lock != null) {
+    if (lock.isExpired()) {
+      unlock(className,key);
+      lock=null;
+    }
+ else     if (!lock.getOwner().equals(owner)) {
+      throw new DuplicateLockException(lock);
+    }
+  }
+  if (lock == null) {
+    User user=userPersistence.findByPrimaryKey(userId);
+    long lockId=counterLocalService.increment();
+    lock=lockPersistence.create(lockId);
+    lock.setCompanyId(user.getCompanyId());
+    lock.setUserId(user.getUserId());
+    lock.setUserName(user.getFullName());
+    lock.setUserId(userId);
+    lock.setClassName(className);
+    lock.setKey(key);
+    lock.setOwner(owner);
+    lock.setInheritable(inheritable);
+  }
+  lock.setCreateDate(now);
+  lock.setExpirationDate(new Date(now.getTime() + expirationTime));
+  lockPersistence.update(lock,false);
+  return lock;
+}
