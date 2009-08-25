@@ -1,13 +1,34 @@
 {
-  List<JournalArticle> articles=JournalArticleLocalServiceUtil.getArticles();
-  for (  JournalArticle article : articles) {
-    String content=GetterUtil.getString(article.getContent());
-    if (Validator.isNotNull(article.getStructureId())) {
-      String newContent=addDynamicElementInstanceId(content);
-      if (!content.equals(newContent)) {
-        JournalArticleLocalServiceUtil.updateContent(article.getGroupId(),article.getArticleId(),article.getVersion(),newContent);
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getConnection();
+    ps=con.prepareStatement("select id_, groupId, articleId, version, content, " + "structureId from JournalArticle");
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      long id=rs.getLong("id_");
+      long groupId=rs.getLong("groupId");
+      String articleId=rs.getString("articleId");
+      double version=rs.getDouble("version");
+      String content=GetterUtil.getString(rs.getString("content"));
+      String structureId=rs.getString("structureId");
+      if (Validator.isNull(structureId)) {
+        continue;
       }
+      String newContent=addDynamicElementInstanceId(content);
+      if (content.equals(newContent)) {
+        continue;
+      }
+      ps=con.prepareStatement("update JournalArticle set content = ? where id_ = ?");
+      ps.setString(1,newContent);
+      ps.setLong(2,id);
+      ps.executeUpdate();
+      ps.close();
     }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
   }
   deleteJournalArticleImages();
 }
