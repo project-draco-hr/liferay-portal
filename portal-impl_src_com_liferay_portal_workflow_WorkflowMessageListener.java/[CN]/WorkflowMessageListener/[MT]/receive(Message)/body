@@ -1,32 +1,28 @@
 {
-  Object payload=message.getPayload();
-  String responseDestination=message.getResponseDestinationName();
-  WorkflowResultContainer resultContainer=new WorkflowResultContainer();
-  WorkflowException workflowException=null;
+  WorkflowResultContainer workflowResultContainer=new WorkflowResultContainer();
   try {
+    Object payload=message.getPayload();
     if (payload == null) {
-      workflowException=new WorkflowException(MISSING_REQUEST_ERROR);
-      _log.error(MISSING_REQUEST_ERROR);
+      throw new WorkflowException("Payload is null");
     }
  else     if (!WorkflowRequest.class.isAssignableFrom(payload.getClass())) {
-      String errorMessage=new Formatter().format(WRONG_REQUEST_ERROR,WorkflowRequest.class.getName(),payload.getClass().getName()).toString();
-      workflowException=new WorkflowException(errorMessage);
-      _log.error(errorMessage);
+      throw new WorkflowException("Payload " + payload.getClass() + " is not of type "+ WorkflowRequest.class.getName());
     }
  else {
-      WorkflowRequest request=(WorkflowRequest)payload;
-      resultContainer.setResult(request.execute(_manager));
+      WorkflowRequest workflowRequest=(WorkflowRequest)payload;
+      Object result=workflowRequest.execute(_manager);
+      workflowResultContainer.setResult(result);
     }
   }
- catch (  WorkflowException ex) {
-    workflowException=new WorkflowException(EXECUTE_ERROR);
-    _log.error(EXECUTE_ERROR,ex);
+ catch (  WorkflowException we) {
+    _log.error(we,we);
+    workflowResultContainer.setWorkflowException(we);
   }
  finally {
+    String responseDestination=message.getResponseDestinationName();
     if (Validator.isNotNull(responseDestination)) {
       Message responseMessage=MessageBusUtil.createResponseMessage(message);
-      resultContainer.setException(workflowException);
-      responseMessage.setPayload(resultContainer);
+      responseMessage.setPayload(workflowResultContainer);
       _messageBus.sendMessage(responseDestination,responseMessage);
     }
   }
