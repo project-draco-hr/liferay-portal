@@ -1,0 +1,34 @@
+{
+  Object payload=message.getPayload();
+  String responseDestination=message.getResponseDestinationName();
+  ScriptingResultContainer resultContainer=new ScriptingResultContainer();
+  ScriptingRequest scriptingRequest=null;
+  ScriptingException scriptingException=null;
+  try {
+    if (payload == null) {
+      scriptingException=new ScriptingException(MISSING_REQUEST_ERROR);
+      _log.error(MISSING_REQUEST_ERROR);
+    }
+ else     if (!ScriptingRequest.class.isAssignableFrom(payload.getClass())) {
+      String errorMessage=new Formatter().format(WRONG_REQUEST_ERROR,ScriptingRequest.class.getName(),payload.getClass().getName()).toString();
+      scriptingException=new ScriptingException(errorMessage);
+      _log.error(errorMessage);
+    }
+ else {
+      scriptingRequest=ScriptingRequest.class.cast(payload);
+      resultContainer.setResult(scriptingRequest.execute(_scripting));
+    }
+  }
+ catch (  ScriptingException ex) {
+    scriptingException=new ScriptingException(EXECUTE_ERROR);
+    _log.error(EXECUTE_ERROR,ex);
+  }
+ finally {
+    if (Validator.isNotNull(responseDestination) && scriptingRequest != null && scriptingRequest.hasReturnValue()) {
+      Message responseMessage=MessageBusUtil.createResponseMessage(message);
+      resultContainer.setException(scriptingException);
+      responseMessage.setPayload(resultContainer);
+      MessageBusUtil.sendMessage(responseDestination,responseMessage);
+    }
+  }
+}
