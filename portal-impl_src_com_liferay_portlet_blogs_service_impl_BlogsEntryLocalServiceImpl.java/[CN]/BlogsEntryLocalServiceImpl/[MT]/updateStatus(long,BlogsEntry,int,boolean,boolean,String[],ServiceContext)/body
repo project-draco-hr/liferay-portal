@@ -1,0 +1,29 @@
+{
+  int oldStatus=entry.getStatus();
+  User user=userPersistence.findByPrimaryKey(userId);
+  Date now=new Date();
+  entry.setStatus(status);
+  entry.setStatusByUserId(user.getUserId());
+  entry.setStatusByUserName(user.getFullName());
+  entry.setStatusDate(now);
+  blogsEntryPersistence.update(entry,false);
+  if ((status == StatusConstants.APPROVED) && (oldStatus != StatusConstants.APPROVED)) {
+    assetEntryLocalService.updateVisible(BlogsEntry.class.getName(),entry.getEntryId(),true);
+    if (reIndex) {
+      reIndex(entry);
+    }
+  }
+  if ((status != StatusConstants.APPROVED) && (oldStatus == StatusConstants.APPROVED)) {
+    assetEntryLocalService.updateVisible(BlogsEntry.class.getName(),entry.getEntryId(),false);
+  }
+  if ((oldStatus != StatusConstants.APPROVED) && (status == StatusConstants.APPROVED)) {
+    socialActivityLocalService.addActivity(userId,entry.getGroupId(),BlogsEntry.class.getName(),entry.getEntryId(),BlogsActivityKeys.ADD_ENTRY,StringPool.BLANK,0);
+  }
+  if (status == StatusConstants.APPROVED) {
+    pingGoogle(entry,serviceContext);
+    if (entry.getAllowTrackbacks()) {
+      pingTrackbacks(entry,trackbacks,pingOldTrackbaks,serviceContext);
+    }
+  }
+  return entry;
+}

@@ -1,0 +1,52 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  long groupId=serviceContext.getScopeGroupId();
+  Date displayDate=PortalUtil.getDate(displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,user.getTimeZone(),new EntryDisplayDateException());
+  Date now=new Date();
+  validate(title,content);
+  long entryId=counterLocalService.increment();
+  BlogsEntry entry=blogsEntryPersistence.create(entryId);
+  entry.setUuid(uuid);
+  entry.setGroupId(groupId);
+  entry.setCompanyId(user.getCompanyId());
+  entry.setUserId(user.getUserId());
+  entry.setUserName(user.getFullName());
+  entry.setCreateDate(now);
+  entry.setModifiedDate(now);
+  entry.setTitle(title);
+  entry.setUrlTitle(getUniqueUrlTitle(entryId,groupId,title));
+  entry.setContent(content);
+  entry.setDisplayDate(displayDate);
+  entry.setAllowTrackbacks(allowTrackbacks);
+  entry.setStatus(status);
+  entry.setStatusByUserId(user.getUserId());
+  entry.setStatusByUserName(user.getFullName());
+  entry.setStatusDate(now);
+  blogsEntryPersistence.update(entry,false);
+  if (serviceContext.getAddCommunityPermissions() || serviceContext.getAddGuestPermissions()) {
+    addEntryResources(entry,serviceContext.getAddCommunityPermissions(),serviceContext.getAddGuestPermissions());
+  }
+ else {
+    addEntryResources(entry,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
+  }
+  ExpandoBridge expandoBridge=entry.getExpandoBridge();
+  expandoBridge.setAttributes(serviceContext);
+  if (status == StatusConstants.APPROVED) {
+    blogsStatsUserLocalService.updateStatsUser(groupId,userId,now);
+  }
+  updateAsset(userId,entry,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
+  if (PropsValues.BLOGS_ENTRY_COMMENTS_ENABLED) {
+    mbMessageLocalService.addDiscussionMessage(userId,entry.getUserName(),BlogsEntry.class.getName(),entryId);
+  }
+  if (status == StatusConstants.APPROVED) {
+    socialActivityLocalService.addActivity(userId,groupId,BlogsEntry.class.getName(),entryId,BlogsActivityKeys.ADD_ENTRY,StringPool.BLANK,0);
+  }
+  reIndex(entry);
+  if (status == StatusConstants.APPROVED) {
+    pingGoogle(entry,serviceContext);
+    if (allowTrackbacks) {
+      pingTrackbacks(entry,trackbacks,false,serviceContext);
+    }
+  }
+  return entry;
+}

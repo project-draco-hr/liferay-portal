@@ -1,0 +1,33 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  Date displayDate=PortalUtil.getDate(displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,user.getTimeZone(),new EntryDisplayDateException());
+  validate(title,content);
+  BlogsEntry entry=blogsEntryPersistence.findByPrimaryKey(entryId);
+  String oldUrlTitle=entry.getUrlTitle();
+  int oldStatus=entry.getStatus();
+  entry.setModifiedDate(new Date());
+  entry.setTitle(title);
+  entry.setUrlTitle(getUniqueUrlTitle(entryId,entry.getGroupId(),title));
+  entry.setContent(content);
+  entry.setDisplayDate(displayDate);
+  entry.setAllowTrackbacks(allowTrackbacks);
+  blogsEntryPersistence.update(entry,false);
+  if ((serviceContext.getCommunityPermissions() != null) || (serviceContext.getGuestPermissions() != null)) {
+    updateEntryResources(entry,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
+  }
+  if (status == StatusConstants.APPROVED) {
+    blogsStatsUserLocalService.updateStatsUser(entry.getGroupId(),entry.getUserId(),displayDate);
+  }
+  updateAsset(userId,entry,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
+  ExpandoBridge expandoBridge=entry.getExpandoBridge();
+  expandoBridge.setAttributes(serviceContext);
+  if (oldStatus != status) {
+    boolean pingOldTrackbacks=false;
+    if (oldUrlTitle != entry.getUrlTitle()) {
+      pingOldTrackbacks=true;
+    }
+    updateStatus(userId,entry,status,false,pingOldTrackbacks,trackbacks,serviceContext);
+  }
+  reIndex(entry);
+  return entry;
+}
