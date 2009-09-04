@@ -1,0 +1,133 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  if (Validator.isNull(title)) {
+    title=sourceFileName;
+    if (Validator.isNull(title)) {
+      title=name;
+    }
+  }
+  title=DLFileEntryImpl.stripExtension(name,title);
+  validate(groupId,folderId,newFolderId,name,title,sourceFileName,is);
+  DLFileEntry fileEntry=dlFileEntryPersistence.findByG_F_N(groupId,folderId,name);
+  fileEntry.setTitle(title);
+  fileEntry.setDescription(description);
+  fileEntry.setExtraSettings(extraSettings);
+  dlFileEntryPersistence.update(fileEntry,false);
+  if (folderId != newFolderId) {
+    long oldFileEntryId=fileEntry.getFileEntryId();
+    if (dlLocalService.hasFile(user.getCompanyId(),getRepositoryId(groupId,newFolderId),name,0)) {
+      throw new DuplicateFileException(name);
+    }
+    long newFileEntryId=counterLocalService.increment();
+    DLFileEntry newFileEntry=dlFileEntryPersistence.create(newFileEntryId);
+    newFileEntry.setGroupId(fileEntry.getGroupId());
+    newFileEntry.setCompanyId(fileEntry.getCompanyId());
+    newFileEntry.setUserId(fileEntry.getUserId());
+    newFileEntry.setUserName(fileEntry.getUserName());
+    newFileEntry.setVersionUserId(fileEntry.getVersionUserId());
+    newFileEntry.setVersionUserName(fileEntry.getVersionUserName());
+    newFileEntry.setCreateDate(fileEntry.getCreateDate());
+    newFileEntry.setModifiedDate(fileEntry.getModifiedDate());
+    newFileEntry.setFolderId(newFolderId);
+    newFileEntry.setName(name);
+    newFileEntry.setTitle(fileEntry.getTitle());
+    newFileEntry.setDescription(fileEntry.getDescription());
+    newFileEntry.setVersion(fileEntry.getVersion());
+    newFileEntry.setSize(fileEntry.getSize());
+    newFileEntry.setReadCount(fileEntry.getReadCount());
+    newFileEntry.setExtraSettings(extraSettings);
+    dlFileEntryPersistence.update(newFileEntry,false);
+    dlFileEntryPersistence.remove(fileEntry);
+    List<DLFileVersion> fileVersions=dlFileVersionPersistence.findByF_N(folderId,name);
+    for (    DLFileVersion fileVersion : fileVersions) {
+      long newFileVersionId=counterLocalService.increment();
+      DLFileVersion newFileVersion=dlFileVersionPersistence.create(newFileVersionId);
+      newFileVersion.setGroupId(fileVersion.getGroupId());
+      newFileVersion.setCompanyId(fileVersion.getCompanyId());
+      newFileVersion.setUserId(fileVersion.getUserId());
+      newFileVersion.setUserName(fileVersion.getUserName());
+      newFileVersion.setCreateDate(fileVersion.getCreateDate());
+      newFileVersion.setFolderId(newFolderId);
+      newFileVersion.setName(name);
+      newFileVersion.setVersion(fileVersion.getVersion());
+      newFileVersion.setSize(fileVersion.getSize());
+      dlFileVersionPersistence.update(newFileVersion,false);
+      dlFileVersionPersistence.remove(fileVersion);
+    }
+    dlFileShortcutLocalService.updateFileShortcuts(groupId,folderId,name,newFolderId,name);
+    Resource resource=resourceLocalService.getResource(fileEntry.getCompanyId(),DLFileEntry.class.getName(),ResourceConstants.SCOPE_INDIVIDUAL,String.valueOf(fileEntry.getPrimaryKey()));
+    resource.setPrimKey(String.valueOf(newFileEntryId));
+    resourcePersistence.update(resource,false);
+    assetEntryLocalService.deleteEntry(DLFileEntry.class.getName(),fileEntry.getFileEntryId());
+    List<DLFileShortcut> fileShortcuts=dlFileShortcutPersistence.findByG_TF_TN(groupId,folderId,name);
+    for (    DLFileShortcut fileShortcut : fileShortcuts) {
+      assetEntryLocalService.deleteEntry(DLFileShortcut.class.getName(),fileShortcut.getFileShortcutId());
+    }
+    expandoValueLocalService.deleteValues(DLFileEntry.class.getName(),fileEntry.getFileEntryId());
+    long repositoryId=getRepositoryId(groupId,folderId);
+    long newRepositoryId=getRepositoryId(groupId,newFolderId);
+    dlService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,newFileEntry.getGroupId(),repositoryId,newRepositoryId,name,newFileEntryId);
+    RatingsStats stats=ratingsStatsLocalService.getStats(DLFileEntry.class.getName(),oldFileEntryId);
+    stats.setClassPK(newFileEntryId);
+    ratingsStatsPersistence.update(stats,false);
+    long classNameId=PortalUtil.getClassNameId(DLFileEntry.class.getName());
+    List<RatingsEntry> entries=ratingsEntryPersistence.findByC_C(classNameId,oldFileEntryId);
+    for (    RatingsEntry entry : entries) {
+      entry.setClassPK(newFileEntryId);
+      ratingsEntryPersistence.update(entry,false);
+    }
+    MBDiscussion discussion=mbDiscussionPersistence.fetchByC_C(classNameId,oldFileEntryId);
+    if (discussion != null) {
+      discussion.setClassPK(newFileEntryId);
+      mbDiscussionPersistence.update(discussion,false);
+    }
+    socialActivityLocalService.deleteActivities(DLFileEntry.class.getName(),fileEntry.getFileEntryId());
+    folderId=newFolderId;
+    fileEntry=newFileEntry;
+  }
+  updateAsset(userId,fileEntry,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
+  ExpandoBridge expandoBridge=fileEntry.getExpandoBridge();
+  expandoBridge.setAttributes(serviceContext);
+  socialActivityLocalService.addActivity(userId,fileEntry.getGroupId(),DLFileEntry.class.getName(),fileEntry.getFileEntryId(),DLActivityKeys.UPDATE_FILE_ENTRY,StringPool.BLANK,0);
+  double oldVersion=fileEntry.getVersion();
+  double newVersion=MathUtil.format(oldVersion + 0.1,1,1);
+  if (is == null) {
+    long repositoryId=getRepositoryId(groupId,folderId);
+    fileEntry.setVersion(newVersion);
+    dlFileEntryPersistence.update(fileEntry,false);
+    is=dlLocalService.getFileAsStream(user.getCompanyId(),repositoryId,name);
+    dlLocalService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,fileEntry.getGroupId(),repositoryId,name,newVersion,name,fileEntry.getFileEntryId(),fileEntry.getLuceneProperties(),fileEntry.getModifiedDate(),serviceContext,is);
+    return fileEntry;
+  }
+  long fileVersionId=counterLocalService.increment();
+  DLFileVersion fileVersion=dlFileVersionPersistence.create(fileVersionId);
+  long versionUserId=fileEntry.getVersionUserId();
+  if (versionUserId <= 0) {
+    versionUserId=fileEntry.getUserId();
+  }
+  String versionUserName=GetterUtil.getString(fileEntry.getVersionUserName(),fileEntry.getUserName());
+  fileVersion.setGroupId(fileEntry.getGroupId());
+  fileVersion.setCompanyId(fileEntry.getCompanyId());
+  fileVersion.setUserId(versionUserId);
+  fileVersion.setUserName(versionUserName);
+  fileVersion.setCreateDate(fileEntry.getModifiedDate());
+  fileVersion.setFolderId(folderId);
+  fileVersion.setName(name);
+  fileVersion.setVersion(oldVersion);
+  fileVersion.setSize(fileEntry.getSize());
+  dlFileVersionPersistence.update(fileVersion,false);
+  fileEntry.setVersionUserId(user.getUserId());
+  fileEntry.setVersionUserName(user.getFullName());
+  fileEntry.setModifiedDate(new Date());
+  fileEntry.setVersion(newVersion);
+  fileEntry.setSize((int)size);
+  dlFileEntryPersistence.update(fileEntry,false);
+  long repositoryId=getRepositoryId(groupId,folderId);
+  dlLocalService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,fileEntry.getGroupId(),repositoryId,name,newVersion,sourceFileName,fileEntry.getFileEntryId(),fileEntry.getLuceneProperties(),fileEntry.getModifiedDate(),serviceContext,is);
+  if (fileEntry.getFolderId() != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+    DLFolder folder=dlFolderPersistence.findByPrimaryKey(fileEntry.getFolderId());
+    folder.setLastPostDate(fileEntry.getModifiedDate());
+    dlFolderPersistence.update(folder,false);
+  }
+  return fileEntry;
+}
