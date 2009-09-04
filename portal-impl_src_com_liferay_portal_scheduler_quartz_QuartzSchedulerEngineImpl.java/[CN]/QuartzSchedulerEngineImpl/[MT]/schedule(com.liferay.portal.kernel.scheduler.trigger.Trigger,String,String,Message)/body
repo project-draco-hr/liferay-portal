@@ -1,0 +1,57 @@
+{
+  if (!PropsValues.SCHEDULER_ENABLED) {
+    return;
+  }
+  String jobName=trigger.getJobName();
+  String groupName=trigger.getGroupName();
+  if (message == null) {
+    message=new Message();
+  }
+  message.put(RECEIVER_KEY,jobName + ":" + groupName);
+  if (jobName.length() > QUARTZ_MAX_JOB_NAME_LENGTH) {
+    jobName=jobName.substring(0,QUARTZ_MAX_JOB_NAME_LENGTH);
+  }
+  if (groupName.length() > QUARTZ_MAX_GROUP_NAME_LENGTH) {
+    groupName=groupName.substring(0,QUARTZ_MAX_GROUP_NAME_LENGTH);
+  }
+  if (description.length() > QUARTZ_MAX_DESCRIPTION_LENGTH) {
+    description=description.substring(0,QUARTZ_MAX_DESCRIPTION_LENGTH);
+  }
+  Date startDate=trigger.getStartDate();
+  Date endDate=trigger.getEndDate();
+  try {
+    Trigger quartzTrigger=null;
+switch (trigger.getTriggerType()) {
+case CRON:
+      try {
+        quartzTrigger=new CronTrigger(jobName,groupName,(String)trigger.getTriggerContent());
+      }
+ catch (      ParseException ex) {
+        throw new SchedulerException("Failed to parse cron text:" + trigger.getTriggerContent());
+      }
+    break;
+case SIMPLE:
+  quartzTrigger=new SimpleTrigger(jobName,groupName,SimpleTrigger.REPEAT_INDEFINITELY,(Long)trigger.getTriggerContent());
+break;
+default :
+throw new SchedulerException("Unsupport TriggerType:" + trigger.getTriggerType());
+}
+if (startDate == null) {
+if (ServerDetector.getServerId().equals(ServerDetector.TOMCAT_ID)) {
+quartzTrigger.setStartTime(new Date(System.currentTimeMillis() + Time.MINUTE));
+}
+ else {
+quartzTrigger.setStartTime(new Date(System.currentTimeMillis() + Time.MINUTE * 3));
+}
+}
+ else {
+quartzTrigger.setStartTime(startDate);
+}
+if (endDate != null) {
+quartzTrigger.setEndTime(endDate);
+}
+schedule(quartzTrigger,description,destination,message);
+}
+ catch (RuntimeException re) {
+}
+}
