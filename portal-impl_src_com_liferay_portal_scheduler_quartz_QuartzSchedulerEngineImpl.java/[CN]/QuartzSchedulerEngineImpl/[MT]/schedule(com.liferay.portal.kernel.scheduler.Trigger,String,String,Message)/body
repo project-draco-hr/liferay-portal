@@ -1,0 +1,56 @@
+{
+  if (!PropsValues.SCHEDULER_ENABLED) {
+    return;
+  }
+  try {
+    String jobName=trigger.getJobName();
+    String groupName=trigger.getGroupName();
+    if (jobName.length() > _JOB_NAME_MAX_LENGTH) {
+      jobName=jobName.substring(0,_JOB_NAME_MAX_LENGTH);
+    }
+    if (groupName.length() > _GROUP_NAME_MAX_LENGTH) {
+      groupName=groupName.substring(0,_GROUP_NAME_MAX_LENGTH);
+    }
+    Trigger quartzTrigger=null;
+    if (trigger.getTriggerType() == TriggerType.CRON) {
+      try {
+        quartzTrigger=new CronTrigger(jobName,groupName,(String)trigger.getTriggerContent());
+      }
+ catch (      ParseException pe) {
+        throw new SchedulerException("Unable to parse cron text " + trigger.getTriggerContent());
+      }
+    }
+ else     if (trigger.getTriggerType() == TriggerType.SIMPLE) {
+      quartzTrigger=new SimpleTrigger(jobName,groupName,SimpleTrigger.REPEAT_INDEFINITELY,(Long)trigger.getTriggerContent());
+    }
+ else {
+      throw new SchedulerException("Unsupport trigger type " + trigger.getTriggerType());
+    }
+    Date startDate=trigger.getStartDate();
+    if (startDate == null) {
+      if (ServerDetector.getServerId().equals(ServerDetector.TOMCAT_ID)) {
+        quartzTrigger.setStartTime(new Date(System.currentTimeMillis() + Time.MINUTE));
+      }
+ else {
+        quartzTrigger.setStartTime(new Date(System.currentTimeMillis() + Time.MINUTE * 3));
+      }
+    }
+ else {
+      quartzTrigger.setStartTime(startDate);
+    }
+    Date endDate=trigger.getEndDate();
+    if (endDate != null) {
+      quartzTrigger.setEndTime(endDate);
+    }
+    if ((description != null) && (description.length() > _DESCRIPTION_MAX_LENGTH)) {
+      description=description.substring(0,_DESCRIPTION_MAX_LENGTH);
+    }
+    if (message == null) {
+      message=new Message();
+    }
+    message.put(RECEIVER_KEY,jobName + StringPool.COLON + groupName);
+    schedule(quartzTrigger,description,destination,message);
+  }
+ catch (  RuntimeException re) {
+  }
+}
