@@ -1,0 +1,27 @@
+{
+  AttributesTransformer attributesTransformer=AttributesTransformerFactory.getInstance();
+  attributes=attributesTransformer.transformUser(attributes);
+  Properties userMappings=LDAPSettingsUtil.getUserMappings(companyId);
+  Properties customMappings=LDAPSettingsUtil.getCustomMappings(companyId);
+  if (_converter == null) {
+    _converter=(LDAPConverter)Class.forName(PropsValues.LDAP_CONVERTER_IMPL).newInstance();
+  }
+  User user=null;
+  LDAPUserTransactionThreadLocal.setOriginatesFromLDAP(true);
+  try {
+    user=_importLDAPUser(attributes,userMappings,customMappings,companyId,password);
+  }
+  finally {
+    LDAPUserTransactionThreadLocal.setOriginatesFromLDAP(false);
+  }
+  if (importGroupMembership && (user != null)) {
+    String userMappingsGroup=userMappings.getProperty(LDAPConverterKeys.USER_GROUP);
+    if (userMappingsGroup != null) {
+      Attribute attribute=attributes.get(userMappingsGroup);
+      if (attribute != null) {
+        _importGroupsAndMembershipFromLDAPUser(companyId,ctx,user.getUserId(),attribute);
+      }
+    }
+  }
+  return user;
+}
