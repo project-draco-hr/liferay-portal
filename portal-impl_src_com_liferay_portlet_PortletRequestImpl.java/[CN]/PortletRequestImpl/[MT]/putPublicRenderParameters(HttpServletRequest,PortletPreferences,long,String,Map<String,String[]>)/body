@@ -1,0 +1,52 @@
+{
+  Enumeration<String> names=request.getParameterNames();
+  while (names.hasMoreElements()) {
+    String name=names.nextElement();
+    QName qName=PortletQNameUtil.getQName(name);
+    PublicRenderParameter publicRenderParameter=null;
+    if (qName == null) {
+      String mapping=preferences.getValue(PublicRenderParameterConfiguration.MAPPING_PREFIX + name,null);
+      if (Validator.isNull(mapping)) {
+        continue;
+      }
+      publicRenderParameter=_portlet.getPublicRenderParameter(mapping);
+    }
+ else {
+      publicRenderParameter=_portlet.getPublicRenderParameter(qName.getNamespaceURI(),qName.getLocalPart());
+    }
+    if (publicRenderParameter == null) {
+      continue;
+    }
+    boolean ignore=GetterUtil.getBoolean(preferences.getValue(PublicRenderParameterConfiguration.IGNORE_PREFIX + publicRenderParameter.getIdentifier(),null));
+    if (ignore) {
+      continue;
+    }
+    renderParameters.put(publicRenderParameter.getIdentifier(),request.getParameterValues(name));
+  }
+  String ppidNamespace=PortalUtil.getPortletNamespace(ppid);
+  Map<String,String[]> ppidRenderParameters=RenderParametersPool.get(request,plid,ppid);
+  for (  Map.Entry<String,String[]> entry : ppidRenderParameters.entrySet()) {
+    String name=entry.getKey();
+    String[] values=entry.getValue();
+    if (name.startsWith(ppidNamespace)) {
+      name=name.substring(ppidNamespace.length());
+    }
+    PublicRenderParameter publicRenderParameter=_portlet.getPublicRenderParameter(name);
+    if (publicRenderParameter == null) {
+      continue;
+    }
+    boolean ignore=GetterUtil.getBoolean(preferences.getValue(PublicRenderParameterConfiguration.IGNORE_PREFIX + publicRenderParameter.getIdentifier(),null));
+    if (ignore) {
+      continue;
+    }
+    String mapping=GetterUtil.getString(preferences.getValue(PublicRenderParameterConfiguration.MAPPING_PREFIX + publicRenderParameter.getIdentifier(),null));
+    if (Validator.isNotNull(mapping)) {
+      if (ppidRenderParameters.containsKey(mapping)) {
+        renderParameters.put(publicRenderParameter.getIdentifier(),ppidRenderParameters.get(mapping));
+      }
+    }
+ else {
+      renderParameters.put(publicRenderParameter.getIdentifier(),values);
+    }
+  }
+}
