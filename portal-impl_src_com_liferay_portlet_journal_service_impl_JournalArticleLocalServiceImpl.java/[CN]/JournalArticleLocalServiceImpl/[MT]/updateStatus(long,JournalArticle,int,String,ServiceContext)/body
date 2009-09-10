@@ -1,0 +1,47 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  Date now=new Date();
+  int oldStatus=article.getStatus();
+  article.setModifiedDate(now);
+  article.setStatus(status);
+  article.setStatusByUserId(user.getUserId());
+  article.setStatusByUserName(user.getFullName());
+  article.setStatusDate(now);
+  if ((article.getExpirationDate() != null) && (article.getExpirationDate().before(now))) {
+    article.setExpirationDate(null);
+  }
+  journalArticlePersistence.update(article,false);
+  if (isLatestVersion(article.getGroupId(),article.getArticleId(),article.getVersion())) {
+    if (status == StatusConstants.APPROVED) {
+      assetEntryLocalService.updateVisible(JournalArticle.class.getName(),article.getResourcePrimKey(),true);
+      ExpandoBridge expandoBridge=article.getExpandoBridge();
+      expandoBridge.setAttributes(serviceContext);
+      reIndex(article);
+    }
+ else {
+      assetEntryLocalService.updateVisible(JournalArticle.class.getName(),article.getResourcePrimKey(),false);
+      try {
+        if (article.isIndexable()) {
+          Indexer.deleteArticle(article.getCompanyId(),article.getGroupId(),article.getArticleId());
+        }
+      }
+ catch (      SearchException se) {
+        _log.error("Removing index " + article.getId(),se);
+      }
+    }
+  }
+  if ((oldStatus == StatusConstants.PENDING) && ((status == StatusConstants.APPROVED) || (status == StatusConstants.DENIED))) {
+    PortletPreferences preferences=ServiceContextUtil.getPortletPreferences(serviceContext);
+    try {
+      String msg="granted";
+      if (status == StatusConstants.DENIED) {
+        msg="denied";
+      }
+      sendEmail(article,articleURL,preferences,msg);
+    }
+ catch (    IOException ioe) {
+      throw new SystemException(ioe);
+    }
+  }
+  return article;
+}
