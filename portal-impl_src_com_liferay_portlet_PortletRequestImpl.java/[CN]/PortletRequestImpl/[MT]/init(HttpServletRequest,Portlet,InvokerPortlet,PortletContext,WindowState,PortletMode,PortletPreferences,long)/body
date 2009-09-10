@@ -2,6 +2,7 @@
   ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
   _portlet=portlet;
   _portletName=portlet.getPortletId();
+  _publicRenderParameters=RenderParametersPool.get(request,plid,RenderParametersPool.PUBLIC_RENDER_PARAMETERS);
   String portletNamespace=PortalUtil.getPortletNamespace(_portletName);
   Map<String,Object> sharedSessionAttributes=SharedSessionUtil.getSharedSessionAttributes(request);
   boolean portalSessionShared=false;
@@ -17,7 +18,6 @@
  else {
     dynamicRequest=new DynamicServletRequest(request,false);
   }
-  Enumeration<String> enu=null;
   boolean portletFocus=false;
   String ppid=ParamUtil.getString(request,"p_p_id");
   if (_portletName.equals(ppid)) {
@@ -28,35 +28,36 @@
       portletFocus=true;
     }
   }
-  Map<String,String[]> oldRenderParameters=RenderParametersPool.get(request,plid,_portletName);
-  Map<String,String[]> newRenderParameters=null;
+  Map<String,String[]> renderParameters=RenderParametersPool.get(request,plid,_portletName);
   if (portletFocus) {
-    newRenderParameters=new HashMap<String,String[]>();
+    renderParameters=new HashMap<String,String[]>();
     if (getLifecycle().equals(PortletRequest.RENDER_PHASE) && !LiferayWindowState.isExclusive(request) && !LiferayWindowState.isPopUp(request)) {
-      RenderParametersPool.put(request,plid,_portletName,newRenderParameters);
+      RenderParametersPool.put(request,plid,_portletName,renderParameters);
     }
-    enu=request.getParameterNames();
-  }
- else {
-    if (!_portletName.equals(ppid)) {
-      putPublicRenderParameters(request,preferences,plid,ppid,oldRenderParameters);
-    }
-    enu=Collections.enumeration(oldRenderParameters.keySet());
-  }
-  while (enu.hasMoreElements()) {
-    String name=enu.nextElement();
-    if (name.startsWith(portletNamespace) && !invokerPortlet.isFacesPortlet()) {
-      String shortName=name.substring(portletNamespace.length());
-      ObjectValuePair<String,String[]> ovp=getParameterValues(request,themeDisplay,portletFocus,oldRenderParameters,newRenderParameters,name);
-      dynamicRequest.setParameterValues(shortName,ovp.getValue());
-    }
- else {
-      if (!PortalUtil.isReservedParameter(name) && Validator.isNotNull(name)) {
-        ObjectValuePair<String,String[]> ovp=getParameterValues(request,themeDisplay,portletFocus,oldRenderParameters,newRenderParameters,name);
-        dynamicRequest.setParameterValues(ovp.getKey(),ovp.getValue());
+    Enumeration<String> enu=request.getParameterNames();
+    while (enu.hasMoreElements()) {
+      String name=enu.nextElement();
+      if (Validator.isNull(name) || PortalUtil.isReservedParameter(name)) {
+        continue;
       }
+      String[] values=getParameterValues(request,themeDisplay,portletFocus,renderParameters,name);
+      if (values == null) {
+        continue;
+      }
+      if (name.startsWith(portletNamespace) && !invokerPortlet.isFacesPortlet()) {
+        name=name.substring(portletNamespace.length());
+      }
+      dynamicRequest.setParameterValues(name,values);
     }
   }
+ else {
+    Set<String> names=renderParameters.keySet();
+    for (    String name : names) {
+      String[] values=renderParameters.get(name);
+      dynamicRequest.setParameterValues(name,values);
+    }
+  }
+  mergePublicRenderParameters(dynamicRequest,preferences,plid,renderParameters);
   _request=dynamicRequest;
   _originalRequest=request;
   _wapTheme=BrowserSnifferUtil.isWap(_request);
