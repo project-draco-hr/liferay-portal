@@ -1,5 +1,6 @@
 {
   User user=userPersistence.findByPrimaryKey(userId);
+  Date now=new Date();
   if (Validator.isNull(title)) {
     title=sourceFileName;
     if (Validator.isNull(title)) {
@@ -38,7 +39,7 @@
     newFileEntry.setExtraSettings(extraSettings);
     dlFileEntryPersistence.update(newFileEntry,false);
     dlFileEntryPersistence.remove(fileEntry);
-    List<DLFileVersion> fileVersions=dlFileVersionPersistence.findByF_N(folderId,name);
+    List<DLFileVersion> fileVersions=dlFileVersionPersistence.findByG_F_N(groupId,folderId,name);
     for (    DLFileVersion fileVersion : fileVersions) {
       long newFileVersionId=counterLocalService.increment();
       DLFileVersion newFileVersion=dlFileVersionPersistence.create(newFileVersionId);
@@ -51,6 +52,10 @@
       newFileVersion.setName(name);
       newFileVersion.setVersion(fileVersion.getVersion());
       newFileVersion.setSize(fileVersion.getSize());
+      newFileVersion.setStatus(fileVersion.getStatus());
+      newFileVersion.setStatusByUserId(userId);
+      newFileVersion.setStatusByUserName(user.getFullName());
+      newFileVersion.setStatusDate(now);
       dlFileVersionPersistence.update(newFileVersion,false);
       dlFileVersionPersistence.remove(fileVersion);
     }
@@ -89,7 +94,7 @@
   ExpandoBridge expandoBridge=fileEntry.getExpandoBridge();
   expandoBridge.setAttributes(serviceContext);
   socialActivityLocalService.addActivity(userId,fileEntry.getGroupId(),DLFileEntry.class.getName(),fileEntry.getFileEntryId(),DLActivityKeys.UPDATE_FILE_ENTRY,StringPool.BLANK,0);
-  double oldVersion=fileEntry.getVersion();
+  double oldVersion=Math.max(fileEntry.getVersion(),fileEntry.getPendingVersion());
   double newVersion=MathUtil.format(oldVersion + 0.1,1,1);
   if (is == null) {
     long repositoryId=getRepositoryId(groupId,folderId);
@@ -99,23 +104,7 @@
     dlLocalService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,fileEntry.getGroupId(),repositoryId,name,newVersion,name,fileEntry.getFileEntryId(),fileEntry.getLuceneProperties(),fileEntry.getModifiedDate(),serviceContext,is);
     return fileEntry;
   }
-  long fileVersionId=counterLocalService.increment();
-  DLFileVersion fileVersion=dlFileVersionPersistence.create(fileVersionId);
-  long versionUserId=fileEntry.getVersionUserId();
-  if (versionUserId <= 0) {
-    versionUserId=fileEntry.getUserId();
-  }
-  String versionUserName=GetterUtil.getString(fileEntry.getVersionUserName(),fileEntry.getUserName());
-  fileVersion.setGroupId(fileEntry.getGroupId());
-  fileVersion.setCompanyId(fileEntry.getCompanyId());
-  fileVersion.setUserId(versionUserId);
-  fileVersion.setUserName(versionUserName);
-  fileVersion.setCreateDate(fileEntry.getModifiedDate());
-  fileVersion.setFolderId(folderId);
-  fileVersion.setName(name);
-  fileVersion.setVersion(oldVersion);
-  fileVersion.setSize(fileEntry.getSize());
-  dlFileVersionPersistence.update(fileVersion,false);
+  addFileVersion(user,fileEntry,newVersion,StatusConstants.APPROVED);
   fileEntry.setVersionUserId(user.getUserId());
   fileEntry.setVersionUserName(user.getFullName());
   fileEntry.setModifiedDate(new Date());
