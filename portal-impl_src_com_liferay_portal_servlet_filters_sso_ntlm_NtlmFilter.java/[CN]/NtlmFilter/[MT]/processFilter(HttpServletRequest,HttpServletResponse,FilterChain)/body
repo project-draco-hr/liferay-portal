@@ -3,22 +3,24 @@
   if (PortalLDAPUtil.isNtlmEnabled(companyId)) {
     String domainController=_filterConfig.getInitParameter("jcifs.http.domainController");
     String domain=_filterConfig.getInitParameter("jcifs.smb.client.domain");
-    if ((domainController == null) && (domain == null)) {
-      domainController=PrefsPropsUtil.getString(companyId,PropsKeys.NTLM_DOMAIN_CONTROLLER,PropsValues.NTLM_DOMAIN_CONTROLLER);
-      domain=PrefsPropsUtil.getString(companyId,PropsKeys.NTLM_DOMAIN,PropsValues.NTLM_DOMAIN);
+    String newDomainController=PrefsPropsUtil.getString(companyId,PropsKeys.NTLM_DOMAIN_CONTROLLER,PropsValues.NTLM_DOMAIN_CONTROLLER);
+    String newDomain=PrefsPropsUtil.getString(companyId,PropsKeys.NTLM_DOMAIN,PropsValues.NTLM_DOMAIN);
+    if (!Validator.equals(domainController,newDomainController) || !Validator.equals(domain,newDomain)) {
+      domainController=newDomainController;
+      domain=newDomain;
       _filterConfig.addInitParameter("jcifs.http.domainController",domainController);
       _filterConfig.addInitParameter("jcifs.smb.client.domain",domain);
       super.init(_filterConfig);
-      if (_log.isDebugEnabled()) {
-        _log.debug("Host " + domainController);
-        _log.debug("Domain " + domain);
-      }
+    }
+    if (_log.isDebugEnabled()) {
+      _log.debug("Host " + domainController);
+      _log.debug("Domain " + domain);
     }
     String authorization=GetterUtil.getString(request.getHeader(HttpHeaders.AUTHORIZATION));
     if (authorization.startsWith("NTLM")) {
       byte[] src=Base64.decode(authorization.substring(5));
       if (src[8] == 1) {
-        UniAddress dc=UniAddress.getByName(Config.getProperty("jcifs.http.domainController"),true);
+        UniAddress dc=UniAddress.getByName(domainController,true);
         byte[] challenge=SmbSession.getChallenge(dc);
         Type1Message type1=new Type1Message(src);
         Type2Message type2=new Type2Message(type1,challenge,null);
