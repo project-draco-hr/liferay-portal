@@ -1,0 +1,29 @@
+{
+  WorkflowResultContainer workflowResultContainer=new WorkflowResultContainer();
+  try {
+    Object payload=message.getPayload();
+    if (payload == null) {
+      throw new WorkflowException("Payload is null");
+    }
+ else     if (!WorkflowRequest.class.isAssignableFrom(payload.getClass())) {
+      throw new WorkflowException("Payload " + payload.getClass() + " is not of type "+ WorkflowRequest.class.getName());
+    }
+ else {
+      WorkflowRequest workflowRequest=(WorkflowRequest)payload;
+      Object result=workflowRequest.execute(_manager);
+      workflowResultContainer.setResult(result);
+    }
+  }
+ catch (  WorkflowException we) {
+    _log.error(we,we);
+    workflowResultContainer.setWorkflowException(we);
+  }
+ finally {
+    String responseDestination=message.getResponseDestinationName();
+    if (Validator.isNotNull(responseDestination)) {
+      Message responseMessage=MessageBusUtil.createResponseMessage(message);
+      responseMessage.setPayload(workflowResultContainer);
+      _messageBus.sendMessage(responseDestination,responseMessage);
+    }
+  }
+}
