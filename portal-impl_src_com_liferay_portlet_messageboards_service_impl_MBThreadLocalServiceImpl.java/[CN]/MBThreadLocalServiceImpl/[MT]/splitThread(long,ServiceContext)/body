@@ -1,11 +1,8 @@
 {
   MBMessage message=mbMessagePersistence.findByPrimaryKey(messageId);
-  MBCategory category=null;
+  MBCategory category=message.getCategory();
   long oldThreadId=message.getThreadId();
   String oldAttachmentsDir=message.getAttachmentsDir();
-  if (message.getCategoryId() != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) {
-    category=message.getCategory();
-  }
   mbMessageFlagLocalService.deleteThreadFlags(oldThreadId);
   MBThread thread=addThread(message.getCategoryId(),message);
   message.setThreadId(thread.getThreadId());
@@ -14,7 +11,7 @@
   mbMessagePersistence.update(message,false);
   moveAttachmentsFromOldThread(message,oldAttachmentsDir);
   try {
-    if ((category != null) && !category.isDiscussion()) {
+    if (!category.isDiscussion()) {
       Indexer.updateMessage(message.getCompanyId(),message.getGroupId(),message.getUserId(),message.getUserName(),category.getCategoryId(),message.getThreadId(),message.getMessageId(),message.getSubject(),message.getBody(),message.isAnonymous(),message.getModifiedDate(),message.getAssetTagNames(),message.getExpandoBridge());
     }
   }
@@ -28,9 +25,7 @@
   MBThread oldThread=mbThreadPersistence.findByPrimaryKey(oldThreadId);
   oldThread.setMessageCount(oldThread.getMessageCount() - messagesMoved);
   mbThreadPersistence.update(oldThread,false);
-  if (category != null) {
-    category.setThreadCount(category.getThreadCount() + 1);
-    mbCategoryPersistence.update(category,false);
-  }
+  category.setThreadCount(category.getThreadCount() + 1);
+  mbCategoryPersistence.update(category,false);
   return thread;
 }
