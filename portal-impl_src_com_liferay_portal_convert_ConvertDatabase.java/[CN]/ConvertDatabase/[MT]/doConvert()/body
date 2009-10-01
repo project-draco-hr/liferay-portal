@@ -1,0 +1,38 @@
+{
+  DataSource dataSource=_getDataSource();
+  Dialect dialect=DialectDetector.getDialect(dataSource);
+  DBUtil dbUtil=DBUtil.getInstance(dialect);
+  List<String> modelNames=ModelHintsUtil.getModels();
+  Collections.sort(modelNames);
+  Connection connection=dataSource.getConnection();
+  try {
+    MaintenanceUtil.appendStatus("Converting " + modelNames.size() + " Wiki pages from Classic Wiki to Creole format.");
+    for (int i=0; i < modelNames.size(); i++) {
+      if ((i > 0) && (i % (modelNames.size() / 4) == 0)) {
+        MaintenanceUtil.appendStatus((i * 100. / modelNames.size()) + "%");
+      }
+      String name=modelNames.get(i);
+      name=name.replaceFirst("(\\.model\\.)(\\p{Upper}.*)","$1impl.$2Impl");
+      Class implClass=InstancePool.get(name).getClass();
+      String createSql=(String)implClass.getField("TABLE_SQL_CREATE").get(StringPool.BLANK);
+      String tableName=(String)implClass.getField("TABLE_NAME").get(StringPool.BLANK);
+      Object[][] columns=(Object[][])implClass.getField("TABLE_COLUMNS").get(new Object[0][0]);
+      if (_log.isDebugEnabled()) {
+        _log.debug("Migrating database table " + tableName);
+      }
+      Table table=new Table(tableName,columns);
+      String tempFileName=table.generateTempFile();
+      dbUtil.runSQL(connection,createSql);
+      if (tempFileName != null) {
+        table.populateTable(tempFileName,connection);
+      }
+    }
+  }
+  finally {
+    DataAccess.cleanUp(connection);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Please change your JDBC settings before restarting server.");
+  }
+  ShutdownUtil.shutdown(0);
+}
