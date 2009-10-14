@@ -1,0 +1,35 @@
+{
+  PollerResponse pollerResponse=null;
+  try {
+    PollerRequest pollerRequest=(PollerRequest)message.getPayload();
+    String portletId=pollerRequest.getPortletId();
+    PollerProcessor pollerProcessor=PollerProcessorUtil.getPollerProcessor(portletId);
+    if (pollerRequest.isDoReceive()) {
+      new PollerResponse(portletId,pollerRequest.getChunkId());
+      try {
+        pollerProcessor.receive(pollerRequest,pollerResponse);
+      }
+ catch (      PollerException e) {
+        pollerResponse.setParameter("pollerRequestError",e.getMessage());
+      }
+    }
+ else {
+      try {
+        pollerProcessor.send(pollerRequest);
+      }
+ catch (      PollerException e) {
+        if (_log.isErrorEnabled()) {
+          _log.error("Unable to process poller request: " + pollerRequest,e);
+        }
+      }
+    }
+  }
+  finally {
+    String responseDestinationName=message.getResponseDestinationName();
+    if (Validator.isNotNull(responseDestinationName)) {
+      Message responseMessage=MessageBusUtil.createResponseMessage(message);
+      responseMessage.setPayload(pollerResponse);
+      MessageBusUtil.sendMessage(responseDestinationName,responseMessage);
+    }
+  }
+}
