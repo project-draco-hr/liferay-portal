@@ -1,17 +1,17 @@
 {
-  String pollerRequest=getPollerRequest(request);
-  if (Validator.isNull(pollerRequest)) {
+  String pollerRequestString=getPollerRequestString(request);
+  if (Validator.isNull(pollerRequestString)) {
     return null;
   }
-  Map<String,Object>[] pollerRequestChunks=(Map<String,Object>[])JSONFactoryUtil.deserialize(pollerRequest);
+  Map<String,Object>[] pollerRequestChunks=(Map<String,Object>[])JSONFactoryUtil.deserialize(pollerRequestString);
   PollerHeader pollerHeader=getPollerHeader(pollerRequestChunks);
   if (pollerHeader == null) {
     return null;
   }
-  boolean doReceive=isDoReceive(request);
+  boolean receiveRequest=isReceiveRequest(request);
   JSONArray pollerResponseChunksJSON=null;
   Set<String> portletIdsWithChunks=null;
-  if (doReceive) {
+  if (receiveRequest) {
     pollerResponseChunksJSON=JSONFactoryUtil.createJSONArray();
     portletIdsWithChunks=new HashSet<String>();
     boolean suspendPolling=false;
@@ -30,22 +30,22 @@
     pollerResponseChunkJSON.put("suspendPolling",suspendPolling);
     pollerResponseChunksJSON.put(pollerResponseChunkJSON);
   }
-  PollerRequestManager pollerRequestManager=new PollerRequestManager(pollerResponseChunksJSON,DestinationNames.POLLER,DestinationNames.POLLER_RESPONSE,_timeout);
+  PollerRequestManager pollerRequestManager=new PollerRequestManager(pollerResponseChunksJSON,DestinationNames.POLLER,DestinationNames.POLLER_RESPONSE,PropsValues.POLLER_REQUEST_TIMEOUT);
   for (int i=1; i < pollerRequestChunks.length; i++) {
     Map<String,Object> pollerRequestChunk=pollerRequestChunks[i];
     String portletId=(String)pollerRequestChunk.get("portletId");
     Map<String,String> parameterMap=getData(pollerRequestChunk);
     String chunkId=(String)pollerRequestChunk.get("chunkId");
     try {
-      PollerRequest pollerRequestObj=process(doReceive,portletIdsWithChunks,pollerHeader,portletId,parameterMap,chunkId);
-      pollerRequestManager.addPollerRequest(pollerRequestObj);
+      PollerRequest pollerRequest=process(portletIdsWithChunks,pollerHeader,portletId,parameterMap,chunkId,receiveRequest);
+      pollerRequestManager.addPollerRequest(pollerRequest);
     }
  catch (    Exception e) {
       _log.error(e,e);
     }
   }
   pollerRequestManager.processRequests();
-  if (!doReceive) {
+  if (!receiveRequest) {
     return StringPool.BLANK;
   }
   pollerRequestManager.clearRequests();
@@ -54,8 +54,8 @@
       continue;
     }
     try {
-      PollerRequest pollerRequestObj=process(doReceive,portletIdsWithChunks,pollerHeader,portletId,new HashMap<String,String>(),null);
-      pollerRequestManager.addPollerRequest(pollerRequestObj);
+      PollerRequest pollerRequest=process(portletIdsWithChunks,pollerHeader,portletId,new HashMap<String,String>(),null,receiveRequest);
+      pollerRequestManager.addPollerRequest(pollerRequest);
     }
  catch (    Exception e) {
       _log.error(e,e);
