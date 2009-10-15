@@ -1,3 +1,41 @@
 {
-  updateFileVersions();
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getConnection();
+    ps=con.prepareStatement("select * from DLFileEntry");
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      long companyId=rs.getLong("companyId");
+      long groupId=rs.getLong("groupId");
+      long userId=rs.getLong("userId");
+      long folderId=rs.getLong("folderId");
+      String name=rs.getString("name");
+      double version=rs.getDouble("version");
+      int size=rs.getInt("size_");
+      String portletId=PortletKeys.DOCUMENT_LIBRARY;
+      long repositoryId=folderId;
+      if (repositoryId == DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+        repositoryId=groupId;
+      }
+      DLServiceUtil.updateFile(companyId,portletId,groupId,repositoryId,name,FileUtil.stripExtension(name),false);
+      addFileVersion(userId,groupId,folderId,name,version,size);
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+  UpgradeColumn nameColumn=new DLFileNameUpgradeColumnImpl("name");
+  UpgradeColumn titleColumn=new DLFileEntryTitleUpgradeColumnImpl(nameColumn,"title");
+  UpgradeTable upgradeTable=new DefaultUpgradeTableImpl(DLFileEntryImpl.TABLE_NAME,DLFileEntryImpl.TABLE_COLUMNS,nameColumn,titleColumn);
+  upgradeTable.updateTable();
+  upgradeTable=new DefaultUpgradeTableImpl(DLFileVersionImpl.TABLE_NAME,DLFileVersionImpl.TABLE_COLUMNS,nameColumn);
+  upgradeTable.updateTable();
+  upgradeTable=new DefaultUpgradeTableImpl(DLFileRankImpl.TABLE_NAME,DLFileRankImpl.TABLE_COLUMNS,nameColumn);
+  upgradeTable.updateTable();
+  nameColumn=new DLFileNameUpgradeColumnImpl("toName");
+  upgradeTable=new DefaultUpgradeTableImpl(DLFileShortcutImpl.TABLE_NAME,DLFileShortcutImpl.TABLE_COLUMNS,nameColumn);
+  upgradeTable.updateTable();
+  PropsUtil.set(PropsKeys.INDEX_ON_STARTUP,"true");
 }
