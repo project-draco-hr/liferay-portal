@@ -1,0 +1,29 @@
+{
+  MethodSignature methodSignature=(MethodSignature)proceedingJoinPoint.getSignature();
+  String methodName=methodSignature.getMethod().getName();
+  Object[] arguments=proceedingJoinPoint.getArgs();
+  String workflowDefinitionName=null;
+  int workflowDefinitionVersion=-1;
+  boolean writeLock=false;
+  if (methodName.equals(UNDEPLOY_METHOD_NAME)) {
+    WorkflowDefinition workflowDefinition=(WorkflowDefinition)arguments[0];
+    workflowDefinitionName=workflowDefinition.getWorkflowDefinitionName();
+    workflowDefinitionVersion=workflowDefinition.getWorkflowDefinitionVersion();
+    writeLock=true;
+  }
+ else   if (methodName.equals(START_METHOD_NAME)) {
+    workflowDefinitionName=(String)arguments[0];
+    workflowDefinitionVersion=(Integer)arguments[1];
+  }
+  WorkflowDefinitionKey workflowDefinitionKey=new WorkflowDefinitionKey(workflowDefinitionName,workflowDefinitionVersion);
+  ReadWriteLockKey<WorkflowDefinitionKey> readWriteLockKey=new ReadWriteLockKey<WorkflowDefinitionKey>(workflowDefinitionKey,writeLock);
+  Lock lock=_readWriteLockRegistry.acquireLock(readWriteLockKey);
+  try {
+    lock.lock();
+    return proceedingJoinPoint.proceed();
+  }
+  finally {
+    lock.unlock();
+    _readWriteLockRegistry.releaseLock(readWriteLockKey);
+  }
+}
