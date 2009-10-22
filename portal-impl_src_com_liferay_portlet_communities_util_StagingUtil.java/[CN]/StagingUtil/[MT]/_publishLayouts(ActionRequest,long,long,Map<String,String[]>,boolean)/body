@@ -30,23 +30,39 @@
   if (schedule) {
     String groupName=getSchedulerGroupName(DestinationNames.LAYOUTS_LOCAL_PUBLISHER,targetGroupId);
     int recurrenceType=ParamUtil.getInteger(actionRequest,"recurrenceType");
-    Calendar startCal=_getDate(actionRequest,"schedulerStartDate",true);
+    Calendar startCal=_getDate(actionRequest,"schedulerStartDate",false);
     String cronText=_getCronText(actionRequest,startCal,false,recurrenceType);
     Date schedulerEndDate=null;
     int endDateType=ParamUtil.getInteger(actionRequest,"endDateType");
     if (endDateType == 1) {
-      Calendar endCal=_getDate(actionRequest,"schedulerEndDate",true);
+      Calendar endCal=_getDate(actionRequest,"schedulerEndDate",false);
       schedulerEndDate=endCal.getTime();
     }
     String description=ParamUtil.getString(actionRequest,"description");
     LayoutServiceUtil.schedulePublishToLive(sourceGroupId,targetGroupId,privateLayout,layoutIdMap,parameterMap,scope,startDate,endDate,groupName,cronText,startCal.getTime(),schedulerEndDate,description);
   }
  else {
-    if (scope.equals("all-pages")) {
-      publishLayouts(sourceGroupId,targetGroupId,privateLayout,parameterMap,startDate,endDate);
-    }
+    MessageStatus messageStatus=new MessageStatus();
+    messageStatus.startTimer();
+    String command=LayoutsLocalPublisherRequest.COMMAND_SELECTED_PAGES;
+    try {
+      if (scope.equals("all-pages")) {
+        command=LayoutsLocalPublisherRequest.COMMAND_ALL_PAGES;
+        publishLayouts(sourceGroupId,targetGroupId,privateLayout,parameterMap,startDate,endDate);
+      }
  else {
-      publishLayouts(sourceGroupId,targetGroupId,privateLayout,layoutIdMap,parameterMap,startDate,endDate);
+        publishLayouts(sourceGroupId,targetGroupId,privateLayout,layoutIdMap,parameterMap,startDate,endDate);
+      }
+    }
+ catch (    Exception e) {
+      messageStatus.setException(e);
+      throw e;
+    }
+ finally {
+      messageStatus.stopTimer();
+      LayoutsLocalPublisherRequest publisherRequest=new LayoutsLocalPublisherRequest(command,themeDisplay.getUserId(),sourceGroupId,targetGroupId,privateLayout,layoutIdMap,parameterMap,startDate,endDate);
+      messageStatus.setPayload(publisherRequest);
+      MessageBusUtil.sendMessage(DestinationNames.MESSAGE_BUS_MESSAGE_STATUS,messageStatus);
     }
   }
 }
