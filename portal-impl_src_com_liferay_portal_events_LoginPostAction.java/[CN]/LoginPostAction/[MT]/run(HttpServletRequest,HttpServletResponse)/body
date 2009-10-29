@@ -4,10 +4,11 @@
       _log.debug("Running " + request.getRemoteUser());
     }
     HttpSession session=request.getSession();
+    long companyId=PortalUtil.getCompanyId(request);
+    User user=PortalUtil.getUser(request);
+    boolean adminDefaultAddToExistingUser=PrefsPropsUtil.getBoolean(companyId,PropsKeys.ADMIN_DEFAULT_ADD_TO_EXISTING_USER);
     session.removeAttribute(Globals.LOCALE_KEY);
     if (PropsValues.LIVE_USERS_ENABLED) {
-      long companyId=PortalUtil.getCompanyId(request);
-      long userId=PortalUtil.getUserId(request);
       String sessionId=session.getId();
       String remoteAddr=request.getRemoteAddr();
       String remoteHost=request.getRemoteHost();
@@ -15,12 +16,62 @@
       JSONObject jsonObj=JSONFactoryUtil.createJSONObject();
       jsonObj.put("command","signIn");
       jsonObj.put("companyId",companyId);
-      jsonObj.put("userId",userId);
+      jsonObj.put("userId",user.getUserId());
       jsonObj.put("sessionId",sessionId);
       jsonObj.put("remoteAddr",remoteAddr);
       jsonObj.put("remoteHost",remoteHost);
       jsonObj.put("userAgent",userAgent);
       MessageBusUtil.sendMessage(DestinationNames.LIVE_USERS,jsonObj);
+    }
+    if (adminDefaultAddToExistingUser) {
+      Set<Long> groupIdSet=new HashSet<Long>();
+      String[] defaultGroupNames=PrefsPropsUtil.getStringArray(companyId,PropsKeys.ADMIN_DEFAULT_GROUP_NAMES,StringPool.NEW_LINE,PropsValues.ADMIN_DEFAULT_GROUP_NAMES);
+      List<Group> groups=user.getGroups();
+      for (      String defaultGroupName : defaultGroupNames) {
+        try {
+          Group defaultGroup=GroupLocalServiceUtil.getGroup(companyId,defaultGroupName);
+          if (!groups.contains(defaultGroup)) {
+            groupIdSet.add(defaultGroup.getGroupId());
+          }
+        }
+ catch (        NoSuchGroupException nsge) {
+        }
+      }
+      long[] groupIds=ArrayUtil.toArray((Long[])groupIdSet.toArray(new Long[groupIdSet.size()]));
+      GroupLocalServiceUtil.addUserGroups(user.getUserId(),groupIds);
+      Set<Long> roleIdSet=new HashSet<Long>();
+      String[] defaultRoleNames=PrefsPropsUtil.getStringArray(companyId,PropsKeys.ADMIN_DEFAULT_ROLE_NAMES,StringPool.NEW_LINE,PropsValues.ADMIN_DEFAULT_ROLE_NAMES);
+      List<Role> roles=user.getRoles();
+      for (      String defaultRoleName : defaultRoleNames) {
+        try {
+          Role defaultRole=RoleLocalServiceUtil.getRole(companyId,defaultRoleName);
+          if (!roles.contains(defaultRole)) {
+            roleIdSet.add(defaultRole.getRoleId());
+          }
+        }
+ catch (        NoSuchRoleException nsre) {
+        }
+      }
+      long[] roleIds=ArrayUtil.toArray((Long[])roleIdSet.toArray(new Long[roleIdSet.size()]));
+      roleIds=EnterpriseAdminUtil.addRequiredRoles(user.getUserId(),roleIds);
+      RoleLocalServiceUtil.addUserRoles(user.getUserId(),roleIds);
+      Set<Long> userGroupIdSet=new HashSet<Long>();
+      String[] defaultUserGroupNames=PrefsPropsUtil.getStringArray(companyId,PropsKeys.ADMIN_DEFAULT_USER_GROUP_NAMES,StringPool.NEW_LINE,PropsValues.ADMIN_DEFAULT_USER_GROUP_NAMES);
+      List<UserGroup> userGroups=user.getUserGroups();
+      for (      String defaultUserGroupName : defaultUserGroupNames) {
+        try {
+          UserGroup defaultUserGroup=UserGroupLocalServiceUtil.getUserGroup(companyId,defaultUserGroupName);
+          if (!userGroups.contains(defaultUserGroup)) {
+            userGroupIdSet.add(defaultUserGroup.getUserGroupId());
+          }
+        }
+ catch (        NoSuchUserGroupException nsuge) {
+        }
+      }
+      long[] userIds=new long[]{user.getUserId()};
+      for (      Long userGroupId : userGroupIdSet) {
+        UserLocalServiceUtil.addUserGroupUsers(userGroupId,userIds);
+      }
     }
   }
  catch (  Exception e) {
