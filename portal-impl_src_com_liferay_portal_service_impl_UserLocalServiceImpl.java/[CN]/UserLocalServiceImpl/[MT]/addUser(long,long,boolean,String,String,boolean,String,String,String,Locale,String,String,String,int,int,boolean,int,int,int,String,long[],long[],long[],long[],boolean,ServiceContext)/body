@@ -89,30 +89,55 @@
   contact.setJobTitle(jobTitle);
   contactPersistence.update(contact,false);
   groupLocalService.addGroup(user.getUserId(),User.class.getName(),user.getUserId(),null,null,0,StringPool.SLASH + screenName,true,null);
-  if (groupIds != null) {
-    groupLocalService.addUserGroups(userId,groupIds);
+  Set<Long> groupIdsSet=SetUtil.fromArray(groupIds);
+  String[] defaultGroupNames=PrefsPropsUtil.getStringArray(companyId,PropsKeys.ADMIN_DEFAULT_GROUP_NAMES,StringPool.NEW_LINE,PropsValues.ADMIN_DEFAULT_GROUP_NAMES);
+  for (  String defaultGroupName : defaultGroupNames) {
+    try {
+      Group group=groupPersistence.findByC_N(companyId,defaultGroupName);
+      groupIdsSet.add(group.getGroupId());
+    }
+ catch (    NoSuchGroupException nsge) {
+    }
   }
-  setDefaultGroups(companyId,user);
+  groupIds=ArrayUtil.toArray(groupIdsSet.toArray(new Long[groupIdsSet.size()]));
+  groupLocalService.addUserGroups(userId,groupIds);
   updateOrganizations(userId,organizationIds);
-  if (roleIds != null) {
-    roleIds=EnterpriseAdminUtil.addRequiredRoles(userId,roleIds);
-    userPersistence.setRoles(userId,roleIds);
+  Set<Long> roleIdsSet=SetUtil.fromArray(roleIds);
+  String[] defaultRoleNames=PrefsPropsUtil.getStringArray(companyId,PropsKeys.ADMIN_DEFAULT_ROLE_NAMES,StringPool.NEW_LINE,PropsValues.ADMIN_DEFAULT_ROLE_NAMES);
+  for (  String defaultRoleName : defaultRoleNames) {
+    try {
+      Role role=rolePersistence.findByC_N(companyId,defaultRoleName);
+      roleIdsSet.add(role.getRoleId());
+    }
+ catch (    NoSuchRoleException nsge) {
+    }
   }
-  setDefaultRoles(companyId,user);
+  roleIds=ArrayUtil.toArray(roleIdsSet.toArray(new Long[roleIdsSet.size()]));
+  roleIds=EnterpriseAdminUtil.addRequiredRoles(userId,roleIds);
+  userPersistence.setRoles(userId,roleIds);
+  Set<UserGroup> userGroups=new HashSet<UserGroup>();
+  String[] defaultUserGroupNames=PrefsPropsUtil.getStringArray(companyId,PropsKeys.ADMIN_DEFAULT_USER_GROUP_NAMES,StringPool.NEW_LINE,PropsValues.ADMIN_DEFAULT_USER_GROUP_NAMES);
+  for (  String defaultUserGroupName : defaultUserGroupNames) {
+    try {
+      UserGroup userGroup=userGroupPersistence.findByC_N(companyId,defaultUserGroupName);
+      userGroups.add(userGroup);
+      copyUserGroupLayouts(userGroup.getUserGroupId(),new long[]{userId});
+    }
+ catch (    NoSuchUserGroupException nsuge) {
+    }
+  }
   if (userGroupIds != null) {
-    Set<UserGroup> userGroupSet=new HashSet<UserGroup>();
     for (    long userGroupId : userGroupIds) {
       try {
         UserGroup userGroup=userGroupPersistence.findByPrimaryKey(userGroupId);
-        userGroupSet.add(userGroup);
+        userGroups.add(userGroup);
         copyUserGroupLayouts(userGroupId,new long[]{userId});
       }
  catch (      NoSuchUserGroupException nsuge) {
       }
     }
-    userPersistence.setUserGroups(userId,ListUtil.fromCollection(userGroupSet));
   }
-  setDefaultUserGroups(companyId,user);
+  userPersistence.setUserGroups(userId,ListUtil.fromCollection(userGroups));
   if (serviceContext != null) {
     updateAsset(creatorUserId,user,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
   }
