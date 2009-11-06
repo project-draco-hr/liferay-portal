@@ -1,0 +1,37 @@
+{
+  try {
+    if (Validator.isNull(data)) {
+      return null;
+    }
+    Document doc=SAXReaderUtil.read(data);
+    Element root=doc.getRootElement();
+    List<Element> nodeEls=root.element("nodes").elements("node");
+    Map<Long,Long> nodePKs=(Map<Long,Long>)context.getNewPrimaryKeysMap(WikiNode.class);
+    for (    Element nodeEl : nodeEls) {
+      String path=nodeEl.attributeValue("path");
+      if (!context.isPathNotProcessed(path)) {
+        continue;
+      }
+      WikiNode node=(WikiNode)context.getZipEntryAsObject(path);
+      WikiPortletDataHandlerImpl.importNode(context,nodePKs,node);
+    }
+    List<Element> pageEls=root.element("pages").elements("page");
+    for (    Element pageEl : pageEls) {
+      String path=pageEl.attributeValue("path");
+      if (!context.isPathNotProcessed(path)) {
+        continue;
+      }
+      WikiPage page=(WikiPage)context.getZipEntryAsObject(path);
+      WikiPortletDataHandlerImpl.importPage(context,nodePKs,pageEl,page);
+    }
+    long nodeId=GetterUtil.getLong(preferences.getValue("node-id",StringPool.BLANK));
+    if (nodeId > 0) {
+      nodeId=MapUtil.getLong(nodePKs,nodeId,nodeId);
+      preferences.setValue("node-id",String.valueOf(nodeId));
+    }
+    return preferences;
+  }
+ catch (  Exception e) {
+    throw new PortletDataException(e);
+  }
+}
