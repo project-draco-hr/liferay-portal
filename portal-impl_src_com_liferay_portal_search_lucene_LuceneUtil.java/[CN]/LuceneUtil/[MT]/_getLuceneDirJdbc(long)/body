@@ -1,0 +1,34 @@
+{
+  JdbcDirectory directory=null;
+  Thread currentThread=Thread.currentThread();
+  ClassLoader contextClassLoader=currentThread.getContextClassLoader();
+  try {
+    currentThread.setContextClassLoader(PortalClassLoaderUtil.getClassLoader());
+    String tableName=_getTableName(companyId);
+    directory=(JdbcDirectory)_jdbcDirectories.get(tableName);
+    if (directory != null) {
+      return directory;
+    }
+    try {
+      DataSource ds=InfrastructureUtil.getDataSource();
+      directory=new JdbcDirectory(ds,_dialect,tableName);
+      _jdbcDirectories.put(tableName,directory);
+      if (!directory.tableExists()) {
+        directory.create();
+      }
+    }
+ catch (    IOException ioe) {
+      throw new RuntimeException(ioe);
+    }
+catch (    UnsupportedOperationException uoe) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Database doesn't support the ability to check " + "whether a table exists");
+      }
+      _manuallyCreateJdbcDirectory(directory,tableName);
+    }
+  }
+  finally {
+    currentThread.setContextClassLoader(contextClassLoader);
+  }
+  return directory;
+}
