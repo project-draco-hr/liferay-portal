@@ -1,5 +1,6 @@
 {
   long companyId=PortalUtil.getCompanyId(request);
+  _servletContext=getFilterConfig().getServletContext();
   if (PrefsPropsUtil.getBoolean(companyId,PropsKeys.CAS_AUTH_ENABLED,PropsValues.CAS_AUTH_ENABLED)) {
     String pathInfo=request.getPathInfo();
     if (pathInfo.indexOf("/portal/logout") != -1) {
@@ -9,8 +10,15 @@
       response.sendRedirect(logoutUrl);
     }
  else {
-      Filter casFilter=getCASFilter(companyId);
-      casFilter.doFilter(request,response,filterChain);
+      Filter casAuthenticationFilter=getCASAuthenticationFilter(companyId);
+      casAuthenticationFilter.doFilter(request,response,filterChain);
+      Filter Cas20ProxyReceivingTicketValidationFilter=getCASTicketValidationFilter(companyId);
+      Cas20ProxyReceivingTicketValidationFilter.doFilter(request,response,filterChain);
+      Assertion assertion=(Assertion)request.getSession().getAttribute(AbstractCasFilter.CONST_CAS_ASSERTION);
+      if (assertion != null) {
+        String userName=assertion.getPrincipal().getName();
+        request.getSession().setAttribute(CAS_FILTER_USER,userName);
+      }
     }
   }
  else {
