@@ -1,10 +1,9 @@
 {
   long companyId=PortalUtil.getCompanyId(request);
-  _servletContext=getFilterConfig().getServletContext();
   if (PrefsPropsUtil.getBoolean(companyId,PropsKeys.CAS_AUTH_ENABLED,PropsValues.CAS_AUTH_ENABLED)) {
+    HttpSession session=request.getSession();
     String pathInfo=request.getPathInfo();
     if (pathInfo.indexOf("/portal/logout") != -1) {
-      HttpSession session=request.getSession();
       session.invalidate();
       String logoutUrl=PrefsPropsUtil.getString(companyId,PropsKeys.CAS_LOGOUT_URL,PropsValues.CAS_LOGOUT_URL);
       response.sendRedirect(logoutUrl);
@@ -12,12 +11,13 @@
  else {
       Filter casAuthenticationFilter=getCASAuthenticationFilter(companyId);
       casAuthenticationFilter.doFilter(request,response,filterChain);
-      Filter Cas20ProxyReceivingTicketValidationFilter=getCASTicketValidationFilter(companyId);
-      Cas20ProxyReceivingTicketValidationFilter.doFilter(request,response,filterChain);
-      Assertion assertion=(Assertion)request.getSession().getAttribute(AbstractCasFilter.CONST_CAS_ASSERTION);
+      Filter casTicketValidationFilter=getCASTicketValidationFilter(companyId);
+      casTicketValidationFilter.doFilter(request,response,filterChain);
+      Assertion assertion=(Assertion)session.getAttribute(AbstractCasFilter.CONST_CAS_ASSERTION);
       if (assertion != null) {
-        String userName=assertion.getPrincipal().getName();
-        request.getSession().setAttribute(CAS_FILTER_USER,userName);
+        AttributePrincipal attributePrincipal=assertion.getPrincipal();
+        String screenName=attributePrincipal.getName();
+        session.setAttribute(SCREEN_NAME,screenName);
       }
     }
   }
