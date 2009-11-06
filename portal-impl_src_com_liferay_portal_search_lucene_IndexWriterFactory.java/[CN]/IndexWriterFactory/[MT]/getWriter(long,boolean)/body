@@ -1,0 +1,40 @@
+{
+  if (SearchEngineUtil.isIndexReadOnly()) {
+    return getReadOnlyIndexWriter();
+  }
+  boolean hasError=false;
+  boolean newWriter=false;
+  try {
+    if (_needExclusiveLock > 0) {
+      acquireLock(companyId,false);
+      releaseLock(companyId);
+    }
+synchronized (this) {
+      IndexWriterData writerData=_writerLookup.get(companyId);
+      if (writerData == null) {
+        newWriter=true;
+        acquireLock(companyId,false);
+        IndexWriter writer=new IndexWriter(LuceneUtil.getLuceneDir(companyId),LuceneUtil.getAnalyzer(),create,IndexWriter.MaxFieldLength.LIMITED);
+        writer.setMergeFactor(_MERGE_FACTOR);
+        writerData=new IndexWriterData(companyId,writer,0);
+        _writerLookup.put(companyId,writerData);
+      }
+      writerData.setCount(writerData.getCount() + 1);
+      return writerData.getWriter();
+    }
+  }
+ catch (  Exception e) {
+    hasError=true;
+    _log.error("Unable to create a new writer",e);
+    throw new IOException("Unable to create a new writer");
+  }
+ finally {
+    if (hasError && newWriter) {
+      try {
+        releaseLock(companyId);
+      }
+ catch (      Exception e) {
+      }
+    }
+  }
+}
