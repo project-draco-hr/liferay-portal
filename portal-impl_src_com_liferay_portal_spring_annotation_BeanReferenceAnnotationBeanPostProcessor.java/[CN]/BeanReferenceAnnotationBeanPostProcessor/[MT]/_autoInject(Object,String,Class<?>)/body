@@ -1,0 +1,31 @@
+{
+  if (beanClass == null || beanClass.isInterface()) {
+    return;
+  }
+  String className=beanClass.getName();
+  if (className.equals(JAVA_LANG_OBJECT) || className.startsWith(ORG_SPRINGFRAMEWORK)) {
+    return;
+  }
+  Field[] fields=beanClass.getDeclaredFields();
+  for (  Field field : fields) {
+    BeanReference beanReference=field.getAnnotation(BeanReference.class);
+    if (beanReference == null) {
+      continue;
+    }
+    String referencedBeanName=beanReference.name();
+    Object referencedBean=_beans.get(referencedBeanName);
+    if (referencedBean == null) {
+      referencedBean=_beanFactory.getBean(referencedBeanName);
+      _beans.put(referencedBeanName,referencedBean);
+    }
+    ReflectionUtils.makeAccessible(field);
+    try {
+      field.set(targetBean,referencedBean);
+    }
+ catch (    Throwable t) {
+      throw new BeanCreationException(targetBeanName,"Could not inject BeanReference fields",t);
+    }
+  }
+  _autoInject(targetBean,targetBeanName,beanClass.getSuperclass());
+  return;
+}
