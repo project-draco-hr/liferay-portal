@@ -2,7 +2,6 @@
   ByteArrayOutputStream newBytes=new ByteArrayOutputStream(oldByteArray.length);
   int state=_STATE_NORMAL;
   boolean removeStartingWhitespace=true;
-  ByteArrayOutputStream styleBytes=new ByteArrayOutputStream();
   for (int i=0; i < oldByteArray.length; i++) {
     byte b=oldByteArray[i];
     char c=(char)b;
@@ -25,33 +24,14 @@
           continue;
         }
  else         if (hasMarker(oldByteArray,i,_MARKER_STYLE_OPEN)) {
-          state=_STATE_MINIFY_STYLE;
+          i=processCSS(oldByteArray,newBytes,i) - 1;
+          state=_STATE_NORMAL;
+          continue;
         }
       }
  else       if (state == _STATE_IGNORE) {
         if (hasMarker(oldByteArray,i,_MARKER_PRE_CLOSE) || hasMarker(oldByteArray,i,_MARKER_TEXTAREA_CLOSE)) {
           state=_STATE_NORMAL;
-        }
-      }
- else       if (state == _STATE_MINIFY_STYLE) {
-        if (hasMarker(oldByteArray,i,_MARKER_STYLE_CLOSE)) {
-          state=_STATE_NORMAL;
-          String styleContent=styleBytes.toString(StringPool.UTF8);
-          styleBytes=new ByteArrayOutputStream();
-          styleContent=styleContent.substring(_STYLE_TYPE_CSS.length()).trim();
-          if (Validator.isNull(styleContent)) {
-            i+=_MARKER_STYLE_CLOSE.length;
-            continue;
-          }
-          styleContent=MinifierUtil.minifyCss(styleContent);
-          if (Validator.isNull(styleContent)) {
-            i+=_MARKER_STYLE_CLOSE.length;
-            continue;
-          }
-          styleContent=_STYLE_TYPE_CSS + styleContent;
-          byte[] styleContentBytes=styleContent.getBytes(StringPool.UTF8);
-          newBytes.write(styleContentBytes);
-          state=_STATE_FOUND_ELEMENT;
         }
       }
     }
@@ -89,16 +69,7 @@
         }
       }
     }
-    if (state == _STATE_MINIFY_STYLE) {
-      styleBytes.write(b);
-    }
- else {
-      newBytes.write(b);
-    }
+    newBytes.write(b);
   }
-  byte[] newByteArray=newBytes.toByteArray();
-  if (state == _STATE_MINIFY_STYLE) {
-    _log.error("Missing </style>");
-  }
-  return newByteArray;
+  return newBytes.toByteArray();
 }
