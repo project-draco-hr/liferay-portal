@@ -2,7 +2,6 @@
   ByteArrayOutputStream newBytes=new ByteArrayOutputStream(oldByteArray.length);
   int state=_STATE_NORMAL;
   boolean removeStartingWhitespace=true;
-  ByteArrayOutputStream scriptBytes=new ByteArrayOutputStream();
   ByteArrayOutputStream styleBytes=new ByteArrayOutputStream();
   for (int i=0; i < oldByteArray.length; i++) {
     byte b=oldByteArray[i];
@@ -15,8 +14,15 @@
  else         if (hasMarker(oldByteArray,i,_MARKER_DIV_CLOSE) || hasMarker(oldByteArray,i,_MARKER_FORM_CLOSE) || hasMarker(oldByteArray,i,_MARKER_LI_CLOSE)|| hasMarker(oldByteArray,i,_MARKER_SCRIPT_CLOSE)|| hasMarker(oldByteArray,i,_MARKER_STYLE_CLOSE)|| hasMarker(oldByteArray,i,_MARKER_TABLE_CLOSE)|| hasMarker(oldByteArray,i,_MARKER_TD_CLOSE)|| hasMarker(oldByteArray,i,_MARKER_TD_OPEN)|| hasMarker(oldByteArray,i,_MARKER_TR_CLOSE)|| hasMarker(oldByteArray,i,_MARKER_TR_OPEN)|| hasMarker(oldByteArray,i,_MARKER_UL_CLOSE)) {
           state=_STATE_FOUND_ELEMENT;
         }
- else         if (hasMarker(oldByteArray,i,_MARKER_JAVASCRIPT_OPEN) || hasMarker(oldByteArray,i,_MARKER_SCRIPT_OPEN)) {
-          state=_STATE_MINIFY_SCRIPT;
+ else         if (hasMarker(oldByteArray,i,_MARKER_JAVASCRIPT_OPEN)) {
+          i=processJavaScript(oldByteArray,newBytes,i,_MARKER_JAVASCRIPT_OPEN) - 1;
+          state=_STATE_NORMAL;
+          continue;
+        }
+ else         if (hasMarker(oldByteArray,i,_MARKER_SCRIPT_OPEN)) {
+          i=processJavaScript(oldByteArray,newBytes,i,_MARKER_SCRIPT_OPEN) - 1;
+          state=_STATE_NORMAL;
+          continue;
         }
  else         if (hasMarker(oldByteArray,i,_MARKER_STYLE_OPEN)) {
           state=_STATE_MINIFY_STYLE;
@@ -25,28 +31,6 @@
  else       if (state == _STATE_IGNORE) {
         if (hasMarker(oldByteArray,i,_MARKER_PRE_CLOSE) || hasMarker(oldByteArray,i,_MARKER_TEXTAREA_CLOSE)) {
           state=_STATE_NORMAL;
-        }
-      }
- else       if (state == _STATE_MINIFY_SCRIPT) {
-        if (hasMarker(oldByteArray,i,_MARKER_SCRIPT_CLOSE)) {
-          state=_STATE_NORMAL;
-          String scriptContent=scriptBytes.toString(StringPool.UTF8);
-          scriptBytes=new ByteArrayOutputStream();
-          int pos=scriptContent.indexOf(CharPool.GREATER_THAN);
-          scriptContent=scriptContent.substring(pos + 1).trim();
-          if (Validator.isNull(scriptContent)) {
-            i+=_MARKER_SCRIPT_CLOSE.length;
-            continue;
-          }
-          scriptContent=MinifierUtil.minifyJavaScript(scriptContent);
-          if (Validator.isNull(scriptContent)) {
-            i+=_MARKER_SCRIPT_CLOSE.length;
-            continue;
-          }
-          scriptContent=_SCRIPT_TYPE_JAVASCRIPT + _CDATA_OPEN + scriptContent+ _CDATA_CLOSE;
-          byte[] scriptContentBytes=scriptContent.getBytes(StringPool.UTF8);
-          newBytes.write(scriptContentBytes);
-          state=_STATE_FOUND_ELEMENT;
         }
       }
  else       if (state == _STATE_MINIFY_STYLE) {
@@ -105,10 +89,7 @@
         }
       }
     }
-    if (state == _STATE_MINIFY_SCRIPT) {
-      scriptBytes.write(b);
-    }
- else     if (state == _STATE_MINIFY_STYLE) {
+    if (state == _STATE_MINIFY_STYLE) {
       styleBytes.write(b);
     }
  else {
@@ -116,10 +97,7 @@
     }
   }
   byte[] newByteArray=newBytes.toByteArray();
-  if (state == _STATE_MINIFY_SCRIPT) {
-    _log.error("Missing </script>");
-  }
- else   if (state == _STATE_MINIFY_STYLE) {
+  if (state == _STATE_MINIFY_STYLE) {
     _log.error("Missing </style>");
   }
   return newByteArray;
