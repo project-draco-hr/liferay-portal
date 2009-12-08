@@ -1,0 +1,43 @@
+{
+  Theme theme=layoutSet.getTheme();
+  String lookAndFeelXML=ContentUtil.get("com/liferay/portal/dependencies/liferay-look-and-feel.xml.tmpl");
+  lookAndFeelXML=StringUtil.replace(lookAndFeelXML,new String[]{"[$TEMPLATE_EXTENSION$]","[$VIRTUAL_PATH$]"},new String[]{theme.getTemplateExtension(),theme.getVirtualPath()});
+  String servletContextName=theme.getServletContextName();
+  ServletContext servletContext=VelocityContextPool.get(servletContextName);
+  if (servletContext == null) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Servlet context not found for theme " + theme.getThemeId());
+    }
+    return;
+  }
+  File themeZip=new File(zipWriter.getPath() + "/theme.zip");
+  ZipWriter themeZipWriter=ZipWriterFactoryUtil.create(themeZip);
+  themeZipWriter.addEntry("liferay-look-and-feel.xml",lookAndFeelXML);
+  File cssPath=null;
+  File imagesPath=null;
+  File javaScriptPath=null;
+  File templatesPath=null;
+  if (!theme.isLoadFromServletContext()) {
+    ThemeLoader themeLoader=ThemeLoaderFactory.getThemeLoader(servletContextName);
+    if (themeLoader == null) {
+      _log.error(servletContextName + " does not map to a theme loader");
+    }
+ else {
+      String realPath=themeLoader.getFileStorage().getPath() + "/" + theme.getName();
+      cssPath=new File(realPath + "/css");
+      imagesPath=new File(realPath + "/images");
+      javaScriptPath=new File(realPath + "/javascript");
+      templatesPath=new File(realPath + "/templates");
+    }
+  }
+ else {
+    cssPath=new File(servletContext.getRealPath(theme.getCssPath()));
+    imagesPath=new File(servletContext.getRealPath(theme.getImagesPath()));
+    javaScriptPath=new File(servletContext.getRealPath(theme.getJavaScriptPath()));
+    templatesPath=new File(servletContext.getRealPath(theme.getTemplatesPath()));
+  }
+  exportThemeFiles("css",cssPath,themeZipWriter);
+  exportThemeFiles("images",imagesPath,themeZipWriter);
+  exportThemeFiles("javascript",javaScriptPath,themeZipWriter);
+  exportThemeFiles("templates",templatesPath,themeZipWriter);
+}

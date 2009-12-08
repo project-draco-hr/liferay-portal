@@ -1,0 +1,335 @@
+{
+  boolean deleteMissingLayouts=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.DELETE_MISSING_LAYOUTS,Boolean.TRUE.booleanValue());
+  boolean deletePortletData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.DELETE_PORTLET_DATA);
+  boolean importCategories=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.CATEGORIES);
+  boolean importPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PERMISSIONS);
+  boolean importUserPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PERMISSIONS);
+  boolean importPortletData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_DATA);
+  boolean importPortletSetup=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_SETUP);
+  boolean importPortletArchivedSetups=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_ARCHIVED_SETUPS);
+  boolean importPortletUserPreferences=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_USER_PREFERENCES);
+  boolean importTheme=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.THEME);
+  String layoutsImportMode=MapUtil.getString(parameterMap,PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE,PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_MERGE_BY_LAYOUT_ID);
+  String portletsMergeMode=MapUtil.getString(parameterMap,PortletDataHandlerKeys.PORTLETS_MERGE_MODE,PortletDataHandlerKeys.PORTLETS_MERGE_MODE_REPLACE);
+  String userIdStrategy=MapUtil.getString(parameterMap,PortletDataHandlerKeys.USER_ID_STRATEGY);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Delete portlet data " + deletePortletData);
+    _log.debug("Import categories " + importCategories);
+    _log.debug("Import permissions " + importPermissions);
+    _log.debug("Import user permissions " + importUserPermissions);
+    _log.debug("Import portlet data " + importPortletData);
+    _log.debug("Import portlet setup " + importPortletSetup);
+    _log.debug("Import portlet archived setups " + importPortletArchivedSetups);
+    _log.debug("Import portlet user preferences " + importPortletUserPreferences);
+    _log.debug("Import theme " + importTheme);
+  }
+  StopWatch stopWatch=null;
+  if (_log.isInfoEnabled()) {
+    stopWatch=new StopWatch();
+    stopWatch.start();
+  }
+  LayoutCache layoutCache=new LayoutCache();
+  LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(groupId,privateLayout);
+  long companyId=layoutSet.getCompanyId();
+  User user=UserUtil.findByPrimaryKey(userId);
+  UserIdStrategy strategy=_portletImporter.getUserIdStrategy(user,userIdStrategy);
+  ZipReader zipReader=null;
+  try {
+    zipReader=ZipReaderFactoryUtil.create(file);
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+  PortletDataContext context=new PortletDataContextImpl(companyId,groupId,parameterMap,new HashSet<String>(),strategy,zipReader);
+  context.setPrivateLayout(privateLayout);
+  Group guestGroup=GroupLocalServiceUtil.getGroup(companyId,GroupConstants.GUEST);
+  Element root=null;
+  InputStream themeZip=null;
+  String xml=context.getZipEntryAsString("/manifest.xml");
+  if (xml == null) {
+    throw new LARFileException("manifest.xml not found in the LAR");
+  }
+  try {
+    Document doc=SAXReaderUtil.read(xml);
+    root=doc.getRootElement();
+  }
+ catch (  Exception e) {
+    throw new LARFileException(e);
+  }
+  Element header=root.element("header");
+  int buildNumber=ReleaseInfo.getBuildNumber();
+  int importBuildNumber=GetterUtil.getInteger(header.attributeValue("build-number"));
+  if (buildNumber != importBuildNumber) {
+    throw new LayoutImportException("LAR build number " + importBuildNumber + " does not match "+ "portal build number "+ buildNumber);
+  }
+  String larType=header.attributeValue("type");
+  if (!larType.equals("layout-set")) {
+    throw new LARTypeException("Invalid type of LAR file (" + larType + ")");
+  }
+  long sourceGroupId=GetterUtil.getLong(header.attributeValue("group-id"));
+  context.setSourceGroupId(sourceGroupId);
+  if (importTheme) {
+    themeZip=context.getZipEntryAsInputStream("theme.zip");
+  }
+  String themeId=header.attributeValue("theme-id");
+  String colorSchemeId=header.attributeValue("color-scheme-id");
+  boolean useThemeZip=false;
+  if (themeZip != null) {
+    try {
+      String importThemeId=importTheme(layoutSet,themeZip);
+      if (importThemeId != null) {
+        themeId=importThemeId;
+        colorSchemeId=ColorSchemeImpl.getDefaultRegularColorSchemeId();
+        useThemeZip=true;
+      }
+      if (_log.isDebugEnabled()) {
+        _log.debug("Importing theme takes " + stopWatch.getTime() + " ms");
+      }
+    }
+ catch (    Exception e) {
+      throw new SystemException(e);
+    }
+  }
+  boolean wapTheme=false;
+  LayoutSetLocalServiceUtil.updateLookAndFeel(groupId,privateLayout,themeId,colorSchemeId,StringPool.BLANK,wapTheme);
+  if (importCategories) {
+    importCategories(context);
+  }
+  _portletImporter.readCategories(context,root);
+  _portletImporter.readComments(context,root);
+  _portletImporter.readRatings(context,root);
+  _portletImporter.readTags(context,root);
+  List<Layout> previousLayouts=LayoutUtil.findByG_P(groupId,privateLayout);
+  List<Layout> newLayouts=new ArrayList<Layout>();
+  Set<Long> newLayoutIds=new HashSet<Long>();
+  Map<Long,Long> newLayoutIdPlidMap=(Map<Long,Long>)context.getNewPrimaryKeysMap(Layout.class);
+  List<Element> layoutEls=root.element("layouts").elements("layout");
+  if (_log.isDebugEnabled()) {
+    if (layoutEls.size() > 0) {
+      _log.debug("Importing layouts");
+    }
+  }
+  for (  Element layoutRefEl : layoutEls) {
+    long layoutId=GetterUtil.getInteger(layoutRefEl.attributeValue("layout-id"));
+    long oldLayoutId=layoutId;
+    String layoutPath=layoutRefEl.attributeValue("path");
+    Element layoutEl=null;
+    try {
+      Document layoutDoc=SAXReaderUtil.read(context.getZipEntryAsString(layoutPath));
+      layoutEl=layoutDoc.getRootElement();
+    }
+ catch (    DocumentException de) {
+      throw new SystemException(de);
+    }
+    long parentLayoutId=GetterUtil.getInteger(layoutEl.elementText("parent-layout-id"));
+    if (_log.isDebugEnabled()) {
+      _log.debug("Importing layout with layout id " + layoutId + " and parent layout id "+ parentLayoutId);
+    }
+    long oldPlid=GetterUtil.getInteger(layoutEl.attributeValue("old-plid"));
+    String name=layoutEl.elementText("name");
+    String title=layoutEl.elementText("title");
+    String description=layoutEl.elementText("description");
+    String type=layoutEl.elementText("type");
+    String typeSettings=layoutEl.elementText("type-settings");
+    boolean hidden=GetterUtil.getBoolean(layoutEl.elementText("hidden"));
+    String friendlyURL=layoutEl.elementText("friendly-url");
+    boolean iconImage=GetterUtil.getBoolean(layoutEl.elementText("icon-image"));
+    byte[] iconBytes=null;
+    if (iconImage) {
+      String path=layoutEl.elementText("icon-image-path");
+      iconBytes=context.getZipEntryAsByteArray(path);
+    }
+    if (useThemeZip) {
+      themeId=StringPool.BLANK;
+      colorSchemeId=StringPool.BLANK;
+    }
+ else {
+      themeId=layoutEl.elementText("theme-id");
+      colorSchemeId=layoutEl.elementText("color-scheme-id");
+    }
+    String wapThemeId=layoutEl.elementText("wap-theme-id");
+    String wapColorSchemeId=layoutEl.elementText("wap-color-scheme-id");
+    String css=layoutEl.elementText("css");
+    int priority=GetterUtil.getInteger(layoutEl.elementText("priority"));
+    Layout layout=null;
+    if (layoutsImportMode.equals(PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_ADD_AS_NEW)) {
+      layoutId=LayoutLocalServiceUtil.getNextLayoutId(groupId,privateLayout);
+      friendlyURL=StringPool.SLASH + layoutId;
+    }
+ else     if (layoutsImportMode.equals(PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_MERGE_BY_LAYOUT_NAME)) {
+      Locale locale=LocaleUtil.getDefault();
+      String localizedName=LocalizationUtil.getLocalization(name,LocaleUtil.toLanguageId(locale));
+      for (      Layout curLayout : previousLayouts) {
+        if (curLayout.getName(locale).equals(localizedName)) {
+          layout=curLayout;
+          break;
+        }
+      }
+      if (layout == null) {
+        layoutId=LayoutLocalServiceUtil.getNextLayoutId(groupId,privateLayout);
+      }
+    }
+ else {
+      layout=LayoutUtil.fetchByG_P_L(groupId,privateLayout,layoutId);
+    }
+    if (_log.isDebugEnabled()) {
+      if (layout == null) {
+        _log.debug("Layout with {groupId=" + groupId + ",privateLayout="+ privateLayout+ ",layoutId="+ layoutId+ "} does not exist");
+      }
+ else {
+        _log.debug("Layout with {groupId=" + groupId + ",privateLayout="+ privateLayout+ ",layoutId="+ layoutId+ "} exists");
+      }
+    }
+    if (layout == null) {
+      long plid=CounterLocalServiceUtil.increment();
+      layout=LayoutUtil.create(plid);
+      layout.setGroupId(groupId);
+      layout.setPrivateLayout(privateLayout);
+      layout.setLayoutId(layoutId);
+    }
+    layout.setCompanyId(user.getCompanyId());
+    layout.setParentLayoutId(parentLayoutId);
+    layout.setName(name);
+    layout.setTitle(title);
+    layout.setDescription(description);
+    layout.setType(type);
+    if (layout.getType().equals(LayoutConstants.TYPE_PORTLET) && Validator.isNotNull(layout.getTypeSettings()) && !portletsMergeMode.equals(PortletDataHandlerKeys.PORTLETS_MERGE_MODE_REPLACE)) {
+      mergePortlets(layout,typeSettings,portletsMergeMode);
+    }
+ else {
+      layout.setTypeSettings(typeSettings);
+    }
+    layout.setHidden(hidden);
+    layout.setFriendlyURL(friendlyURL);
+    if (iconImage) {
+      layout.setIconImage(iconImage);
+      if (layout.isNew()) {
+        long iconImageId=CounterLocalServiceUtil.increment();
+        layout.setIconImageId(iconImageId);
+      }
+    }
+    layout.setThemeId(themeId);
+    layout.setColorSchemeId(colorSchemeId);
+    layout.setWapThemeId(wapThemeId);
+    layout.setWapColorSchemeId(wapColorSchemeId);
+    layout.setCss(css);
+    layout.setPriority(priority);
+    fixTypeSettings(layout);
+    LayoutUtil.update(layout,false);
+    if ((iconBytes != null) && (iconBytes.length > 0)) {
+      ImageLocalServiceUtil.updateImage(layout.getIconImageId(),iconBytes);
+    }
+    context.setPlid(layout.getPlid());
+    context.setOldPlid(oldPlid);
+    newLayoutIdPlidMap.put(oldLayoutId,layout.getPlid());
+    newLayoutIds.add(layoutId);
+    newLayouts.add(layout);
+    Element permissionsEl=layoutEl.element("permissions");
+    if (importPermissions && (permissionsEl != null)) {
+      String resourceName=Layout.class.getName();
+      String resourcePrimKey=String.valueOf(layout.getPlid());
+      if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 5) {
+        importLayoutPermissions_5(layoutCache,companyId,groupId,userId,resourceName,resourcePrimKey,permissionsEl);
+      }
+ else       if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 6) {
+        importLayoutPermissions_6(layoutCache,companyId,groupId,userId,resourceName,resourcePrimKey,permissionsEl);
+      }
+ else {
+        importLayoutPermissions_4(layoutCache,companyId,groupId,guestGroup,layout,resourceName,resourcePrimKey,permissionsEl,importUserPermissions);
+      }
+    }
+    _portletImporter.importPortletData(context,PortletKeys.LAYOUT_CONFIGURATION,null,layoutEl);
+  }
+  List<Element> portletEls=root.element("portlets").elements("portlet");
+  if (deletePortletData) {
+    if (_log.isDebugEnabled()) {
+      if (portletEls.size() > 0) {
+        _log.debug("Deleting portlet data");
+      }
+    }
+    for (    Element portletRefEl : portletEls) {
+      String portletId=portletRefEl.attributeValue("portlet-id");
+      long layoutId=GetterUtil.getLong(portletRefEl.attributeValue("layout-id"));
+      long plid=newLayoutIdPlidMap.get(layoutId);
+      context.setPlid(plid);
+      _portletImporter.deletePortletData(context,portletId,plid);
+    }
+  }
+  if (_log.isDebugEnabled()) {
+    if (portletEls.size() > 0) {
+      _log.debug("Importing portlets");
+    }
+  }
+  for (  Element portletRefEl : portletEls) {
+    String portletPath=portletRefEl.attributeValue("path");
+    String portletId=portletRefEl.attributeValue("portlet-id");
+    long layoutId=GetterUtil.getLong(portletRefEl.attributeValue("layout-id"));
+    long plid=newLayoutIdPlidMap.get(layoutId);
+    long oldPlid=GetterUtil.getLong(portletRefEl.attributeValue("old-plid"));
+    Layout layout=LayoutUtil.findByPrimaryKey(plid);
+    context.setPlid(plid);
+    context.setOldPlid(oldPlid);
+    Element portletEl=null;
+    try {
+      Document portletDoc=SAXReaderUtil.read(context.getZipEntryAsString(portletPath));
+      portletEl=portletDoc.getRootElement();
+    }
+ catch (    DocumentException de) {
+      throw new SystemException(de);
+    }
+    _portletImporter.importPortletPreferences(context,layoutSet.getCompanyId(),layout.getGroupId(),layout,null,portletEl,importPortletSetup,importPortletArchivedSetups,importPortletUserPreferences,false);
+    long scopeLayoutId=GetterUtil.getLong(portletEl.attributeValue("scope-layout-id"));
+    context.setScopeLayoutId(scopeLayoutId);
+    Element portletDataEl=portletEl.element("portlet-data");
+    if (importPortletData && portletDataEl != null) {
+      _portletImporter.importPortletData(context,portletId,plid,portletDataEl);
+    }
+    Element permissionsEl=portletEl.element("permissions");
+    if (importPermissions && (permissionsEl != null)) {
+      if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 6) {
+        String resourceName=PortletConstants.getRootPortletId(portletId);
+        String resourcePrimKey=PortletPermissionUtil.getPrimaryKey(layout.getPlid(),portletId);
+        importPortletPermissions_6(layoutCache,companyId,groupId,userId,resourceName,resourcePrimKey,permissionsEl);
+      }
+ else       if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 5) {
+        String resourceName=PortletConstants.getRootPortletId(portletId);
+        String resourcePrimKey=PortletPermissionUtil.getPrimaryKey(layout.getPlid(),portletId);
+        importPortletPermissions_5(layoutCache,companyId,groupId,userId,resourceName,resourcePrimKey,permissionsEl);
+      }
+ else {
+        importPortletPermissions_4(layoutCache,companyId,groupId,guestGroup,layout,permissionsEl,importUserPermissions);
+      }
+    }
+    _portletImporter.importPortletPreferences(context,layoutSet.getCompanyId(),groupId,null,null,portletEl,importPortletSetup,importPortletArchivedSetups,importPortletUserPreferences,false);
+    if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM < 5) {
+      Element rolesEl=portletEl.element("roles");
+      if (importPermissions && (rolesEl != null)) {
+        importPortletRoles(layoutCache,companyId,groupId,portletEl);
+        importPortletRoles(layoutCache,companyId,groupId,portletId,rolesEl);
+      }
+    }
+  }
+  if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM < 5) {
+    Element rolesEl=root.element("roles");
+    if (importPermissions) {
+      importLayoutRoles(layoutCache,companyId,groupId,rolesEl);
+    }
+  }
+  if (deleteMissingLayouts) {
+    deleteMissingLayouts(groupId,privateLayout,newLayoutIds,previousLayouts);
+  }
+  LayoutSetLocalServiceUtil.updatePageCount(groupId,privateLayout);
+  if (_log.isInfoEnabled()) {
+    _log.info("Importing layouts takes " + stopWatch.getTime() + " ms");
+  }
+  for (  Layout layout : newLayouts) {
+    UnicodeProperties typeSettingsProperties=layout.getTypeSettingsProperties();
+    String articleId=typeSettingsProperties.getProperty("article-id");
+    if (Validator.isNotNull(articleId)) {
+      Map<String,String> articleIds=(Map<String,String>)context.getNewPrimaryKeysMap(JournalArticle.class);
+      typeSettingsProperties.setProperty("article-id",MapUtil.getString(articleIds,articleId,articleId));
+      LayoutUtil.update(layout,false);
+    }
+  }
+  zipReader.close();
+}

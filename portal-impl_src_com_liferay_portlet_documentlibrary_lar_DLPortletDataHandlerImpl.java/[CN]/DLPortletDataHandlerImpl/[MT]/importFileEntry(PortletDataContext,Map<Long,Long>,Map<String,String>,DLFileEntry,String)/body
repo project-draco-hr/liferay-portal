@@ -1,5 +1,6 @@
 {
   long userId=context.getUserId(fileEntry.getUserUuid());
+  long groupId=context.getGroupId();
   long folderId=MapUtil.getLong(folderPKs,fileEntry.getFolderId(),fileEntry.getFolderId());
   long[] assetCategoryIds=null;
   String[] assetTagNames=null;
@@ -14,8 +15,8 @@
   serviceContext.setAddGuestPermissions(true);
   serviceContext.setAssetCategoryIds(assetCategoryIds);
   serviceContext.setAssetTagNames(assetTagNames);
-  serviceContext.setScopeGroupId(context.getGroupId());
-  byte[] bytes=context.getZipEntryAsByteArray(binPath);
+  serviceContext.setScopeGroupId(groupId);
+  InputStream input=context.getZipEntryAsInputStream(binPath);
   if ((folderId != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) && (folderId == fileEntry.getFolderId())) {
     String path=getImportFolderPath(context,folderId);
     DLFolder folder=(DLFolder)context.getZipEntryAsObject(path);
@@ -24,22 +25,24 @@
   }
   DLFileEntry existingFileEntry=null;
   try {
-    DLFolderUtil.findByPrimaryKey(folderId);
+    if ((folderId != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) && (folderId > 0)) {
+      DLFolderUtil.findByPrimaryKey(folderId);
+    }
     if (context.getDataStrategy().equals(PortletDataHandlerKeys.DATA_STRATEGY_MIRROR)) {
       try {
-        existingFileEntry=DLFileEntryUtil.findByUUID_G(fileEntry.getUuid(),context.getGroupId());
-        existingFileEntry=DLFileEntryLocalServiceUtil.updateFileEntry(userId,existingFileEntry.getGroupId(),existingFileEntry.getFolderId(),folderId,existingFileEntry.getName(),fileEntry.getName(),fileEntry.getTitle(),fileEntry.getDescription(),fileEntry.getExtraSettings(),bytes,serviceContext);
+        existingFileEntry=DLFileEntryUtil.findByUUID_G(fileEntry.getUuid(),groupId);
+        existingFileEntry=DLFileEntryLocalServiceUtil.updateFileEntry(userId,groupId,existingFileEntry.getFolderId(),folderId,existingFileEntry.getName(),fileEntry.getTitle(),fileEntry.getTitle(),fileEntry.getDescription(),fileEntry.getExtraSettings(),input,fileEntry.getSize(),serviceContext);
       }
  catch (      NoSuchFileEntryException nsfee) {
-        existingFileEntry=DLFileEntryLocalServiceUtil.addFileEntry(fileEntry.getUuid(),userId,fileEntry.getGroupId(),folderId,fileEntry.getName(),fileEntry.getTitle(),fileEntry.getDescription(),fileEntry.getExtraSettings(),bytes,serviceContext);
+        existingFileEntry=DLFileEntryLocalServiceUtil.addFileEntry(fileEntry.getUuid(),userId,groupId,folderId,fileEntry.getName(),fileEntry.getTitle(),fileEntry.getDescription(),fileEntry.getExtraSettings(),input,fileEntry.getSize(),serviceContext);
       }
     }
  else {
-      existingFileEntry=DLFileEntryLocalServiceUtil.addFileEntry(userId,fileEntry.getGroupId(),folderId,fileEntry.getName(),fileEntry.getTitle(),fileEntry.getDescription(),fileEntry.getExtraSettings(),bytes,serviceContext);
+      existingFileEntry=DLFileEntryLocalServiceUtil.addFileEntry(userId,groupId,folderId,fileEntry.getName(),fileEntry.getTitle(),fileEntry.getDescription(),fileEntry.getExtraSettings(),input,fileEntry.getSize(),serviceContext);
     }
     fileEntryNames.put(fileEntry.getName(),existingFileEntry.getName());
     if (context.getBooleanParameter(_NAMESPACE,"comments")) {
-      context.importComments(DLFileEntry.class,fileEntry.getFileEntryId(),existingFileEntry.getFileEntryId(),context.getGroupId());
+      context.importComments(DLFileEntry.class,fileEntry.getFileEntryId(),existingFileEntry.getFileEntryId(),groupId);
     }
     if (context.getBooleanParameter(_NAMESPACE,"ratings")) {
       context.importRatingsEntries(DLFileEntry.class,fileEntry.getFileEntryId(),existingFileEntry.getFileEntryId());

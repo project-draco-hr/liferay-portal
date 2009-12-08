@@ -22,18 +22,23 @@
     if (context.getBooleanParameter(_NAMESPACE,"tags")) {
       context.addAssetTags(DLFileEntry.class,fileEntry.getFileEntryId());
     }
-    InputStream is=null;
-    try {
-      is=DLFileEntryLocalServiceUtil.getFileAsStream(fileEntry.getCompanyId(),fileEntry.getUserId(),fileEntry.getGroupId(),fileEntry.getFolderId(),fileEntry.getName());
-    }
- catch (    NoSuchFileException nsfe) {
-      if (_log.isWarnEnabled()) {
-        _log.warn("No file found for file entry " + fileEntry.getFileEntryId());
-      }
+    long repositoryId=getRepositoryId(fileEntry.getGroupId(),fileEntry.getFolderId());
+    InputStream is=DLLocalServiceUtil.getFileAsStream(fileEntry.getCompanyId(),repositoryId,fileEntry.getName(),fileEntry.getVersion());
+    if (is == null) {
       fileEntryEl.detach();
       return;
     }
-    context.addZipEntry(getFileEntryBinPath(context,fileEntry),is);
+    try {
+      context.addZipEntry(getFileEntryBinPath(context,fileEntry),is);
+    }
+  finally {
+      try {
+        is.close();
+      }
+ catch (      IOException e) {
+        _log.error(e);
+      }
+    }
     context.addZipEntry(path,fileEntry);
     if (context.getBooleanParameter(_NAMESPACE,"ranks")) {
       List<DLFileRank> fileRanks=DLFileRankUtil.findByF_N(fileEntry.getFolderId(),fileEntry.getName());
