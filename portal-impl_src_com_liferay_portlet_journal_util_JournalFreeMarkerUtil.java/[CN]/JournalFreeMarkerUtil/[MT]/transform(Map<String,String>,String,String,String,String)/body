@@ -1,0 +1,76 @@
+{
+  StringWriter output=new StringWriter();
+  boolean load=false;
+  try {
+    FreeMarkerContext freeMarkerContext=FreeMarkerEngineUtil.getWrappedRestrictedToolsContext();
+    Document doc=SAXReaderUtil.read(xml);
+    Element root=doc.getRootElement();
+    List<TemplateNode> nodes=extractDynamicContents(root);
+    for (    TemplateNode node : nodes) {
+      freeMarkerContext.put(node.getName(),node);
+    }
+    freeMarkerContext.put("xmlRequest",root.element("request").asXML());
+    freeMarkerContext.put("request",insertRequestVariables(root.element("request")));
+    long companyId=GetterUtil.getLong(tokens.get("company_id"));
+    Company company=CompanyLocalServiceUtil.getCompanyById(companyId);
+    long groupId=GetterUtil.getLong(tokens.get("group_id"));
+    String templateId=tokens.get("template_id");
+    String journalTemplatesPath=JournalTemplateLoader.JOURNAL_SEPARATOR + StringPool.SLASH + companyId+ StringPool.SLASH+ groupId;
+    String randomNamespace=PwdGenerator.getPassword(PwdGenerator.KEY3,4) + StringPool.UNDERLINE;
+    freeMarkerContext.put("company",company);
+    freeMarkerContext.put("companyId",String.valueOf(companyId));
+    freeMarkerContext.put("groupId",String.valueOf(groupId));
+    freeMarkerContext.put("journalTemplatesPath",journalTemplatesPath);
+    freeMarkerContext.put("viewMode",viewMode);
+    freeMarkerContext.put("locale",LocaleUtil.fromLanguageId(languageId));
+    freeMarkerContext.put("permissionChecker",PermissionThreadLocal.getPermissionChecker());
+    freeMarkerContext.put("randomNamespace",randomNamespace);
+    script=injectEditInPlace(xml,script);
+    try {
+      String freeMarkerTemplateId=companyId + groupId + templateId;
+      load=FreeMarkerEngineUtil.mergeTemplate(freeMarkerTemplateId,script,freeMarkerContext,output);
+    }
+ catch (    SystemException se) {
+      if (se.getCause() instanceof TemplateException) {
+        TemplateException te=(TemplateException)se.getCause();
+        freeMarkerContext.put("exception",te.getMessage());
+        freeMarkerContext.put("script",script);
+        String freeMarkerTemplateId=PropsValues.JOURNAL_ERROR_TEMPLATE_FREEMARKER;
+        String velocityTemplateContent=ContentUtil.get(PropsValues.JOURNAL_ERROR_TEMPLATE_FREEMARKER);
+        output=new StringWriter();
+        load=FreeMarkerEngineUtil.mergeTemplate(freeMarkerTemplateId,velocityTemplateContent,freeMarkerContext,output);
+      }
+ else {
+        throw se;
+      }
+    }
+catch (    ParseException pe) {
+      freeMarkerContext.put("exception",pe.getMessage());
+      freeMarkerContext.put("script",script);
+      freeMarkerContext.put("column",new Integer(pe.getColumnNumber()));
+      freeMarkerContext.put("line",new Integer(pe.getLineNumber()));
+      String freeMarkerTemplateId=PropsValues.JOURNAL_ERROR_TEMPLATE_FREEMARKER;
+      String velocityTemplateContent=ContentUtil.get(PropsValues.JOURNAL_ERROR_TEMPLATE_FREEMARKER);
+      output=new StringWriter();
+      load=FreeMarkerEngineUtil.mergeTemplate(freeMarkerTemplateId,velocityTemplateContent,freeMarkerContext,output);
+    }
+  }
+ catch (  Exception e) {
+    if (e instanceof DocumentException) {
+      throw new TransformException("Unable to read XML document",e);
+    }
+ else     if (e instanceof IOException) {
+      throw new TransformException("Error reading freemarker template",e);
+    }
+ else     if (e instanceof TransformException) {
+      throw (TransformException)e;
+    }
+ else {
+      throw new TransformException("Unhandled exception",e);
+    }
+  }
+  if (!load) {
+    throw new TransformException("Unable to dynamically load freemarker transform script");
+  }
+  return output.toString();
+}
