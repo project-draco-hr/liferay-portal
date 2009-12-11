@@ -1,0 +1,46 @@
+{
+  ByteArrayOutputStream baos=new ByteArrayOutputStream();
+  long companyId=GetterUtil.getLong(tokens.get("company_id"));
+  Company company=CompanyLocalServiceUtil.getCompanyById(companyId);
+  long groupId=GetterUtil.getLong(tokens.get("group_id"));
+  String journalTemplatesPath=VelocityResourceListener.JOURNAL_SEPARATOR + StringPool.SLASH + companyId+ StringPool.SLASH+ groupId;
+  String randomNamespace=PwdGenerator.getPassword(PwdGenerator.KEY3,4) + StringPool.UNDERLINE;
+  Locale locale=LocaleUtil.fromLanguageId(languageId);
+  XSLErrorListener xslErrorListener=new XSLErrorListener(locale);
+  StreamSource xmlSource=new StreamSource(new StringReader(xml));
+  TransformerFactory transformerFactory=TransformerFactory.newInstance();
+  transformerFactory.setURIResolver(new URIResolver(tokens,languageId));
+  transformerFactory.setErrorListener(xslErrorListener);
+  try {
+    StreamSource scriptSource=new StreamSource(new StringReader(script));
+    Transformer transformer=transformerFactory.newTransformer(scriptSource);
+    transformer.setParameter("company",company);
+    transformer.setParameter("companyId",new Long(companyId));
+    transformer.setParameter("groupId",String.valueOf(groupId));
+    transformer.setParameter("journalTemplatesPath",journalTemplatesPath);
+    transformer.setParameter("viewMode",viewMode);
+    transformer.setParameter("locale",locale);
+    transformer.setParameter("permissionChecker",PermissionThreadLocal.getPermissionChecker());
+    transformer.setParameter("randomNamespace",randomNamespace);
+    transformer.transform(xmlSource,new StreamResult(baos));
+  }
+ catch (  Exception e1) {
+    String errorTemplate=ContentUtil.get(PropsValues.JOURNAL_ERROR_TEMPLATE_XSL);
+    StreamSource scriptSource=new StreamSource(new StringReader(errorTemplate));
+    Transformer transformer=transformerFactory.newTransformer(scriptSource);
+    transformer.setParameter("company",company);
+    transformer.setParameter("companyId",new Long(companyId));
+    transformer.setParameter("groupId",String.valueOf(groupId));
+    transformer.setParameter("journalTemplatesPath",journalTemplatesPath);
+    transformer.setParameter("locale",locale);
+    transformer.setParameter("randomNamespace",randomNamespace);
+    transformer.setParameter("exception",xslErrorListener.getMessageAndLocation());
+    transformer.setParameter("script",script);
+    if (xslErrorListener.getLocation() != null) {
+      transformer.setParameter("column",new Integer(xslErrorListener.getColumnNumber()));
+      transformer.setParameter("line",new Integer(xslErrorListener.getLineNumber()));
+    }
+    transformer.transform(xmlSource,new StreamResult(baos));
+  }
+  return baos.toString(StringPool.UTF8);
+}
