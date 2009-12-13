@@ -4,20 +4,41 @@
   if (_log.isDebugEnabled()) {
     _log.debug("Invoking deploy for " + servletContextName);
   }
+  String xml=HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/ext-" + servletContextName + ".xml"));
+  if (xml == null) {
+    return;
+  }
   if (_log.isInfoEnabled()) {
     _log.info("Registering extension environment for " + servletContextName);
   }
-  InputStream is=servletContext.getResourceAsStream(_EXT_DEPLOYMENT);
-  if (is != null) {
-    is.close();
+  if (ExtRegistry.isRegistered(servletContextName)) {
     if (_log.isInfoEnabled()) {
-      _log.info("Extension environment for " + servletContextName + " has been applied. No reboot or redeploy of plugins "+ "is required.");
+      _log.info("Extension environment for " + servletContextName + " has been applied.");
     }
+    return;
   }
- else {
-    installExt(servletContext,event.getContextClassLoader());
-    if (_log.isInfoEnabled()) {
-      _log.info("Extension environment for " + servletContextName + " has been applied. You must reboot the server and "+ "redeploy all other plugins.");
+  Map<String,Set<String>> conflicts=ExtRegistry.getConflicts(servletContext);
+  if (!conflicts.isEmpty()) {
+    StringBuilder sb=new StringBuilder();
+    sb.append("Extension environment for " + servletContextName + " cannot be applied because of detected conflicts:");
+    Iterator<Map.Entry<String,Set<String>>> itr=conflicts.entrySet().iterator();
+    while (itr.hasNext()) {
+      Map.Entry<String,Set<String>> entry=itr.next();
+      String conflictServletContextName=entry.getKey();
+      Set<String> conflictFiles=entry.getValue();
+      sb.append("\n\t");
+      sb.append(conflictServletContextName);
+      sb.append(":");
+      for (      String conflictFile : conflictFiles) {
+        sb.append("\n\t\t");
+        sb.append(conflictFile);
+      }
     }
+    _log.error(sb.toString());
+    return;
+  }
+  installExt(servletContext,event.getContextClassLoader());
+  if (_log.isInfoEnabled()) {
+    _log.info("Extension environment for " + servletContextName + " has been applied. You must reboot the server and "+ "redeploy all other plugins.");
   }
 }
