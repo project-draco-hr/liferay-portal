@@ -2,118 +2,92 @@
   if (_log.isDebugEnabled()) {
     _log.debug("Process service request");
   }
-  if (ShutdownUtil.isShutdown()) {
-    response.setContentType(ContentTypes.TEXT_HTML_UTF8);
-    String html=ContentUtil.get("com/liferay/portal/dependencies/shutdown.html");
-    response.getOutputStream().print(html);
+  if (processShutdownRequest(request,response)) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Processed shutdown request");
+    }
     return;
   }
-  if (MaintenanceUtil.isMaintaining()) {
-    RequestDispatcher requestDispatcher=request.getRequestDispatcher("/html/portal/maintenance.jsp");
-    requestDispatcher.include(request,response);
+  if (processMaintenanceRequest(request,response)) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Processed maintenance request");
+    }
     return;
   }
-  HttpSession session=request.getSession();
-  long companyId=PortalInstances.getCompanyId(request);
-  PortalUtil.setPortalPort(request);
-  ServletContext servletContext=getServletContext();
-  request.setAttribute(WebKeys.CTX,servletContext);
-  ModuleConfig moduleConfig=getModuleConfig(request);
-  if (session.getAttribute(WebKeys.PORTLET_SESSION_TRACKER) == null) {
-    session.setAttribute(WebKeys.PORTLET_SESSION_TRACKER,PortletSessionTracker.getInstance());
+  if (_log.isDebugEnabled()) {
+    _log.debug("Get company id");
   }
-  PortletRequestProcessor portletReqProcessor=(PortletRequestProcessor)servletContext.getAttribute(WebKeys.PORTLET_STRUTS_PROCESSOR);
-  if (portletReqProcessor == null) {
-    portletReqProcessor=PortletRequestProcessor.getInstance(this,moduleConfig);
-    servletContext.setAttribute(WebKeys.PORTLET_STRUTS_PROCESSOR,portletReqProcessor);
+  long companyId=getCompanyId(request);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Set portal port");
   }
-  if (servletContext.getAttribute(TilesUtilImpl.DEFINITIONS_FACTORY) == null) {
-    servletContext.setAttribute(TilesUtilImpl.DEFINITIONS_FACTORY,servletContext.getAttribute(TilesUtilImpl.DEFINITIONS_FACTORY));
+  setPortalPort(request);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Check variables");
   }
-  Object applicationAssociate=servletContext.getAttribute(WebKeys.ASSOCIATE_KEY);
-  if (servletContext.getAttribute(WebKeys.ASSOCIATE_KEY) == null) {
-    servletContext.setAttribute(WebKeys.ASSOCIATE_KEY,applicationAssociate);
+  checkServletContext(request);
+  checkPortletSessionTracker(request);
+  checkPortletRequestProcessor(request);
+  checkTilesDefinitionsFactory();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Encrypt request");
   }
-  if (ParamUtil.get(request,WebKeys.ENCRYPT,false)) {
-    try {
-      Company company=CompanyLocalServiceUtil.getCompanyById(companyId);
-      request=new EncryptedServletRequest(request,company.getKeyObj());
-    }
- catch (    Exception e) {
-    }
+  request=encryptRequest(request,companyId);
+  long userId=getUserId(request);
+  String remoteUser=getRemoteUser(request,userId);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Protect request");
   }
-  long userId=PortalUtil.getUserId(request);
-  String remoteUser=request.getRemoteUser();
-  if (!PropsValues.PORTAL_JAAS_ENABLE) {
-    String jRemoteUser=(String)session.getAttribute("j_remoteuser");
-    if (jRemoteUser != null) {
-      remoteUser=jRemoteUser;
-      session.removeAttribute("j_remoteuser");
-    }
+  request=protectRequest(request,remoteUser);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Set principal");
   }
-  if ((userId > 0) && (remoteUser == null)) {
-    remoteUser=String.valueOf(userId);
-  }
-  request=new ProtectedServletRequest(request,remoteUser);
-  if ((userId > 0) || (remoteUser != null)) {
-    String name=String.valueOf(userId);
-    if (remoteUser != null) {
-      name=remoteUser;
-    }
-    PrincipalThreadLocal.setName(name);
-  }
-  if ((userId <= 0) && (remoteUser != null)) {
-    try {
-      userId=GetterUtil.getLong(remoteUser);
-      EventsProcessorUtil.process(PropsKeys.LOGIN_EVENTS_PRE,PropsValues.LOGIN_EVENTS_PRE,request,response);
-      User user=UserLocalServiceUtil.getUserById(userId);
-      if (PropsValues.USERS_UPDATE_LAST_LOGIN) {
-        UserLocalServiceUtil.updateLastLogin(userId,request.getRemoteAddr());
-      }
-      session.setAttribute(WebKeys.USER_ID,new Long(userId));
-      session.setAttribute(Globals.LOCALE_KEY,user.getLocale());
-      EventsProcessorUtil.process(PropsKeys.LOGIN_EVENTS_POST,PropsValues.LOGIN_EVENTS_POST,request,response);
-    }
- catch (    Exception e) {
-      _log.error(e,e);
-    }
-  }
+  setPrincipalName(userId,remoteUser);
   try {
-    EventsProcessorUtil.process(PropsKeys.SERVLET_SERVICE_EVENTS_PRE,PropsValues.SERVLET_SERVICE_EVENTS_PRE,request,response);
+    if (_log.isDebugEnabled()) {
+      _log.debug("Authenticate user id " + userId + " and remote user "+ remoteUser);
+    }
+    userId=loginUser(request,response,userId,remoteUser);
+    if (_log.isDebugEnabled()) {
+      _log.debug("Authenticated user id " + userId);
+    }
   }
  catch (  Exception e) {
-    Throwable cause=e.getCause();
-    if (cause instanceof NoSuchLayoutException) {
-      sendError(HttpServletResponse.SC_NOT_FOUND,cause,request,response);
-      return;
-    }
- else     if (cause instanceof PrincipalException) {
-      processServicePrePrincipalException(cause,userId,request,response);
-      return;
-    }
     _log.error(e,e);
-    request.setAttribute(PageContext.EXCEPTION,e);
-    StrutsUtil.forward(PropsValues.SERVLET_SERVICE_EVENTS_PRE_ERROR_PAGE,servletContext,request,response);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Process service pre events");
+  }
+  if (processServicePre(request,response,userId)) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Processing service pre events has errors");
+    }
     return;
   }
-  if (request.getAttribute(AbsoluteRedirectsResponse.class.getName()) != null) {
+  if (hasAbsoluteRedirect(request)) {
+    if (_log.isDebugEnabled()) {
+      String currentURL=PortalUtil.getCurrentURL(request);
+      _log.debug("Current URL " + currentURL + " has absolute redirect");
+    }
     return;
   }
-  if (request.getAttribute(WebKeys.THEME_DISPLAY) == null) {
+  if (!hasThemeDisplay(request)) {
+    if (_log.isDebugEnabled()) {
+      String currentURL=PortalUtil.getCurrentURL(request);
+      _log.debug("Current URL " + currentURL + " does not have a theme display");
+    }
     return;
   }
   try {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Call parent service");
+    }
     callParentService(request,response);
   }
   finally {
-    try {
-      EventsProcessorUtil.process(PropsKeys.SERVLET_SERVICE_EVENTS_POST,PropsValues.SERVLET_SERVICE_EVENTS_POST,request,response);
+    if (_log.isDebugEnabled()) {
+      _log.debug("Process service post events");
     }
- catch (    Exception e) {
-      _log.error(e,e);
-    }
-    response.addHeader(_LIFERAY_PORTAL_REQUEST_HEADER,ReleaseInfo.getReleaseInfo());
-    CompanyThreadLocal.setCompanyId(0);
-    PrincipalThreadLocal.setName(null);
+    processServicePost(request,response);
   }
 }

@@ -2,28 +2,33 @@
   if (_log.isDebugEnabled()) {
     _log.debug("Initialize");
   }
-  super.init();
+  callParentInit();
   if (_log.isDebugEnabled()) {
     _log.debug("Process startup events");
   }
   try {
-    StartupAction startupAction=new StartupAction();
-    startupAction.run(null);
+    processStartupEvents();
   }
  catch (  Exception e) {
     _log.error(e,e);
     System.out.println("Stopping the server due to unexpected startup errors");
     System.exit(0);
   }
-  String contextPath=PortalUtil.getPathContext();
-  ServletContext servletContext=getServletContext();
-  VelocityContextPool.put(contextPath,servletContext);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Initialize velocity");
+  }
+  try {
+    initVelocity();
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
   if (_log.isDebugEnabled()) {
     _log.debug("Initialize plugin package");
   }
   PluginPackage pluginPackage=null;
   try {
-    pluginPackage=PluginPackageHotDeployListener.readPluginPackage(servletContext);
+    pluginPackage=initPluginPackage();
   }
  catch (  Exception e) {
     _log.error(e,e);
@@ -33,16 +38,7 @@
   }
   List<Portlet> portlets=null;
   try {
-    String[] xmls=new String[]{HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/" + Portal.PORTLET_XML_FILE_NAME_CUSTOM)),HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/portlet-ext.xml")),HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/liferay-portlet.xml")),HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/liferay-portlet-ext.xml")),HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/web.xml"))};
-    PortletLocalServiceUtil.initEAR(servletContext,xmls,pluginPackage);
-    portlets=PortletLocalServiceUtil.getPortlets();
-    for (int i=0; i < portlets.size(); i++) {
-      Portlet portlet=portlets.get(i);
-      if (i == 0) {
-        initPortletApp(portlet,servletContext);
-      }
-      PortletInstanceFactoryUtil.create(portlet,servletContext);
-    }
+    portlets=initPortlets(pluginPackage);
   }
  catch (  Exception e) {
     _log.error(e,e);
@@ -51,200 +47,115 @@
     _log.debug("Initialize layout templates");
   }
   try {
-    String[] xmls=new String[]{HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/liferay-layout-templates.xml")),HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/liferay-layout-templates-ext.xml"))};
-    LayoutTemplateLocalServiceUtil.init(servletContext,xmls,pluginPackage);
+    initLayoutTemplates(pluginPackage,portlets);
   }
  catch (  Exception e) {
     _log.error(e,e);
   }
   if (_log.isDebugEnabled()) {
-    _log.debug("Initialize look and feel");
+    _log.debug("Initialize themes");
   }
   try {
-    String[] xmls=new String[]{HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/liferay-look-and-feel.xml")),HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/liferay-look-and-feel-ext.xml"))};
-    ThemeLocalServiceUtil.init(servletContext,null,true,xmls,pluginPackage);
+    initThemes(pluginPackage,portlets);
   }
  catch (  Exception e) {
     _log.error(e,e);
   }
   if (_log.isDebugEnabled()) {
-    _log.debug("Indexer");
+    _log.debug("Initialize indexers");
   }
   try {
-    Iterator<Portlet> itr=portlets.iterator();
-    while (itr.hasNext()) {
-      Portlet portlet=itr.next();
-      String indexerClass=portlet.getIndexerClass();
-      if (!portlet.isActive() || Validator.isNull(indexerClass)) {
-        continue;
-      }
-      Indexer indexer=(Indexer)InstancePool.get(indexerClass);
-      for (      String modelClassName : indexer.getClassNames()) {
-        IndexerRegistryUtil.register(modelClassName,indexer);
-      }
-    }
+    initIndexers(portlets);
   }
  catch (  Exception e) {
     _log.error(e,e);
   }
   if (_log.isDebugEnabled()) {
-    _log.debug("Scheduler");
+    _log.debug("Initialize schedulers");
   }
   try {
-    if (PropsValues.SCHEDULER_ENABLED) {
-      for (      String className : PropsValues.SCHEDULER_CLASSES) {
-        Scheduler scheduler=(Scheduler)InstancePool.get(className);
-        scheduler.schedule();
-      }
-      Iterator<Portlet> itr=portlets.iterator();
-      while (itr.hasNext()) {
-        Portlet portlet=itr.next();
-        String className=portlet.getSchedulerClass();
-        if (!portlet.isActive() || Validator.isNull(className)) {
-          continue;
-        }
-        Scheduler scheduler=(Scheduler)InstancePool.get(className);
-        scheduler.schedule();
-      }
-    }
+    initSchedulers(portlets);
   }
  catch (  Exception e) {
     _log.error(e,e);
   }
   if (_log.isDebugEnabled()) {
-    _log.debug("Poller processor");
+    _log.debug("Initialize poller processors");
   }
   try {
-    Iterator<Portlet> itr=portlets.iterator();
-    while (itr.hasNext()) {
-      Portlet portlet=itr.next();
-      PollerProcessor pollerProcessor=portlet.getPollerProcessorInstance();
-      if (!portlet.isActive() || (pollerProcessor == null)) {
-        continue;
-      }
-      PollerProcessorUtil.addPollerProcessor(portlet.getPortletId(),pollerProcessor);
-    }
+    initPollerProcessors(portlets);
   }
  catch (  Exception e) {
     _log.error(e,e);
   }
   if (_log.isDebugEnabled()) {
-    _log.debug("POP message listener");
+    _log.debug("Initialize POP message listeners");
   }
   try {
-    Iterator<Portlet> itr=portlets.iterator();
-    while (itr.hasNext()) {
-      Portlet portlet=itr.next();
-      MessageListener popMessageListener=portlet.getPopMessageListenerInstance();
-      if (!portlet.isActive() || (popMessageListener == null)) {
-        continue;
-      }
-      POPServerUtil.addListener(popMessageListener);
-    }
+    initPOPMessageListeners(portlets);
   }
  catch (  Exception e) {
     _log.error(e,e);
   }
   if (_log.isDebugEnabled()) {
-    _log.debug("Social activity interpreter");
+    _log.debug("Initialize social activity interpreters");
   }
   try {
-    Iterator<Portlet> itr=portlets.iterator();
-    while (itr.hasNext()) {
-      Portlet portlet=itr.next();
-      SocialActivityInterpreter socialActivityInterpreter=portlet.getSocialActivityInterpreterInstance();
-      if (!portlet.isActive() || (socialActivityInterpreter == null)) {
-        continue;
-      }
-      socialActivityInterpreter=new SocialActivityInterpreterImpl(portlet.getPortletId(),socialActivityInterpreter);
-      SocialActivityInterpreterLocalServiceUtil.addActivityInterpreter(socialActivityInterpreter);
-    }
+    initSocialActivityInterpreters(portlets);
   }
  catch (  Exception e) {
     _log.error(e,e);
   }
   if (_log.isDebugEnabled()) {
-    _log.debug("Social request interpreter");
+    _log.debug("Initialize social request interpreters");
   }
   try {
-    Iterator<Portlet> itr=portlets.iterator();
-    while (itr.hasNext()) {
-      Portlet portlet=itr.next();
-      SocialRequestInterpreter socialRequestInterpreter=portlet.getSocialRequestInterpreterInstance();
-      if (!portlet.isActive() || (socialRequestInterpreter == null)) {
-        continue;
-      }
-      socialRequestInterpreter=new SocialRequestInterpreterImpl(portlet.getPortletId(),socialRequestInterpreter);
-      SocialRequestInterpreterLocalServiceUtil.addRequestInterpreter(socialRequestInterpreter);
-    }
+    initSocialRequestInterpreters(portlets);
   }
  catch (  Exception e) {
     _log.error(e,e);
   }
   if (_log.isDebugEnabled()) {
-    _log.debug("WebDAV storage");
+    _log.debug("Initialize WebDAV storages");
   }
   try {
-    Iterator<Portlet> itr=portlets.iterator();
-    while (itr.hasNext()) {
-      Portlet portlet=itr.next();
-      WebDAVStorage webDAVStorage=portlet.getWebDAVStorageInstance();
-      if (!portlet.isActive() || (webDAVStorage == null)) {
-        continue;
-      }
-      webDAVStorage.setToken(portlet.getWebDAVStorageToken());
-      WebDAVUtil.addStorage(webDAVStorage);
-    }
+    initWebDAVStorages(portlets);
   }
  catch (  Exception e) {
     _log.error(e,e);
   }
   if (_log.isDebugEnabled()) {
-    _log.debug("Asset renderer factory");
+    _log.debug("Initialize asset renderer factories");
   }
   try {
-    Iterator<Portlet> itr=portlets.iterator();
-    while (itr.hasNext()) {
-      Portlet portlet=itr.next();
-      List<AssetRendererFactory> assetRendererFactories=portlet.getAssetRendererFactoryInstances();
-      if (assetRendererFactories == null) {
-        continue;
-      }
-      AssetRendererFactoryRegistryUtil.register(assetRendererFactories);
-    }
+    initAssetRendererFactories(portlets);
   }
  catch (  Exception e) {
     _log.error(e,e);
   }
   if (_log.isDebugEnabled()) {
-    _log.debug("Workflow handler");
+    _log.debug("Initialize workflow handlers");
   }
   try {
-    Iterator<Portlet> itr=portlets.iterator();
-    while (itr.hasNext()) {
-      Portlet portlet=itr.next();
-      List<WorkflowHandler> workflowHandlers=portlet.getWorkflowHandlerInstances();
-      if (workflowHandlers == null) {
-        continue;
-      }
-      WorkflowHandlerRegistryUtil.register(workflowHandlers);
-    }
+    initWorkflowHandlers(portlets);
   }
  catch (  Exception e) {
     _log.error(e,e);
   }
   if (_log.isDebugEnabled()) {
-    _log.debug("Check web settings");
+    _log.debug("Initialize web settings");
   }
   try {
-    String xml=HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/web.xml"));
-    checkWebSettings(xml);
+    initWebSettings();
   }
  catch (  Exception e) {
     _log.error(e,e);
   }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Initialize extension environment");
+  }
   try {
-    ExtRegistry.registerPortal(servletContext);
+    initExt();
   }
  catch (  Exception e) {
     _log.error(e,e);
@@ -253,7 +164,7 @@
     _log.debug("Process global startup events");
   }
   try {
-    EventsProcessorUtil.process(PropsKeys.GLOBAL_STARTUP_EVENTS,PropsValues.GLOBAL_STARTUP_EVENTS);
+    processGlobalStartupEvents();
   }
  catch (  Exception e) {
     _log.error(e,e);
@@ -262,17 +173,7 @@
     _log.debug("Initialize resource actions");
   }
   try {
-    Iterator<Portlet> itr=portlets.iterator();
-    while (itr.hasNext()) {
-      Portlet portlet=itr.next();
-      List<String> portletActions=ResourceActionsUtil.getPortletResourceActions(portlet.getPortletId());
-      ResourceActionLocalServiceUtil.checkResourceActions(portlet.getPortletId(),portletActions);
-      List<String> modelNames=ResourceActionsUtil.getPortletModelResources(portlet.getPortletId());
-      for (      String modelName : modelNames) {
-        List<String> modelActions=ResourceActionsUtil.getModelResourceActions(modelName);
-        ResourceActionLocalServiceUtil.checkResourceActions(modelName,modelActions);
-      }
-    }
+    initResourceActions(portlets);
   }
  catch (  Exception e) {
     _log.error(e,e);
@@ -281,31 +182,36 @@
     _log.debug("Initialize resource codes");
   }
   try {
-    long[] companyIds=PortalInstances.getCompanyIds();
-    Iterator<Portlet> itr=portlets.iterator();
-    while (itr.hasNext()) {
-      Portlet portlet=itr.next();
-      List<String> modelNames=ResourceActionsUtil.getPortletModelResources(portlet.getPortletId());
-      for (      long companyId : companyIds) {
-        ResourceCodeLocalServiceUtil.checkResourceCodes(companyId,portlet.getPortletId());
-        for (        String modelName : modelNames) {
-          ResourceCodeLocalServiceUtil.checkResourceCodes(companyId,modelName);
-        }
-      }
-    }
+    initResourceCodes(portlets);
   }
  catch (  Exception e) {
     _log.error(e,e);
   }
-  String[] webIds=PortalInstances.getWebIds();
-  for (int i=0; i < webIds.length; i++) {
-    PortalInstances.initCompany(servletContext,webIds[i]);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Initialize companies");
+  }
+  try {
+    initCompanies();
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
   }
   if (_log.isDebugEnabled()) {
     _log.debug("Initialize message resources");
   }
-  MultiMessageResources messageResources=(MultiMessageResources)servletContext.getAttribute(Globals.MESSAGES_KEY);
-  LanguageResources.init(messageResources);
-  PortalInitableUtil.flushInitables();
-  HotDeployUtil.flushPrematureEvents();
+  try {
+    initMessageResources();
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Initialize plugins");
+  }
+  try {
+    initPlugins();
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
 }
