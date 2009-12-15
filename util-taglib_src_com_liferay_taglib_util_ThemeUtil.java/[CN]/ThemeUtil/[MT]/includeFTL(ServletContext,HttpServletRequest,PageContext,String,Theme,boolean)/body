@@ -1,0 +1,45 @@
+{
+  String ctxName=GetterUtil.getString(theme.getServletContextName());
+  if (VelocityContextPool.get(ctxName) == null) {
+    VelocityContextPool.put(ctxName,servletContext);
+  }
+  int pos=page.lastIndexOf(StringPool.PERIOD);
+  StringBuilder sb=new StringBuilder();
+  sb.append(ctxName);
+  sb.append(theme.getFreeMarkerTemplateLoader());
+  sb.append(theme.getTemplatesPath());
+  sb.append(StringPool.SLASH);
+  sb.append(page.substring(0,pos));
+  sb.append(".ftl");
+  String source=sb.toString();
+  if (!FreeMarkerEngineUtil.resourceExists(source)) {
+    _log.error(source + " does not exist");
+    return null;
+  }
+  StringWriter stringWriter=new StringWriter();
+  FreeMarkerContext freeMarkerContext=FreeMarkerEngineUtil.getWrappedStandardToolsContext();
+  FreeMarkerVariables.insertVariables(freeMarkerContext,request);
+  ServletContext themeServletContext=VelocityContextPool.get(ctxName);
+  StringServletResponse stringResponse=new StringServletResponse((HttpServletResponse)pageContext.getResponse());
+  VelocityTaglib velocityTaglib=new VelocityTaglib(servletContext,request,stringResponse,pageContext);
+  request.setAttribute(WebKeys.VELOCITY_TAGLIB,velocityTaglib);
+  freeMarkerContext.put("themeServletContext",themeServletContext);
+  freeMarkerContext.put("taglibLiferay",velocityTaglib);
+  freeMarkerContext.put("theme",velocityTaglib);
+  TaglibFactory portalTaglib=new TaglibFactory(servletContext);
+  freeMarkerContext.put("PortalJspTagLibs",portalTaglib);
+  TaglibFactory themeTaglib=new TaglibFactory(themeServletContext);
+  freeMarkerContext.put("ThemeJspTaglibs",themeTaglib);
+  HttpServletResponse response=(HttpServletResponse)pageContext.getResponse();
+  HttpRequestHashModel httpRequestModel=new HttpRequestHashModel(request,response,ObjectWrapper.DEFAULT_WRAPPER);
+  freeMarkerContext.put("Request",httpRequestModel);
+  FreeMarkerEngineUtil.mergeTemplate(source,freeMarkerContext,stringWriter);
+  String output=stringWriter.toString();
+  if (write) {
+    pageContext.getOut().print(output);
+    return null;
+  }
+ else {
+    return output;
+  }
+}
