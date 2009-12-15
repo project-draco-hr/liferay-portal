@@ -15,7 +15,11 @@
   }
   long resourcePrimKey=page.getResourcePrimKey();
   long groupId=page.getGroupId();
-  page.setHead(false);
+  int status=serviceContext.getStatus();
+  boolean isApproved=(status == StatusConstants.APPROVED);
+  if (isApproved) {
+    page.setHead(false);
+  }
   page.setModifiedDate(now);
   wikiPagePersistence.update(page,false);
   double newVersion=MathUtil.format(oldVersion + 0.1,1,1);
@@ -33,9 +37,12 @@
   page.setVersion(newVersion);
   page.setMinorEdit(minorEdit);
   page.setContent(content);
+  page.setStatus(status);
   page.setSummary(summary);
   page.setFormat(format);
-  page.setHead(true);
+  if (isApproved) {
+    page.setHead(true);
+  }
   if (Validator.isNotNull(parentTitle)) {
     page.setParentTitle(parentTitle);
   }
@@ -50,10 +57,9 @@
   wikiNodePersistence.update(node,false);
   updateAsset(userId,page,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
   socialActivityLocalService.addActivity(userId,page.getGroupId(),WikiPage.class.getName(),page.getResourcePrimKey(),WikiActivityKeys.UPDATE_PAGE,StringPool.BLANK,0);
-  if (!minorEdit && NotificationThreadLocal.isEnabled()) {
+  if (isApproved && !minorEdit && NotificationThreadLocal.isEnabled()) {
     notifySubscribers(node,page,serviceContext,true);
   }
-  reIndex(page);
   clearPageCache(page);
   return page;
 }
