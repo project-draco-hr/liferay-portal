@@ -1,0 +1,38 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  Date now=new Date();
+  BlogsEntry entry=blogsEntryPersistence.findByPrimaryKey(entryId);
+  entry.setModifiedDate(now);
+  entry.setStatus(serviceContext.getStatus());
+  entry.setStatusByUserId(user.getUserId());
+  entry.setStatusByUserName(user.getFullName());
+  entry.setStatusDate(now);
+  blogsEntryPersistence.update(entry,false);
+  if (entry.isApproved()) {
+    blogsStatsUserLocalService.updateStatsUser(entry.getGroupId(),userId,entry.getDisplayDate());
+  }
+  if (entry.isApproved()) {
+    assetEntryLocalService.updateVisible(BlogsEntry.class.getName(),entryId,true);
+  }
+ else {
+    assetEntryLocalService.updateVisible(BlogsEntry.class.getName(),entryId,false);
+  }
+  if (entry.isApproved()) {
+    socialActivityLocalService.addUniqueActivity(userId,entry.getGroupId(),BlogsEntry.class.getName(),entryId,BlogsActivityKeys.ADD_ENTRY,StringPool.BLANK,0);
+  }
+  if (entry.isApproved()) {
+    reIndex(entry);
+  }
+ else {
+    try {
+      Indexer.deleteEntry(entry.getCompanyId(),entryId);
+    }
+ catch (    SearchException se) {
+      _log.error("Deleting index " + entry.getEntryId(),se);
+    }
+  }
+  notifySubscribers(entry,serviceContext);
+  pingGoogle(entry,serviceContext);
+  pingTrackbacks(entry,trackbacks,pingOldTrackbaks,serviceContext);
+  return entry;
+}
