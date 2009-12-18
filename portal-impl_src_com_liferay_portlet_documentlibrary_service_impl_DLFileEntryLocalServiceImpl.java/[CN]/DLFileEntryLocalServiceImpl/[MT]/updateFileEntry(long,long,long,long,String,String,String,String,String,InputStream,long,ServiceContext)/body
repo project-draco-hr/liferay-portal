@@ -12,10 +12,11 @@
   fileEntry.setTitle(title);
   fileEntry.setDescription(description);
   fileEntry.setExtraSettings(extraSettings);
+  fileEntry.setExpandoBridgeAttributes(serviceContext);
   dlFileEntryPersistence.update(fileEntry,false);
   if (folderId != newFolderId) {
     long oldFileEntryId=fileEntry.getFileEntryId();
-    if (dlLocalService.hasFile(user.getCompanyId(),getRepositoryId(groupId,newFolderId),name,0)) {
+    if (dlLocalService.hasFile(user.getCompanyId(),DLFileEntryImpl.getRepositoryId(groupId,newFolderId),name,0)) {
       throw new DuplicateFileException(name);
     }
     long newFileEntryId=counterLocalService.increment();
@@ -68,9 +69,6 @@
       assetEntryLocalService.deleteEntry(DLFileShortcut.class.getName(),fileShortcut.getFileShortcutId());
     }
     expandoValueLocalService.deleteValues(DLFileEntry.class.getName(),fileEntry.getFileEntryId());
-    long repositoryId=getRepositoryId(groupId,folderId);
-    long newRepositoryId=getRepositoryId(groupId,newFolderId);
-    dlService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,newFileEntry.getGroupId(),repositoryId,newRepositoryId,name,newFileEntryId);
     RatingsStats stats=ratingsStatsLocalService.getStats(DLFileEntry.class.getName(),oldFileEntryId);
     stats.setClassPK(newFileEntryId);
     ratingsStatsPersistence.update(stats,false);
@@ -86,21 +84,18 @@
       mbDiscussionPersistence.update(discussion,false);
     }
     socialActivityLocalService.deleteActivities(DLFileEntry.class.getName(),fileEntry.getFileEntryId());
+    dlService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,newFileEntry.getGroupId(),fileEntry.getRepositoryId(),newFileEntry.getRepositoryId(),name,newFileEntryId);
     folderId=newFolderId;
     fileEntry=newFileEntry;
   }
   updateAsset(userId,fileEntry,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
-  ExpandoBridge expandoBridge=fileEntry.getExpandoBridge();
-  expandoBridge.setAttributes(serviceContext);
-  socialActivityLocalService.addActivity(userId,fileEntry.getGroupId(),DLFileEntry.class.getName(),fileEntry.getFileEntryId(),DLActivityKeys.UPDATE_FILE_ENTRY,StringPool.BLANK,0);
   double oldVersion=Math.max(fileEntry.getVersion(),fileEntry.getPendingVersion());
   double newVersion=MathUtil.format(oldVersion + 0.1,1,1);
   if (is == null) {
-    long repositoryId=getRepositoryId(groupId,folderId);
     fileEntry.setVersion(newVersion);
     dlFileEntryPersistence.update(fileEntry,false);
-    is=dlLocalService.getFileAsStream(user.getCompanyId(),repositoryId,name);
-    dlLocalService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,fileEntry.getGroupId(),repositoryId,name,false,newVersion,name,fileEntry.getFileEntryId(),fileEntry.getLuceneProperties(),fileEntry.getModifiedDate(),serviceContext,is);
+    is=dlLocalService.getFileAsStream(user.getCompanyId(),fileEntry.getRepositoryId(),name);
+    dlLocalService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,fileEntry.getGroupId(),fileEntry.getRepositoryId(),name,false,newVersion,name,fileEntry.getFileEntryId(),fileEntry.getLuceneProperties(),fileEntry.getModifiedDate(),serviceContext,is);
     return fileEntry;
   }
   addFileVersion(user,fileEntry,newVersion,serviceContext.getStatus());
@@ -109,13 +104,13 @@
   fileEntry.setModifiedDate(new Date());
   fileEntry.setVersion(newVersion);
   fileEntry.setSize((int)size);
+  fileEntry.setExpandoBridgeAttributes(serviceContext);
   dlFileEntryPersistence.update(fileEntry,false);
-  long repositoryId=getRepositoryId(groupId,folderId);
-  dlLocalService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,fileEntry.getGroupId(),repositoryId,name,false,newVersion,sourceFileName,fileEntry.getFileEntryId(),fileEntry.getLuceneProperties(),fileEntry.getModifiedDate(),serviceContext,is);
   if (fileEntry.getFolderId() != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
     DLFolder folder=dlFolderPersistence.findByPrimaryKey(fileEntry.getFolderId());
     folder.setLastPostDate(fileEntry.getModifiedDate());
     dlFolderPersistence.update(folder,false);
   }
+  dlLocalService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,fileEntry.getGroupId(),fileEntry.getRepositoryId(),name,false,newVersion,sourceFileName,fileEntry.getFileEntryId(),fileEntry.getLuceneProperties(),fileEntry.getModifiedDate(),serviceContext,is);
   return fileEntry;
 }

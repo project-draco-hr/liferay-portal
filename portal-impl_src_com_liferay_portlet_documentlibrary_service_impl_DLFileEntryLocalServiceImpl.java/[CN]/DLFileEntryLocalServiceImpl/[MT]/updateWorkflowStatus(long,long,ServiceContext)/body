@@ -1,0 +1,52 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  DLFileEntry fileEntry=dlFileEntryPersistence.findByPrimaryKey(fileEntryId);
+  DLFileVersion fileVersion=dlFileVersionLocalService.getLatestFileVersion(fileEntry.getGroupId(),fileEntry.getFolderId(),fileEntry.getName());
+  fileVersion.setStatus(serviceContext.getStatus());
+  fileVersion.setStatusByUserId(user.getUserId());
+  fileVersion.setStatusByUserName(user.getFullName());
+  fileVersion.setStatusDate(new Date());
+  dlFileVersionPersistence.update(fileVersion,false);
+  if (fileVersion.isApproved() && (fileEntry.getVersion() < fileVersion.getVersion())) {
+    fileEntry.setVersion(fileVersion.getVersion());
+    dlFileEntryPersistence.update(fileEntry,false);
+  }
+ else   if (!fileVersion.isApproved() && (fileEntry.getVersion() == fileVersion.getVersion())) {
+    double newVersion=0;
+    if (fileVersion.getVersion() > 1) {
+      List<DLFileVersion> approvedFileVersions=dlFileVersionPersistence.findByG_F_N_S(fileEntry.getGroupId(),fileEntry.getFolderId(),fileEntry.getName(),StatusConstants.APPROVED);
+      if (!approvedFileVersions.isEmpty()) {
+        newVersion=approvedFileVersions.get(0).getVersion();
+      }
+    }
+    fileEntry.setPendingVersion(fileVersion.getVersion());
+    fileEntry.setVersion(newVersion);
+    dlFileEntryPersistence.update(fileEntry,false);
+  }
+  if (fileVersion.isApproved() && (fileEntry.getVersion() == fileVersion.getVersion())) {
+    assetEntryLocalService.updateVisible(DLFileEntry.class.getName(),fileEntry.getFileEntryId(),true);
+  }
+ else   if (fileEntry.getVersion() == 0) {
+    assetEntryLocalService.updateVisible(DLFileEntry.class.getName(),fileEntry.getFileEntryId(),false);
+  }
+  if (fileVersion.isApproved() && (fileEntry.getVersion() == fileVersion.getVersion())) {
+    if (fileVersion.getVersion() == DLFileEntryConstants.DEFAULT_VERSION) {
+      socialActivityLocalService.addUniqueActivity(fileVersion.getUserId(),fileVersion.getGroupId(),fileVersion.getCreateDate(),DLFileEntry.class.getName(),fileEntryId,DLActivityKeys.ADD_FILE_ENTRY,StringPool.BLANK,0);
+    }
+ else {
+      socialActivityLocalService.addActivity(fileVersion.getUserId(),fileVersion.getGroupId(),fileVersion.getCreateDate(),DLFileEntry.class.getName(),fileEntryId,DLActivityKeys.UPDATE_FILE_ENTRY,StringPool.BLANK,0);
+    }
+  }
+  if (fileVersion.isApproved() && (fileEntry.getVersion() == fileVersion.getVersion())) {
+    reIndex(fileEntry.getFileEntryId());
+  }
+ else   if (fileEntry.getVersion() == 0) {
+    try {
+      DLIndexerUtil.deleteFile(fileEntry.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,fileEntry.getRepositoryId(),fileEntry.getName());
+    }
+ catch (    SearchException se) {
+      _log.error("Deleting index " + fileEntry.getFileEntryId(),se);
+    }
+  }
+  return fileEntry;
+}
