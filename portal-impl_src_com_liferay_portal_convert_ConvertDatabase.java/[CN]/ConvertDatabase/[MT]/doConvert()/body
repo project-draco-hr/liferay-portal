@@ -3,29 +3,40 @@
   Dialect dialect=DialectDetector.getDialect(dataSource);
   DB db=DBFactoryUtil.getDB(dialect);
   List<String> modelNames=ModelHintsUtil.getModels();
-  Collections.sort(modelNames);
+  List<Tuple> tableDetails=new ArrayList<Tuple>();
   Connection connection=dataSource.getConnection();
   try {
-    MaintenanceUtil.appendStatus("Migrating " + modelNames.size() + " database tables to new schema");
-    for (int i=0; i < modelNames.size(); i++) {
-      if ((i > 0) && (i % (modelNames.size() / 4) == 0)) {
-        MaintenanceUtil.appendStatus((i * 100. / modelNames.size()) + "%");
+    MaintenanceUtil.appendStatus("Collecting information for database tables to migration");
+    for (    String modelName : modelNames) {
+      String implName=modelName.replaceFirst("(\\.model\\.)(\\p{Upper}.*)","$1impl.$2Impl");
+      Class<?> implClass=InstancePool.get(implName).getClass();
+      Field[] fields=implClass.getFields();
+      for (      Field field : fields) {
+        Tuple tuple=null;
+        String fieldName=field.getName();
+        if (fieldName.equals("TABLE_NAME")) {
+          tuple=getTableDetails(implClass,field,fieldName);
+        }
+ else         if (fieldName.startsWith("MAPPING_TABLE_") && fieldName.endsWith("_NAME")) {
+          tuple=getTableDetails(implClass,field,fieldName);
+        }
+        if (tuple != null) {
+          tableDetails.add(tuple);
+        }
       }
-      String name=modelNames.get(i);
-      name=name.replaceFirst("(\\.model\\.)(\\p{Upper}.*)","$1impl.$2Impl");
-      Class<?> implClass=InstancePool.get(name).getClass();
-      String createSql=(String)implClass.getField("TABLE_SQL_CREATE").get(StringPool.BLANK);
-      String tableName=(String)implClass.getField("TABLE_NAME").get(StringPool.BLANK);
-      Object[][] columns=(Object[][])implClass.getField("TABLE_COLUMNS").get(new Object[0][0]);
-      if (_log.isDebugEnabled()) {
-        _log.debug("Migrating database table " + tableName);
+    }
+    if (_log.isDebugEnabled()) {
+      _log.debug("Migrating database tables");
+    }
+    for (int i=0; i < tableDetails.size(); i++) {
+      if ((i > 0) && (i % (tableDetails.size() / 4) == 0)) {
+        MaintenanceUtil.appendStatus((i * 100. / tableDetails.size()) + "%");
       }
-      Table table=new Table(tableName,columns);
-      String tempFileName=table.generateTempFile();
-      db.runSQL(connection,createSql);
-      if (tempFileName != null) {
-        table.populateTable(tempFileName,connection);
-      }
+      Tuple tuple=tableDetails.get(i);
+      String table=(String)tuple.getObject(0);
+      Object[][] columns=(Object[][])tuple.getObject(1);
+      String sqlCreate=(String)tuple.getObject(2);
+      migrateTable(db,connection,table,columns,sqlCreate);
     }
   }
   finally {
