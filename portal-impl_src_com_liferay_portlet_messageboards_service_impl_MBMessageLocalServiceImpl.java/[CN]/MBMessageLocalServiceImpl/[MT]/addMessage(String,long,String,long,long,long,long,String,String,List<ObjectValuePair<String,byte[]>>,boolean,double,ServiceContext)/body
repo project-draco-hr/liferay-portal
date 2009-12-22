@@ -1,9 +1,4 @@
 {
-  StopWatch stopWatch=null;
-  if (_log.isDebugEnabled()) {
-    stopWatch=new StopWatch();
-    stopWatch.start();
-  }
   User user=userPersistence.findByPrimaryKey(userId);
   userName=user.isDefaultUser() ? userName : user.getFullName();
   subject=ModelHintsUtil.trimString(MBMessage.class.getName(),"subject",subject);
@@ -21,7 +16,6 @@
   Date now=new Date();
   validate(subject,body);
   long messageId=counterLocalService.increment();
-  logAddMessage(messageId,stopWatch,1);
   MBMessage message=mbMessagePersistence.create(messageId);
   message.setUuid(uuid);
   message.setGroupId(groupId);
@@ -72,7 +66,6 @@
     thread.setPriority(priority);
     updatePriorities(thread.getThreadId(),priority);
   }
-  logAddMessage(messageId,stopWatch,2);
   message.setCategoryId(categoryId);
   message.setThreadId(threadId);
   message.setParentMessageId(parentMessageId);
@@ -112,10 +105,8 @@
       }
     }
   }
-  logAddMessage(messageId,stopWatch,3);
   mbThreadPersistence.update(thread,false);
   mbMessagePersistence.update(message,false);
-  logAddMessage(messageId,stopWatch,4);
   if (!message.isDiscussion()) {
     if (user.isDefaultUser()) {
       addMessageResources(message,true,true);
@@ -127,10 +118,8 @@
       addMessageResources(message,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
     }
   }
-  logAddMessage(messageId,stopWatch,5);
   if (!message.isDiscussion() && (serviceContext.getStatus() == StatusConstants.APPROVED)) {
     mbStatsUserLocalService.updateStatsUser(message.getGroupId(),userId,now);
-    logAddMessage(messageId,stopWatch,6);
     if (categoryId != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) {
       MBCategory category=mbCategoryPersistence.findByPrimaryKey(categoryId);
       category.setMessageCount(category.getMessageCount() + 1);
@@ -138,12 +127,9 @@
       mbCategoryPersistence.update(category,false);
     }
   }
-  logAddMessage(messageId,stopWatch,7);
   updateAsset(userId,message,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
-  logAddMessage(messageId,stopWatch,8);
   ExpandoBridge expandoBridge=message.getExpandoBridge();
   expandoBridge.setAttributes(serviceContext);
-  logAddMessage(messageId,stopWatch,9);
   if (!message.isDiscussion() && !message.isAnonymous() && !user.isDefaultUser()&& (serviceContext.getStatus() == StatusConstants.APPROVED)) {
     int activityType=MBActivityKeys.ADD_MESSAGE;
     long receiverUserId=0;
@@ -153,10 +139,7 @@
     }
     socialActivityLocalService.addActivity(userId,message.getGroupId(),MBMessage.class.getName(),messageId,activityType,StringPool.BLANK,receiverUserId);
   }
-  logAddMessage(messageId,stopWatch,10);
   notifySubscribers(message,serviceContext,false);
-  logAddMessage(messageId,stopWatch,11);
   reIndex(message);
-  logAddMessage(messageId,stopWatch,12);
   return message;
 }
