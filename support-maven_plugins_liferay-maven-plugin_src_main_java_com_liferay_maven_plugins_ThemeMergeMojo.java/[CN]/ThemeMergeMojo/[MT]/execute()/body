@@ -1,0 +1,81 @@
+{
+  File f=workDir;
+  if (!f.exists()) {
+    f.mkdirs();
+  }
+  String parentThemeGroupId="com.liferay.portal";
+  String parentThemeArtifactId="portal-web";
+  String parentThemeVersion=liferayVersion;
+  String[] selectorIncludesPattern=new String[]{"html/themes/_unstyled/**","html/themes/_styled/**","html/themes/classic/**","html/themes/control_panel/**"};
+  String[] selectorExcludesPattern=new String[]{"html/themes/classic/_diffs/**","html/themes/control_panel/_diffs/**"};
+  if (!("_styled".equals(parentTheme) || "_unstyled".equals(parentTheme) || "classic".equals(parentTheme)|| "control_panel".equals(parentTheme))) {
+    String[] pieces=parentTheme.split(":");
+    parentThemeGroupId=pieces[0];
+    parentThemeArtifactId=pieces[1];
+    parentThemeVersion=pieces[2];
+    selectorExcludesPattern=new String[]{"WEB-INF/**"};
+  }
+  Artifact artifact=factory.createArtifact(parentThemeGroupId,parentThemeArtifactId,parentThemeVersion,"","war");
+  try {
+    resolver.resolve(artifact,remoteRepos,local);
+  }
+ catch (  ArtifactResolutionException are) {
+    throw new MojoExecutionException("Artifact resolution failed",are);
+  }
+catch (  ArtifactNotFoundException anfe) {
+    throw new MojoExecutionException("Artifact not found",anfe);
+  }
+  workDir.mkdirs();
+  try {
+    UnArchiver unArchiver=archiverManager.getUnArchiver(artifact.getFile());
+    unArchiver.setSourceFile(artifact.getFile());
+    unArchiver.setDestDirectory(workDir);
+    IncludeExcludeFileSelector selector=new IncludeExcludeFileSelector();
+    selector.setIncludes(selectorIncludesPattern);
+    selector.setExcludes(selectorExcludesPattern);
+    unArchiver.setFileSelectors(new FileSelector[]{selector});
+    unArchiver.extract();
+    webappDirectory.mkdirs();
+    try {
+      if (parentThemeArtifactId.equals("portal-web")) {
+        FileUtils.copyDirectory(new File(workDir,"html/themes/_unstyled"),webappDirectory);
+        getLog().info("Copying html/themes/_unstyled to " + webappDirectory);
+        if (!"_unstyled".equals(parentTheme)) {
+          FileUtils.copyDirectory(new File(workDir,"html/themes/_styled"),webappDirectory);
+          getLog().info("Copying html/themes/_styled to " + webappDirectory);
+        }
+        if (!"_unstyled".equals(parentTheme) && !"_styled".equals(parentTheme)) {
+          FileUtils.copyDirectory(new File(workDir,"html/themes/" + parentTheme),webappDirectory);
+          getLog().info("Copying html/themes/" + parentTheme + " to "+ webappDirectory);
+        }
+      }
+ else {
+        FileUtils.copyDirectory(workDir,webappDirectory);
+      }
+      File initFile=new File(webappDirectory,"templates/init." + themeType);
+      File templatesDirectory=new File(webappDirectory,"templates/");
+      String[] extensions=null;
+      if ("ftl".equals(themeType)) {
+        extensions=new String[]{"vm"};
+      }
+ else {
+        extensions=new String[]{"ftl"};
+      }
+      FileUtils.deleteQuietly(initFile);
+      Iterator<File> iterator=FileUtils.iterateFiles(templatesDirectory,extensions,false);
+      while (iterator.hasNext()) {
+        File file=iterator.next();
+        FileUtils.deleteQuietly(file);
+      }
+    }
+ catch (    IOException e) {
+      throw new MojoExecutionException("Theme merge failed",e);
+    }
+  }
+ catch (  ArchiverException ae) {
+    throw new MojoExecutionException("Artifact extraction failed",ae);
+  }
+catch (  NoSuchArchiverException nsae) {
+    throw new MojoExecutionException("Archiver not found for artifact",nsae);
+  }
+}
