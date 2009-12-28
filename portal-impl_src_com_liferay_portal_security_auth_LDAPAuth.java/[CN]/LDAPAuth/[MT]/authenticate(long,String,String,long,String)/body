@@ -8,63 +8,15 @@
   if (_log.isDebugEnabled()) {
     _log.debug("Authenticator is enabled");
   }
-  LdapContext ctx=PortalLDAPUtil.getContext(companyId);
-  if (ctx == null) {
-    return authenticateRequired(companyId,userId,emailAddress,screenName,true,FAILURE);
+  long[] ldapServerIds=StringUtil.split(PrefsPropsUtil.getString(companyId,"ldap.server.ids"),0L);
+  if (ldapServerIds.length <= 0) {
+    ldapServerIds=new long[]{0};
   }
-  try {
-    String baseDN=PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_BASE_DN);
-    String filter=PortalLDAPUtil.getAuthSearchFilter(companyId,emailAddress,screenName,String.valueOf(userId));
-    SearchControls cons=new SearchControls(SearchControls.SUBTREE_SCOPE,1,0,null,false,false);
-    NamingEnumeration<SearchResult> enu=ctx.search(baseDN,filter,cons);
-    if (enu.hasMoreElements()) {
-      if (_log.isDebugEnabled()) {
-        _log.debug("Search filter returned at least one result");
-      }
-      SearchResult result=enu.nextElement();
-      String fullUserDN=PortalLDAPUtil.getNameInNamespace(companyId,result);
-      Attributes attrs=PortalLDAPUtil.getUserAttributes(companyId,ctx,fullUserDN);
-      LDAPAuthResult ldapAuthResult=authenticate(ctx,companyId,attrs,fullUserDN,password);
-      String errorMessage=ldapAuthResult.getErrorMessage();
-      if (errorMessage != null) {
-        if (errorMessage.indexOf(PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_ERROR_USER_LOCKOUT)) != -1) {
-          throw new UserLockoutException();
-        }
- else         if (errorMessage.indexOf(PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_ERROR_PASSWORD_EXPIRED)) != -1) {
-          throw new PasswordExpiredException();
-        }
-      }
-      if (!ldapAuthResult.isAuthenticated()) {
-        return authenticateRequired(companyId,userId,emailAddress,screenName,false,FAILURE);
-      }
-      User user=PortalLDAPUtil.importLDAPUser(companyId,ctx,attrs,password,true);
-      String resultCode=ldapAuthResult.getResponseControl();
-      if (resultCode.equals(LDAPAuth.RESULT_PASSWORD_RESET)) {
-        UserLocalServiceUtil.updatePasswordReset(user.getUserId(),true);
-      }
- else       if (resultCode.equals(LDAPAuth.RESULT_PASSWORD_EXP_WARNING)) {
-        UserLocalServiceUtil.updatePasswordReset(user.getUserId(),true);
-      }
-    }
- else {
-      if (_log.isDebugEnabled()) {
-        _log.debug("Search filter did not return any results");
-      }
-      return authenticateRequired(companyId,userId,emailAddress,screenName,true,DNE);
-    }
-    enu.close();
-  }
- catch (  Exception e) {
-    _log.error("Problem accessing LDAP server: " + e.getMessage());
-    int authResult=authenticateRequired(companyId,userId,emailAddress,screenName,true,FAILURE);
-    if (authResult == FAILURE) {
-      throw e;
+  for (  long ldapServerId : ldapServerIds) {
+    int result=authenticate(companyId,ldapServerId,emailAddress,screenName,userId,password);
+    if (result == SUCCESS) {
+      return result;
     }
   }
- finally {
-    if (ctx != null) {
-      ctx.close();
-    }
-  }
-  return SUCCESS;
+  return authenticateRequired(companyId,userId,emailAddress,screenName,true,FAILURE);
 }
