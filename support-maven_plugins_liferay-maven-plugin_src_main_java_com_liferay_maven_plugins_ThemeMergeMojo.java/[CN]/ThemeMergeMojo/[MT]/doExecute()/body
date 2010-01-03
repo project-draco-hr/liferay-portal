@@ -1,0 +1,58 @@
+{
+  if (!workDir.exists()) {
+    workDir.mkdirs();
+  }
+  String parentThemeGroupId="com.liferay.portal";
+  String parentThemeArtifactId="portal-web";
+  String parentThemeVersion=liferayVersion;
+  String[] excludes={"html/themes/classic/_diffs/**","html/themes/control_panel/_diffs/**"};
+  String[] includes={"html/themes/_unstyled/**","html/themes/_styled/**","html/themes/classic/**","html/themes/control_panel/**"};
+  if (!parentTheme.equals("_styled") && !parentTheme.equals("_unstyled") && !parentTheme.equals("classic")&& !parentTheme.equals("control_panel")) {
+    String[] parentThemeArray=parentTheme.split(":");
+    parentThemeGroupId=parentThemeArray[0];
+    parentThemeArtifactId=parentThemeArray[1];
+    parentThemeVersion=parentThemeArray[2];
+    excludes=new String[]{"WEB-INF/**"};
+  }
+  Artifact artifact=artifactFactory.createArtifact(parentThemeGroupId,parentThemeArtifactId,parentThemeVersion,"","war");
+  artifactResolver.resolve(artifact,remoteArtifactRepositories,localArtifactRepository);
+  UnArchiver unArchiver=archiverManager.getUnArchiver(artifact.getFile());
+  unArchiver.setDestDirectory(workDir);
+  unArchiver.setSourceFile(artifact.getFile());
+  IncludeExcludeFileSelector includeExcludeFileSelector=new IncludeExcludeFileSelector();
+  includeExcludeFileSelector.setExcludes(excludes);
+  includeExcludeFileSelector.setIncludes(includes);
+  unArchiver.setFileSelectors(new FileSelector[]{includeExcludeFileSelector});
+  unArchiver.extract();
+  webappDirectory.mkdirs();
+  if (parentThemeArtifactId.equals("portal-web")) {
+    FileUtils.copyDirectory(new File(workDir,"html/themes/_unstyled"),webappDirectory);
+    getLog().info("Copying html/themes/_unstyled to " + webappDirectory);
+    if (!"_unstyled".equals(parentTheme)) {
+      FileUtils.copyDirectory(new File(workDir,"html/themes/_styled"),webappDirectory);
+      getLog().info("Copying html/themes/_styled to " + webappDirectory);
+    }
+    if (!"_unstyled".equals(parentTheme) && !"_styled".equals(parentTheme)) {
+      FileUtils.copyDirectory(new File(workDir,"html/themes/" + parentTheme),webappDirectory);
+      getLog().info("Copying html/themes/" + parentTheme + " to "+ webappDirectory);
+    }
+  }
+ else {
+    FileUtils.copyDirectory(workDir,webappDirectory);
+  }
+  File initFile=new File(webappDirectory,"templates/init." + themeType);
+  FileUtils.deleteQuietly(initFile);
+  File templatesDirectory=new File(webappDirectory,"templates/");
+  String[] extensions=null;
+  if (themeType.equals("ftl")) {
+    extensions=new String[]{"vm"};
+  }
+ else {
+    extensions=new String[]{"ftl"};
+  }
+  Iterator<File> itr=FileUtils.iterateFiles(templatesDirectory,extensions,false);
+  while (itr.hasNext()) {
+    File file=itr.next();
+    FileUtils.deleteQuietly(file);
+  }
+}
