@@ -1,0 +1,35 @@
+{
+  Entry<K,V> matchEntry=null;
+  boolean needMove=false;
+  _readLock.lock();
+  try {
+    matchEntry=_lastEntry._previousEntry;
+    while (matchEntry != _headEntry) {
+      if (matchEntry._key.equals(key)) {
+        if (matchEntry._nextEntry != _lastEntry) {
+          needMove=true;
+        }
+        _hitCount.getAndIncrement();
+        return matchEntry._value;
+      }
+      matchEntry=matchEntry._previousEntry;
+    }
+  }
+  finally {
+    _readLock.unlock();
+    if (needMove) {
+      _writeLock.lock();
+      try {
+        if (matchEntry._key != null) {
+          detachEntry(matchEntry);
+          insertEntryBefore(_lastEntry,matchEntry);
+        }
+      }
+  finally {
+        _writeLock.unlock();
+      }
+    }
+  }
+  _missCount.getAndIncrement();
+  return null;
+}
