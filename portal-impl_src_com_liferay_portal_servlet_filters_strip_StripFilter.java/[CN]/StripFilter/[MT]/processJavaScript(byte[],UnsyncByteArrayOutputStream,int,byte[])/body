@@ -11,13 +11,25 @@
   if (Validator.isNull(content)) {
     return newBeginIndex;
   }
-  content=MinifierUtil.minifyJavaScript(content);
-  if (Validator.isNull(content)) {
+  String key;
+  MessageDigest messageDigest=_THREAD_LOCAL_MESSAGE_DIGEST.get();
+  if (messageDigest == null) {
+    key=Integer.toString(content.hashCode());
+  }
+ else {
+    key=new String(messageDigest.digest(content.getBytes()));
+  }
+  String cachedContent=_concurrentLRUCache.get(key);
+  if (cachedContent == null) {
+    cachedContent=MinifierUtil.minifyJavaScript(content);
+    _concurrentLRUCache.put(key,cachedContent);
+  }
+  if (Validator.isNull(cachedContent)) {
     return newBeginIndex;
   }
   newBytes.write(_SCRIPT_TYPE_JAVASCRIPT);
   newBytes.write(_CDATA_OPEN);
-  newBytes.write(content.getBytes());
+  newBytes.write(cachedContent.getBytes());
   newBytes.write(_CDATA_CLOSE);
   newBytes.write(_MARKER_SCRIPT_CLOSE);
   return newBeginIndex;
