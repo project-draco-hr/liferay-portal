@@ -1,0 +1,55 @@
+{
+  final CyclicBarrier cyclicBarrier=new CyclicBarrier(2);
+  final Thread parentThread=Thread.currentThread();
+  Thread childThread=new Thread(){
+    public void run(){
+      try {
+        ThreadLocal<Boolean> threadLocal=ThreadLocalRegistry.createAndRegisterThreadLocal(Boolean.FALSE);
+        ThreadLocal<?>[] threadLocals=ThreadLocalRegistry.captureSnapshot();
+        assertEquals(1,threadLocals.length);
+        assertFalse((Boolean)threadLocals[0].get());
+        threadLocal.set(Boolean.TRUE);
+        threadLocals=ThreadLocalRegistry.captureSnapshot();
+        assertEquals(1,threadLocals.length);
+        assertTrue((Boolean)threadLocals[0].get());
+        cyclicBarrier.await();
+        cyclicBarrier.await();
+        threadLocals=ThreadLocalRegistry.captureSnapshot();
+        assertEquals(1,threadLocals.length);
+        assertTrue((Boolean)threadLocals[0].get());
+        cyclicBarrier.await();
+        cyclicBarrier.await();
+        threadLocals=ThreadLocalRegistry.captureSnapshot();
+        assertEquals(1,threadLocals.length);
+        assertTrue((Boolean)threadLocals[0].get());
+      }
+ catch (      Exception ex) {
+        parentThread.interrupt();
+      }
+    }
+  }
+;
+  childThread.start();
+  cyclicBarrier.await();
+  ThreadLocal<?>[] threadLocals=ThreadLocalRegistry.captureSnapshot();
+  assertEquals(0,threadLocals.length);
+  ThreadLocal<Integer> threadLocal=ThreadLocalRegistry.createAndRegisterThreadLocal(0);
+  threadLocals=ThreadLocalRegistry.captureSnapshot();
+  assertEquals(1,threadLocals.length);
+  assertEquals(0,threadLocals[0].get());
+  threadLocal.set(1);
+  threadLocals=ThreadLocalRegistry.captureSnapshot();
+  assertEquals(1,threadLocals.length);
+  assertEquals(1,threadLocals[0].get());
+  cyclicBarrier.await();
+  threadLocals=ThreadLocalRegistry.captureSnapshot();
+  assertEquals(1,threadLocals.length);
+  assertEquals(1,threadLocals[0].get());
+  cyclicBarrier.await();
+  ThreadLocalRegistry.resetThreadLocals();
+  threadLocals=ThreadLocalRegistry.captureSnapshot();
+  assertEquals(1,threadLocals.length);
+  assertEquals(0,threadLocals[0].get());
+  cyclicBarrier.await();
+  childThread.join();
+}
