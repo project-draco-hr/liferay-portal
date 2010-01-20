@@ -17,10 +17,12 @@
   Map<Locale,String> localeNamesMap=LocalizationUtil.getLocalizationMap(actionRequest,"name");
   Map<Locale,String> localeTitlesMap=LocalizationUtil.getLocalizationMap(actionRequest,"title");
   ServiceContext serviceContext=ServiceContextFactory.getInstance(Layout.class.getName(),actionRequest);
+  Layout layout=null;
+  String oldFriendlyURL=StringPool.BLANK;
   if (cmd.equals(Constants.ADD)) {
     if (inheritFromParentLayoutId && (parentLayoutId > 0)) {
       Layout parentLayout=LayoutLocalServiceUtil.getLayout(groupId,privateLayout,parentLayoutId);
-      Layout layout=LayoutServiceUtil.addLayout(groupId,privateLayout,parentLayoutId,localeNamesMap,localeTitlesMap,description,parentLayout.getType(),parentLayout.isHidden(),friendlyURL,serviceContext);
+      layout=LayoutServiceUtil.addLayout(groupId,privateLayout,parentLayoutId,localeNamesMap,localeTitlesMap,description,parentLayout.getType(),parentLayout.isHidden(),friendlyURL,serviceContext);
       LayoutServiceUtil.updateLayout(layout.getGroupId(),layout.isPrivateLayout(),layout.getLayoutId(),parentLayout.getTypeSettings());
       if (parentLayout.getType().equals(LayoutConstants.TYPE_PORTLET)) {
         ActionUtil.copyPreferences(actionRequest,layout,parentLayout);
@@ -29,7 +31,7 @@
  else     if (layoutPrototypeId > 0) {
       LayoutPrototype layoutPrototype=LayoutPrototypeServiceUtil.getLayoutPrototype(layoutPrototypeId);
       Layout layoutPrototypeLayout=layoutPrototype.getLayout();
-      Layout layout=LayoutServiceUtil.addLayout(groupId,privateLayout,parentLayoutId,localeNamesMap,localeTitlesMap,description,LayoutConstants.TYPE_PORTLET,false,friendlyURL,serviceContext);
+      layout=LayoutServiceUtil.addLayout(groupId,privateLayout,parentLayoutId,localeNamesMap,localeTitlesMap,description,LayoutConstants.TYPE_PORTLET,false,friendlyURL,serviceContext);
       LayoutServiceUtil.updateLayout(layout.getGroupId(),layout.isPrivateLayout(),layout.getLayoutId(),layoutPrototypeLayout.getTypeSettings());
       ActionUtil.copyPreferences(actionRequest,layout,layoutPrototypeLayout);
     }
@@ -38,8 +40,13 @@
     }
   }
  else {
-    Layout layout=LayoutLocalServiceUtil.getLayout(groupId,privateLayout,layoutId);
+    ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+    layout=LayoutLocalServiceUtil.getLayout(groupId,privateLayout,layoutId);
+    String tempOldFriendlyURL=layout.getFriendlyURL();
     layout=LayoutServiceUtil.updateLayout(groupId,privateLayout,layoutId,layout.getParentLayoutId(),localeNamesMap,localeTitlesMap,description,type,hidden,friendlyURL,Boolean.valueOf(iconImage),iconBytes,serviceContext);
+    if (!tempOldFriendlyURL.equals(layout.getFriendlyURL())) {
+      oldFriendlyURL=tempOldFriendlyURL;
+    }
     UnicodeProperties formTypeSettingsProperties=getTypeSettingsProperties(actionRequest);
     if (type.equals(LayoutConstants.TYPE_PORTLET)) {
       if ((copyLayoutId > 0) && (copyLayoutId != layout.getLayoutId())) {
@@ -69,4 +76,5 @@
     String[] eventClasses=StringUtil.split(PropsUtil.get(PropsKeys.LAYOUT_CONFIGURATION_ACTION_UPDATE,new Filter(type)));
     EventsProcessorUtil.process(PropsKeys.LAYOUT_CONFIGURATION_ACTION_UPDATE,eventClasses,uploadRequest,response);
   }
+  return new Object[]{layout,oldFriendlyURL};
 }
