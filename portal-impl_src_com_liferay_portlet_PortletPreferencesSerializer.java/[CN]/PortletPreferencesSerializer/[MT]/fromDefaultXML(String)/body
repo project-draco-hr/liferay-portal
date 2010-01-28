@@ -4,26 +4,32 @@
     return preferences;
   }
   Map<String,Preference> preferencesMap=preferences.getPreferences();
+  XMLEventReader xmlEventReader=null;
   try {
-    Document doc=SAXReaderUtil.read(xml);
-    Element root=doc.getRootElement();
-    Iterator<Element> itr1=root.elements("preference").iterator();
-    while (itr1.hasNext()) {
-      Element prefEl=itr1.next();
-      String name=prefEl.elementTextTrim("name");
-      List<String> values=new ArrayList<String>();
-      Iterator<Element> itr2=prefEl.elements("value").iterator();
-      while (itr2.hasNext()) {
-        Element valueEl=itr2.next();
-        values.add(valueEl.getTextTrim());
+    xmlEventReader=_xmlInputFactory.createXMLEventReader(new UnsyncStringReader(xml));
+    while (xmlEventReader.hasNext()) {
+      XMLEvent xmlEvent=xmlEventReader.nextEvent();
+      if (xmlEvent.isStartElement()) {
+        StartElement startElement=xmlEvent.asStartElement();
+        String elementName=startElement.getName().getLocalPart();
+        if ("preference".equals(elementName)) {
+          Preference preference=_readPreference(xmlEventReader);
+          preferencesMap.put(preference.getName(),preference);
+        }
       }
-      boolean readOnly=GetterUtil.getBoolean(prefEl.elementText("read-only"));
-      Preference preference=new Preference(name,values.toArray(new String[values.size()]),readOnly);
-      preferencesMap.put(name,preference);
     }
     return preferences;
   }
- catch (  DocumentException de) {
-    throw new SystemException(de);
+ catch (  XMLStreamException xse) {
+    throw new SystemException(xse);
+  }
+ finally {
+    if (xmlEventReader != null) {
+      try {
+        xmlEventReader.close();
+      }
+ catch (      XMLStreamException e) {
+      }
+    }
   }
 }
