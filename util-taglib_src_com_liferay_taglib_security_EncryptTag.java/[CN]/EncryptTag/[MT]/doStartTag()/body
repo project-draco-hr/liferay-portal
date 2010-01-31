@@ -1,16 +1,62 @@
 {
-  Thread currentThread=Thread.currentThread();
-  ClassLoader contextClassLoader=currentThread.getContextClassLoader();
   try {
-    currentThread.setContextClassLoader(PortalClassLoaderUtil.getClassLoader());
-    MethodWrapper methodWrapper=new MethodWrapper(_TAG_CLASS,_TAG_DO_START_METHOD,new Object[]{_className,_style,_protocol,_unencryptedParamsSet,_url,_target,pageContext});
-    MethodInvoker.invoke(methodWrapper);
+    StringBuilder sb=new StringBuilder();
+    sb.append("<a ");
+    if (Validator.isNotNull(_className)) {
+      sb.append("class=\"");
+      sb.append(_className);
+      sb.append("\" ");
+    }
+    sb.append("href=\"");
+    sb.append(_protocol);
+    sb.append(Http.PROTOCOL_DELIMITER);
+    int pos=_url.indexOf(StringPool.QUESTION);
+    if (pos == -1) {
+      sb.append(_url);
+    }
+ else {
+      sb.append(_url.substring(0,pos));
+      sb.append(StringPool.QUESTION);
+      Company company=PortalUtil.getCompany((HttpServletRequest)pageContext.getRequest());
+      Key key=company.getKeyObj();
+      StringTokenizer st=new StringTokenizer(_url.substring(pos + 1,_url.length()),StringPool.AMPERSAND);
+      while (st.hasMoreTokens()) {
+        String paramAndValue=st.nextToken();
+        int x=paramAndValue.indexOf(StringPool.EQUAL);
+        String param=paramAndValue.substring(0,x);
+        String value=paramAndValue.substring(x + 1,paramAndValue.length());
+        sb.append(param).append(StringPool.EQUAL);
+        if (_unencryptedParamsSet.contains(param)) {
+          sb.append(HttpUtil.encodeURL(value));
+        }
+ else {
+          try {
+            sb.append(HttpUtil.encodeURL(Encryptor.encrypt(key,value)));
+          }
+ catch (          EncryptorException ee) {
+            _log.error(ee.getMessage());
+          }
+          if (st.hasMoreTokens()) {
+            sb.append(StringPool.AMPERSAND);
+          }
+        }
+      }
+      sb.append("&shuo=1");
+    }
+    sb.append("\" ");
+    if (Validator.isNotNull(_style)) {
+      sb.append("style=\"");
+      sb.append(_style);
+      sb.append("\" ");
+    }
+    if (Validator.isNotNull(_target)) {
+      sb.append("target=\"" + _target + "\"");
+    }
+    sb.append(">");
+    pageContext.getOut().print(sb.toString());
+    return EVAL_BODY_INCLUDE;
   }
  catch (  Exception e) {
     throw new JspException(e);
   }
- finally {
-    currentThread.setContextClassLoader(contextClassLoader);
-  }
-  return EVAL_BODY_INCLUDE;
 }
