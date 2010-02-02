@@ -84,9 +84,8 @@
     }
  catch (    ParseException pe) {
       if (_log.isDebugEnabled()) {
-        _log.debug("Unable to parse LDAP modify timestamp " + modifiedDate);
+        _log.debug("Unable to parse LDAP modify timestamp " + modifiedDate,pe);
       }
-      _log.debug(pe,pe);
     }
     if (Validator.isNull(screenName)) {
       autoScreenName=true;
@@ -126,35 +125,38 @@ catch (  Exception e) {
       _log.error("Problem adding user with screen name " + screenName + " and email address "+ emailAddress,e);
     }
   }
-  if (importGroupMembership && (user != null)) {
-    String userMappingsGroup=userMappings.getProperty("group");
-    if (userMappingsGroup != null) {
-      Attribute attribute=attributes.get(userMappingsGroup);
-      if (attribute != null) {
-        attribute.clear();
-        Properties groupMappings=LDAPSettingsUtil.getGroupMappings(ldapServerId,companyId);
-        String postfix=LDAPSettingsUtil.getPropertyPostfix(ldapServerId);
-        String baseDN=PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_BASE_DN + postfix);
-        Binding binding=PortalLDAPUtil.getUser(ldapServerId,companyId,screenName);
-        String fullUserDN=PortalLDAPUtil.getNameInNamespace(ldapServerId,companyId,binding);
-        StringBuilder sb=new StringBuilder();
-        sb.append(StringPool.OPEN_PARENTHESIS);
-        sb.append(StringPool.AMPERSAND);
-        sb.append(PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_IMPORT_GROUP_SEARCH_FILTER + postfix));
-        sb.append(StringPool.OPEN_PARENTHESIS);
-        sb.append(groupMappings.getProperty("user"));
-        sb.append(StringPool.EQUAL);
-        sb.append(fullUserDN);
-        sb.append(StringPool.CLOSE_PARENTHESIS);
-        sb.append(StringPool.CLOSE_PARENTHESIS);
-        List<SearchResult> results=PortalLDAPUtil.searchLDAP(companyId,ctx,0,baseDN,sb.toString(),null);
-        for (        SearchResult result : results) {
-          String fullGroupDN=PortalLDAPUtil.getNameInNamespace(ldapServerId,companyId,result);
-          attribute.add(fullGroupDN);
-        }
-        _importGroupsAndMembershipFromLDAPUser(ldapServerId,companyId,ctx,user.getUserId(),attribute);
-      }
-    }
+  if (!importGroupMembership || (user == null)) {
+    return user;
   }
+  String userMappingsGroup=userMappings.getProperty("group");
+  if (userMappingsGroup == null) {
+    return user;
+  }
+  Attribute attribute=attributes.get(userMappingsGroup);
+  if (attribute == null) {
+    return user;
+  }
+  attribute.clear();
+  Properties groupMappings=LDAPSettingsUtil.getGroupMappings(ldapServerId,companyId);
+  String postfix=LDAPSettingsUtil.getPropertyPostfix(ldapServerId);
+  String baseDN=PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_BASE_DN + postfix);
+  Binding binding=PortalLDAPUtil.getUser(ldapServerId,companyId,screenName);
+  String fullUserDN=PortalLDAPUtil.getNameInNamespace(ldapServerId,companyId,binding);
+  StringBundler sb=new StringBundler(9);
+  sb.append(StringPool.OPEN_PARENTHESIS);
+  sb.append(StringPool.AMPERSAND);
+  sb.append(PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_IMPORT_GROUP_SEARCH_FILTER + postfix));
+  sb.append(StringPool.OPEN_PARENTHESIS);
+  sb.append(groupMappings.getProperty("user"));
+  sb.append(StringPool.EQUAL);
+  sb.append(fullUserDN);
+  sb.append(StringPool.CLOSE_PARENTHESIS);
+  sb.append(StringPool.CLOSE_PARENTHESIS);
+  List<SearchResult> searchResults=PortalLDAPUtil.searchLDAP(companyId,ldapContext,0,baseDN,sb.toString(),null);
+  for (  SearchResult searchResult : searchResults) {
+    String fullGroupDN=PortalLDAPUtil.getNameInNamespace(ldapServerId,companyId,searchResult);
+    attribute.add(fullGroupDN);
+  }
+  _importGroupsAndMembershipFromLDAPUser(ldapServerId,companyId,ldapContext,user.getUserId(),attribute);
   return user;
 }
