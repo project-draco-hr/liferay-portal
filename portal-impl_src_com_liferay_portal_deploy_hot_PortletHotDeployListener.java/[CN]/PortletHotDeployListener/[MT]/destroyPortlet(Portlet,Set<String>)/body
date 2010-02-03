@@ -16,6 +16,25 @@
   if (scheduler != null) {
     scheduler.unschedule();
   }
+  List<SchedulerEntry> schedulerEntries=portlet.getSchedulerEntries();
+  if (schedulerEntries != null && schedulerEntries.size() > 0) {
+    for (    SchedulerEntry schedulerEntry : schedulerEntries) {
+      try {
+        com.liferay.portal.kernel.messaging.MessageListener schedulerEventListener=schedulerEntry.getEventListener();
+        if (schedulerEventListener == null) {
+          throw new SystemException("Unable to create scheduler listener " + "from class:" + schedulerEntry.getEventListenerClass());
+        }
+        MessageBusUtil.unregisterMessageListener(DestinationNames.SCHEDULER_DISPATCH,schedulerEventListener);
+        SchedulerEngineUtil.unschedule(schedulerEntry.getTrigger());
+      }
+ catch (      Exception ex) {
+        if (_log.isErrorEnabled()) {
+          _log.error("Failed to remove scheduler for " + "portlet:" + portlet.getPortletName(),ex);
+        }
+        continue;
+      }
+    }
+  }
   PollerProcessorUtil.deletePollerProcessor(portlet.getPortletId());
   POPServerUtil.deleteListener(portlet.getPopMessageListenerInstance());
   SocialActivityInterpreterLocalServiceUtil.deleteActivityInterpreter(portlet.getSocialActivityInterpreterInstance());

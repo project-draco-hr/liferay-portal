@@ -39,6 +39,27 @@
     schedulerInstance=(Scheduler)portletClassLoader.loadClass(portlet.getSchedulerClass()).newInstance();
     schedulerInstance.schedule();
   }
+  if (PropsValues.SCHEDULER_ENABLED) {
+    List<SchedulerEntry> schedulerEntries=portlet.getSchedulerEntries();
+    if (schedulerEntries != null && schedulerEntries.size() > 0) {
+      for (      SchedulerEntry schedulerEntry : schedulerEntries) {
+        try {
+          com.liferay.portal.kernel.messaging.MessageListener schedulerEventListener=schedulerEntry.getEventListener();
+          if (schedulerEventListener == null) {
+            throw new SystemException("Unable to create scheduler listener " + "from class:" + schedulerEntry.getEventListenerClass());
+          }
+          MessageBusUtil.registerMessageListener(DestinationNames.SCHEDULER_DISPATCH,schedulerEventListener);
+          SchedulerEngineUtil.schedule(schedulerEntry.getTrigger(),schedulerEntry.getDescription(),DestinationNames.SCHEDULER_DISPATCH,null);
+        }
+ catch (        Exception ex) {
+          if (_log.isErrorEnabled()) {
+            _log.error("Failed to create scheduler for portlet:" + portlet.getPortletName(),ex);
+          }
+          continue;
+        }
+      }
+    }
+  }
   FriendlyURLMapper friendlyURLMapperInstance=null;
   if (Validator.isNotNull(portlet.getFriendlyURLMapperClass())) {
     friendlyURLMapperInstance=(FriendlyURLMapper)portletClassLoader.loadClass(portlet.getFriendlyURLMapperClass()).newInstance();
