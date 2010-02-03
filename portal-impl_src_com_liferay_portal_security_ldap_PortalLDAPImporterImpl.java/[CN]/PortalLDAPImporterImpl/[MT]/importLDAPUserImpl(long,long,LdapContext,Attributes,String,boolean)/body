@@ -1,0 +1,24 @@
+{
+  AttributesTransformer attributesTransformer=AttributesTransformerFactory.getInstance();
+  attributes=attributesTransformer.transformUser(attributes);
+  Properties userMappings=LDAPSettingsUtil.getUserMappings(ldapServerId,companyId);
+  Properties contactMappings=LDAPSettingsUtil.getContactMappings(ldapServerId,companyId);
+  LogUtil.debug(_log,userMappings);
+  LDAPUserHolder ldapUserHolder=_ldapToPortalConverter.importLDAPUser(attributes,userMappings,contactMappings,companyId,password);
+  User user=findLiferayUser(ldapUserHolder,companyId);
+  if ((user != null) && user.isDefaultUser()) {
+    return user;
+  }
+  if (user != null) {
+    String modifiedDate=LDAPUtil.getAttributeValue(attributes,"modifyTimestamp");
+    user=updateLiferayUser(ldapUserHolder,companyId,user,modifiedDate,password);
+  }
+ else {
+    user=createLiferayUser(ldapUserHolder,companyId,password);
+  }
+  if (!importGroupMembership || (user == null)) {
+    return user;
+  }
+  importGroupsAndMembershipFromLDAPUser(ldapServerId,companyId,ldapContext,attributes,userMappings,ldapUserHolder,user);
+  return user;
+}

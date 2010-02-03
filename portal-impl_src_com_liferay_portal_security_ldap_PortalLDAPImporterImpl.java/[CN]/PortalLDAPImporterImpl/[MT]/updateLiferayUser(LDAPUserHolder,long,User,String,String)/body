@@ -1,0 +1,60 @@
+{
+  Date ldapUserModifiedDate=null;
+  try {
+    if (Validator.isNull(modifiedDate)) {
+      if (_log.isInfoEnabled()) {
+        _log.info("LDAP entry never modified, skipping user " + existingUser.getEmailAddress());
+      }
+      return existingUser;
+    }
+ else {
+      DateFormat dateFormat=DateFormatFactoryUtil.getSimpleDateFormat("yyyyMMddHHmmss");
+      ldapUserModifiedDate=dateFormat.parse(modifiedDate);
+    }
+    if (ldapUserModifiedDate.equals(existingUser.getModifiedDate()) && ldapUserHolder.isAutoPassword()) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("User is already syncronized, skipping user " + existingUser.getEmailAddress());
+      }
+      return existingUser;
+    }
+  }
+ catch (  ParseException pe) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Unable to parse LDAP modify timestamp " + modifiedDate,pe);
+    }
+  }
+  if (Validator.isNull(ldapUserHolder.getUserData().getScreenName())) {
+    ldapUserHolder.setAutoScreenName(true);
+  }
+  if (ldapUserHolder.isAutoScreenName()) {
+    ScreenNameGenerator screenNameGenerator=(ScreenNameGenerator)InstancePool.get(PropsValues.USERS_SCREEN_NAME_GENERATOR);
+    try {
+      ldapUserHolder.getUserData().setScreenName(screenNameGenerator.generate(companyId,existingUser.getUserId(),ldapUserHolder.getUserData().getEmailAddress()));
+    }
+ catch (    Exception e) {
+      if (_log.isErrorEnabled()) {
+        _log.error("Unable to update user due to bad screen name: " + ldapUserHolder.getUserData().getEmailAddress(),e);
+      }
+      return null;
+    }
+  }
+  User user=null;
+  try {
+    Calendar birthdayCal=CalendarFactoryUtil.getCalendar();
+    birthdayCal.setTime(existingUser.getContact().getBirthday());
+    int birthdayMonth=birthdayCal.get(Calendar.MONTH);
+    int birthdayDay=birthdayCal.get(Calendar.DAY_OF_MONTH);
+    int birthdayYear=birthdayCal.get(Calendar.YEAR);
+    if (ldapUserHolder.isUpdatePassword()) {
+      UserLocalServiceUtil.updatePassword(existingUser.getUserId(),password,password,ldapUserHolder.isPasswordReset(),true);
+    }
+    user=UserLocalServiceUtil.updateUser(existingUser.getUserId(),password,StringPool.BLANK,StringPool.BLANK,ldapUserHolder.isPasswordReset(),ldapUserHolder.getReminderQueryQuestion(),ldapUserHolder.getReminderQueryAnswer(),ldapUserHolder.getScreenName(),ldapUserHolder.getEmailAddress(),ldapUserHolder.getOpenId(),ldapUserHolder.getLanguageId(),ldapUserHolder.getTimeZoneId(),ldapUserHolder.getGreeting(),ldapUserHolder.getComments(),ldapUserHolder.getFirstName(),ldapUserHolder.getMiddleName(),ldapUserHolder.getLastName(),ldapUserHolder.getPrefixId(),ldapUserHolder.getSuffixId(),ldapUserHolder.getMale(),birthdayMonth,birthdayDay,birthdayYear,ldapUserHolder.getSmsSn(),ldapUserHolder.getAimSn(),ldapUserHolder.getFacebookSn(),ldapUserHolder.getIcqSn(),ldapUserHolder.getJabberSn(),ldapUserHolder.getMsnSn(),ldapUserHolder.getMySpaceSn(),ldapUserHolder.getSkypeSn(),ldapUserHolder.getTwitterSn(),ldapUserHolder.getYmSn(),ldapUserHolder.getJobTitle(),ldapUserHolder.getGroupIds(),ldapUserHolder.getOrganizationIds(),ldapUserHolder.getRoleIds(),ldapUserHolder.getUserGroupRoles(),ldapUserHolder.getUserGroupIds(),ldapUserHolder.getServiceContext());
+    if (ldapUserModifiedDate != null) {
+      UserLocalServiceUtil.updateModifiedDate(user.getUserId(),ldapUserModifiedDate);
+    }
+  }
+ catch (  Exception e) {
+    _log.error("Error updating user with screen name " + ldapUserHolder.getScreenName() + " and email address "+ ldapUserHolder.getEmailAddress(),e);
+  }
+  return user;
+}

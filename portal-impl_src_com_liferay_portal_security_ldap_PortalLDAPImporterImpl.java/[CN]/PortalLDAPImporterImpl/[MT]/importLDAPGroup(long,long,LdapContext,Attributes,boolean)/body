@@ -1,0 +1,49 @@
+{
+  String postfix=LDAPSettingsUtil.getPropertyPostfix(ldapServerId);
+  AttributesTransformer attributesTransformer=AttributesTransformerFactory.getInstance();
+  attributes=attributesTransformer.transformGroup(attributes);
+  Properties groupMappings=LDAPSettingsUtil.getGroupMappings(ldapServerId,companyId);
+  LogUtil.debug(_log,groupMappings);
+  LDAPUserGroupHolder holder=_ldapToPortalConverter.importLDAPGroup(attributes,groupMappings,companyId);
+  UserGroup userGroup=null;
+  try {
+    userGroup=UserGroupLocalServiceUtil.getUserGroup(companyId,holder.getGroupName());
+    UserGroupLocalServiceUtil.updateUserGroup(companyId,userGroup.getUserGroupId(),holder.getGroupName(),holder.getDescription());
+  }
+ catch (  NoSuchUserGroupException nsuge) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Adding user group to portal " + holder.getGroupName());
+    }
+    long defaultUserId=UserLocalServiceUtil.getDefaultUserId(companyId);
+    try {
+      userGroup=UserGroupLocalServiceUtil.addUserGroup(defaultUserId,companyId,holder.getGroupName(),holder.getDescription());
+    }
+ catch (    Exception e) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Could not create user group " + holder.getGroupName());
+      }
+      if (_log.isDebugEnabled()) {
+        _log.debug(e,e);
+      }
+    }
+  }
+  if (!importGroupMembership || (userGroup == null)) {
+    return userGroup;
+  }
+  Attribute attribute=attributes.get(groupMappings.getProperty("user"));
+  if (attribute == null) {
+    return userGroup;
+  }
+  String baseDN=PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_BASE_DN + postfix);
+  StringBundler sb=new StringBundler(7);
+  sb.append("(&");
+  sb.append(PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_IMPORT_GROUP_SEARCH_FILTER + postfix));
+  sb.append("(");
+  sb.append(groupMappings.getProperty("groupName"));
+  sb.append("=");
+  sb.append(LDAPUtil.getAttributeValue(attributes,groupMappings.getProperty("groupName")));
+  sb.append("))");
+  attribute=PortalLDAPUtil.getMultivaluedAttribute(companyId,ldapContext,baseDN,sb.toString(),attribute);
+  importUsersAndMembershipFromLDAPGroup(ldapServerId,companyId,ldapContext,userGroup.getUserGroupId(),attribute);
+  return userGroup;
+}
