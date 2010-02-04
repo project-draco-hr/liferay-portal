@@ -1,26 +1,25 @@
 {
-  String postfix=LDAPSettingsUtil.getPropertyPostfix(ldapServerId);
   AttributesTransformer attributesTransformer=AttributesTransformerFactory.getInstance();
   attributes=attributesTransformer.transformGroup(attributes);
   Properties groupMappings=LDAPSettingsUtil.getGroupMappings(ldapServerId,companyId);
   LogUtil.debug(_log,groupMappings);
-  LDAPUserGroupHolder holder=_ldapToPortalConverter.importLDAPGroup(attributes,groupMappings,companyId);
+  LDAPGroup ldapGroup=_ldapToPortalConverter.importLDAPGroup(companyId,attributes,groupMappings);
   UserGroup userGroup=null;
   try {
-    userGroup=UserGroupLocalServiceUtil.getUserGroup(companyId,holder.getGroupName());
-    UserGroupLocalServiceUtil.updateUserGroup(companyId,userGroup.getUserGroupId(),holder.getGroupName(),holder.getDescription());
+    userGroup=UserGroupLocalServiceUtil.getUserGroup(companyId,ldapGroup.getGroupName());
+    UserGroupLocalServiceUtil.updateUserGroup(companyId,userGroup.getUserGroupId(),ldapGroup.getGroupName(),ldapGroup.getDescription());
   }
  catch (  NoSuchUserGroupException nsuge) {
     if (_log.isDebugEnabled()) {
-      _log.debug("Adding user group to portal " + holder.getGroupName());
+      _log.debug("Adding user group to portal " + ldapGroup.getGroupName());
     }
     long defaultUserId=UserLocalServiceUtil.getDefaultUserId(companyId);
     try {
-      userGroup=UserGroupLocalServiceUtil.addUserGroup(defaultUserId,companyId,holder.getGroupName(),holder.getDescription());
+      userGroup=UserGroupLocalServiceUtil.addUserGroup(defaultUserId,companyId,ldapGroup.getGroupName(),ldapGroup.getDescription());
     }
  catch (    Exception e) {
       if (_log.isWarnEnabled()) {
-        _log.warn("Could not create user group " + holder.getGroupName());
+        _log.warn("Unable to create user group " + ldapGroup.getGroupName());
       }
       if (_log.isDebugEnabled()) {
         _log.debug(e,e);
@@ -34,6 +33,7 @@
   if (attribute == null) {
     return userGroup;
   }
+  String postfix=LDAPSettingsUtil.getPropertyPostfix(ldapServerId);
   String baseDN=PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_BASE_DN + postfix);
   StringBundler sb=new StringBundler(7);
   sb.append("(&");

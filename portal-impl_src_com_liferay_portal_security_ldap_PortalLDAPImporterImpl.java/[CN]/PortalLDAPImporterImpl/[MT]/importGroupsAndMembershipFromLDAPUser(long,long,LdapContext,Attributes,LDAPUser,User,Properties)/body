@@ -1,0 +1,51 @@
+{
+  String userMappingsGroup=userMappings.getProperty("group");
+  if (Validator.isNull(userMappingsGroup)) {
+    return;
+  }
+  Attribute attribute=attributes.get(userMappingsGroup);
+  if (attribute == null) {
+    return;
+  }
+  attribute.clear();
+  Properties groupMappings=LDAPSettingsUtil.getGroupMappings(ldapServerId,companyId);
+  String postfix=LDAPSettingsUtil.getPropertyPostfix(ldapServerId);
+  String baseDN=PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_BASE_DN + postfix);
+  Binding binding=PortalLDAPUtil.getUser(ldapServerId,companyId,ldapUser.getScreenName());
+  String fullUserDN=PortalLDAPUtil.getNameInNamespace(ldapServerId,companyId,binding);
+  StringBundler sb=new StringBundler(9);
+  sb.append(StringPool.OPEN_PARENTHESIS);
+  sb.append(StringPool.AMPERSAND);
+  sb.append(PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_IMPORT_GROUP_SEARCH_FILTER + postfix));
+  sb.append(StringPool.OPEN_PARENTHESIS);
+  sb.append(groupMappings.getProperty("user"));
+  sb.append(StringPool.EQUAL);
+  sb.append(fullUserDN);
+  sb.append(StringPool.CLOSE_PARENTHESIS);
+  sb.append(StringPool.CLOSE_PARENTHESIS);
+  List<SearchResult> searchResults=PortalLDAPUtil.searchLDAP(companyId,ldapContext,0,baseDN,sb.toString(),null);
+  for (  SearchResult searchResult : searchResults) {
+    String fullGroupDN=PortalLDAPUtil.getNameInNamespace(ldapServerId,companyId,searchResult);
+    attribute.add(fullGroupDN);
+  }
+  List<Long> newUserGroupIds=new ArrayList<Long>(attribute.size());
+  for (int i=0; i < attribute.size(); i++) {
+    String fullGroupDN=(String)attribute.get(i);
+    Attributes groupAttributes=null;
+    try {
+      groupAttributes=PortalLDAPUtil.getGroupAttributes(ldapServerId,companyId,ldapContext,fullGroupDN);
+    }
+ catch (    NameNotFoundException nnfe) {
+      _log.error("LDAP group not found with fullGroupDN " + fullGroupDN,nnfe);
+      continue;
+    }
+    UserGroup userGroup=importLDAPGroup(ldapServerId,companyId,ldapContext,groupAttributes,false);
+    if (userGroup != null) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Adding " + user.getUserId() + " to group "+ userGroup.getUserGroupId());
+      }
+      newUserGroupIds.add(userGroup.getUserGroupId());
+    }
+  }
+  UserGroupLocalServiceUtil.setUserUserGroups(user.getUserId(),ArrayUtil.toArray(newUserGroupIds.toArray(new Long[newUserGroupIds.size()])));
+}
