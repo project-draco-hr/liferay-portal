@@ -1,0 +1,32 @@
+{
+  long companyId=user.getCompanyId();
+  if (!LDAPSettingsUtil.isAuthEnabled(companyId) || !LDAPSettingsUtil.isExportEnabled(companyId)) {
+    return;
+  }
+  long ldapServerId=PortalLDAPUtil.getLdapServerId(companyId,user.getScreenName());
+  LdapContext ldapContext=PortalLDAPUtil.getContext(ldapServerId,companyId);
+  try {
+    if (ldapContext == null) {
+      return;
+    }
+    Properties userMappings=LDAPSettingsUtil.getUserMappings(ldapServerId,companyId);
+    Properties userExpandoMappings=LDAPSettingsUtil.getUserExpandoMappings(ldapServerId,companyId);
+    Binding binding=PortalLDAPUtil.getUser(ldapServerId,user.getCompanyId(),user.getScreenName());
+    if (binding == null) {
+      binding=createLDAPUser(ldapServerId,ldapContext,user,userMappings);
+    }
+    Name name=new CompositeName();
+    name.add(PortalLDAPUtil.getNameInNamespace(ldapServerId,companyId,binding));
+    Modifications modifications=_portalToLDAPConverter.getLDAPUserModifications(user,userExpandoAttributes,userMappings,userExpandoMappings);
+    ModificationItem[] modificationItems=modifications.getItems();
+    ldapContext.modifyAttributes(name,modificationItems);
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+ finally {
+    if (ldapContext != null) {
+      ldapContext.close();
+    }
+  }
+}
