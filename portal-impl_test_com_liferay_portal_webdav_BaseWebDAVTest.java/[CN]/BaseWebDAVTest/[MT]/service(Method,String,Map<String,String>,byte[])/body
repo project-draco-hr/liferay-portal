@@ -1,0 +1,57 @@
+{
+  if (headers == null) {
+    headers=new HashMap<String,String>();
+  }
+  headers.put(HttpHeaders.USER_AGENT,getUserAgent());
+  try {
+    throw new Exception();
+  }
+ catch (  Exception e) {
+    StackTraceElement[] stackTrace=e.getStackTrace();
+    for (    StackTraceElement element : stackTrace) {
+      String methodName=element.getMethodName();
+      if (methodName.equals("setUpOnce") || methodName.equals("tearDownOnce") || methodName.startsWith("test")) {
+        String testName=StringUtil.extractLast(element.getClassName(),StringPool.PERIOD);
+        testName=StringUtil.replace(testName,new String[]{"WebDAV","Test"},new String[]{"",""});
+        headers.put("X-Litmus",testName + ": (" + element.getMethodName()+ ")");
+        break;
+      }
+    }
+  }
+  String requestURI=_CONTEXT_PATH + _SERVLET_PATH + _PATH_INFO_PREFACE+ path;
+  MockHttpServletRequest request=new MockHttpServletRequest(method.toString(),requestURI);
+  MockHttpServletResponse response=new MockHttpServletResponse();
+  request.setContextPath(_CONTEXT_PATH);
+  request.setServletPath(_SERVLET_PATH);
+  request.setPathInfo(_PATH_INFO_PREFACE + path);
+  if (data != null) {
+    request.setContent(data);
+    if (headers.containsKey(HttpHeaders.CONTENT_TYPE)) {
+      request.setContentType(headers.remove(HttpHeaders.CONTENT_TYPE));
+    }
+ else {
+      request.setContentType(ContentTypes.TEXT_PLAIN);
+    }
+  }
+  for (  String header : headers.keySet()) {
+    request.addHeader(header,headers.get(header));
+  }
+  try {
+    DLWebDAVStorageImpl storage=new DLWebDAVStorageImpl();
+    storage.setToken("document_library");
+    WebDAVUtil.addStorage(storage);
+    WebDAVServlet servlet=new WebDAVServlet();
+    servlet.service(request,response);
+    int statusCode=response.getStatus();
+    byte[] responseBody=response.getContentAsByteArray();
+    Map<String,String> responseHeaders=new HashMap<String,String>();
+    for (    String name : response.getHeaderNames()) {
+      responseHeaders.put(name,(String)response.getHeader(name));
+    }
+    return new Tuple(statusCode,responseBody,responseHeaders);
+  }
+ catch (  Exception e) {
+    e.printStackTrace();
+  }
+  return null;
+}
