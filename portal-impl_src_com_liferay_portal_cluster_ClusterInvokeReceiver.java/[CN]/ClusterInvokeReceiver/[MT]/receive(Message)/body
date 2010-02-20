@@ -1,0 +1,41 @@
+{
+  Address sourceAddress=message.getSrc();
+  Address localAddress=_channel.getLocalAddress();
+  if ((!localAddress.equals(sourceAddress)) || (message.getDest() != null)) {
+    Message responseMessage=new Message();
+    responseMessage.setSrc(localAddress);
+    responseMessage.setDest(sourceAddress);
+    Object payload=message.getObject();
+    if (payload instanceof MethodWrapper) {
+      MethodWrapper methodWrapper=(MethodWrapper)payload;
+      try {
+        Object result=MethodInvoker.invoke(methodWrapper);
+        if (result instanceof Serializable) {
+          responseMessage.setObject((Serializable)result);
+        }
+ else {
+          responseMessage.setObject(new ClusterException("Invoke result is not Serializable"));
+        }
+      }
+ catch (      Exception ex) {
+        responseMessage.setObject(ex);
+      }
+    }
+ else {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Receive a bad invoke message, " + "the message payload has to be MethodWrapper.");
+      }
+    }
+    try {
+      _channel.send(responseMessage);
+    }
+ catch (    ChannelException ce) {
+      _log.error("Unable to send response message:" + responseMessage,ce);
+    }
+  }
+ else {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Block received message " + message);
+    }
+  }
+}
