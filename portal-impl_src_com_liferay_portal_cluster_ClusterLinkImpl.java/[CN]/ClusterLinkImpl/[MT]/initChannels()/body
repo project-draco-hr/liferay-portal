@@ -1,2 +1,23 @@
 {
+  Properties controlProperty=PropsUtil.getProperties(PropsKeys.CLUSTER_LINK_CHANNEL_PROPERTIES_CONTROL,false);
+  _controlChannel=createChannel(controlProperty.getProperty(PropsKeys.CLUSTER_LINK_CHANNEL_PROPERTIES_CONTROL),new ClusterInvokeReceiver(_controlChannel),_LIFERAY_CONTROL_CHANNEL);
+  Properties transportProperties=PropsUtil.getProperties(PropsKeys.CLUSTER_LINK_CHANNEL_PROPERTIES_TRANSPORT,true);
+  _channelCount=transportProperties.size();
+  if ((_channelCount <= 0) || (_channelCount > _MAX_CHANNEL_COUNT)) {
+    throw new IllegalArgumentException("Channel count must be between 1 and " + _MAX_CHANNEL_COUNT);
+  }
+  _localTransportAddresses=new ArrayList<org.jgroups.Address>(_channelCount);
+  _transportChannels=new ArrayList<JChannel>(_channelCount);
+  List<String> keys=new ArrayList<String>(_channelCount);
+  for (  Object key : transportProperties.keySet()) {
+    keys.add((String)key);
+  }
+  Collections.sort(keys);
+  for (int i=0; i < keys.size(); i++) {
+    String customName=keys.get(i);
+    String value=transportProperties.getProperty(customName);
+    JChannel channel=createChannel(value,new ClusterForwardReceiver(_localTransportAddresses,_clusterForwardMessageListener),_LIFERAY_TRANSPORT_CHANNEL + i);
+    _localTransportAddresses.add(channel.getLocalAddress());
+    _transportChannels.add(channel);
+  }
 }
