@@ -93,7 +93,25 @@
   if (is == null) {
     fileEntry.setVersion(version);
     dlFileEntryPersistence.update(fileEntry,false);
-    is=dlLocalService.getFileAsStream(user.getCompanyId(),fileEntry.getRepositoryId(),name);
+    int failedFetches=0;
+    while (is == null) {
+      try {
+        is=dlLocalService.getFileAsStream(user.getCompanyId(),fileEntry.getRepositoryId(),name);
+      }
+ catch (      NoSuchFileException nsfe) {
+        failedFetches++;
+        if (PropsValues.DL_HOOK_IMPL.equals(JCRHook.class.getName()) && (failedFetches < JCRHook.MAX_FAILED_FETCHES)) {
+          try {
+            Thread.sleep(JCRHook.FETCH_DELAY);
+          }
+ catch (          InterruptedException ie) {
+          }
+        }
+ else {
+          throw nsfe;
+        }
+      }
+    }
     dlLocalService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,fileEntry.getGroupId(),fileEntry.getRepositoryId(),name,false,version,name,fileEntry.getFileEntryId(),fileEntry.getLuceneProperties(),fileEntry.getModifiedDate(),serviceContext,is);
     return fileEntry;
   }
