@@ -1,0 +1,36 @@
+{
+  String serverUri=null;
+  try {
+    HttpClient client=new HttpClient();
+    HttpMethodBase method=new HeadMethod(targetUri);
+    client.executeMethod(method);
+    Header header=method.getResponseHeader("X-Pingback");
+    if (header != null) {
+      serverUri=header.getValue();
+    }
+  }
+ catch (  Exception e) {
+    _log.error("Unable to call HEAD of " + targetUri,e);
+  }
+  if (Validator.isNull(serverUri)) {
+    try {
+      HttpClient client=new HttpClient();
+      HttpMethodBase method=new GetMethod(targetUri);
+      client.executeMethod(method);
+      Source clientSource=new Source(method.getResponseBodyAsString());
+      List<StartTag> tags=clientSource.getAllStartTags("link");
+      for (      StartTag tag : tags) {
+        String rel=tag.getAttributeValue("rel");
+        if (rel.equalsIgnoreCase("pingback")) {
+          String href=tag.getAttributeValue("href");
+          serverUri=HtmlUtil.escape(href);
+          break;
+        }
+      }
+    }
+ catch (    Exception e) {
+      _log.error("Unable to call GET of " + targetUri,e);
+    }
+  }
+  return serverUri;
+}

@@ -1,0 +1,40 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  long groupId=serviceContext.getScopeGroupId();
+  Date displayDate=PortalUtil.getDate(displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,user.getTimeZone(),new EntryDisplayDateException());
+  Date now=new Date();
+  validate(title,content);
+  long entryId=counterLocalService.increment();
+  BlogsEntry entry=blogsEntryPersistence.create(entryId);
+  entry.setUuid(uuid);
+  entry.setGroupId(groupId);
+  entry.setCompanyId(user.getCompanyId());
+  entry.setUserId(user.getUserId());
+  entry.setUserName(user.getFullName());
+  entry.setCreateDate(now);
+  entry.setModifiedDate(now);
+  entry.setTitle(title);
+  entry.setUrlTitle(getUniqueUrlTitle(entryId,groupId,title));
+  entry.setContent(content);
+  entry.setDisplayDate(displayDate);
+  entry.setAllowPingbacks(allowPingbacks);
+  entry.setAllowTrackbacks(allowTrackbacks);
+  entry.setStatus(serviceContext.getStatus());
+  entry.setStatusByUserId(user.getUserId());
+  entry.setStatusByUserName(user.getFullName());
+  entry.setStatusDate(now);
+  entry.setExpandoBridgeAttributes(serviceContext);
+  blogsEntryPersistence.update(entry,false);
+  if (serviceContext.getAddCommunityPermissions() || serviceContext.getAddGuestPermissions()) {
+    addEntryResources(entry,serviceContext.getAddCommunityPermissions(),serviceContext.getAddGuestPermissions());
+  }
+ else {
+    addEntryResources(entry,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
+  }
+  updateAsset(userId,entry,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
+  if (PropsValues.BLOGS_ENTRY_COMMENTS_ENABLED) {
+    mbMessageLocalService.addDiscussionMessage(userId,entry.getUserName(),BlogsEntry.class.getName(),entryId,StatusConstants.APPROVED);
+  }
+  updateWorkflowStatus(userId,entryId,trackbacks,false,serviceContext);
+  return entry;
+}
