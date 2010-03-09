@@ -9,28 +9,19 @@
       response.sendRedirect(logoutUrl);
     }
  else {
-      String login=(String)session.getAttribute(LOGIN);
-      String serviceUrl=PrefsPropsUtil.getString(companyId,PropsKeys.CAS_SERVICE_URL,PropsValues.CAS_SERVICE_URL);
-      String loginUrl=PrefsPropsUtil.getString(companyId,PropsKeys.CAS_LOGIN_URL,PropsValues.CAS_LOGIN_URL);
-      String ticket=ParamUtil.getString(request,"ticket");
-      if (Validator.isNull(ticket)) {
-        if (Validator.isNotNull(login)) {
-          processFilter(CASFilter.class,request,response,filterChain);
-        }
- else {
-          loginUrl=HttpUtil.addParameter(loginUrl,"service",serviceUrl);
-          response.sendRedirect(loginUrl);
-        }
-        return;
-      }
-      TicketValidator ticketValidator=getTicketValidator(companyId);
-      Assertion assertion=ticketValidator.validate(ticket,serviceUrl);
+      Filter casAuthenticationFilter=getCASAuthenticationFilter(companyId);
+      casAuthenticationFilter.doFilter(request,response,filterChain);
+      Filter casTicketValidationFilter=getCASTicketValidationFilter(companyId);
+      casTicketValidationFilter.doFilter(request,response,filterChain);
+      Assertion assertion=(Assertion)session.getAttribute(AbstractCasFilter.CONST_CAS_ASSERTION);
       if (assertion != null) {
         AttributePrincipal attributePrincipal=assertion.getPrincipal();
-        login=attributePrincipal.getName();
+        String login=attributePrincipal.getName();
         session.setAttribute(LOGIN,login);
       }
     }
   }
-  processFilter(CASFilter.class,request,response,filterChain);
+ else {
+    processFilter(CASFilter.class,request,response,filterChain);
+  }
 }
