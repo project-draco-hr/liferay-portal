@@ -4,7 +4,7 @@
   Object obj=message.getObject();
   if (obj == null) {
     if (_log.isWarnEnabled()) {
-      _log.warn("Content of message is null");
+      _log.warn("Message content is null");
     }
     return;
   }
@@ -13,10 +13,9 @@
   }
   if (obj instanceof ClusterRequest) {
     ClusterRequest clusterRequest=(ClusterRequest)obj;
-    String uuid=clusterRequest.getUuid();
     ClusterResponse clusterResponse=new ClusterResponseImpl();
-    clusterResponse.setUuid(uuid);
     clusterResponse.setMulticast(clusterRequest.isMulticast());
+    clusterResponse.setUuid(clusterRequest.getUuid());
     Object payload=clusterRequest.getPayload();
     if (payload instanceof MethodWrapper) {
       MethodWrapper methodWrapper=(MethodWrapper)payload;
@@ -26,7 +25,7 @@
           clusterResponse.setResult(returnValue);
         }
  else         if (returnValue != null) {
-          clusterResponse.setException(new ClusterException("Return value is not Serializable"));
+          clusterResponse.setException(new ClusterException("Return value is not serializable"));
         }
       }
  catch (      Exception e) {
@@ -34,7 +33,7 @@
       }
     }
  else {
-      clusterResponse.setException(new ClusterException("Payload is not a MethodWrapper"));
+      clusterResponse.setException(new ClusterException("Payload is not of type " + MethodWrapper.class.getName()));
     }
     try {
       _channel.send(sourceAddress,localAddress,clusterResponse);
@@ -50,34 +49,34 @@
       Map<Address,Future<?>> results=_multicastResultMap.get(uuid);
       Address address=new AddressImpl(sourceAddress);
       if (results.containsKey(address)) {
-        FutureResult<Object> v=(FutureResult<Object>)results.get(address);
+        FutureResult<Object> futureResult=(FutureResult<Object>)results.get(address);
         if (clusterResponse.hasException()) {
-          v.setException(clusterResponse.getException());
+          futureResult.setException(clusterResponse.getException());
         }
  else {
-          v.setResult(clusterResponse.getResult());
+          futureResult.setResult(clusterResponse.getResult());
         }
       }
  else {
-        _log.error("New node comming: " + sourceAddress);
+        _log.error("New node coming from " + sourceAddress);
       }
     }
  else     if (_unicastResultMap.containsKey(uuid)) {
-      FutureResult<Object> value=(FutureResult<Object>)_unicastResultMap.get(uuid);
+      FutureResult<Object> futureResult=(FutureResult<Object>)_unicastResultMap.get(uuid);
       if (clusterResponse.hasException()) {
-        value.setException(clusterResponse.getException());
+        futureResult.setException(clusterResponse.getException());
       }
  else {
-        value.setResult(clusterResponse.getResult());
+        futureResult.setResult(clusterResponse.getResult());
       }
     }
  else {
-      _log.error("Unknow uuid: " + uuid + " from:"+ sourceAddress);
+      _log.error("Unknow UUID " + uuid + " from "+ sourceAddress);
     }
   }
  else {
     if (_log.isWarnEnabled()) {
-      _log.warn("Type of content of message is wrong");
+      _log.warn("Unable to process message content of type " + obj.getClass().getName());
     }
     return;
   }
