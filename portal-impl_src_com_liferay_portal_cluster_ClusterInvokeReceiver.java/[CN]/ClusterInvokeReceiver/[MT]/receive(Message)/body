@@ -1,41 +1,84 @@
 {
-  Address sourceAddress=message.getSrc();
-  Address localAddress=_channel.getLocalAddress();
-  if ((!localAddress.equals(sourceAddress)) || (message.getDest() != null)) {
-    Message responseMessage=new Message();
-    responseMessage.setDest(sourceAddress);
-    responseMessage.setSrc(localAddress);
-    Object payload=message.getObject();
+  org.jgroups.Address sourceAddress=message.getSrc();
+  org.jgroups.Address localAddress=_channel.getLocalAddress();
+  Object obj=message.getObject();
+  if (obj == null) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Content of message is null");
+    }
+    return;
+  }
+  if (localAddress.equals(sourceAddress) && ClusterExecutorUtil.isShortcutLocalMethod()) {
+    return;
+  }
+  if (obj instanceof ClusterRequest) {
+    ClusterRequest clusterRequest=(ClusterRequest)obj;
+    String uuid=clusterRequest.getUuid();
+    ClusterResponse clusterResponse=new ClusterResponseImpl();
+    clusterResponse.setUuid(uuid);
+    clusterResponse.setMulticast(clusterRequest.isMulticast());
+    Object payload=clusterRequest.getPayload();
     if (payload instanceof MethodWrapper) {
       MethodWrapper methodWrapper=(MethodWrapper)payload;
       try {
         Object returnValue=MethodInvoker.invoke(methodWrapper);
         if (returnValue instanceof Serializable) {
-          responseMessage.setObject((Serializable)returnValue);
+          clusterResponse.setResult(returnValue);
         }
- else {
-          responseMessage.setObject(new ClusterException("Return value is not Serializable"));
+ else         if (returnValue != null) {
+          clusterResponse.setException(new ClusterException("Return value is not Serializable"));
         }
       }
  catch (      Exception e) {
-        responseMessage.setObject(e);
+        clusterResponse.setException(e);
       }
     }
  else {
-      if (_log.isWarnEnabled()) {
-        _log.warn("Payload is not a MethodWrapper");
-      }
+      clusterResponse.setException(new ClusterException("Payload is not a MethodWrapper"));
     }
     try {
-      _channel.send(responseMessage);
+      _channel.send(sourceAddress,localAddress,clusterResponse);
     }
  catch (    ChannelException ce) {
-      _log.error("Unable to send response message " + responseMessage,ce);
+      _log.error("Unable to send response message " + clusterResponse,ce);
+    }
+  }
+ else   if (obj instanceof ClusterResponse) {
+    ClusterResponse clusterResponse=(ClusterResponse)obj;
+    String uuid=clusterResponse.getUuid();
+    if (clusterResponse.isMulticast() && _multicastResultMap.containsKey(uuid)) {
+      Map<Address,Future<?>> results=_multicastResultMap.get(uuid);
+      Address address=new AddressImpl(sourceAddress);
+      if (results.containsKey(address)) {
+        FutureResult<Object> v=(FutureResult<Object>)results.get(address);
+        if (clusterResponse.hasException()) {
+          v.setException(clusterResponse.getException());
+        }
+ else {
+          v.setResult(clusterResponse.getResult());
+        }
+      }
+ else {
+        _log.error("New node comming: " + sourceAddress);
+      }
+    }
+ else     if (_unicastResultMap.containsKey(uuid)) {
+      FutureResult<Object> value=(FutureResult<Object>)_unicastResultMap.get(uuid);
+      if (clusterResponse.hasException()) {
+        value.setException(clusterResponse.getException());
+      }
+ else {
+        value.setResult(clusterResponse.getResult());
+      }
+    }
+ else {
+      _log.error("Unknow uuid: " + uuid + " from:"+ sourceAddress);
     }
   }
  else {
-    if (_log.isDebugEnabled()) {
-      _log.debug("Block received message " + message);
+    if (_log.isWarnEnabled()) {
+      _log.warn("Type of content of message is wrong");
     }
+    return;
   }
 }
