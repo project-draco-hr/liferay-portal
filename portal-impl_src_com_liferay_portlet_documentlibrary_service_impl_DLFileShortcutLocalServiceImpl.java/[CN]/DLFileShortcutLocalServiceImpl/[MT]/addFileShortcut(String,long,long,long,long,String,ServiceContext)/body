@@ -1,4 +1,38 @@
 {
+  User user=userPersistence.findByPrimaryKey(userId);
+  folderId=getFolderId(user.getCompanyId(),folderId);
   Date now=new Date();
-  return addFileShortcut(uuid,userId,groupId,folderId,toFolderId,toName,now,now,now,serviceContext);
+  validate(user,groupId,toFolderId,toName);
+  long fileShortcutId=counterLocalService.increment();
+  DLFileShortcut fileShortcut=dlFileShortcutPersistence.create(fileShortcutId);
+  fileShortcut.setUuid(uuid);
+  fileShortcut.setGroupId(groupId);
+  fileShortcut.setCompanyId(user.getCompanyId());
+  fileShortcut.setUserId(user.getUserId());
+  fileShortcut.setUserName(user.getFullName());
+  fileShortcut.setCreateDate(now);
+  fileShortcut.setModifiedDate(now);
+  fileShortcut.setFolderId(folderId);
+  fileShortcut.setToFolderId(toFolderId);
+  fileShortcut.setToName(toName);
+  fileShortcut.setStatus(StatusConstants.APPROVED);
+  fileShortcut.setStatusByUserId(userId);
+  fileShortcut.setStatusByUserName(user.getFullName());
+  fileShortcut.setStatusDate(now);
+  dlFileShortcutPersistence.update(fileShortcut,false);
+  if (serviceContext.getAddCommunityPermissions() || serviceContext.getAddGuestPermissions()) {
+    addFileShortcutResources(fileShortcut,serviceContext.getAddCommunityPermissions(),serviceContext.getAddGuestPermissions());
+  }
+ else {
+    addFileShortcutResources(fileShortcut,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
+  }
+  if (folderId != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+    DLFolder folder=dlFolderPersistence.findByPrimaryKey(folderId);
+    folder.setLastPostDate(fileShortcut.getModifiedDate());
+    dlFolderPersistence.update(folder,false);
+  }
+  DLFileEntry fileEntry=dlFileEntryLocalService.getFileEntry(groupId,toFolderId,toName);
+  copyAssetTags(fileEntry,serviceContext);
+  updateAsset(userId,fileShortcut,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
+  return fileShortcut;
 }
