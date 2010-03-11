@@ -1,0 +1,61 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  folderId=getFolderId(user.getCompanyId(),folderId);
+  if (Validator.isNull(title)) {
+    title=name;
+  }
+  name=String.valueOf(counterLocalService.increment(DLFileEntry.class.getName()));
+  validate(groupId,folderId,title,is);
+  long fileEntryId=counterLocalService.increment();
+  DLFileEntry fileEntry=dlFileEntryPersistence.create(fileEntryId);
+  fileEntry.setUuid(uuid);
+  fileEntry.setGroupId(groupId);
+  fileEntry.setCompanyId(user.getCompanyId());
+  fileEntry.setUserId(user.getUserId());
+  fileEntry.setUserName(user.getFullName());
+  fileEntry.setVersionUserId(user.getUserId());
+  fileEntry.setVersionUserName(user.getFullName());
+  fileEntry.setCreateDate(createDate);
+  fileEntry.setModifiedDate(modifiedDate);
+  fileEntry.setFolderId(folderId);
+  fileEntry.setName(name);
+  fileEntry.setTitle(title);
+  fileEntry.setDescription(description);
+  if (serviceContext.getStatus() == StatusConstants.APPROVED) {
+    fileEntry.setVersion(DLFileEntryConstants.DEFAULT_VERSION);
+  }
+ else {
+    fileEntry.setVersion(StringPool.BLANK);
+  }
+  fileEntry.setSize((int)size);
+  fileEntry.setReadCount(DLFileEntryConstants.DEFAULT_READ_COUNT);
+  fileEntry.setExtraSettings(extraSettings);
+  fileEntry.setExpandoBridgeAttributes(serviceContext);
+  dlFileEntryPersistence.update(fileEntry,false);
+  if (serviceContext.getAddCommunityPermissions() || serviceContext.getAddGuestPermissions()) {
+    addFileEntryResources(fileEntry,serviceContext.getAddCommunityPermissions(),serviceContext.getAddGuestPermissions());
+  }
+ else {
+    addFileEntryResources(fileEntry,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
+  }
+  addFileVersion(user,fileEntry,modifiedDate,fileEntry.getVersion(),null,serviceContext.getStatus());
+  if (folderId != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+    DLFolder folder=dlFolderPersistence.findByPrimaryKey(folderId);
+    folder.setLastPostDate(fileEntry.getModifiedDate());
+    dlFolderPersistence.update(folder,false);
+  }
+  updateAsset(userId,fileEntry,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
+  if (PropsValues.DL_FILE_ENTRY_COMMENTS_ENABLED) {
+    mbMessageLocalService.addDiscussionMessage(userId,fileEntry.getUserName(),DLFileEntry.class.getName(),fileEntryId,StatusConstants.APPROVED);
+  }
+  dlLocalService.addFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,fileEntry.getGroupId(),fileEntry.getRepositoryId(),name,false,fileEntryId,fileEntry.getLuceneProperties(),fileEntry.getModifiedDate(),serviceContext,is);
+  if (serviceContext.isStartWorkflow()) {
+    try {
+      WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),groupId,userId,DLFileEntry.class.getName(),fileEntryId,fileEntry);
+    }
+ catch (    Exception e) {
+      throw new SystemException(e);
+    }
+  }
+  return fileEntry;
+}
