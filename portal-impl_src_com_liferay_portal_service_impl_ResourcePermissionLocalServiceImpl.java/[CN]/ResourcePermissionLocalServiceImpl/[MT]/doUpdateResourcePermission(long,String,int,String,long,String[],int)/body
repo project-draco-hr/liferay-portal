@@ -1,0 +1,32 @@
+{
+  ResourcePermission resourcePermission=resourcePermissionPersistence.fetchByC_N_S_P_R(companyId,name,scope,primKey,roleId);
+  if (resourcePermission == null) {
+    if (operator == ResourcePermissionConstants.OPERATOR_REMOVE) {
+      return;
+    }
+    long resourcePermissionId=counterLocalService.increment(ResourcePermission.class.getName());
+    resourcePermission=resourcePermissionPersistence.create(resourcePermissionId);
+    resourcePermission.setCompanyId(companyId);
+    resourcePermission.setName(name);
+    resourcePermission.setScope(scope);
+    resourcePermission.setPrimKey(primKey);
+    resourcePermission.setRoleId(roleId);
+  }
+  long actionIdsLong=resourcePermission.getActionIds();
+  if (operator == ResourcePermissionConstants.OPERATOR_SET) {
+    actionIdsLong=0;
+  }
+  for (  String actionId : actionIds) {
+    ResourceAction resourceAction=resourceActionLocalService.getResourceAction(name,actionId);
+    if ((operator == ResourcePermissionConstants.OPERATOR_ADD) || (operator == ResourcePermissionConstants.OPERATOR_SET)) {
+      actionIdsLong|=resourceAction.getBitwiseValue();
+    }
+ else {
+      actionIdsLong=actionIdsLong & (~resourceAction.getBitwiseValue());
+    }
+  }
+  resourcePermission.setActionIds(actionIdsLong);
+  resourcePermissionPersistence.update(resourcePermission,false);
+  PermissionCacheUtil.clearCache();
+  SearchEngineUtil.updatePermissionFields(name,primKey);
+}
