@@ -6,32 +6,27 @@
   fileVersion.setStatusByUserId(user.getUserId());
   fileVersion.setStatusByUserName(user.getFullName());
   fileVersion.setStatusDate(new Date());
-  if (fileVersion.isApproved() && (DLUtil.compareVersions(fileVersion.getVersion(),DLFileEntryConstants.DEFAULT_VERSION) < 0)) {
-    fileVersion.setVersion(DLFileEntryConstants.DEFAULT_VERSION);
-  }
   dlFileVersionPersistence.update(fileVersion,false);
   if (fileVersion.isApproved() && (DLUtil.compareVersions(fileEntry.getVersion(),fileVersion.getVersion()) < 0)) {
     fileEntry.setVersion(fileVersion.getVersion());
     dlFileEntryPersistence.update(fileEntry,false);
   }
- else   if (!fileVersion.isApproved() && (DLUtil.compareVersions(fileEntry.getVersion(),fileVersion.getVersion()) == 0)) {
+ else   if (!fileVersion.isApproved() && fileEntry.getVersion().equals(fileVersion.getVersion())) {
     String newVersion=DLFileEntryConstants.DEFAULT_VERSION;
-    if (DLUtil.compareVersions(fileVersion.getVersion(),newVersion) > 1) {
-      List<DLFileVersion> approvedFileVersions=dlFileVersionPersistence.findByG_F_N_S(fileEntry.getGroupId(),fileEntry.getFolderId(),fileEntry.getName(),StatusConstants.APPROVED);
-      if (!approvedFileVersions.isEmpty()) {
-        newVersion=approvedFileVersions.get(0).getVersion();
-      }
+    List<DLFileVersion> approvedFileVersions=dlFileVersionPersistence.findByG_F_N_S(fileEntry.getGroupId(),fileEntry.getFolderId(),fileEntry.getName(),StatusConstants.APPROVED);
+    if (!approvedFileVersions.isEmpty()) {
+      newVersion=approvedFileVersions.get(0).getVersion();
     }
     fileEntry.setVersion(newVersion);
     dlFileEntryPersistence.update(fileEntry,false);
   }
-  if (fileVersion.isApproved() && (DLUtil.compareVersions(fileEntry.getVersion(),fileVersion.getVersion()) == 0)) {
+  if (fileVersion.isApproved() && fileEntry.getVersion().equals(fileVersion.getVersion())) {
     assetEntryLocalService.updateVisible(DLFileEntry.class.getName(),fileEntry.getFileEntryId(),true);
   }
  else   if (Validator.isNull(fileEntry.getVersion())) {
     assetEntryLocalService.updateVisible(DLFileEntry.class.getName(),fileEntry.getFileEntryId(),false);
   }
-  if (fileVersion.isApproved() && (DLUtil.compareVersions(fileEntry.getVersion(),fileVersion.getVersion()) == 0)) {
+  if (fileVersion.isApproved()) {
     if (fileVersion.getVersion().equals(DLFileEntryConstants.DEFAULT_VERSION)) {
       socialActivityLocalService.addUniqueActivity(fileVersion.getUserId(),fileVersion.getGroupId(),fileVersion.getCreateDate(),DLFileEntry.class.getName(),fileEntryId,DLActivityKeys.ADD_FILE_ENTRY,StringPool.BLANK,0);
     }
@@ -40,10 +35,10 @@
     }
   }
   Indexer indexer=IndexerRegistryUtil.getIndexer(DLFileEntry.class);
-  if (fileVersion.isApproved() && (DLUtil.compareVersions(fileEntry.getVersion(),fileVersion.getVersion()) == 0)) {
+  if (fileVersion.isApproved()) {
     indexer.reindex(fileEntry);
   }
- else   if (Validator.isNull(fileEntry.getVersion())) {
+ else   if (fileVersion.getVersion().equals(DLFileEntryConstants.DEFAULT_VERSION)) {
     indexer.delete(fileEntry);
   }
   return fileEntry;
