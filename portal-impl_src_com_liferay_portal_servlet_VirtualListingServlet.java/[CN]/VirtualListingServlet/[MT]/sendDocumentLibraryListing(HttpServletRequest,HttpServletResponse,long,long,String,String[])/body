@@ -1,0 +1,54 @@
+{
+  long groupId=getGroupId(companyId,pathArray[0]);
+  long folderId=DLFolderConstants.DEFAULT_PARENT_FOLDER_ID;
+  for (int i=1; i < pathArray.length; i++) {
+    String name=pathArray[i];
+    try {
+      DLFolder folder=DLFolderServiceUtil.getFolder(groupId,folderId,name);
+      folderId=folder.getFolderId();
+    }
+ catch (    NoSuchFolderException nsfe) {
+      if (i != pathArray.length - 1) {
+        throw nsfe;
+      }
+      String title=name;
+      sendFile(response,companyId,userId,groupId,folderId,title);
+      return;
+    }
+  }
+  try {
+    sendFile(response,companyId,userId,groupId,folderId,"index.htm");
+    return;
+  }
+ catch (  Exception e) {
+    if ((e instanceof NoSuchFileEntryException) || (e instanceof PrincipalException)) {
+      try {
+        sendFile(response,companyId,userId,groupId,folderId,"index.html");
+        return;
+      }
+ catch (      NoSuchFileEntryException nsfee) {
+      }
+catch (      PrincipalException pe) {
+      }
+    }
+ else {
+      throw e;
+    }
+  }
+  List<Tuple> entries=new ArrayList<Tuple>();
+  entries.add(buildEntry(fullPath,"../",null,null,null));
+  List<DLFolder> folders=DLFolderServiceUtil.getFolders(groupId,folderId);
+  for (  DLFolder folder : folders) {
+    entries.add(buildEntry(fullPath,folder.getName() + "/",folder.getModifiedDate(),null,folder.getDescription()));
+  }
+  List<DLFileEntry> fileEntries=DLFileEntryServiceUtil.getFileEntries(groupId,folderId);
+  for (  DLFileEntry fileEntry : fileEntries) {
+    String size=String.valueOf(fileEntry.getSize());
+    if (fileEntry.getSize() > 1024) {
+      size=TextFormatter.formatKB(fileEntry.getSize(),PortalUtil.getLocale(request)) + "k";
+    }
+    entries.add(buildEntry(fullPath,fileEntry.getTitle(),fileEntry.getModifiedDate(),size,fileEntry.getDescription()));
+  }
+  String directoryPath=HttpUtil.encodePath(StringPool.SLASH + StringUtil.merge(pathArray,StringPool.SLASH));
+  sendHtml(response,directoryPath,entries);
+}
