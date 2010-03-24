@@ -38,6 +38,9 @@
     newFileEntry.setExtraSettings(extraSettings);
     dlFileEntryPersistence.update(newFileEntry,false);
     dlFileEntryPersistence.remove(fileEntry);
+    if (serviceContext.isStartWorkflow()) {
+      updateWorkflowInstance(fileEntry,newFileEntry);
+    }
     List<DLFileVersion> fileVersions=dlFileVersionPersistence.findByG_F_N(groupId,folderId,name);
     for (    DLFileVersion fileVersion : fileVersions) {
       long newFileVersionId=counterLocalService.increment();
@@ -89,6 +92,7 @@
   }
   updateAsset(userId,fileEntry,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
   String version=getNextVersion(fileEntry,majorVersion,serviceContext.getStatus());
+  boolean newFileVersion=true;
   try {
     DLFileVersion fileVersion=dlFileVersionLocalService.getLatestFileVersion(groupId,folderId,name);
     if (size == 0) {
@@ -96,6 +100,7 @@
     }
     if (fileVersion.getStatus() == StatusConstants.DRAFT) {
       updateFileVersion(user,fileVersion,serviceContext.getModifiedDate(now),version,versionDescription,size,serviceContext.getStatus());
+      newFileVersion=false;
     }
  else     if (is != null) {
       addFileVersion(user,fileEntry,serviceContext.getModifiedDate(now),version,versionDescription,size,serviceContext.getStatus());
@@ -146,5 +151,13 @@
   }
   dlLocalService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,fileEntry.getGroupId(),fileEntry.getRepositoryId(),name,false,version,sourceFileName,fileEntry.getFileEntryId(),fileEntry.getLuceneProperties(),fileEntry.getModifiedDate(),serviceContext,is);
   fileEntry=updateWorkflowStatus(userId,fileEntry.getFileEntryId(),serviceContext);
+  if (newFileVersion && serviceContext.isStartWorkflow()) {
+    try {
+      WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),groupId,userId,DLFileEntry.class.getName(),fileEntry.getFileEntryId(),fileEntry);
+    }
+ catch (    Exception e) {
+      throw new SystemException(e);
+    }
+  }
   return fileEntry;
 }
