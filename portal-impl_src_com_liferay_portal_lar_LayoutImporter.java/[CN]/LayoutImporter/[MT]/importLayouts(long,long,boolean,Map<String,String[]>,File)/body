@@ -28,7 +28,6 @@
     stopWatch=new StopWatch();
     stopWatch.start();
   }
-  LayoutCache layoutCache=new LayoutCache();
   LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(groupId,privateLayout);
   long companyId=layoutSet.getCompanyId();
   User user=UserUtil.findByPrimaryKey(userId);
@@ -36,7 +35,6 @@
   ZipReader zipReader=ZipReaderFactoryUtil.getZipReader(file);
   PortletDataContext context=new PortletDataContextImpl(companyId,groupId,parameterMap,new HashSet<String>(),strategy,zipReader);
   context.setPrivateLayout(privateLayout);
-  Group guestGroup=GroupLocalServiceUtil.getGroup(companyId,GroupConstants.GUEST);
   Element root=null;
   InputStream themeZip=null;
   String xml=context.getZipEntryAsString("/manifest.xml");
@@ -92,7 +90,7 @@
   _portletImporter.readCategories(context,root);
   _portletImporter.readComments(context,root);
   if (importPermissions) {
-    _portletImporter.readPortletDataPermissions(context);
+    _permissionImporter.readPortletDataPermissions(context);
   }
   _portletImporter.readRatings(context,root);
   _portletImporter.readTags(context,root);
@@ -231,19 +229,8 @@
     newLayoutIdPlidMap.put(oldLayoutId,layout.getPlid());
     newLayoutIds.add(layoutId);
     newLayouts.add(layout);
-    Element permissionsEl=layoutEl.element("permissions");
-    if (importPermissions && (permissionsEl != null)) {
-      String resourceName=Layout.class.getName();
-      String resourcePrimKey=String.valueOf(layout.getPlid());
-      if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 5) {
-        importLayoutPermissions_5(layoutCache,companyId,groupId,userId,resourceName,resourcePrimKey,permissionsEl);
-      }
- else       if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 6) {
-        importLayoutPermissions_6(layoutCache,companyId,groupId,userId,resourceName,resourcePrimKey,permissionsEl);
-      }
- else {
-        importLayoutPermissions_4(layoutCache,companyId,groupId,guestGroup,layout,resourceName,resourcePrimKey,permissionsEl,importUserPermissions);
-      }
+    if (importPermissions) {
+      _permissionImporter.importLayoutPermissions(companyId,groupId,layout,layoutEl,root,userId,importUserPermissions);
     }
     _portletImporter.importPortletData(context,PortletKeys.LAYOUT_CONFIGURATION,null,layoutEl);
   }
@@ -291,36 +278,10 @@
     if (importPortletData && portletDataEl != null) {
       _portletImporter.importPortletData(context,portletId,plid,portletDataEl);
     }
-    Element permissionsEl=portletEl.element("permissions");
-    if (importPermissions && (permissionsEl != null)) {
-      if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 6) {
-        String resourceName=PortletConstants.getRootPortletId(portletId);
-        String resourcePrimKey=PortletPermissionUtil.getPrimaryKey(layout.getPlid(),portletId);
-        importPortletPermissions_6(layoutCache,companyId,groupId,userId,resourceName,resourcePrimKey,permissionsEl);
-      }
- else       if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 5) {
-        String resourceName=PortletConstants.getRootPortletId(portletId);
-        String resourcePrimKey=PortletPermissionUtil.getPrimaryKey(layout.getPlid(),portletId);
-        importPortletPermissions_5(layoutCache,companyId,groupId,userId,resourceName,resourcePrimKey,permissionsEl);
-      }
- else {
-        importPortletPermissions_4(layoutCache,companyId,groupId,guestGroup,layout,permissionsEl,importUserPermissions);
-      }
+    if (importPermissions) {
+      _permissionImporter.importPortletPermissions(companyId,groupId,layout,portletEl,portletId,userId,importUserPermissions);
     }
     _portletImporter.importPortletPreferences(context,layoutSet.getCompanyId(),groupId,null,null,portletEl,importPortletSetup,importPortletArchivedSetups,importPortletUserPreferences,false);
-    if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM < 5) {
-      Element rolesEl=portletEl.element("roles");
-      if (importPermissions && (rolesEl != null)) {
-        importPortletRoles(layoutCache,companyId,groupId,portletEl);
-        importPortletRoles(layoutCache,companyId,groupId,portletId,rolesEl);
-      }
-    }
-  }
-  if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM < 5) {
-    Element rolesEl=root.element("roles");
-    if (importPermissions) {
-      importLayoutRoles(layoutCache,companyId,groupId,rolesEl);
-    }
   }
   if (deleteMissingLayouts) {
     deleteMissingLayouts(groupId,privateLayout,newLayoutIds,previousLayouts);
