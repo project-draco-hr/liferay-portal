@@ -1,0 +1,67 @@
+{
+  long groupId=0;
+  long folderId=0;
+  String name=null;
+  String fileName=null;
+  DLFileEntry dlFileEntry=null;
+  if (pathArray.length == 1) {
+    long fileShortcutId=GetterUtil.getLong(pathArray[0]);
+    DLFileShortcut fileShortcut=DLFileShortcutServiceUtil.getFileShortcut(fileShortcutId);
+    groupId=fileShortcut.getGroupId();
+    folderId=fileShortcut.getToFolderId();
+    name=fileShortcut.getToName();
+    dlFileEntry=DLFileEntryLocalServiceUtil.getFileEntry(groupId,folderId,name);
+    fileName=dlFileEntry.getTitle();
+  }
+ else   if (pathArray.length == 2) {
+    groupId=GetterUtil.getLong(pathArray[0]);
+    dlFileEntry=DLFileEntryLocalServiceUtil.getFileEntryByUuidAndGroupId(pathArray[1],groupId);
+    folderId=dlFileEntry.getFolderId();
+    fileName=dlFileEntry.getTitle();
+    name=dlFileEntry.getName();
+  }
+ else {
+    groupId=GetterUtil.getLong(pathArray[0]);
+    folderId=GetterUtil.getLong(pathArray[1]);
+    fileName=HttpUtil.decodeURL(pathArray[2],true);
+    dlFileEntry=DLFileEntryServiceUtil.getFileEntryByTitle(groupId,folderId,fileName);
+    name=dlFileEntry.getName();
+  }
+  if (dlFileEntry == null) {
+    throw new NoSuchFileEntryException();
+  }
+  String version=ParamUtil.getString(request,"version");
+  String targetExtension=ParamUtil.getString(request,"targetExtension");
+  if (Validator.isNull(version)) {
+    if (Validator.isNotNull(dlFileEntry.getVersion())) {
+      version=dlFileEntry.getVersion();
+    }
+ else {
+      throw new NoSuchFileEntryException();
+    }
+  }
+  InputStream is=DLFileEntryLocalServiceUtil.getFileAsStream(user.getCompanyId(),user.getUserId(),groupId,folderId,name,version);
+  boolean converted=false;
+  if (Validator.isNotNull(targetExtension)) {
+    String id=DocumentConversionUtil.getTempFileId(dlFileEntry.getFileEntryId(),version);
+    String sourceExtension=FileUtil.getExtension(fileName);
+    InputStream convertedIS=DocumentConversionUtil.convert(id,is,sourceExtension,targetExtension);
+    if ((convertedIS != null) && (convertedIS != is)) {
+      fileName=FileUtil.stripExtension(fileName).concat(StringPool.PERIOD).concat(targetExtension);
+      is=convertedIS;
+      converted=true;
+    }
+  }
+  int contentLength=0;
+  if (!converted) {
+    if (DLUtil.compareVersions(version,dlFileEntry.getVersion()) >= 0) {
+      contentLength=(int)dlFileEntry.getSize();
+    }
+ else {
+      DLFileVersion fileVersion=DLFileVersionLocalServiceUtil.getFileVersion(groupId,folderId,name,version);
+      contentLength=(int)fileVersion.getSize();
+    }
+  }
+  String contentType=MimeTypesUtil.getContentType(fileName);
+  ServletResponseUtil.sendFile(request,response,fileName,is,contentLength,contentType);
+}

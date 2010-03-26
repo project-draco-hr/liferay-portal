@@ -1,0 +1,49 @@
+{
+  long groupId=getGroupId(user.getCompanyId(),pathArray[0]);
+  long dlFolderId=DLFolderConstants.DEFAULT_PARENT_FOLDER_ID;
+  for (int i=1; i < pathArray.length; i++) {
+    String name=pathArray[i];
+    try {
+      DLFolder folder=DLFolderServiceUtil.getFolder(groupId,dlFolderId,name);
+      dlFolderId=folder.getFolderId();
+    }
+ catch (    NoSuchFolderException nsfe) {
+      if (i != pathArray.length - 1) {
+        throw nsfe;
+      }
+      String title=name;
+      sendFile(response,user,groupId,dlFolderId,title);
+      return;
+    }
+  }
+  try {
+    sendFile(response,user,groupId,dlFolderId,"index.html");
+    return;
+  }
+ catch (  Exception e) {
+    if ((e instanceof NoSuchFileEntryException) || (e instanceof PrincipalException)) {
+      try {
+        sendFile(response,user,groupId,dlFolderId,"index.htm");
+        return;
+      }
+ catch (      NoSuchFileEntryException nsfee) {
+      }
+catch (      PrincipalException pe) {
+      }
+    }
+ else {
+      throw e;
+    }
+  }
+  List<WebServerEntry> webServerEntries=new ArrayList<WebServerEntry>();
+  webServerEntries.add(new WebServerEntry(path,"../"));
+  List<DLFolder> dlFolders=DLFolderServiceUtil.getFolders(groupId,dlFolderId);
+  for (  DLFolder dlFolder : dlFolders) {
+    webServerEntries.add(new WebServerEntry(path,dlFolder.getName() + StringPool.SLASH,dlFolder.getCreateDate(),dlFolder.getModifiedDate(),dlFolder.getDescription(),0));
+  }
+  List<DLFileEntry> dlFileEntries=DLFileEntryServiceUtil.getFileEntries(groupId,dlFolderId);
+  for (  DLFileEntry dlFileEntry : dlFileEntries) {
+    webServerEntries.add(new WebServerEntry(path,dlFileEntry.getTitle(),dlFileEntry.getCreateDate(),dlFileEntry.getModifiedDate(),dlFileEntry.getDescription(),dlFileEntry.getSize()));
+  }
+  sendHTML(response,path,webServerEntries);
+}
