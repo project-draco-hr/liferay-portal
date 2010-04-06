@@ -1,31 +1,31 @@
 {
   boolean firstRequest=false;
-  StringServletResponse stringResponse=null;
+  CacheResponse cacheResponse=null;
 synchronized (this) {
-    if (_stringResponse == null) {
+    if (_cacheResponse == null) {
       firstRequest=true;
-      _stringResponse=new StringServletResponse(response);
+      _cacheResponse=new CacheResponse(response,StringPool.UTF8);
       _throwable=null;
     }
-    stringResponse=_stringResponse;
+    cacheResponse=_cacheResponse;
   }
   if (firstRequest) {
     try {
-      filterChain.doFilter(request,_stringResponse);
+      filterChain.doFilter(request,_cacheResponse);
     }
  catch (    Throwable t) {
       _throwable=t;
     }
  finally {
 synchronized (this) {
-        _stringResponse=null;
+        _cacheResponse=null;
         notifyAll();
       }
     }
   }
  else {
 synchronized (this) {
-      while (_stringResponse != null) {
+      while (_cacheResponse != null) {
         try {
           wait();
         }
@@ -56,6 +56,6 @@ catch (    Throwable t) {
       throw new RuntimeException(t);
     }
   }
-  CacheResponseData cacheResponseData=new CacheResponseData(stringResponse);
+  CacheResponseData cacheResponseData=new CacheResponseData(cacheResponse.unsafeGetData(),cacheResponse.getContentLength(),cacheResponse.getContentType(),cacheResponse.getHeaders());
   CacheResponseUtil.write(response,cacheResponseData);
 }
