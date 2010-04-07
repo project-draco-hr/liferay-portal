@@ -35,7 +35,7 @@
     importCategory(context,categoryPKs,category);
     categoryId=MapUtil.getLong(categoryPKs,message.getCategoryId(),message.getCategoryId());
   }
-  MBMessage existingMessage=null;
+  MBMessage importedMessage=null;
   try {
     MBCategoryUtil.findByPrimaryKey(categoryId);
     if (parentMessageId != MBMessageConstants.DEFAULT_PARENT_MESSAGE_ID) {
@@ -43,22 +43,22 @@
       MBThreadUtil.findByPrimaryKey(threadId);
     }
     if (context.getDataStrategy().equals(PortletDataHandlerKeys.DATA_STRATEGY_MIRROR)) {
-      try {
-        existingMessage=MBMessageUtil.findByUUID_G(message.getUuid(),context.getGroupId());
-        existingMessage=MBMessageLocalServiceUtil.updateMessage(userId,existingMessage.getMessageId(),message.getSubject(),message.getBody(),files,existingFiles,message.getPriority(),message.getAllowPingbacks(),serviceContext);
+      MBMessage existingMessage=MBMessageUtil.fetchByUUID_G(message.getUuid(),context.getGroupId());
+      if (existingMessage == null) {
+        importedMessage=MBMessageLocalServiceUtil.addMessage(message.getUuid(),userId,userName,message.getGroupId(),categoryId,threadId,parentMessageId,message.getSubject(),message.getBody(),files,message.getAnonymous(),message.getPriority(),message.getAllowPingbacks(),serviceContext);
       }
- catch (      NoSuchMessageException nsme) {
-        existingMessage=MBMessageLocalServiceUtil.addMessage(message.getUuid(),userId,userName,message.getGroupId(),categoryId,threadId,parentMessageId,message.getSubject(),message.getBody(),files,message.getAnonymous(),message.getPriority(),message.getAllowPingbacks(),serviceContext);
+ else {
+        importedMessage=MBMessageLocalServiceUtil.updateMessage(userId,existingMessage.getMessageId(),message.getSubject(),message.getBody(),files,existingFiles,message.getPriority(),message.getAllowPingbacks(),serviceContext);
       }
     }
  else {
-      existingMessage=MBMessageLocalServiceUtil.addMessage(userId,userName,message.getGroupId(),categoryId,threadId,parentMessageId,message.getSubject(),message.getBody(),files,message.getAnonymous(),message.getPriority(),message.getAllowPingbacks(),serviceContext);
+      importedMessage=MBMessageLocalServiceUtil.addMessage(userId,userName,message.getGroupId(),categoryId,threadId,parentMessageId,message.getSubject(),message.getBody(),files,message.getAnonymous(),message.getPriority(),message.getAllowPingbacks(),serviceContext);
     }
-    threadPKs.put(message.getThreadId(),existingMessage.getThreadId());
-    messagePKs.put(message.getMessageId(),existingMessage.getMessageId());
-    context.importPermissions(MBMessage.class,message.getMessageId(),existingMessage.getMessageId());
+    threadPKs.put(message.getThreadId(),importedMessage.getThreadId());
+    messagePKs.put(message.getMessageId(),importedMessage.getMessageId());
+    context.importPermissions(MBMessage.class,message.getMessageId(),importedMessage.getMessageId());
     if (context.getBooleanParameter(_NAMESPACE,"ratings")) {
-      context.importRatingsEntries(MBMessage.class,message.getMessageId(),existingMessage.getMessageId());
+      context.importRatingsEntries(MBMessage.class,message.getMessageId(),importedMessage.getMessageId());
     }
   }
  catch (  NoSuchCategoryException nsce) {

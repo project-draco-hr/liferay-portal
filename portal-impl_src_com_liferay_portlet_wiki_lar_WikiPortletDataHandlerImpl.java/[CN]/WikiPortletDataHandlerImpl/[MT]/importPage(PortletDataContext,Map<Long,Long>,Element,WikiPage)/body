@@ -16,15 +16,11 @@
   serviceContext.setAssetTagNames(assetTagNames);
   serviceContext.setCreateDate(page.getCreateDate());
   serviceContext.setModifiedDate(page.getModifiedDate());
-  WikiPage existingPage=null;
+  WikiPage importedPage=null;
   try {
     WikiNodeUtil.findByPrimaryKey(nodeId);
     if (context.getDataStrategy().equals(PortletDataHandlerKeys.DATA_STRATEGY_MIRROR)) {
-      try {
-        existingPage=WikiPageUtil.findByUUID_G(page.getUuid(),context.getGroupId());
-      }
- catch (      NoSuchPageException nspe) {
-      }
+      WikiPage existingPage=WikiPageUtil.fetchByUUID_G(page.getUuid(),context.getGroupId());
       if (existingPage == null) {
         try {
           existingPage=WikiPageLocalServiceUtil.getPage(nodeId,page.getTitle());
@@ -32,15 +28,15 @@
  catch (        NoSuchPageException nspe) {
         }
       }
-      if (existingPage != null) {
-        existingPage=WikiPageLocalServiceUtil.updatePage(userId,nodeId,existingPage.getTitle(),0,page.getContent(),page.getSummary(),true,page.getFormat(),page.getParentTitle(),page.getRedirectTitle(),serviceContext);
+      if (existingPage == null) {
+        importedPage=WikiPageLocalServiceUtil.addPage(page.getUuid(),userId,nodeId,page.getTitle(),page.getVersion(),page.getContent(),page.getSummary(),true,page.getFormat(),page.getHead(),page.getParentTitle(),page.getRedirectTitle(),serviceContext);
       }
  else {
-        existingPage=WikiPageLocalServiceUtil.addPage(page.getUuid(),userId,nodeId,page.getTitle(),page.getVersion(),page.getContent(),page.getSummary(),true,page.getFormat(),page.getHead(),page.getParentTitle(),page.getRedirectTitle(),serviceContext);
+        importedPage=WikiPageLocalServiceUtil.updatePage(userId,nodeId,existingPage.getTitle(),0,page.getContent(),page.getSummary(),true,page.getFormat(),page.getParentTitle(),page.getRedirectTitle(),serviceContext);
       }
     }
  else {
-      existingPage=WikiPageLocalServiceUtil.addPage(null,userId,nodeId,page.getTitle(),page.getVersion(),page.getContent(),page.getSummary(),true,page.getFormat(),page.getHead(),page.getParentTitle(),page.getRedirectTitle(),serviceContext);
+      importedPage=WikiPageLocalServiceUtil.addPage(null,userId,nodeId,page.getTitle(),page.getVersion(),page.getContent(),page.getSummary(),true,page.getFormat(),page.getHead(),page.getParentTitle(),page.getRedirectTitle(),serviceContext);
     }
     if (context.getBooleanParameter(_NAMESPACE,"attachments") && page.isHead()) {
       List<Element> attachmentEls=pageEl.elements("attachment");
@@ -55,12 +51,12 @@
         WikiPageLocalServiceUtil.addPageAttachments(nodeId,page.getTitle(),files);
       }
     }
-    context.importPermissions(WikiPage.class,page.getResourcePrimKey(),existingPage.getResourcePrimKey());
+    context.importPermissions(WikiPage.class,page.getResourcePrimKey(),importedPage.getResourcePrimKey());
     if (context.getBooleanParameter(_NAMESPACE,"comments") && page.isHead()) {
-      context.importComments(WikiPage.class,page.getResourcePrimKey(),existingPage.getResourcePrimKey(),context.getGroupId());
+      context.importComments(WikiPage.class,page.getResourcePrimKey(),importedPage.getResourcePrimKey(),context.getGroupId());
     }
     if (context.getBooleanParameter(_NAMESPACE,"ratings")) {
-      context.importRatingsEntries(WikiPage.class,page.getResourcePrimKey(),existingPage.getResourcePrimKey());
+      context.importRatingsEntries(WikiPage.class,page.getResourcePrimKey(),importedPage.getResourcePrimKey());
     }
   }
  catch (  NoSuchNodeException nsne) {
