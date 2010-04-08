@@ -1,0 +1,28 @@
+{
+  CounterHolder counterHolder=counterRegister.getCounterHolder();
+  long newValue=counterHolder.addAndGet(size);
+  if (newValue <= counterHolder.getRangeMax()) {
+    return newValue;
+  }
+  CompeteLatch completeLatch=counterRegister.getCompeteLatch();
+  if (!completeLatch.compete()) {
+    completeLatch.await();
+    return _competeIncrement(counterRegister,size);
+  }
+  try {
+    counterHolder=counterRegister.getCounterHolder();
+    newValue=counterHolder.addAndGet(size);
+    if (newValue > counterHolder.getRangeMax()) {
+      CounterHolder holder=_obtainIncrement(counterRegister.getName(),counterRegister.getRangeSize(),0);
+      newValue=holder.addAndGet(size);
+      counterRegister.setCounterHolder(holder);
+    }
+  }
+ catch (  Exception e) {
+    throw processException(e);
+  }
+ finally {
+    completeLatch.done();
+  }
+  return newValue;
+}
