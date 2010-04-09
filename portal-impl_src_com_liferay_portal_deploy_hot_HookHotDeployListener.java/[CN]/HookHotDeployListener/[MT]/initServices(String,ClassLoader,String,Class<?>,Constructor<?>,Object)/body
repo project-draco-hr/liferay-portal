@@ -1,0 +1,21 @@
+{
+  ServiceBag serviceBag=_servicesContainer.findByServiceType(serviceType);
+  if (serviceBag != null) {
+    throw new IllegalStateException(serviceType + " is already overridden by " + serviceBag.getServletContextName());
+  }
+  AdvisedSupport advisedSupport=getAdvisedSupport(serviceProxy);
+  TargetSource targetSource=advisedSupport.getTargetSource();
+  Object originalService=targetSource.getTarget();
+  if (Proxy.isProxyClass(originalService.getClass())) {
+    InvocationHandler invocationHandler=Proxy.getInvocationHandler(originalService);
+    if (invocationHandler instanceof ContextClassLoaderBeanHandler) {
+      ContextClassLoaderBeanHandler contextClassLoaderBeanHandler=(ContextClassLoaderBeanHandler)invocationHandler;
+      originalService=contextClassLoaderBeanHandler.getBean();
+    }
+  }
+  Object customService=serviceImplConstructor.newInstance(originalService);
+  Object customTarget=Proxy.newProxyInstance(portletClassLoader,new Class<?>[]{serviceTypeClass},new ContextClassLoaderBeanHandler(customService,portletClassLoader));
+  TargetSource customTargetSource=new SingletonTargetSource(customTarget);
+  advisedSupport.setTargetSource(customTargetSource);
+  _servicesContainer.addServiceBag(servletContextName,serviceType,originalService);
+}
