@@ -94,18 +94,22 @@
       initCustomJspBag(customJspBag);
     }
   }
-  ServicesContainer servicesContainer=new ServicesContainer();
-  _servicesContainerMap.put(servletContextName,servicesContainer);
   List<Element> serviceEls=root.elements("service");
   for (  Element serviceEl : serviceEls) {
     String serviceType=serviceEl.elementText("service-type");
     String serviceImpl=serviceEl.elementText("service-impl");
     Class<?> serviceTypeClass=portletClassLoader.loadClass(serviceType);
     Class<?> serviceImplClass=portletClassLoader.loadClass(serviceImpl);
-    Constructor<?> serviceImplConstructor=serviceImplClass.getConstructor(new Class[]{serviceTypeClass});
-    Object serviceImplInstance=serviceImplConstructor.newInstance(PortalBeanLocatorUtil.locate(serviceType));
-    serviceImplInstance=Proxy.newProxyInstance(portletClassLoader,new Class[]{serviceTypeClass},new ContextClassLoaderBeanHandler(serviceImplInstance,portletClassLoader));
-    servicesContainer.addService(serviceType,serviceImplInstance);
+    Constructor<?> serviceImplConstructor=serviceImplClass.getConstructor(new Class<?>[]{serviceTypeClass});
+    Object serviceProxy=PortalBeanLocatorUtil.locate(serviceType);
+    if (Proxy.isProxyClass(serviceProxy.getClass())) {
+      _installService(servletContextName,serviceType,serviceProxy,serviceImplConstructor,portletClassLoader,serviceTypeClass);
+    }
+ else {
+      if (_log.isErrorEnabled()) {
+        _log.error("Spring is currently configured to use CGLIB " + "proxy, ServiceHook can not work. No service " + "implementation will be changed. Switch to "+ "JdkDynamicProxy to enable ServiceHook.");
+      }
+    }
   }
   ModelListenersContainer modelListenersContainer=_modelListenersContainerMap.get(servletContextName);
   if (modelListenersContainer == null) {
