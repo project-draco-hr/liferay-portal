@@ -1,0 +1,33 @@
+{
+  if (Validator.isNull(className)) {
+    new IllegalArgumentException("className is null");
+  }
+  if (Validator.isNull(classPKField)) {
+    new IllegalArgumentException("classPKField is null");
+  }
+  if (Validator.isNull(sql)) {
+    return sql;
+  }
+  if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM != 6) {
+    return StringUtil.replace(sql,"[$PERMISSION_JOIN$]",StringPool.BLANK);
+  }
+  PermissionChecker permissionChecker=PermissionThreadLocal.getPermissionChecker();
+  if (permissionChecker.isCommunityAdmin(groupId) || permissionChecker.isCommunityOwner(groupId)) {
+    return StringUtil.replace(sql,"[$PERMISSION_JOIN$]",StringPool.BLANK);
+  }
+  String permissionJoin=StringPool.BLANK;
+  if (Validator.isNotNull(bridgeJoin)) {
+    permissionJoin=bridgeJoin;
+  }
+  permissionJoin+=CustomSQLUtil.get(JOIN_RESOURCE_PERMISSION);
+  StringBundler ownerSQL=new StringBundler(5);
+  if (Validator.isNotNull(userIdField)) {
+    ownerSQL.append(" OR (");
+    ownerSQL.append(userIdField);
+    ownerSQL.append(" = ");
+    ownerSQL.append(String.valueOf(getUserId()));
+    ownerSQL.append(")");
+  }
+  permissionJoin=StringUtil.replace(permissionJoin,new String[]{"[$CLASS_NAME$]","[$CLASS_PK_FIELD$]","[$OWNER_CHECK$]","[$ROLE_IDS$]"},new String[]{className,classPKField,ownerSQL.toString(),StringUtil.merge(getRoleIds(groupId))});
+  return StringUtil.replace(sql,"[$PERMISSION_JOIN$]",permissionJoin);
+}
