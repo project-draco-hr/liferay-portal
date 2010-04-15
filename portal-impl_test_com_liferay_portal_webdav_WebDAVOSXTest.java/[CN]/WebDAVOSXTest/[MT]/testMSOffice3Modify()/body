@@ -1,0 +1,69 @@
+{
+  Tuple tuple=null;
+  assertCode(HttpServletResponse.SC_NOT_FOUND,servicePropFind(_tempFileName1));
+  assertCode(HttpServletResponse.SC_NOT_FOUND,servicePropFind("MCF-Word Work File D_1.tmp"));
+  assertCode(HttpServletResponse.SC_NOT_FOUND,servicePropFind(_tempFileName1));
+  assertCode(HttpServletResponse.SC_CREATED,servicePut(_tempFileName1,_testDeltaBytes));
+  assertCode(HttpServletResponse.SC_NOT_FOUND,servicePropFind(_tempMetaName1));
+  assertCode(HttpServletResponse.SC_NOT_FOUND,servicePropFind(_tempMetaName1));
+  assertCode(HttpServletResponse.SC_CREATED,servicePut(_tempMetaName1,_testMetaBytes));
+  lock(_tempMetaName1);
+  assertCode(HttpServletResponse.SC_CREATED,servicePut(_tempMetaName1,_testMetaBytes,getLock(_tempMetaName1)));
+  assertCode(WebDAVUtil.SC_MULTI_STATUS,servicePropFind(_tempFileName1));
+  unlock(_tempMetaName1);
+  lock(_tempFileName1);
+  unlock(_tempFileName1);
+  lock(_tempFileName1);
+  assertCode(HttpServletResponse.SC_CREATED,servicePut(_tempFileName1,_testDeltaBytes,getLock(_tempFileName1)));
+  assertCode(WebDAVUtil.SC_MULTI_STATUS,servicePropFind(_tempFileName1));
+  unlock(_testFileName);
+  lock(_testFileName);
+  tuple=serviceGet(_testFileName);
+  assertCode(HttpServletResponse.SC_OK,tuple);
+  assertBytes(_testFileBytes,getResponseBody(tuple));
+  assertCode(HttpServletResponse.SC_NOT_FOUND,servicePropFind("Backup of Test.docx"));
+  assertCode(HttpServletResponse.SC_NOT_FOUND,servicePropFind(_tempFileName2));
+  unlock(_testFileName);
+  assertCode(HttpServletResponse.SC_NOT_FOUND,servicePropFind(_tempFileName2));
+  assertCode(HttpServletResponse.SC_CREATED,serviceCopyOrMove(Method.MOVE,_testFileName,_tempFileName2));
+  assertCode(HttpServletResponse.SC_NOT_FOUND,servicePropFind(_tempMetaName2));
+  assertCode(HttpServletResponse.SC_CREATED,serviceCopyOrMove(Method.MOVE,_testMetaName,_tempMetaName2));
+  for (int i=0; i < 2; i++) {
+    lock(_tempFileName2);
+    tuple=serviceGet(_tempFileName2);
+    assertCode(HttpServletResponse.SC_OK,tuple);
+    assertBytes(_testFileBytes,getResponseBody(tuple));
+    unlock(_tempFileName2);
+  }
+  for (int i=0; i < 2; i++) {
+    String orig=_tempFileName1;
+    String dest=_testFileName;
+    if (i == 1) {
+      orig=_tempMetaName1;
+      dest=_testMetaName;
+    }
+    assertCode(HttpServletResponse.SC_NOT_FOUND,servicePropFind(dest));
+    assertCode(HttpServletResponse.SC_NOT_FOUND,servicePropFind(dest));
+    assertCode(HttpServletResponse.SC_CREATED,serviceCopyOrMove(Method.MOVE,orig,dest,getLock(orig)));
+    moveLock(orig,dest);
+  }
+  for (int i=0; i < 2; i++) {
+    lock(_testFileName);
+    tuple=serviceGet(_testFileName);
+    assertCode(HttpServletResponse.SC_OK,tuple);
+    assertBytes(_testDeltaBytes,getResponseBody(tuple));
+    unlock(_testFileName);
+  }
+  lock(_testMetaName);
+  tuple=serviceGet(_testMetaName);
+  assertCode(HttpServletResponse.SC_OK,tuple);
+  assertBytes(_testMetaBytes,getResponseBody(tuple));
+  assertCode(HttpServletResponse.SC_CREATED,servicePut(_testMetaName,_testMetaBytes,getLock(_testMetaName)));
+  assertCode(WebDAVUtil.SC_MULTI_STATUS,servicePropFind(_testMetaName));
+  unlock(_testMetaName);
+  unlock(_tempFileName2);
+  assertCode(HttpServletResponse.SC_NO_CONTENT,serviceDelete(_tempFileName2));
+  assertCode(HttpServletResponse.SC_NO_CONTENT,serviceDelete(_tempMetaName2));
+  assertCode(HttpServletResponse.SC_NOT_FOUND,servicePropFind(_tempMetaName2));
+  assertCode(HttpServletResponse.SC_NOT_FOUND,servicePropFind(_tempFileName2));
+}

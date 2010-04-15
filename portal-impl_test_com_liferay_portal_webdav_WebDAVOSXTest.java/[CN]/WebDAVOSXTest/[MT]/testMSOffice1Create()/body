@@ -1,0 +1,45 @@
+{
+  Tuple tuple=null;
+  assertCode(HttpServletResponse.SC_NOT_FOUND,servicePropFind(_testFileName));
+  assertCode(HttpServletResponse.SC_CREATED,servicePut(_testFileName,_testFileBytes,getLock(_testFileName)));
+  for (int i=0; i < 3; i++) {
+    lock(_testFileName);
+    unlock(_testFileName);
+  }
+  lock(_testFileName);
+  assertCode(HttpServletResponse.SC_CREATED,servicePut(_testFileName,_testFileBytes,getLock(_testFileName)));
+  unlock(_testFileName);
+  for (int i=0; i < 3; i++) {
+    lock(_testFileName);
+    tuple=serviceGet(_testFileName);
+    assertCode(HttpServletResponse.SC_OK,tuple);
+    assertBytes(_testFileBytes,getResponseBody(tuple));
+    unlock(_testFileName);
+  }
+  for (int i=0; i < 2; i++) {
+    assertCode(HttpServletResponse.SC_NOT_FOUND,servicePropFind(_testMetaName));
+    assertCode(HttpServletResponse.SC_CREATED,servicePut(_testMetaName,_testMetaBytes));
+    lock(_testMetaName);
+    assertCode(HttpServletResponse.SC_CREATED,servicePut(_testMetaName,_testMetaBytes,getLock(_testMetaName)));
+    assertCode(WebDAVUtil.SC_MULTI_STATUS,servicePropFind(_testMetaName));
+    unlock(_testMetaName);
+    lock(_testMetaName);
+    if (i == 0) {
+      unlock(_testMetaName);
+      assertCode(HttpServletResponse.SC_NO_CONTENT,serviceDelete(_testMetaName));
+    }
+ else {
+      tuple=serviceGet(_testMetaName);
+      assertCode(HttpServletResponse.SC_OK,tuple);
+      assertBytes(_testMetaBytes,getResponseBody(tuple));
+      assertCode(HttpServletResponse.SC_CREATED,servicePut(_testMetaName,_testMetaBytes,getLock(_testMetaName)));
+      assertCode(WebDAVUtil.SC_MULTI_STATUS,servicePropFind(_testMetaName));
+      unlock(_testMetaName);
+      lock(_testMetaName);
+      tuple=serviceGet(_testMetaName);
+      assertCode(HttpServletResponse.SC_OK,tuple);
+      assertBytes(_testMetaBytes,getResponseBody(tuple));
+      unlock(_testMetaName);
+    }
+  }
+}
