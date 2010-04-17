@@ -5,30 +5,25 @@
       _log.debug("Stripping " + completeURL);
     }
     request.setAttribute(SKIP_FILTER,Boolean.TRUE);
-    StringServletResponse stringResponse=new StringServletResponse(response);
-    processFilter(StripFilter.class,request,stringResponse,filterChain);
-    String contentType=GetterUtil.getString(stringResponse.getContentType()).toLowerCase();
-    if (_log.isDebugEnabled()) {
-      _log.debug("Stripping content of type " + contentType);
-    }
-    response.setContentType(contentType);
-    if (contentType.indexOf("text/") != -1) {
-      byte[] oldByteArray=null;
-      int length=0;
-      if (stringResponse.isCalledGetOutputStream()) {
-        UnsyncByteArrayOutputStream unsyncByteArrayOutputStream=stringResponse.getUnsyncByteArrayOutputStream();
-        oldByteArray=unsyncByteArrayOutputStream.unsafeGetByteArray();
-        length=unsyncByteArrayOutputStream.size();
+    StripResponse stripResponse=new StripResponse(response);
+    processFilter(StripFilter.class,request,stripResponse,filterChain);
+    String contentType=GetterUtil.getString(stripResponse.getContentType()).toLowerCase();
+    byte[] oldByteArray=stripResponse.getData();
+    if ((oldByteArray != null) && (oldByteArray.length > 0)) {
+      byte[] newByteArray=null;
+      if (_log.isDebugEnabled()) {
+        _log.debug("Stripping content of type " + contentType);
+      }
+      if (contentType.indexOf("text/") != -1) {
+        newByteArray=strip(oldByteArray);
       }
  else {
-        String content=stringResponse.getString();
-        oldByteArray=content.getBytes(StringPool.UTF8);
-        length=oldByteArray.length;
+        newByteArray=oldByteArray;
       }
-      strip(oldByteArray,length,response.getOutputStream());
-    }
- else {
-      ServletResponseUtil.write(response,stringResponse);
+      if (!ETagUtil.processETag(request,response,newByteArray)) {
+        response.setContentType(contentType);
+        ServletResponseUtil.write(response,newByteArray);
+      }
     }
   }
  else {
