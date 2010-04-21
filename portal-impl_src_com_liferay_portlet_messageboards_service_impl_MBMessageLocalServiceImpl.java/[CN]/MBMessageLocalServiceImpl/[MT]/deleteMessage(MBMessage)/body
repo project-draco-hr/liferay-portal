@@ -1,16 +1,25 @@
 {
+  Indexer indexer=IndexerRegistryUtil.getIndexer(MBMessage.class);
+  indexer.delete(message);
+  if (message.isAttachments()) {
+    long companyId=message.getCompanyId();
+    String portletId=CompanyConstants.SYSTEM_STRING;
+    long repositoryId=CompanyConstants.SYSTEM;
+    String dirName=message.getAttachmentsDir();
+    try {
+      dlService.deleteDirectory(companyId,portletId,repositoryId,dirName);
+    }
+ catch (    NoSuchDirectoryException nsde) {
+      if (_log.isDebugEnabled()) {
+        _log.debug(nsde.getMessage());
+      }
+    }
+  }
   int count=mbMessagePersistence.countByThreadId(message.getThreadId());
   if (message.isRoot()) {
     mbMessageFlagLocalService.deleteQuestionAndAnswerFlags(message.getThreadId());
   }
   if (count == 1) {
-    mbThreadPersistence.remove(message.getThreadId());
-    if (!message.isDiscussion()) {
-      MBCategory category=mbCategoryPersistence.findByPrimaryKey(message.getCategoryId());
-      category.setThreadCount(category.getThreadCount() - 1);
-      category.setMessageCount(category.getMessageCount() - 1);
-      mbCategoryPersistence.update(category,false);
-    }
     long companyId=message.getCompanyId();
     String portletId=CompanyConstants.SYSTEM_STRING;
     long repositoryId=CompanyConstants.SYSTEM;
@@ -24,6 +33,13 @@
       }
     }
     subscriptionLocalService.deleteSubscriptions(message.getCompanyId(),MBThread.class.getName(),message.getThreadId());
+    mbThreadPersistence.remove(message.getThreadId());
+    if (!message.isDiscussion()) {
+      MBCategory category=mbCategoryPersistence.findByPrimaryKey(message.getCategoryId());
+      category.setThreadCount(category.getThreadCount() - 1);
+      category.setMessageCount(category.getMessageCount() - 1);
+      mbCategoryPersistence.update(category,false);
+    }
   }
  else   if (count > 1) {
     MBThread thread=mbThreadPersistence.findByPrimaryKey(message.getThreadId());
@@ -59,32 +75,16 @@
       mbCategoryPersistence.update(category,false);
     }
   }
-  mbMessagePersistence.remove(message);
-  if (!message.isDiscussion()) {
-    resourceLocalService.deleteResource(message.getCompanyId(),MBMessage.class.getName(),ResourceConstants.SCOPE_INDIVIDUAL,message.getMessageId());
-  }
+  assetEntryLocalService.deleteEntry(MBMessage.class.getName(),message.getMessageId());
+  expandoValueLocalService.deleteValues(MBMessage.class.getName(),message.getMessageId());
+  socialActivityLocalService.deleteActivities(MBMessage.class.getName(),message.getMessageId());
+  ratingsStatsLocalService.deleteStats(MBMessage.class.getName(),message.getMessageId());
   if (!message.isDiscussion()) {
     mbStatsUserLocalService.updateStatsUser(message.getGroupId(),message.getUserId());
   }
-  assetEntryLocalService.deleteEntry(MBMessage.class.getName(),message.getMessageId());
-  expandoValueLocalService.deleteValues(MBMessage.class.getName(),message.getMessageId());
   mbMessageFlagPersistence.removeByMessageId(message.getMessageId());
-  ratingsStatsLocalService.deleteStats(MBMessage.class.getName(),message.getMessageId());
-  socialActivityLocalService.deleteActivities(MBMessage.class.getName(),message.getMessageId());
-  Indexer indexer=IndexerRegistryUtil.getIndexer(MBMessage.class);
-  indexer.delete(message);
-  if (message.isAttachments()) {
-    long companyId=message.getCompanyId();
-    String portletId=CompanyConstants.SYSTEM_STRING;
-    long repositoryId=CompanyConstants.SYSTEM;
-    String dirName=message.getAttachmentsDir();
-    try {
-      dlService.deleteDirectory(companyId,portletId,repositoryId,dirName);
-    }
- catch (    NoSuchDirectoryException nsde) {
-      if (_log.isDebugEnabled()) {
-        _log.debug(nsde.getMessage());
-      }
-    }
+  if (!message.isDiscussion()) {
+    resourceLocalService.deleteResource(message.getCompanyId(),MBMessage.class.getName(),ResourceConstants.SCOPE_INDIVIDUAL,message.getMessageId());
   }
+  mbMessagePersistence.remove(message);
 }
