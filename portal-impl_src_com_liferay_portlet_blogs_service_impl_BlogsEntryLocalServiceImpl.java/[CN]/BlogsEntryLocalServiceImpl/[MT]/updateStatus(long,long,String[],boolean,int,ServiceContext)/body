@@ -2,34 +2,27 @@
   User user=userPersistence.findByPrimaryKey(userId);
   Date now=new Date();
   BlogsEntry entry=blogsEntryPersistence.findByPrimaryKey(entryId);
+  int oldStatus=entry.getStatus();
   entry.setModifiedDate(serviceContext.getModifiedDate(now));
-  entry.setStatus(serviceContext.getStatus());
+  entry.setStatus(status);
   entry.setStatusByUserId(user.getUserId());
   entry.setStatusByUserName(user.getFullName());
   entry.setStatusDate(serviceContext.getModifiedDate(now));
   blogsEntryPersistence.update(entry,false);
-  if (entry.isApproved()) {
-    blogsStatsUserLocalService.updateStatsUser(entry.getGroupId(),entry.getUserId(),entry.getDisplayDate());
-  }
-  if (entry.isApproved()) {
-    assetEntryLocalService.updateVisible(BlogsEntry.class.getName(),entryId,true);
-  }
- else {
-    assetEntryLocalService.updateVisible(BlogsEntry.class.getName(),entryId,false);
-  }
-  if (entry.isApproved()) {
-    socialActivityLocalService.addUniqueActivity(entry.getUserId(),entry.getGroupId(),BlogsEntry.class.getName(),entryId,BlogsActivityKeys.ADD_ENTRY,StringPool.BLANK,0);
-  }
   Indexer indexer=IndexerRegistryUtil.getIndexer(BlogsEntry.class);
-  if (entry.isApproved()) {
+  if ((oldStatus != WorkflowConstants.STATUS_APPROVED) && status == WorkflowConstants.STATUS_APPROVED) {
+    blogsStatsUserLocalService.updateStatsUser(entry.getGroupId(),entry.getUserId(),entry.getDisplayDate());
+    assetEntryLocalService.updateVisible(BlogsEntry.class.getName(),entryId,true);
+    socialActivityLocalService.addUniqueActivity(entry.getUserId(),entry.getGroupId(),BlogsEntry.class.getName(),entryId,BlogsActivityKeys.ADD_ENTRY,StringPool.BLANK,0);
     indexer.reindex(entry);
+    notifySubscribers(entry,serviceContext);
+    pingGoogle(entry,serviceContext);
+    pingPingback(entry,serviceContext);
+    pingTrackbacks(entry,trackbacks,pingOldTrackbaks,serviceContext);
   }
- else {
+ else   if (status != WorkflowConstants.STATUS_APPROVED) {
+    assetEntryLocalService.updateVisible(BlogsEntry.class.getName(),entryId,false);
     indexer.delete(entry);
   }
-  notifySubscribers(entry,serviceContext);
-  pingGoogle(entry,serviceContext);
-  pingPingback(entry,serviceContext);
-  pingTrackbacks(entry,trackbacks,pingOldTrackbaks,serviceContext);
   return entry;
 }

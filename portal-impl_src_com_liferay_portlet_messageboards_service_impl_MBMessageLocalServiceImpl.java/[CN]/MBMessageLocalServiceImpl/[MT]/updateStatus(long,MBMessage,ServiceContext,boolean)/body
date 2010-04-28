@@ -2,19 +2,23 @@
   int oldStatus=message.getStatus();
   User user=userPersistence.findByPrimaryKey(userId);
   Date now=new Date();
-  message.setStatus(serviceContext.getStatus());
+  int status=WorkflowConstants.STATUS_DRAFT;
+  if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
+    status=WorkflowConstants.STATUS_APPROVED;
+  }
+  message.setStatus(status);
   message.setStatusByUserId(userId);
   message.setStatusByUserName(user.getFullName());
   message.setStatusDate(now);
   mbMessagePersistence.update(message,false);
   MBThread thread=mbThreadPersistence.findByPrimaryKey(message.getThreadId());
-  if ((thread.getRootMessageId() == message.getMessageId()) && (oldStatus != serviceContext.getStatus())) {
-    thread.setStatus(serviceContext.getStatus());
+  if ((thread.getRootMessageId() == message.getMessageId()) && (oldStatus != status)) {
+    thread.setStatus(status);
     thread.setStatusByUserId(userId);
     thread.setStatusByUserName(user.getFullName());
     thread.setStatusDate(now);
   }
-  if ((serviceContext.getStatus() == WorkflowConstants.STATUS_APPROVED) && (oldStatus != WorkflowConstants.STATUS_APPROVED)) {
+  if ((status == WorkflowConstants.STATUS_APPROVED) && (oldStatus != WorkflowConstants.STATUS_APPROVED)) {
     thread.setMessageCount(thread.getMessageCount() + 1);
     if (message.isAnonymous()) {
       thread.setLastPostByUserId(0);
@@ -24,36 +28,36 @@
     }
     thread.setLastPostDate(now);
   }
-  if ((serviceContext.getStatus() != WorkflowConstants.STATUS_APPROVED) && (oldStatus == WorkflowConstants.STATUS_APPROVED)) {
+  if ((status != WorkflowConstants.STATUS_APPROVED) && (oldStatus == WorkflowConstants.STATUS_APPROVED)) {
     thread.setMessageCount(thread.getMessageCount() - 1);
   }
-  if (serviceContext.getStatus() != oldStatus) {
+  if (status != oldStatus) {
     mbThreadPersistence.update(thread,false);
   }
   MBCategory category=mbCategoryPersistence.findByPrimaryKey(thread.getCategoryId());
-  if ((serviceContext.getStatus() == WorkflowConstants.STATUS_APPROVED) && (oldStatus != WorkflowConstants.STATUS_APPROVED)) {
+  if ((status == WorkflowConstants.STATUS_APPROVED) && (oldStatus != WorkflowConstants.STATUS_APPROVED)) {
     category.setMessageCount(category.getMessageCount() + 1);
     category.setLastPostDate(now);
     mbCategoryPersistence.update(category,false);
   }
-  if ((serviceContext.getStatus() != WorkflowConstants.STATUS_APPROVED) && (oldStatus == WorkflowConstants.STATUS_APPROVED)) {
+  if ((status != WorkflowConstants.STATUS_APPROVED) && (oldStatus == WorkflowConstants.STATUS_APPROVED)) {
     category.setMessageCount(category.getMessageCount() - 1);
     mbCategoryPersistence.update(category,false);
   }
-  if ((serviceContext.getStatus() == WorkflowConstants.STATUS_APPROVED) && (oldStatus != WorkflowConstants.STATUS_APPROVED)) {
+  if ((status == WorkflowConstants.STATUS_APPROVED) && (oldStatus != WorkflowConstants.STATUS_APPROVED)) {
     assetEntryLocalService.updateVisible(MBMessage.class.getName(),message.getMessageId(),true);
     if (reindex) {
       Indexer indexer=IndexerRegistryUtil.getIndexer(MBMessage.class);
       indexer.reindex(message);
     }
   }
-  if ((serviceContext.getStatus() != WorkflowConstants.STATUS_APPROVED) && (oldStatus == WorkflowConstants.STATUS_APPROVED)) {
+  if ((status != WorkflowConstants.STATUS_APPROVED) && (oldStatus == WorkflowConstants.STATUS_APPROVED)) {
     assetEntryLocalService.updateVisible(MBMessage.class.getName(),message.getMessageId(),false);
   }
-  if (!message.isDiscussion() && (serviceContext.getStatus() == WorkflowConstants.STATUS_APPROVED) && (oldStatus != WorkflowConstants.STATUS_APPROVED)) {
+  if (!message.isDiscussion() && (status == WorkflowConstants.STATUS_APPROVED) && (oldStatus != WorkflowConstants.STATUS_APPROVED)) {
     mbStatsUserLocalService.updateStatsUser(message.getGroupId(),userId,now);
   }
-  if (!message.isDiscussion() && !message.isAnonymous() && !user.isDefaultUser()&& (serviceContext.getStatus() == WorkflowConstants.STATUS_APPROVED)&& (oldStatus != WorkflowConstants.STATUS_APPROVED)) {
+  if (!message.isDiscussion() && !message.isAnonymous() && !user.isDefaultUser()&& (status == WorkflowConstants.STATUS_APPROVED)&& (oldStatus != WorkflowConstants.STATUS_APPROVED)) {
     int activityType=MBActivityKeys.ADD_MESSAGE;
     long receiverUserId=0;
     MBMessage parentMessage=mbMessagePersistence.findByPrimaryKey(message.getParentMessageId());

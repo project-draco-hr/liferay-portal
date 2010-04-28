@@ -34,7 +34,11 @@
  else {
     addFileEntryResources(fileEntry,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
   }
-  addFileVersion(user,fileEntry,serviceContext.getModifiedDate(now),DLFileEntryConstants.DEFAULT_VERSION,null,size,serviceContext.getStatus());
+  int status=WorkflowConstants.STATUS_DRAFT;
+  if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
+    status=WorkflowConstants.STATUS_PENDING;
+  }
+  addFileVersion(user,fileEntry,serviceContext.getModifiedDate(now),DLFileEntryConstants.DEFAULT_VERSION,null,size,status);
   if (folderId != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
     DLFolder folder=dlFolderPersistence.findByPrimaryKey(folderId);
     folder.setLastPostDate(fileEntry.getModifiedDate());
@@ -42,10 +46,11 @@
   }
   updateAsset(userId,fileEntry,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
   if (PropsValues.DL_FILE_ENTRY_COMMENTS_ENABLED) {
-    mbMessageLocalService.addDiscussionMessage(userId,fileEntry.getUserName(),DLFileEntry.class.getName(),fileEntryId,WorkflowConstants.STATUS_APPROVED);
+    mbMessageLocalService.addDiscussionMessage(userId,fileEntry.getUserName(),DLFileEntry.class.getName(),fileEntryId,WorkflowConstants.ACTION_PUBLISH);
   }
   dlLocalService.addFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,fileEntry.getGroupId(),fileEntry.getRepositoryId(),name,false,fileEntryId,fileEntry.getLuceneProperties(),fileEntry.getModifiedDate(),serviceContext,is);
-  fileEntry=updateStatus(userId,fileEntryId,serviceContext.getStatus(),serviceContext);
-  WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),groupId,userId,DLFileEntry.class.getName(),fileEntryId,fileEntry,null);
+  if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
+    WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),groupId,userId,DLFileEntry.class.getName(),fileEntryId,fileEntry,null);
+  }
   return fileEntry;
 }

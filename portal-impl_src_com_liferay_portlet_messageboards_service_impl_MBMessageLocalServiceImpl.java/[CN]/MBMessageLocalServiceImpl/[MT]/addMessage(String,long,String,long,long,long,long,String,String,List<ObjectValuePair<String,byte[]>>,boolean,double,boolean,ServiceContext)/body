@@ -15,6 +15,10 @@
   }
   Date now=new Date();
   validate(subject,body);
+  int status=WorkflowConstants.STATUS_DRAFT;
+  if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
+    status=WorkflowConstants.STATUS_APPROVED;
+  }
   long messageId=counterLocalService.increment();
   MBMessage message=mbMessagePersistence.create(messageId);
   message.setUuid(uuid);
@@ -25,7 +29,7 @@
   message.setCreateDate(now);
   message.setModifiedDate(now);
   message.setAllowPingbacks(allowPingbacks);
-  message.setStatus(serviceContext.getStatus());
+  message.setStatus(status);
   message.setStatusByUserId(user.getUserId());
   message.setStatusByUserName(userName);
   message.setStatusDate(now);
@@ -43,17 +47,17 @@
     thread.setGroupId(groupId);
     thread.setCategoryId(categoryId);
     thread.setRootMessageId(messageId);
-    thread.setStatus(serviceContext.getStatus());
+    thread.setStatus(status);
     thread.setStatusByUserId(user.getUserId());
     thread.setStatusByUserName(userName);
     thread.setStatusDate(now);
-    if ((serviceContext.getStatus() == WorkflowConstants.STATUS_APPROVED) && (categoryId != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID)) {
+    if ((status == WorkflowConstants.STATUS_APPROVED) && (categoryId != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID)) {
       MBCategory category=mbCategoryPersistence.findByPrimaryKey(categoryId);
       category.setThreadCount(category.getThreadCount() + 1);
       mbCategoryPersistence.update(category,false);
     }
   }
-  if (serviceContext.getStatus() == WorkflowConstants.STATUS_APPROVED) {
+  if (status == WorkflowConstants.STATUS_APPROVED) {
     thread.setMessageCount(thread.getMessageCount() + 1);
     if (anonymous) {
       thread.setLastPostByUserId(0);
@@ -119,7 +123,7 @@
       addMessageResources(message,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
     }
   }
-  if (!message.isDiscussion() && (serviceContext.getStatus() == WorkflowConstants.STATUS_APPROVED)) {
+  if (!message.isDiscussion() && (status == WorkflowConstants.STATUS_APPROVED)) {
     mbStatsUserLocalService.updateStatsUser(message.getGroupId(),userId,now);
     if (categoryId != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) {
       MBCategory category=mbCategoryPersistence.findByPrimaryKey(categoryId);
@@ -131,7 +135,7 @@
   updateAsset(userId,message,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
   ExpandoBridge expandoBridge=message.getExpandoBridge();
   expandoBridge.setAttributes(serviceContext);
-  if (!message.isDiscussion() && !message.isAnonymous() && !user.isDefaultUser()&& (serviceContext.getStatus() == WorkflowConstants.STATUS_APPROVED)) {
+  if (!message.isDiscussion() && !message.isAnonymous() && !user.isDefaultUser()&& (status == WorkflowConstants.STATUS_APPROVED)) {
     int activityType=MBActivityKeys.ADD_MESSAGE;
     long receiverUserId=0;
     if (parentMessage != null) {
