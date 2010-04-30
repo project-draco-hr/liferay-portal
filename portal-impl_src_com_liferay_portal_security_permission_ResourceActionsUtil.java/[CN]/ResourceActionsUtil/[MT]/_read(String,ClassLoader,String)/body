@@ -1,6 +1,6 @@
 {
-  InputStream is=classLoader.getResourceAsStream(source);
-  if (is == null) {
+  InputStream inputStream=classLoader.getResourceAsStream(source);
+  if (inputStream == null) {
     if (_log.isWarnEnabled() && !source.endsWith("-ext.xml")) {
       _log.warn("Cannot load " + source);
     }
@@ -9,165 +9,18 @@
   if (_log.isDebugEnabled()) {
     _log.debug("Loading " + source);
   }
-  Document doc=SAXReaderUtil.read(is);
-  Element root=doc.getRootElement();
-  Iterator<Element> itr1=root.elements("resource").iterator();
-  while (itr1.hasNext()) {
-    Element resource=itr1.next();
-    String file=resource.attributeValue("file").trim();
+  Document document=SAXReaderUtil.read(inputStream);
+  Element rootElement=document.getRootElement();
+  for (  Element resourceElement : rootElement.elements("resource")) {
+    String file=resourceElement.attributeValue("file").trim();
     _read(servletContextName,classLoader,file);
     String extFile=StringUtil.replace(file,".xml","-ext.xml");
     _read(servletContextName,classLoader,extFile);
   }
-  itr1=root.elements("portlet-resource").iterator();
-  while (itr1.hasNext()) {
-    Element resource=itr1.next();
-    String name=resource.elementTextTrim("portlet-name");
-    if (servletContextName != null) {
-      name=name + PortletConstants.WAR_SEPARATOR + servletContextName;
-    }
-    name=PortalUtil.getJsSafePortletId(name);
-    List<String> actions=_getActions(_portletResourceActions,name);
-    Element supports=resource.element("supports");
-    Iterator<Element> itr2=supports.elements("action-key").iterator();
-    while (itr2.hasNext()) {
-      Element actionKey=itr2.next();
-      String actionKeyText=actionKey.getTextTrim();
-      if (Validator.isNotNull(actionKeyText)) {
-        actions.add(actionKeyText);
-      }
-    }
-    actions.addAll(_getPortletMimeTypeActions(name));
-    if (!name.equals(PortletKeys.PORTAL)) {
-      _checkPortletActions(actions);
-    }
-    List<String> communityDefaultActions=_getActions(_portletResourceCommunityDefaultActions,name);
-    Element communityDefaults=resource.element("community-defaults");
-    itr2=communityDefaults.elements("action-key").iterator();
-    while (itr2.hasNext()) {
-      Element actionKey=itr2.next();
-      String actionKeyText=actionKey.getTextTrim();
-      if (Validator.isNotNull(actionKeyText)) {
-        communityDefaultActions.add(actionKeyText);
-      }
-    }
-    List<String> guestDefaultActions=_getActions(_portletResourceGuestDefaultActions,name);
-    Element guestDefaults=resource.element("guest-defaults");
-    itr2=guestDefaults.elements("action-key").iterator();
-    while (itr2.hasNext()) {
-      Element actionKey=itr2.next();
-      String actionKeyText=actionKey.getTextTrim();
-      if (Validator.isNotNull(actionKeyText)) {
-        guestDefaultActions.add(actionKeyText);
-      }
-    }
-    List<String> guestUnsupportedActions=_getActions(_portletResourceGuestUnsupportedActions,name);
-    Element guestUnsupported=resource.element("guest-unsupported");
-    if (guestUnsupported != null) {
-      itr2=guestUnsupported.elements("action-key").iterator();
-      while (itr2.hasNext()) {
-        Element actionKey=itr2.next();
-        String actionKeyText=actionKey.getTextTrim();
-        if (Validator.isNotNull(actionKeyText)) {
-          guestUnsupportedActions.add(actionKeyText);
-        }
-      }
-    }
-    _checkGuestUnsupportedActions(guestUnsupportedActions,guestDefaultActions);
-    List<String> layoutManagerActions=_getActions(_portletResourceLayoutManagerActions,name);
-    Element layoutManager=resource.element("layout-manager");
-    if (layoutManager != null) {
-      itr2=layoutManager.elements("action-key").iterator();
-      while (itr2.hasNext()) {
-        Element actionKey=itr2.next();
-        String actionKeyText=actionKey.getTextTrim();
-        if (Validator.isNotNull(actionKeyText)) {
-          layoutManagerActions.add(actionKeyText);
-        }
-      }
-    }
- else {
-      layoutManagerActions.addAll(actions);
-    }
+  for (  Element portletResourceElement : rootElement.elements("portlet-resource")) {
+    _readPortletResource(servletContextName,portletResourceElement);
   }
-  itr1=root.elements("model-resource").iterator();
-  while (itr1.hasNext()) {
-    Element resource=itr1.next();
-    String name=resource.elementTextTrim("model-name");
-    Element portletRef=resource.element("portlet-ref");
-    Iterator<Element> itr2=portletRef.elements("portlet-name").iterator();
-    while (itr2.hasNext()) {
-      Element portletName=itr2.next();
-      String portletNameString=portletName.getTextTrim();
-      if (servletContextName != null) {
-        portletNameString=portletNameString + PortletConstants.WAR_SEPARATOR + servletContextName;
-      }
-      portletNameString=PortalUtil.getJsSafePortletId(portletNameString);
-      Set<String> modelResources=_portletModelResources.get(portletNameString);
-      if (modelResources == null) {
-        modelResources=new HashSet<String>();
-        _portletModelResources.put(portletNameString,modelResources);
-      }
-      modelResources.add(name);
-      Set<String> portletResources=_modelPortletResources.get(name);
-      if (portletResources == null) {
-        portletResources=new HashSet<String>();
-        _modelPortletResources.put(name,portletResources);
-      }
-      portletResources.add(portletNameString);
-    }
-    List<String> actions=_getActions(_modelResourceActions,name);
-    Element supports=resource.element("supports");
-    itr2=supports.elements("action-key").iterator();
-    while (itr2.hasNext()) {
-      Element actionKey=itr2.next();
-      String actionKeyText=actionKey.getTextTrim();
-      if (Validator.isNotNull(actionKeyText)) {
-        actions.add(actionKeyText);
-      }
-    }
-    List<String> communityDefaultActions=_getActions(_modelResourceCommunityDefaultActions,name);
-    Element communityDefaults=resource.element("community-defaults");
-    itr2=communityDefaults.elements("action-key").iterator();
-    while (itr2.hasNext()) {
-      Element actionKey=itr2.next();
-      String actionKeyText=actionKey.getTextTrim();
-      if (Validator.isNotNull(actionKeyText)) {
-        communityDefaultActions.add(actionKeyText);
-      }
-    }
-    List<String> guestDefaultActions=_getActions(_modelResourceGuestDefaultActions,name);
-    Element guestDefaults=resource.element("guest-defaults");
-    itr2=guestDefaults.elements("action-key").iterator();
-    while (itr2.hasNext()) {
-      Element actionKey=itr2.next();
-      String actionKeyText=actionKey.getTextTrim();
-      if (Validator.isNotNull(actionKeyText)) {
-        guestDefaultActions.add(actionKeyText);
-      }
-    }
-    List<String> guestUnsupportedActions=_getActions(_modelResourceGuestUnsupportedActions,name);
-    Element guestUnsupported=resource.element("guest-unsupported");
-    itr2=guestUnsupported.elements("action-key").iterator();
-    while (itr2.hasNext()) {
-      Element actionKey=itr2.next();
-      String actionKeyText=actionKey.getTextTrim();
-      if (Validator.isNotNull(actionKeyText)) {
-        guestUnsupportedActions.add(actionKeyText);
-      }
-    }
-    _checkGuestUnsupportedActions(guestUnsupportedActions,guestDefaultActions);
-    List<String> ownerDefaultActions=_getActions(_modelResourceOwnerDefaultActions,name);
-    Element ownerDefaults=resource.element("owner-defaults");
-    if (ownerDefaults != null) {
-      itr2=ownerDefaults.elements("action-key").iterator();
-      while (itr2.hasNext()) {
-        Element actionKey=itr2.next();
-        String actionKeyText=actionKey.getTextTrim();
-        if (Validator.isNotNull(actionKeyText)) {
-          ownerDefaultActions.add(actionKeyText);
-        }
-      }
-    }
+  for (  Element modelResourceElement : rootElement.elements("model-resource")) {
+    _readModelResource(servletContextName,modelResourceElement);
   }
 }
