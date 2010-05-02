@@ -4,13 +4,13 @@
     throw new SplitThreadException();
   }
   MBCategory category=message.getCategory();
-  long oldThreadId=message.getThreadId();
+  MBThread oldThread=message.getThread();
+  MBMessage rootMessage=mbMessagePersistence.findByPrimaryKey(oldThread.getRootMessageId());
   String oldAttachmentsDir=message.getAttachmentsDir();
-  long userId=mbMessagePersistence.findByPrimaryKey(message.getThread().getRootMessageId()).getUserId();
-  mbMessageFlagLocalService.deleteAnswerFlags(oldThreadId,message.getMessageId());
-  int count=mbMessageFlagPersistence.countByT_F(oldThreadId,MBMessageFlagConstants.ANSWER_FLAG);
+  mbMessageFlagLocalService.deleteAnswerFlags(oldThread.getThreadId(),message.getMessageId());
+  int count=mbMessageFlagPersistence.countByT_F(oldThread.getThreadId(),MBMessageFlagConstants.ANSWER_FLAG);
   if (count == 1) {
-    MBMessageFlag messageFlag=mbMessageFlagPersistence.fetchByU_M_F(userId,message.getThread().getRootMessageId(),MBMessageFlagConstants.ANSWER_FLAG);
+    MBMessageFlag messageFlag=mbMessageFlagPersistence.fetchByU_M_F(rootMessage.getUserId(),rootMessage.getMessageId(),MBMessageFlagConstants.ANSWER_FLAG);
     messageFlag.setFlag(MBMessageFlagConstants.QUESTION_FLAG);
     mbMessageFlagPersistence.update(messageFlag,false);
   }
@@ -25,10 +25,9 @@
     indexer.reindex(message);
   }
   int messagesMoved=1;
-  messagesMoved+=moveChildrenMessages(message,category,oldThreadId);
+  messagesMoved+=moveChildrenMessages(message,category,oldThread.getThreadId());
   thread.setMessageCount(messagesMoved);
   mbThreadPersistence.update(thread,false);
-  MBThread oldThread=mbThreadPersistence.findByPrimaryKey(oldThreadId);
   oldThread.setMessageCount(oldThread.getMessageCount() - messagesMoved);
   mbThreadPersistence.update(oldThread,false);
   category.setThreadCount(category.getThreadCount() + 1);
