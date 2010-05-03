@@ -5,10 +5,6 @@
   validate(title,nodeId,content,format);
   long pageId=counterLocalService.increment();
   long resourcePrimKey=wikiPageResourceLocalService.getPageResourcePrimKey(nodeId,title);
-  int status=WorkflowConstants.STATUS_DRAFT;
-  if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
-    status=WorkflowConstants.STATUS_APPROVED;
-  }
   WikiPage page=wikiPagePersistence.create(pageId);
   page.setUuid(uuid);
   page.setResourcePrimKey(resourcePrimKey);
@@ -23,7 +19,7 @@
   page.setVersion(version);
   page.setMinorEdit(minorEdit);
   page.setContent(content);
-  page.setStatus(status);
+  page.setStatus(WorkflowConstants.STATUS_DRAFT);
   page.setSummary(summary);
   page.setFormat(format);
   page.setHead(head);
@@ -44,15 +40,10 @@
   if (PropsValues.WIKI_PAGE_COMMENTS_ENABLED) {
     mbMessageLocalService.addDiscussionMessage(userId,page.getUserName(),WikiPage.class.getName(),resourcePrimKey,WorkflowConstants.ACTION_PUBLISH);
   }
-  socialActivityLocalService.addActivity(userId,page.getGroupId(),WikiPage.class.getName(),resourcePrimKey,WikiActivityKeys.ADD_PAGE,StringPool.BLANK,0);
-  if (page.isApproved() && !minorEdit && NotificationThreadLocal.isEnabled()) {
-    notifySubscribers(node,page,serviceContext,false);
+  if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
+    Map<String,Serializable> workflowContext=new HashMap<String,Serializable>();
+    workflowContext.put("serviceContext",serviceContext);
+    WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),page.getGroupId(),userId,WikiPage.class.getName(),page.getResourcePrimKey(),page,workflowContext,serviceContext);
   }
-  if (page.isApproved()) {
-    Indexer indexer=IndexerRegistryUtil.getIndexer(WikiPage.class);
-    indexer.reindex(page);
-  }
-  clearPageCache(page);
-  clearReferralsCache(page);
   return page;
 }

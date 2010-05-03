@@ -2,32 +2,31 @@
   User user=userPersistence.findByPrimaryKey(userId);
   Date now=new Date();
   validate(nodeId,content,format);
-  WikiPage page=null;
+  WikiPage oldPage=null;
   try {
-    page=getPage(nodeId,title);
+    oldPage=getPage(nodeId,title);
   }
- catch (  NoSuchPageException nspe) {
-    return addPage(null,userId,nodeId,title,WikiPageConstants.DEFAULT_VERSION,content,summary,minorEdit,format,true,parentTitle,redirectTitle,serviceContext);
+ catch (  NoSuchPageException nspe1) {
+    try {
+      oldPage=getDraftPage(nodeId,title);
+    }
+ catch (    NoSuchPageException nspe2) {
+      return addPage(null,userId,nodeId,title,WikiPageConstants.DEFAULT_VERSION,content,summary,minorEdit,format,true,parentTitle,redirectTitle,serviceContext);
+    }
   }
-  double oldVersion=page.getVersion();
+  double oldVersion=oldPage.getVersion();
   if ((version > 0) && (version != oldVersion)) {
     throw new PageVersionException();
   }
-  long resourcePrimKey=page.getResourcePrimKey();
-  long groupId=page.getGroupId();
-  int status=WorkflowConstants.STATUS_DRAFT;
-  if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
-    status=WorkflowConstants.STATUS_APPROVED;
+  long resourcePrimKey=oldPage.getResourcePrimKey();
+  long groupId=oldPage.getGroupId();
+  WikiPage page=oldPage;
+  double newVersion=oldVersion;
+  if (oldPage.isApproved()) {
+    newVersion=MathUtil.format(oldVersion + 0.1,1,1);
+    long pageId=counterLocalService.increment();
+    page=wikiPagePersistence.create(pageId);
   }
-  boolean isApproved=(status == WorkflowConstants.STATUS_APPROVED);
-  if (isApproved) {
-    page.setHead(false);
-  }
-  page.setModifiedDate(serviceContext.getModifiedDate(now));
-  wikiPagePersistence.update(page,false);
-  double newVersion=MathUtil.format(oldVersion + 0.1,1,1);
-  long pageId=counterLocalService.increment();
-  page=wikiPagePersistence.create(pageId);
   page.setResourcePrimKey(resourcePrimKey);
   page.setGroupId(groupId);
   page.setCompanyId(user.getCompanyId());
@@ -40,12 +39,9 @@
   page.setVersion(newVersion);
   page.setMinorEdit(minorEdit);
   page.setContent(content);
-  page.setStatus(status);
+  page.setStatus(WorkflowConstants.STATUS_DRAFT);
   page.setSummary(summary);
   page.setFormat(format);
-  if (isApproved) {
-    page.setHead(true);
-  }
   if (Validator.isNotNull(parentTitle)) {
     page.setParentTitle(parentTitle);
   }
@@ -59,14 +55,10 @@
   node.setLastPostDate(serviceContext.getModifiedDate(now));
   wikiNodePersistence.update(node,false);
   updateAsset(userId,page,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
-  socialActivityLocalService.addActivity(userId,page.getGroupId(),WikiPage.class.getName(),page.getResourcePrimKey(),WikiActivityKeys.UPDATE_PAGE,StringPool.BLANK,0);
-  if (isApproved && !minorEdit && NotificationThreadLocal.isEnabled()) {
-    notifySubscribers(node,page,serviceContext,true);
+  if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
+    Map<String,Serializable> workflowContext=new HashMap<String,Serializable>();
+    workflowContext.put("serviceContext",serviceContext);
+    WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),page.getGroupId(),userId,WikiPage.class.getName(),page.getResourcePrimKey(),page,workflowContext,serviceContext);
   }
-  if (page.isApproved()) {
-    Indexer indexer=IndexerRegistryUtil.getIndexer(WikiPage.class);
-    indexer.reindex(page);
-  }
-  clearPageCache(page);
   return page;
 }

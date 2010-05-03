@@ -1,0 +1,45 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  WikiNode node=wikiNodePersistence.findByPrimaryKey(page.getNodeId());
+  Date now=new Date();
+  page.setStatus(status);
+  page.setStatusByUserId(userId);
+  page.setStatusByUserName(user.getFullName());
+  page.setStatusDate(now);
+  if (status == WorkflowConstants.STATUS_APPROVED) {
+    List<WikiPage> pages=wikiPagePersistence.findByN_T_H(page.getNodeId(),page.getTitle(),true,0,1);
+    if (pages.size() > 0) {
+      WikiPage lastApprovedPage=pages.get(0);
+      lastApprovedPage.setHead(false);
+      wikiPagePersistence.update(lastApprovedPage,false);
+    }
+    assetEntryLocalService.updateVisible(WikiPage.class.getName(),page.getResourcePrimKey(),true);
+    int activity=WikiActivityKeys.ADD_PAGE;
+    if (page.getVersion() > 1.1) {
+      activity=WikiActivityKeys.UPDATE_PAGE;
+    }
+    socialActivityLocalService.addActivity(userId,page.getGroupId(),WikiPage.class.getName(),page.getResourcePrimKey(),activity,StringPool.BLANK,0);
+    if (!page.isMinorEdit() && NotificationThreadLocal.isEnabled()) {
+      boolean update=false;
+      if (page.getVersion() > 1.1) {
+        update=true;
+      }
+      notifySubscribers(node,page,serviceContext,update);
+    }
+    Indexer indexer=IndexerRegistryUtil.getIndexer(WikiPage.class);
+    indexer.reindex(page);
+    clearPageCache(page);
+    clearReferralsCache(page);
+    page.setHead(true);
+  }
+ else {
+    page.setHead(false);
+    List<WikiPage> pages=wikiPagePersistence.findByN_T_H(page.getNodeId(),page.getTitle(),false,0,1);
+    if (pages.size() > 0) {
+      WikiPage previousVersionPage=pages.get(0);
+      previousVersionPage.setHead(true);
+      wikiPagePersistence.update(previousVersionPage,false);
+    }
+  }
+  return wikiPagePersistence.update(page,false);
+}
