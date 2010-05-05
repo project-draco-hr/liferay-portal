@@ -19,6 +19,10 @@
     if (version == null) {
       sql=StringUtil.replace(sql,"(version = ?) [$AND_OR_CONNECTOR$]","");
     }
+ else     if (version <= 0) {
+      sql=StringUtil.replace(sql,"id_ AS id","DISTINCT articleId");
+      sql=StringUtil.replace(sql,"(version = ?) [$AND_OR_CONNECTOR$]","");
+    }
     sql=CustomSQLUtil.replaceKeywords(sql,"lower(title)",StringPool.LIKE,false,titles);
     sql=CustomSQLUtil.replaceKeywords(sql,"description",StringPool.LIKE,false,descriptions);
     sql=CustomSQLUtil.replaceKeywords(sql,"content",StringPool.LIKE,false,contents);
@@ -30,14 +34,19 @@
     sql=CustomSQLUtil.replaceAndOperator(sql,andOperator);
     sql=CustomSQLUtil.replaceOrderBy(sql,obc);
     SQLQuery q=session.createSQLQuery(sql);
-    q.addEntity("JournalArticle",JournalArticleImpl.class);
+    if ((version != null) && (version <= 0)) {
+      q.addScalar("articleId",Type.STRING);
+    }
+ else {
+      q.addScalar("id",Type.LONG);
+    }
     QueryPos qPos=QueryPos.getInstance(q);
     qPos.add(companyId);
     if (groupId > 0) {
       qPos.add(groupId);
     }
     qPos.add(articleIds,2);
-    if (version != null) {
+    if ((version != null) && (version > 0)) {
       qPos.add(version);
     }
     qPos.add(titles,2);
@@ -56,7 +65,24 @@
     }
     qPos.add(reviewDate_TS);
     qPos.add(reviewDate_TS);
-    return (List<JournalArticle>)QueryUtil.list(q,getDialect(),start,end);
+    List<JournalArticle> articles=new ArrayList<JournalArticle>();
+    Iterator<Object[]> itr=q.list().iterator();
+    while (itr.hasNext()) {
+      Object value=itr.next();
+      JournalArticle article=null;
+      if ((version != null) && (version <= 0)) {
+        String articleId=(String)value;
+        article=getLatestArticle(groupId,articleId,status);
+      }
+ else {
+        long id=(Long)value;
+        article=JournalArticleUtil.findByPrimaryKey(id);
+      }
+      if (article != null) {
+        articles.add(article);
+      }
+    }
+    return articles;
   }
  catch (  Exception e) {
     throw new SystemException(e);
