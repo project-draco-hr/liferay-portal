@@ -1,52 +1,51 @@
 {
   long companyId=PortalInstances.getCompanyId(request);
   if (LDAPSettingsUtil.isNtlmEnabled(companyId)) {
-    String domainController=_filterConfig.getInitParameter("jcifs.http.domainController");
-    String domain=_filterConfig.getInitParameter("jcifs.smb.client.domain");
-    String preferencesDomainController=PrefsPropsUtil.getString(companyId,PropsKeys.NTLM_DOMAIN_CONTROLLER,PropsValues.NTLM_DOMAIN_CONTROLLER);
-    String preferencesDomain=PrefsPropsUtil.getString(companyId,PropsKeys.NTLM_DOMAIN,PropsValues.NTLM_DOMAIN);
-    if (!Validator.equals(domainController,preferencesDomainController) || !Validator.equals(domain,preferencesDomain)) {
-      domainController=preferencesDomainController;
-      domain=preferencesDomain;
-      _filterConfig.addInitParameter("jcifs.http.domainController",domainController);
-      _filterConfig.addInitParameter("jcifs.smb.client.domain",domain);
-      super.init(_filterConfig);
-    }
-    if (_log.isDebugEnabled()) {
-      _log.debug("Host " + domainController);
-      _log.debug("Domain " + domain);
-    }
+    HttpSession session=request.getSession(false);
     String authorization=GetterUtil.getString(request.getHeader(HttpHeaders.AUTHORIZATION));
     if (authorization.startsWith("NTLM")) {
       byte[] src=Base64.decode(authorization.substring(5));
       if (src[8] == 1) {
-        UniAddress dc=UniAddress.getByName(domainController,true);
-        byte[] challenge=SmbSession.getChallenge(dc);
-        Type1Message type1=new Type1Message(src);
-        Type2Message type2=new Type2Message(type1,challenge,null);
-        authorization=Base64.encode(type2.toByteArray());
+        byte[] challengeMessage=_ntlmManager.negotiate(src);
+        authorization=Base64.encode(challengeMessage);
         response.setHeader(HttpHeaders.WWW_AUTHENTICATE,"NTLM " + authorization);
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentLength(0);
+        response.flushBuffer();
+        String remoteAddr=request.getRemoteAddr();
+        _serverChallengesMap.put(remoteAddr,_ntlmManager.getServerChallenge());
+        return;
+      }
+ else {
+        byte[] serverChallenge=_serverChallengesMap.get(request.getRemoteAddr());
+        _ntlmManager.setServerChallenge(serverChallenge);
+        NtlmUserAccount account=_ntlmManager.authenticate(src);
+        if (account == null) {
+          return;
+        }
+        if (_log.isDebugEnabled()) {
+          _log.debug("NTLM remote user " + account.getUserName());
+        }
+        _serverChallengesMap.remove(request.getRemoteAddr());
+        request.setAttribute(WebKeys.NTLM_REMOTE_USER,account.getUserName());
+        if (session != null) {
+          session.setAttribute("NtlmUserAccount",account);
+        }
+      }
+    }
+    String path=request.getPathInfo();
+    if ((path != null) && path.endsWith("/login")) {
+      NtlmUserAccount account=null;
+      if (session != null) {
+        account=(NtlmUserAccount)session.getAttribute("NtlmUserAccount");
+      }
+      if (account == null) {
+        response.setHeader(HttpHeaders.WWW_AUTHENTICATE,"NTLM");
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentLength(0);
         response.flushBuffer();
         return;
       }
-    }
-    String path=request.getPathInfo();
-    if ((path != null) && path.endsWith("/login")) {
-      NtlmPasswordAuthentication ntlm=negotiate(request,response,false);
-      if (ntlm == null) {
-        return;
-      }
-      String remoteUser=ntlm.getName();
-      int pos=remoteUser.indexOf(StringPool.BACK_SLASH);
-      if (pos != -1) {
-        remoteUser=remoteUser.substring(pos + 1);
-      }
-      if (_log.isDebugEnabled()) {
-        _log.debug("NTLM remote user " + remoteUser);
-      }
-      request.setAttribute(WebKeys.NTLM_REMOTE_USER,remoteUser);
     }
   }
   processFilter(NtlmPostFilter.class,request,response,filterChain);
