@@ -12,34 +12,33 @@
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentLength(0);
         response.flushBuffer();
-        String remoteAddr=request.getRemoteAddr();
-        _serverChallengesMap.put(remoteAddr,_ntlmManager.getServerChallenge());
+        _serverChallenges.put(request.getRemoteAddr(),_ntlmManager.getServerChallenge());
         return;
       }
  else {
-        byte[] serverChallenge=_serverChallengesMap.get(request.getRemoteAddr());
+        byte[] serverChallenge=_serverChallenges.get(request.getRemoteAddr());
         _ntlmManager.setServerChallenge(serverChallenge);
-        NtlmUserAccount account=_ntlmManager.authenticate(src);
-        if (account == null) {
+        NtlmUserAccount ntlmUserAccount=_ntlmManager.authenticate(src);
+        if (ntlmUserAccount == null) {
           return;
         }
         if (_log.isDebugEnabled()) {
-          _log.debug("NTLM remote user " + account.getUserName());
+          _log.debug("NTLM remote user " + ntlmUserAccount.getUserName());
         }
-        _serverChallengesMap.remove(request.getRemoteAddr());
-        request.setAttribute(WebKeys.NTLM_REMOTE_USER,account.getUserName());
+        _serverChallenges.remove(request.getRemoteAddr());
+        request.setAttribute(WebKeys.NTLM_REMOTE_USER,ntlmUserAccount.getUserName());
         if (session != null) {
-          session.setAttribute("NtlmUserAccount",account);
+          session.setAttribute(WebKeys.NTLM_USER_ACCOUNT,ntlmUserAccount);
         }
       }
     }
     String path=request.getPathInfo();
     if ((path != null) && path.endsWith("/login")) {
-      NtlmUserAccount account=null;
+      NtlmUserAccount ntlmUserAccount=null;
       if (session != null) {
-        account=(NtlmUserAccount)session.getAttribute("NtlmUserAccount");
+        ntlmUserAccount=(NtlmUserAccount)session.getAttribute(WebKeys.NTLM_USER_ACCOUNT);
       }
-      if (account == null) {
+      if (ntlmUserAccount == null) {
         response.setHeader(HttpHeaders.WWW_AUTHENTICATE,"NTLM");
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentLength(0);
