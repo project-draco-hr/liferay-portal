@@ -1,5 +1,7 @@
 {
   String basedir="./";
+  String copyright=_getCopyright();
+  String oldCopyright=_getOldCopyright();
   List<String> list=new ArrayList<String>();
   DirectoryScanner ds=new DirectoryScanner();
   ds.setBasedir(basedir);
@@ -7,11 +9,24 @@
   ds.setIncludes(new String[]{"**\\*.jsp","**\\*.jspf","**\\*.vm"});
   ds.scan();
   list.addAll(ListUtil.fromArray(ds.getIncludedFiles()));
-  String copyright=_getCopyright();
-  String oldCopyright=_getOldCopyright();
   String[] files=list.toArray(new String[list.size()]);
+  Properties properties=new Properties();
+  File propertiesFile=_getPropertiesFile(basedir,".jsp.temp");
+  String propertiesContent=StringPool.BLANK;
+  if (propertiesFile.exists()) {
+    propertiesContent=_fileUtil.read(propertiesFile);
+    PropertiesUtil.load(properties,propertiesContent);
+  }
   for (int i=0; i < files.length; i++) {
     File file=new File(basedir + files[i]);
+    String key=StringUtil.replace(file.getPath(),StringPool.BACK_SLASH,StringPool.SLASH);
+    long lastModified=GetterUtil.getLong(properties.getProperty(key));
+    if (file.lastModified() == lastModified) {
+      continue;
+    }
+ else {
+      properties.setProperty(key,String.valueOf(file.lastModified()));
+    }
     String content=_fileUtil.read(file);
     String newContent=_formatJSPContent(files[i],content);
     newContent=StringUtil.replace(newContent,new String[]{"<br/>","\"/>","\" >","@page import","\"%>",")%>","javascript: "},new String[]{"<br />","\" />","\">","@ page import","\" %>",") %>","javascript:"});
@@ -47,5 +62,9 @@
       _fileUtil.write(file,newContent);
       System.out.println(file);
     }
+  }
+  String newPropertiesContent=PropertiesUtil.toString(properties);
+  if (!propertiesContent.equals(newPropertiesContent)) {
+    _fileUtil.write(propertiesFile,newPropertiesContent);
   }
 }
