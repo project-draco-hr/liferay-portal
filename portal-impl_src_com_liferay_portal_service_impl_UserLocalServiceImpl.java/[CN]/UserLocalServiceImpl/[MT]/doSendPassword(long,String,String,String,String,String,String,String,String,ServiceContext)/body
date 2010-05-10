@@ -1,0 +1,69 @@
+{
+  Company company=companyPersistence.findByPrimaryKey(companyId);
+  if (!company.isSendPassword() && !company.isSendPasswordResetLink()) {
+    return;
+  }
+  emailAddress=emailAddress.trim().toLowerCase();
+  if (!Validator.isEmailAddress(emailAddress)) {
+    throw new UserEmailAddressException();
+  }
+  User user=userPersistence.findByC_EA(companyId,emailAddress);
+  PasswordPolicy passwordPolicy=user.getPasswordPolicy();
+  String newPassword=StringPool.BLANK;
+  String passwordResetURL=StringPool.BLANK;
+  if (company.isSendPasswordResetLink()) {
+    Date expirationDate=new Date(System.currentTimeMillis() + (passwordPolicy.getResetTicketMaxAge() * 1000));
+    Ticket ticket=ticketLocalService.addTicket(companyId,User.class.getName(),user.getUserId(),expirationDate,serviceContext);
+    passwordResetURL=serviceContext.getPortalURL() + serviceContext.getPathMain() + "/portal/update_password?ticket="+ ticket.getKey();
+  }
+ else {
+    if (!PwdEncryptor.PASSWORDS_ENCRYPTION_ALGORITHM.equals(PwdEncryptor.TYPE_NONE)) {
+      newPassword=PwdToolkitUtil.generate();
+      boolean passwordReset=false;
+      if (passwordPolicy.getChangeable() && passwordPolicy.getChangeRequired()) {
+        passwordReset=true;
+      }
+      user.setPassword(PwdEncryptor.encrypt(newPassword));
+      user.setPasswordUnencrypted(newPassword);
+      user.setPasswordEncrypted(true);
+      user.setPasswordReset(passwordReset);
+      user.setPasswordModified(true);
+      user.setPasswordModifiedDate(new Date());
+      userPersistence.update(user,false);
+      user.setPasswordModified(false);
+    }
+ else {
+      newPassword=user.getPassword();
+    }
+  }
+  if (Validator.isNull(fromName)) {
+    fromName=PrefsPropsUtil.getString(companyId,PropsKeys.ADMIN_EMAIL_FROM_NAME);
+  }
+  if (Validator.isNull(fromAddress)) {
+    fromAddress=PrefsPropsUtil.getString(companyId,PropsKeys.ADMIN_EMAIL_FROM_ADDRESS);
+  }
+  String toName=user.getFullName();
+  String toAddress=user.getEmailAddress();
+  if (Validator.isNull(subject)) {
+    if (company.isSendPasswordResetLink()) {
+      subject=PrefsPropsUtil.getContent(companyId,PropsKeys.ADMIN_EMAIL_PASSWORD_RESET_SUBJECT);
+    }
+ else {
+      subject=PrefsPropsUtil.getContent(companyId,PropsKeys.ADMIN_EMAIL_PASSWORD_SENT_SUBJECT);
+    }
+  }
+  if (Validator.isNull(body)) {
+    if (company.isSendPasswordResetLink()) {
+      body=PrefsPropsUtil.getContent(companyId,PropsKeys.ADMIN_EMAIL_PASSWORD_RESET_BODY);
+    }
+ else {
+      body=PrefsPropsUtil.getContent(companyId,PropsKeys.ADMIN_EMAIL_PASSWORD_SENT_BODY);
+    }
+  }
+  subject=StringUtil.replace(subject,new String[]{"[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PASSWORD_RESET_URL$]","[$PORTAL_URL$]","[$REMOTE_ADDRESS$]","[$REMOTE_HOST$]","[$TO_ADDRESS$]","[$TO_NAME$]","[$USER_AGENT$]","[$USER_ID$]","[$USER_PASSWORD$]","[$USER_SCREENNAME$]"},new String[]{fromAddress,fromName,passwordResetURL,company.getVirtualHost(),remoteAddr,remoteHost,toAddress,toName,HtmlUtil.escape(userAgent),String.valueOf(user.getUserId()),newPassword,user.getScreenName()});
+  body=StringUtil.replace(body,new String[]{"[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PASSWORD_RESET_URL$]","[$PORTAL_URL$]","[$REMOTE_ADDRESS$]","[$REMOTE_HOST$]","[$TO_ADDRESS$]","[$TO_NAME$]","[$USER_AGENT$]","[$USER_ID$]","[$USER_PASSWORD$]","[$USER_SCREENNAME$]"},new String[]{fromAddress,fromName,passwordResetURL,company.getVirtualHost(),remoteAddr,remoteHost,toAddress,toName,HtmlUtil.escape(userAgent),String.valueOf(user.getUserId()),newPassword,user.getScreenName()});
+  InternetAddress from=new InternetAddress(fromAddress,fromName);
+  InternetAddress to=new InternetAddress(toAddress,toName);
+  MailMessage message=new MailMessage(from,to,subject,body,true);
+  mailService.sendEmail(message);
+}
