@@ -1,0 +1,44 @@
+{
+  CounterHolder counterHolder=counterRegister.getCounterHolder();
+  long newValue=counterHolder.addAndGet(size);
+  if (newValue <= counterHolder.getRangeMax()) {
+    return newValue;
+  }
+  CompeteLatch completeLatch=counterRegister.getCompeteLatch();
+  if (!completeLatch.compete()) {
+    completeLatch.await();
+    return _competeIncrement(counterRegister,size);
+  }
+  Connection connection=null;
+  PreparedStatement preparedStatement=null;
+  ResultSet resultSet=null;
+  try {
+    counterHolder=counterRegister.getCounterHolder();
+    newValue=counterHolder.addAndGet(size);
+    if (newValue > counterHolder.getRangeMax()) {
+      connection=getConnection();
+      preparedStatement=connection.prepareStatement(_SQL_SELECT_ID_BY_NAME);
+      preparedStatement.setString(1,counterRegister.getName());
+      resultSet=preparedStatement.executeQuery();
+      resultSet.next();
+      long currentId=resultSet.getLong(1);
+      newValue=currentId + 1;
+      long rangeMax=currentId + counterRegister.getRangeSize();
+      resultSet.close();
+      preparedStatement.close();
+      preparedStatement=connection.prepareStatement(_SQL_UPDATE_ID_BY_NAME);
+      preparedStatement.setLong(1,rangeMax);
+      preparedStatement.setString(2,counterRegister.getName());
+      preparedStatement.executeUpdate();
+      counterRegister.setCounterHolder(new CounterHolder(newValue,rangeMax));
+    }
+  }
+ catch (  Exception e) {
+    throw processException(e);
+  }
+ finally {
+    DataAccess.cleanUp(connection,preparedStatement,resultSet);
+    completeLatch.done();
+  }
+  return newValue;
+}
