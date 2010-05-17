@@ -1,10 +1,8 @@
 {
   MBMessage message=mbMessagePersistence.findByPrimaryKey(messageId);
-  MBCategory category=message.getCategory();
   subject=ModelHintsUtil.trimString(MBMessage.class.getName(),"subject",subject);
   Date now=new Date();
   validate(subject,body);
-  int oldStatus=message.getStatus();
   message.setModifiedDate(serviceContext.getModifiedDate(now));
   message.setSubject(subject);
   message.setBody(body);
@@ -49,33 +47,18 @@
     }
   }
   mbMessagePersistence.update(message,false);
-  int status=WorkflowConstants.STATUS_DRAFT;
-  if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
-    status=WorkflowConstants.STATUS_APPROVED;
-  }
-  if (oldStatus != status) {
-    message=updateStatus(userId,message,serviceContext,false);
-  }
   MBThread thread=mbThreadPersistence.findByPrimaryKey(message.getThreadId());
   if ((priority != MBThreadConstants.PRIORITY_NOT_GIVEN) && (thread.getPriority() != priority)) {
     thread.setPriority(priority);
     mbThreadPersistence.update(thread,false);
     updatePriorities(thread.getThreadId(),priority);
   }
-  if (!message.isDiscussion() && (status == WorkflowConstants.STATUS_APPROVED)) {
-    category.setLastPostDate(serviceContext.getModifiedDate(now));
-    mbCategoryPersistence.update(category,false);
-  }
   updateAsset(userId,message,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
   ExpandoBridge expandoBridge=message.getExpandoBridge();
   expandoBridge.setAttributes(serviceContext);
-  boolean update=true;
-  if ((oldStatus != WorkflowConstants.STATUS_APPROVED) && (status == WorkflowConstants.STATUS_APPROVED)) {
-    update=false;
+  if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
+    serviceContext.setAttribute("update",Boolean.TRUE.toString());
+    WorkflowHandlerRegistryUtil.startWorkflowInstance(companyId,message.getGroupId(),userId,MBMessage.class.getName(),message.getMessageId(),message,serviceContext);
   }
-  notifySubscribers(message,serviceContext,update);
-  pingPingback(message,serviceContext);
-  Indexer indexer=IndexerRegistryUtil.getIndexer(MBMessage.class);
-  indexer.reindex(message);
   return message;
 }
