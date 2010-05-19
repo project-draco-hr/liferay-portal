@@ -1,0 +1,42 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+  long scopeGroupId=themeDisplay.getScopeGroupId();
+  PortletPreferences preferences=request.getPreferences();
+  String selectionStyle=preferences.getValue("selection-style","dynamic");
+  int rssDelta=GetterUtil.getInteger(preferences.getValue("rss-delta","20"));
+  String rssDisplayStyle=preferences.getValue("rss-display-style",RSSUtil.DISPLAY_STYLE_ABSTRACT);
+  String rssFormat=preferences.getValue("rss-format","atom10");
+  String rssName=preferences.getValue("rss-name",null);
+  String rssFormatType=RSSUtil.getFormatType(rssFormat);
+  double rssFormatVersion=RSSUtil.getFormatVersion(rssFormat);
+  Layout layout=themeDisplay.getLayout();
+  String instanceId=themeDisplay.getPortletDisplay().getInstanceId();
+  StringBundler sb=new StringBundler(5);
+  sb.append(PortalUtil.getLayoutURL(layout,themeDisplay));
+  sb.append(Portal.FRIENDLY_URL_SEPARATOR);
+  sb.append("asset_publisher/");
+  sb.append(instanceId);
+  sb.append("/rss");
+  String feedURL=sb.toString();
+  sb=new StringBundler(5);
+  sb.append(PortalUtil.getLayoutURL(layout,themeDisplay));
+  sb.append(Portal.FRIENDLY_URL_SEPARATOR);
+  sb.append("asset_publisher/");
+  sb.append(instanceId);
+  sb.append(StringPool.SLASH);
+  String entryURL=sb.toString();
+  String rss=StringPool.BLANK;
+  long[] groupIds=AssetPublisherUtil.getGroupIdsFromPreferences(preferences,scopeGroupId,layout);
+  long[] availableClassNameIds=AssetRendererFactoryRegistryUtil.getClassNameIds();
+  long[] classNameIds=AssetPublisherUtil.getClassNameIds(preferences,availableClassNameIds);
+  if (selectionStyle.equals("dynamic")) {
+    boolean excludeZeroViewCount=GetterUtil.getBoolean(preferences.getValue("exclude-zero-view-count","0"));
+    AssetEntryQuery assetEntryQuery=AssetPublisherUtil.getAssetEntryQuery(preferences,scopeGroupId);
+    assetEntryQuery.setGroupIds(groupIds);
+    assetEntryQuery.setEnd(rssDelta);
+    assetEntryQuery.setExcludeZeroViewCount(excludeZeroViewCount);
+    assetEntryQuery.setStart(0);
+    rss=AssetEntryServiceUtil.getEntriesRSS(rssName,assetEntryQuery,rssFormatType,rssFormatVersion,rssDisplayStyle,feedURL,entryURL);
+  }
+  return rss.getBytes(StringPool.UTF8);
+}
