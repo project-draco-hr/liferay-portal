@@ -3,22 +3,24 @@
   if (LDAPSettingsUtil.isNtlmEnabled(companyId)) {
     HttpSession session=request.getSession(false);
     String authorization=GetterUtil.getString(request.getHeader(HttpHeaders.AUTHORIZATION));
+    NtlmManager ntlmManager=getNtlmManager(companyId);
     if (authorization.startsWith("NTLM")) {
       byte[] src=Base64.decode(authorization.substring(5));
       if (src[8] == 1) {
-        byte[] challengeMessage=_ntlmManager.negotiate(src);
+        byte[] serverChallenge=new byte[8];
+        _secureRandom.nextBytes(serverChallenge);
+        byte[] challengeMessage=ntlmManager.negotiate(src,serverChallenge);
         authorization=Base64.encode(challengeMessage);
         response.setHeader(HttpHeaders.WWW_AUTHENTICATE,"NTLM " + authorization);
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentLength(0);
         response.flushBuffer();
-        _serverChallenges.put(request.getRemoteAddr(),_ntlmManager.getServerChallenge());
+        _serverChallenges.put(request.getRemoteAddr(),serverChallenge);
         return;
       }
  else {
         byte[] serverChallenge=_serverChallenges.get(request.getRemoteAddr());
-        _ntlmManager.setServerChallenge(serverChallenge);
-        NtlmUserAccount ntlmUserAccount=_ntlmManager.authenticate(src);
+        NtlmUserAccount ntlmUserAccount=ntlmManager.authenticate(src,serverChallenge);
         if (ntlmUserAccount == null) {
           return;
         }
