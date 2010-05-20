@@ -5,6 +5,10 @@
   Lock lock=lockLocalService.lock(getUser().getUserId(),DLFolder.class.getName(),folderId,owner,inheritable,expirationTime);
   Set<String> fileNames=new HashSet<String>();
   DLFolder folder=dlFolderPersistence.findByPrimaryKey(folderId);
+  List<DLFolder> folders=dlFolderPersistence.findByG_P(folder.getGroupId(),folderId);
+  for (  DLFolder curFolder : folders) {
+    lockFolder(curFolder.getFolderId(),null,false,DLFolderImpl.LOCK_EXPIRATION_TIME);
+  }
   long groupId=folder.getGroupId();
   try {
     List<DLFileEntry> fileEntries=dlFileEntryService.getFileEntries(groupId,folderId);
@@ -18,7 +22,10 @@
       dlFileEntryService.unlockFileEntry(groupId,folderId,fileName);
     }
     unlockFolder(groupId,folderId,lock.getUuid());
-    if (e instanceof PortalException) {
+    if (e instanceof DuplicateLockException) {
+      throw (DuplicateLockException)e;
+    }
+ else     if (e instanceof PortalException) {
       throw (PortalException)e;
     }
  else     if (e instanceof RemoteException) {
