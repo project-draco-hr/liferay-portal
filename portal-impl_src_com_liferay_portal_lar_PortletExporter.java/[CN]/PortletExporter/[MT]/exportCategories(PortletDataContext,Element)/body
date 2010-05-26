@@ -1,16 +1,25 @@
 {
   try {
-    Document doc=SAXReaderUtil.createDocument();
-    Element root=doc.addElement("categories");
-    Map<String,String[]> assetCategoryIdsMap=context.getAssetCategoryUuidsMap();
-    for (    Map.Entry<String,String[]> entry : assetCategoryIdsMap.entrySet()) {
-      String[] categoryEntry=entry.getKey().split(StringPool.POUND);
-      Element asset=root.addElement("asset");
-      asset.addAttribute("class-name",categoryEntry[0]);
-      asset.addAttribute("class-pk",categoryEntry[1]);
-      asset.addAttribute("category-uuids",StringUtil.merge(entry.getValue()));
+    Element vocabulariesEl=root.element("vocabularies");
+    if (vocabulariesEl == null) {
+      vocabulariesEl=root.addElement("vocabularies");
     }
-    context.addZipEntry(context.getRootPath() + "/categories.xml",doc.formattedString());
+    Element assetsEl=root.addElement("assets");
+    Element categoriesEl=root.addElement("categories");
+    Map<String,String[]> assetCategoryUuidsMap=context.getAssetCategoryUuidsMap();
+    for (    Map.Entry<String,String[]> entry : assetCategoryUuidsMap.entrySet()) {
+      String[] categoryEntry=entry.getKey().split(StringPool.POUND);
+      String className=categoryEntry[0];
+      long classPK=GetterUtil.getLong(categoryEntry[1]);
+      Element asset=assetsEl.addElement("asset");
+      asset.addAttribute("class-name",className);
+      asset.addAttribute("class-pk",String.valueOf(classPK));
+      asset.addAttribute("category-uuids",StringUtil.merge(entry.getValue()));
+      List<AssetCategory> categories=AssetCategoryServiceUtil.getCategories(className,classPK);
+      for (      AssetCategory category : categories) {
+        exportCategory(context,vocabulariesEl,categoriesEl,category);
+      }
+    }
   }
  catch (  Exception e) {
     throw new SystemException(e);
