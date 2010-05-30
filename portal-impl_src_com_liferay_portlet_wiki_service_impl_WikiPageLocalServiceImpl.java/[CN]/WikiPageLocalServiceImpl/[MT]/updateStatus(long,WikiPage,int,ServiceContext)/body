@@ -2,6 +2,7 @@
   User user=userPersistence.findByPrimaryKey(userId);
   WikiNode node=wikiNodePersistence.findByPrimaryKey(page.getNodeId());
   Date now=new Date();
+  int oldStatus=page.getStatus();
   page.setStatus(status);
   page.setStatusByUserId(userId);
   page.setStatusByUserName(user.getFullName());
@@ -13,6 +14,18 @@
       if (!page.equals(lastApprovedPage)) {
         lastApprovedPage.setHead(false);
         wikiPagePersistence.update(lastApprovedPage,false);
+      }
+    }
+    if ((oldStatus != WorkflowConstants.STATUS_APPROVED) && (page.getVersion() != WikiPageConstants.DEFAULT_VERSION)) {
+      AssetEntry draftAssetEntry=null;
+      try {
+        draftAssetEntry=assetEntryLocalService.getEntry(WikiPage.class.getName(),page.getPrimaryKey());
+        long[] assetCategoryIds=StringUtil.split(ListUtil.toString(draftAssetEntry.getCategories(),"categoryId"),0L);
+        String[] assetTagNames=StringUtil.split(ListUtil.toString(draftAssetEntry.getTags(),"name"));
+        assetEntryLocalService.updateEntry(userId,page.getGroupId(),WikiPage.class.getName(),page.getResourcePrimKey(),assetCategoryIds,assetTagNames,true,null,null,null,null,ContentTypes.TEXT_HTML,page.getTitle(),null,null,null,0,0,null,false);
+        assetEntryLocalService.deleteEntry(WikiPage.class.getName(),page.getPrimaryKey());
+      }
+ catch (      NoSuchEntryException nsee) {
       }
     }
     assetEntryLocalService.updateVisible(WikiPage.class.getName(),page.getResourcePrimKey(),true);

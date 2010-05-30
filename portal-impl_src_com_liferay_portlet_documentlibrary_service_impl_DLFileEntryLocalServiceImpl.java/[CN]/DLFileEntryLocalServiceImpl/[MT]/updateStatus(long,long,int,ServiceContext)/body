@@ -2,6 +2,7 @@
   User user=userPersistence.findByPrimaryKey(userId);
   DLFileEntry fileEntry=dlFileEntryPersistence.findByPrimaryKey(fileEntryId);
   DLFileVersion latestFileVersion=dlFileVersionLocalService.getLatestFileVersion(fileEntry.getGroupId(),fileEntry.getFolderId(),fileEntry.getName());
+  int oldStatus=latestFileVersion.getStatus();
   latestFileVersion.setStatus(status);
   latestFileVersion.setStatusByUserId(user.getUserId());
   latestFileVersion.setStatusByUserName(user.getFullName());
@@ -13,6 +14,18 @@
       dlFileEntryPersistence.update(fileEntry,false);
     }
     if (fileEntry.getVersion().equals(latestFileVersion.getVersion())) {
+      if ((oldStatus != WorkflowConstants.STATUS_APPROVED) && (latestFileVersion.getVersion() != DLFileEntryConstants.DEFAULT_VERSION)) {
+        AssetEntry draftAssetEntry=null;
+        try {
+          draftAssetEntry=assetEntryLocalService.getEntry(DLFileEntry.class.getName(),latestFileVersion.getPrimaryKey());
+          long[] assetCategoryIds=StringUtil.split(ListUtil.toString(draftAssetEntry.getCategories(),"categoryId"),0L);
+          String[] assetTagNames=StringUtil.split(ListUtil.toString(draftAssetEntry.getTags(),"name"));
+          assetEntryLocalService.updateEntry(userId,fileEntry.getGroupId(),DLFileEntry.class.getName(),fileEntry.getFileEntryId(),assetCategoryIds,assetTagNames,true,null,null,null,null,draftAssetEntry.getMimeType(),fileEntry.getTitle(),fileEntry.getDescription(),null,null,0,0,null,false);
+          assetEntryLocalService.deleteEntry(draftAssetEntry.getEntryId());
+        }
+ catch (        NoSuchEntryException nsee) {
+        }
+      }
       assetEntryLocalService.updateVisible(DLFileEntry.class.getName(),fileEntry.getFileEntryId(),true);
     }
     socialActivityLocalService.addUniqueActivity(latestFileVersion.getUserId(),latestFileVersion.getGroupId(),latestFileVersion.getCreateDate(),DLFileEntry.class.getName(),fileEntryId,DLActivityKeys.ADD_FILE_ENTRY,StringPool.BLANK,0);

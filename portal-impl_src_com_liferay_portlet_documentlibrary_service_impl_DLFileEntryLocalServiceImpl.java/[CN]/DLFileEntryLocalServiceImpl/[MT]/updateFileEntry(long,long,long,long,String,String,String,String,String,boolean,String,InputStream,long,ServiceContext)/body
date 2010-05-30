@@ -88,25 +88,28 @@
     folderId=newFolderId;
     fileEntry=newFileEntry;
   }
-  updateAsset(userId,fileEntry,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
   String version=getNextVersion(fileEntry,majorVersion,serviceContext.getWorkflowAction());
+  DLFileVersion fileVersion=null;
   try {
-    DLFileVersion fileVersion=dlFileVersionLocalService.getLatestFileVersion(groupId,folderId,name);
+    DLFileVersion latestFileVersion=dlFileVersionLocalService.getLatestFileVersion(groupId,folderId,name);
     if (size == 0) {
-      size=fileVersion.getSize();
+      size=latestFileVersion.getSize();
     }
-    if (fileVersion.getStatus() != WorkflowConstants.STATUS_APPROVED) {
-      updateFileVersion(user,fileVersion,serviceContext.getModifiedDate(now),version,versionDescription,size,fileVersion.getStatus());
+    if (latestFileVersion.getStatus() != WorkflowConstants.STATUS_APPROVED) {
+      updateFileVersion(user,latestFileVersion,serviceContext.getModifiedDate(now),version,versionDescription,size,latestFileVersion.getStatus());
     }
  else     if (is != null) {
-      addFileVersion(user,fileEntry,serviceContext.getModifiedDate(now),version,versionDescription,size,WorkflowConstants.STATUS_DRAFT);
+      fileVersion=addFileVersion(user,fileEntry,serviceContext.getModifiedDate(now),version,versionDescription,size,WorkflowConstants.STATUS_DRAFT);
     }
  else {
       version=fileEntry.getVersion();
     }
+    if (fileVersion == null) {
+      fileVersion=latestFileVersion;
+    }
   }
  catch (  NoSuchFileVersionException nsfve) {
-    addFileVersion(user,fileEntry,serviceContext.getModifiedDate(now),version,versionDescription,size,WorkflowConstants.STATUS_DRAFT);
+    fileVersion=addFileVersion(user,fileEntry,serviceContext.getModifiedDate(now),version,versionDescription,size,WorkflowConstants.STATUS_DRAFT);
   }
   if ((is == null) && !version.equals(fileEntry.getVersion())) {
     int fetchFailures=0;
@@ -129,6 +132,7 @@
       }
     }
   }
+  updateAsset(userId,fileEntry,fileVersion,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
   fileEntry.setVersionUserId(user.getUserId());
   fileEntry.setVersionUserName(user.getFullName());
   fileEntry.setModifiedDate(serviceContext.getModifiedDate(now));
