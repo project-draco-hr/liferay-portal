@@ -1,0 +1,89 @@
+{
+  Set<String> portletIds=new HashSet<String>();
+  if (xml == null) {
+    return portletIds;
+  }
+  Document document=SAXReaderUtil.read(xml,PropsValues.PORTLET_XML_VALIDATE);
+  Element rootElement=document.getRootElement();
+  PortletApp portletApp=_getPortletApp(servletContextName);
+  portletApp.addServletURLPatterns(servletURLPatterns);
+  Set<String> userAttributes=portletApp.getUserAttributes();
+  for (  Element userAttributeElement : rootElement.elements("user-attribute")) {
+    String name=userAttributeElement.elementText("name");
+    userAttributes.add(name);
+  }
+  String defaultNamespace=rootElement.elementText("default-namespace");
+  if (Validator.isNotNull(defaultNamespace)) {
+    portletApp.setDefaultNamespace(defaultNamespace);
+  }
+  for (  Element eventDefinitionElement : rootElement.elements("event-definition")) {
+    Element qNameElement=eventDefinitionElement.element("qname");
+    Element nameElement=eventDefinitionElement.element("name");
+    String valueType=eventDefinitionElement.elementText("value-type");
+    QName qName=PortletQNameUtil.getQName(qNameElement,nameElement,portletApp.getDefaultNamespace());
+    EventDefinition eventDefinition=new EventDefinitionImpl(qName,valueType,portletApp);
+    portletApp.addEventDefinition(eventDefinition);
+  }
+  for (  Element publicRenderParameterElement : rootElement.elements("public-render-parameter")) {
+    String identifier=publicRenderParameterElement.elementText("identifier");
+    Element qNameElement=publicRenderParameterElement.element("qname");
+    Element nameElement=publicRenderParameterElement.element("name");
+    QName qName=PortletQNameUtil.getQName(qNameElement,nameElement,portletApp.getDefaultNamespace());
+    PublicRenderParameter publicRenderParameter=new PublicRenderParameterImpl(identifier,qName,portletApp);
+    portletApp.addPublicRenderParameter(publicRenderParameter);
+  }
+  for (  Element containerRuntimeOptionElement : rootElement.elements("container-runtime-option")) {
+    String name=GetterUtil.getString(containerRuntimeOptionElement.elementText("name"));
+    List<String> values=new ArrayList<String>();
+    for (    Element valueElement : containerRuntimeOptionElement.elements("value")) {
+      values.add(valueElement.getTextTrim());
+    }
+    Map<String,String[]> containerRuntimeOptions=portletApp.getContainerRuntimeOptions();
+    containerRuntimeOptions.put(name,values.toArray(new String[values.size()]));
+    if (name.equals(LiferayPortletConfig.RUNTIME_OPTION_PORTAL_CONTEXT) && !values.isEmpty() && GetterUtil.getBoolean(values.get(0))) {
+      portletApp.setWARFile(false);
+    }
+  }
+  long timestamp=ServletContextUtil.getLastModified(servletContext);
+  for (  Element portletElement : rootElement.elements("portlet")) {
+    _readPortletXML(servletContextName,portletsPool,pluginPackage,portletApp,portletIds,timestamp,portletElement);
+  }
+  for (  Element filterElement : rootElement.elements("filter")) {
+    String filterName=filterElement.elementText("filter-name");
+    String filterClass=filterElement.elementText("filter-class");
+    Set<String> lifecycles=new LinkedHashSet<String>();
+    for (    Element lifecycleElement : filterElement.elements("lifecycle")) {
+      lifecycles.add(lifecycleElement.getText());
+    }
+    Map<String,String> initParams=new HashMap<String,String>();
+    for (    Element initParamElement : filterElement.elements("init-param")) {
+      initParams.put(initParamElement.elementText("name"),initParamElement.elementText("value"));
+    }
+    PortletFilter portletFilter=new PortletFilterImpl(filterName,filterClass,lifecycles,initParams,portletApp);
+    portletApp.addPortletFilter(portletFilter);
+  }
+  for (  Element filterMappingElement : rootElement.elements("filter-mapping")) {
+    String filterName=filterMappingElement.elementText("filter-name");
+    for (    Element portletNameElement : filterMappingElement.elements("portlet-name")) {
+      String portletName=portletNameElement.getTextTrim();
+      PortletFilter portletFilter=portletApp.getPortletFilter(filterName);
+      if (portletFilter == null) {
+        _log.error("Filter mapping references unnknown filter name " + filterName);
+        continue;
+      }
+      List<Portlet> portletModels=_getPortletsByPortletName(portletName,servletContextName,portletsPool);
+      if (portletModels.size() == 0) {
+        _log.error("Filter mapping with filter name " + filterName + " references unnknown portlet name "+ portletName);
+      }
+      for (      Portlet portletModel : portletModels) {
+        portletModel.getPortletFilters().put(filterName,portletFilter);
+      }
+    }
+  }
+  for (  Element listenerElement : rootElement.elements("listener")) {
+    String listenerClass=listenerElement.elementText("listener-class");
+    PortletURLListener portletURLListener=new PortletURLListenerImpl(listenerClass,portletApp);
+    portletApp.addPortletURLListener(portletURLListener);
+  }
+  return portletIds;
+}
