@@ -8,22 +8,12 @@
   page.setStatusByUserName(user.getFullName());
   page.setStatusDate(now);
   if (status == WorkflowConstants.STATUS_APPROVED) {
-    List<WikiPage> pages=wikiPagePersistence.findByN_T_H(page.getNodeId(),page.getTitle(),true,0,1);
-    if (!pages.isEmpty()) {
-      WikiPage lastApprovedPage=pages.get(0);
-      if (!page.equals(lastApprovedPage)) {
-        lastApprovedPage.setHead(false);
-        wikiPagePersistence.update(lastApprovedPage,false);
-      }
-    }
     if ((oldStatus != WorkflowConstants.STATUS_APPROVED) && (page.getVersion() != WikiPageConstants.DEFAULT_VERSION)) {
-      AssetEntry draftAssetEntry=null;
       try {
-        draftAssetEntry=assetEntryLocalService.getEntry(WikiPage.class.getName(),page.getPrimaryKey());
+        AssetEntry draftAssetEntry=assetEntryLocalService.getEntry(WikiPage.class.getName(),page.getPrimaryKey());
         long[] assetCategoryIds=draftAssetEntry.getCategoryIds();
         String[] assetTagNames=draftAssetEntry.getTagNames();
         assetEntryLocalService.updateEntry(userId,page.getGroupId(),WikiPage.class.getName(),page.getResourcePrimKey(),assetCategoryIds,assetTagNames,true,null,null,null,null,ContentTypes.TEXT_HTML,page.getTitle(),null,null,null,0,0,null,false);
-        assetEntryLocalService.deleteEntry(WikiPage.class.getName(),page.getPrimaryKey());
       }
  catch (      NoSuchEntryException nsee) {
       }
@@ -50,14 +40,23 @@
     clearPageCache(page);
     clearReferralsCache(page);
     page.setHead(true);
+    List<WikiPage> pages=wikiPagePersistence.findByN_T_H(page.getNodeId(),page.getTitle(),true);
+    for (    WikiPage otherVersion : pages) {
+      if (!otherVersion.equals(page)) {
+        otherVersion.setHead(false);
+        wikiPagePersistence.update(otherVersion,false);
+      }
+    }
   }
  else {
     page.setHead(false);
-    List<WikiPage> pages=wikiPagePersistence.findByN_T_H(page.getNodeId(),page.getTitle(),false,0,1);
-    if (!pages.isEmpty()) {
-      WikiPage previousVersionPage=pages.get(0);
-      previousVersionPage.setHead(true);
-      wikiPagePersistence.update(previousVersionPage,false);
+    List<WikiPage> pages=wikiPagePersistence.findByN_T_S(page.getNodeId(),page.getTitle(),WorkflowConstants.STATUS_APPROVED);
+    for (    WikiPage otherVersion : pages) {
+      if (!otherVersion.equals(page)) {
+        otherVersion.setHead(true);
+        wikiPagePersistence.update(otherVersion,false);
+        break;
+      }
     }
   }
   return wikiPagePersistence.update(page,false);
