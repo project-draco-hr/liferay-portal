@@ -16,33 +16,34 @@
     path="/html/portal/render_portlet.jsp";
   }
   RequestDispatcher requestDispatcher=servletContext.getRequestDispatcher(path);
-  if (writeOutput) {
-    response.setContentType(ContentTypes.TEXT_HTML_UTF8);
-    requestDispatcher.include(request,response);
-    return StringPool.BLANK;
+  UnsyncStringWriter unsyncStringWriter=new UnsyncStringWriter();
+  PipingServletResponse pipingServletResponse=new PipingServletResponse(response,unsyncStringWriter);
+  requestDispatcher.include(request,pipingServletResponse);
+  boolean showPortlet=true;
+  Boolean portletConfiguratorVisibility=(Boolean)request.getAttribute(WebKeys.PORTLET_CONFIGURATOR_VISIBILITY);
+  if (portletConfiguratorVisibility != null) {
+    ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+    try {
+      if (!PortletPermissionUtil.contains(themeDisplay.getPermissionChecker(),themeDisplay.getPlid(),portlet.getPortletId(),ActionKeys.CONFIGURATION)) {
+        showPortlet=false;
+      }
+    }
+ catch (    Exception e) {
+      throw new ServletException(e);
+    }
+    request.removeAttribute(WebKeys.PORTLET_CONFIGURATOR_VISIBILITY);
   }
- else {
-    StringServletResponse stringResponse=new StringServletResponse(response);
-    requestDispatcher.include(request,stringResponse);
-    boolean showPortlet=true;
-    Boolean portletConfiguratorVisibility=(Boolean)request.getAttribute(WebKeys.PORTLET_CONFIGURATOR_VISIBILITY);
-    if (portletConfiguratorVisibility != null) {
-      ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
-      try {
-        if (!PortletPermissionUtil.contains(themeDisplay.getPermissionChecker(),themeDisplay.getPlid(),portlet.getPortletId(),ActionKeys.CONFIGURATION)) {
-          showPortlet=false;
-        }
-      }
- catch (      Exception e) {
-        throw new ServletException(e);
-      }
-      request.removeAttribute(WebKeys.PORTLET_CONFIGURATOR_VISIBILITY);
-    }
-    if (showPortlet) {
-      return stringResponse.getString();
-    }
- else {
+  if (showPortlet) {
+    if (writeOutput) {
+      response.setContentType(ContentTypes.TEXT_HTML_UTF8);
+      unsyncStringWriter.getStringBundler().writeTo(response.getWriter());
       return StringPool.BLANK;
     }
+ else {
+      return unsyncStringWriter.toString();
+    }
+  }
+ else {
+    return StringPool.BLANK;
   }
 }
