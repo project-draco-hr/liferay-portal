@@ -1,9 +1,9 @@
 {
   final BatchablePipe<String,Integer> batchablePipe=new BatchablePipe<String,Integer>();
-  final BlockingQueue<IncreasableEntry<String,Integer>> resultQueue=new LinkedBlockingQueue<IncreasableEntry<String,Integer>>();
+  final BlockingQueue<IncreasableEntry<String,Integer>> resultBlockingQueue=new LinkedBlockingQueue<IncreasableEntry<String,Integer>>();
   ExecutorService putThreadPool=Executors.newFixedThreadPool(5);
   ExecutorService takeThreadPool=Executors.newFixedThreadPool(5);
-  Runnable putJob=new Runnable(){
+  Runnable putRunnable=new Runnable(){
     public void run(){
       for (int i=0; i < 100; i++) {
         batchablePipe.put(new IntegerIncreasableEntry(String.valueOf(i % 10),1));
@@ -11,40 +11,40 @@
     }
   }
 ;
-  Runnable takeJob=new Runnable(){
+  Runnable takeRunnable=new Runnable(){
     public void run(){
       while (true) {
         try {
-          IncreasableEntry<String,Integer> entry=batchablePipe.take();
-          if (entry != null) {
-            if (entry.getKey().equals("exit")) {
+          IncreasableEntry<String,Integer> increasableEntry=batchablePipe.take();
+          if (increasableEntry != null) {
+            if (increasableEntry.getKey().equals("exit")) {
               return;
             }
-            resultQueue.put(entry);
+            resultBlockingQueue.put(increasableEntry);
           }
         }
- catch (        InterruptedException ex) {
+ catch (        InterruptedException ie) {
         }
       }
     }
   }
 ;
   for (int i=0; i < 10; i++) {
-    putThreadPool.submit(putJob);
-    takeThreadPool.submit(takeJob);
+    putThreadPool.submit(putRunnable);
+    takeThreadPool.submit(takeRunnable);
   }
   putThreadPool.shutdown();
   putThreadPool.awaitTermination(240,TimeUnit.SECONDS);
-  IncreasableEntry<String,Integer> poisonEntry=new IntegerIncreasableEntry("exit",-1);
+  IncreasableEntry<String,Integer> poisonIncreasableEntry=new IntegerIncreasableEntry("exit",-1);
   for (int i=0; i < 10; i++) {
-    batchablePipe.put(poisonEntry);
+    batchablePipe.put(poisonIncreasableEntry);
   }
   takeThreadPool.shutdown();
   takeThreadPool.awaitTermination(240,TimeUnit.SECONDS);
   Map<String,Integer> verifyMap=new HashMap<String,Integer>();
-  for (  IncreasableEntry<String,Integer> entry : resultQueue) {
-    String key=entry.getKey();
-    Integer value=entry.getValue();
+  for (  IncreasableEntry<String,Integer> increasableEntry : resultBlockingQueue) {
+    String key=increasableEntry.getKey();
+    Integer value=increasableEntry.getValue();
     Integer sum=verifyMap.get(key);
     if (sum == null) {
       verifyMap.put(key,value);
@@ -57,5 +57,5 @@
     Integer sum=verifyMap.get(String.valueOf(i));
     assertEquals(100,(int)sum);
   }
-  assertLessThan(1000,resultQueue.size());
+  assertLessThan(1000,resultBlockingQueue.size());
 }
