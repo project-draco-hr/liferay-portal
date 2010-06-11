@@ -2,16 +2,28 @@
   int actionDate=getEquityDate();
   double k=calculateK(equitySetting.getValue(),equitySetting.getValidity());
   double b=calculateB(actionDate,equitySetting.getValue(),equitySetting.getValidity());
-  SocialEquity socialEquity=new SocialEquity(k,b);
   if (equitySetting.getType() == SocialEquitySettingConstants.TYPE_INFORMATION) {
-    getSocialEquityLogLocalService().incrementSocialEquityAssetEntry_IQ(assetEntry.getEntryId(),new SocialEquityCounter(socialEquity));
+    int count=socialEquityAssetEntryPersistence.countByAssetEntryId(assetEntry.getEntryId());
+    if (count == 0) {
+      addSocialEquityAssetEntry(assetEntry);
+    }
+    updateSocialEquityAssetEntry_IQ(assetEntry.getEntryId(),actionDate,k,b);
+    double informationEquity=calculateEquity(actionDate,k,b);
+    updateAssetEntry(assetEntry,informationEquity);
     if ((assetEntryUser != null) && !assetEntryUser.isDefaultUser()) {
-      getSocialEquityLogLocalService().incrementSocialEquityUser_CQ(assetEntry.getGroupId() + StringPool.POUND + assetEntryUser.getUserId(),new SocialEquityCounter(socialEquity));
+      updateSocialEquityUser_CQ(assetEntry.getGroupId(),assetEntryUser.getUserId(),informationEquity);
+      updateUser_CQ(assetEntryUser,informationEquity);
     }
   }
  else   if (equitySetting.getType() == SocialEquitySettingConstants.TYPE_PARTICIPATION) {
+    int count=socialEquityUserPersistence.countByG_U(assetEntry.getGroupId(),user.getUserId());
+    if (count == 0) {
+      addSocialEquityUser(assetEntry.getGroupId(),user);
+    }
     if (!user.isDefaultUser()) {
-      getSocialEquityLogLocalService().incrementSocialEquityUser_PQ(assetEntry.getGroupId() + StringPool.POUND + user.getUserId(),new SocialEquityCounter(socialEquity));
+      updateSocialEquityUser_PQ(assetEntry.getGroupId(),user.getUserId(),actionDate,k,b);
+      double participationEquity=calculateEquity(actionDate,k,b);
+      updateUser_PQ(user,participationEquity);
     }
   }
   long equityLogId=counterLocalService.increment();
