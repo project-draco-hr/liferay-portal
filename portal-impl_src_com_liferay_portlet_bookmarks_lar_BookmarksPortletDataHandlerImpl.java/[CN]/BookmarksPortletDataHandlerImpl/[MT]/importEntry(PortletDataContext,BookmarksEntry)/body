@@ -1,6 +1,5 @@
 {
   long userId=context.getUserId(entry.getUserUuid());
-  long groupId=context.getScopeGroupId();
   Map<Long,Long> folderPKs=(Map<Long,Long>)context.getNewPrimaryKeysMap(BookmarksFolder.class);
   long folderId=MapUtil.getLong(folderPKs,entry.getFolderId(),entry.getFolderId());
   long[] assetCategoryIds=null;
@@ -25,25 +24,20 @@
     folderId=MapUtil.getLong(folderPKs,entry.getFolderId(),entry.getFolderId());
   }
   BookmarksEntry importedEntry=null;
-  try {
-    if (context.getDataStrategy().equals(PortletDataHandlerKeys.DATA_STRATEGY_MIRROR)) {
-      BookmarksEntry existingEntry=BookmarksEntryUtil.fetchByUUID_G(entry.getUuid(),groupId);
-      if (existingEntry == null) {
-        importedEntry=BookmarksEntryLocalServiceUtil.addEntry(entry.getUuid(),userId,groupId,folderId,entry.getName(),entry.getUrl(),entry.getComments(),serviceContext);
-      }
- else {
-        importedEntry=BookmarksEntryLocalServiceUtil.updateEntry(userId,existingEntry.getEntryId(),groupId,folderId,entry.getName(),entry.getUrl(),entry.getComments(),serviceContext);
-      }
+  if (context.isDataStrategyMirror()) {
+    BookmarksEntry existingEntry=BookmarksEntryUtil.fetchByUUID_G(entry.getUuid(),context.getScopeGroupId());
+    if (existingEntry == null) {
+      importedEntry=BookmarksEntryLocalServiceUtil.addEntry(entry.getUuid(),userId,context.getScopeGroupId(),folderId,entry.getName(),entry.getUrl(),entry.getComments(),serviceContext);
     }
  else {
-      importedEntry=BookmarksEntryLocalServiceUtil.addEntry(null,userId,groupId,folderId,entry.getName(),entry.getUrl(),entry.getComments(),serviceContext);
-    }
-    context.importPermissions(BookmarksEntry.class,entry.getEntryId(),importedEntry.getEntryId());
-    if (context.getBooleanParameter(_NAMESPACE,"ratings")) {
-      context.importRatingsEntries(BookmarksEntry.class,entry.getEntryId(),importedEntry.getEntryId());
+      importedEntry=BookmarksEntryLocalServiceUtil.updateEntry(userId,existingEntry.getEntryId(),context.getScopeGroupId(),folderId,entry.getName(),entry.getUrl(),entry.getComments(),serviceContext);
     }
   }
- catch (  NoSuchFolderException nsfe) {
-    _log.error("Could not find the parent folder for entry " + entry.getEntryId());
+ else {
+    importedEntry=BookmarksEntryLocalServiceUtil.addEntry(null,userId,context.getScopeGroupId(),folderId,entry.getName(),entry.getUrl(),entry.getComments(),serviceContext);
+  }
+  context.importPermissions(BookmarksEntry.class,entry.getEntryId(),importedEntry.getEntryId());
+  if (context.getBooleanParameter(_NAMESPACE,"ratings")) {
+    context.importRatingsEntries(BookmarksEntry.class,entry.getEntryId(),importedEntry.getEntryId());
   }
 }
