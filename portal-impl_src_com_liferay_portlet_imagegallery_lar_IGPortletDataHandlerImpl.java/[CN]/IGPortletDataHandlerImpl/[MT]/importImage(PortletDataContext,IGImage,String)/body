@@ -1,0 +1,72 @@
+{
+  Map<Long,Long> folderPKs=(Map<Long,Long>)context.getNewPrimaryKeysMap(IGFolder.class);
+  Map<Long,Long> igImagePKs=(Map<Long,Long>)context.getNewPrimaryKeysMap(IGImage.class);
+  long userId=context.getUserId(image.getUserUuid());
+  long groupId=context.getGroupId();
+  long folderId=MapUtil.getLong(folderPKs,image.getFolderId(),image.getFolderId());
+  File imageFile=null;
+  byte[] bytes=context.getZipEntryAsByteArray(binPath);
+  if (bytes == null) {
+    _log.error("Could not find image file for image " + image.getImageId());
+    return;
+  }
+ else {
+    imageFile=File.createTempFile(String.valueOf(image.getPrimaryKey()),StringPool.PERIOD + image.getImageType());
+    FileUtil.write(imageFile,bytes);
+  }
+  long[] assetCategoryIds=null;
+  String[] assetTagNames=null;
+  if (context.getBooleanParameter(_NAMESPACE,"categories")) {
+    assetCategoryIds=context.getAssetCategoryIds(IGImage.class,image.getImageId());
+  }
+  if (context.getBooleanParameter(_NAMESPACE,"tags")) {
+    assetTagNames=context.getAssetTagNames(IGImage.class,image.getImageId());
+  }
+  ServiceContext serviceContext=new ServiceContext();
+  serviceContext.setAddCommunityPermissions(true);
+  serviceContext.setAddGuestPermissions(true);
+  serviceContext.setAssetCategoryIds(assetCategoryIds);
+  serviceContext.setAssetTagNames(assetTagNames);
+  serviceContext.setCreateDate(image.getCreateDate());
+  serviceContext.setModifiedDate(image.getModifiedDate());
+  if ((folderId != IGFolderConstants.DEFAULT_PARENT_FOLDER_ID) && (folderId == image.getFolderId())) {
+    String path=getImportFolderPath(context,folderId);
+    IGFolder folder=(IGFolder)context.getZipEntryAsObject(path);
+    importFolder(context,folder);
+    folderId=MapUtil.getLong(folderPKs,image.getFolderId(),image.getFolderId());
+  }
+  IGImage importedImage=null;
+  try {
+    if (context.getDataStrategy().equals(PortletDataHandlerKeys.DATA_STRATEGY_MIRROR)) {
+      IGImage existingImage=IGImageUtil.fetchByUUID_G(image.getUuid(),groupId);
+      if (existingImage == null) {
+        importedImage=IGImageLocalServiceUtil.addImage(image.getUuid(),userId,groupId,folderId,image.getName(),image.getDescription(),imageFile,image.getImageType(),serviceContext);
+      }
+ else {
+        importedImage=IGImageLocalServiceUtil.updateImage(userId,existingImage.getImageId(),groupId,folderId,image.getName(),image.getDescription(),imageFile,image.getImageType(),serviceContext);
+      }
+    }
+ else {
+      String name=image.getName();
+      try {
+        importedImage=IGImageLocalServiceUtil.addImage(null,userId,groupId,folderId,name,image.getDescription(),imageFile,image.getImageType(),serviceContext);
+      }
+ catch (      DuplicateImageNameException dine) {
+        String[] nameParts=name.split("\\.",2);
+        name=nameParts[0] + PwdGenerator.getPassword();
+        if (nameParts.length > 1) {
+          name+=StringPool.PERIOD + nameParts[1];
+        }
+        importedImage=IGImageLocalServiceUtil.addImage(null,userId,groupId,folderId,name,image.getDescription(),imageFile,image.getImageType(),serviceContext);
+      }
+    }
+    context.importPermissions(IGImage.class,image.getImageId(),importedImage.getImageId());
+    if (context.getBooleanParameter(_NAMESPACE,"ratings")) {
+      context.importRatingsEntries(IGImage.class,image.getImageId(),importedImage.getImageId());
+    }
+    igImagePKs.put(image.getImageId(),importedImage.getImageId());
+  }
+ catch (  NoSuchFolderException nsfe) {
+    _log.error("Could not find the parent folder for image " + image.getImageId());
+  }
+}

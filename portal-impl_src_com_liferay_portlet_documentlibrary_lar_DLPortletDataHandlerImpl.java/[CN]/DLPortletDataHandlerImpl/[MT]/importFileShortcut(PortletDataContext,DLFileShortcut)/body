@@ -1,0 +1,47 @@
+{
+  Map<Long,Long> folderPKs=(Map<Long,Long>)context.getNewPrimaryKeysMap(DLFolder.class);
+  Map<String,String> fileEntryNames=(Map<String,String>)context.getNewPrimaryKeysMap(DLFileEntry.class.getName() + ".name");
+  long userId=context.getUserId(fileShortcut.getUserUuid());
+  long folderId=MapUtil.getLong(folderPKs,fileShortcut.getFolderId(),fileShortcut.getFolderId());
+  long toFolderId=MapUtil.getLong(folderPKs,fileShortcut.getToFolderId(),fileShortcut.getToFolderId());
+  String toName=MapUtil.getString(fileEntryNames,fileShortcut.getToName(),fileShortcut.getToName());
+  try {
+    DLFolder folder=DLFolderUtil.findByPrimaryKey(folderId);
+    DLFolderUtil.findByPrimaryKey(toFolderId);
+    long groupId=folder.getGroupId();
+    DLFileEntry fileEntry=DLFileEntryLocalServiceUtil.getFileEntry(groupId,toFolderId,toName);
+    long[] assetCategoryIds=null;
+    String[] assetTagNames=null;
+    if (context.getBooleanParameter(_NAMESPACE,"categories")) {
+      assetCategoryIds=context.getAssetCategoryIds(DLFileEntry.class,fileEntry.getFileEntryId());
+    }
+    if (context.getBooleanParameter(_NAMESPACE,"tags")) {
+      assetTagNames=context.getAssetTagNames(DLFileEntry.class,fileEntry.getFileEntryId());
+    }
+    ServiceContext serviceContext=new ServiceContext();
+    serviceContext.setAddCommunityPermissions(true);
+    serviceContext.setAddGuestPermissions(true);
+    serviceContext.setAssetCategoryIds(assetCategoryIds);
+    serviceContext.setAssetTagNames(assetTagNames);
+    serviceContext.setCreateDate(fileShortcut.getCreateDate());
+    serviceContext.setModifiedDate(fileShortcut.getModifiedDate());
+    serviceContext.setScopeGroupId(context.getGroupId());
+    DLFileShortcut importedFileShortcut=null;
+    if (context.getDataStrategy().equals(PortletDataHandlerKeys.DATA_STRATEGY_MIRROR)) {
+      DLFileShortcut existingFileShortcut=DLFileShortcutUtil.fetchByUUID_G(fileShortcut.getUuid(),context.getGroupId());
+      if (existingFileShortcut == null) {
+        importedFileShortcut=DLFileShortcutLocalServiceUtil.addFileShortcut(fileShortcut.getUuid(),userId,groupId,folderId,toFolderId,toName,serviceContext);
+      }
+ else {
+        importedFileShortcut=DLFileShortcutLocalServiceUtil.updateFileShortcut(userId,existingFileShortcut.getFileShortcutId(),folderId,toFolderId,toName,serviceContext);
+      }
+    }
+ else {
+      importedFileShortcut=DLFileShortcutLocalServiceUtil.addFileShortcut(null,userId,groupId,folderId,toFolderId,toName,serviceContext);
+    }
+    context.importPermissions(DLFileShortcut.class,fileShortcut.getPrimaryKey(),importedFileShortcut.getPrimaryKey());
+  }
+ catch (  NoSuchFolderException nsfe) {
+    _log.error("Could not find the folder for shortcut " + fileShortcut.getFileShortcutId());
+  }
+}

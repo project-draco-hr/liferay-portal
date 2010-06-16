@@ -1,0 +1,52 @@
+{
+  String path=feedEl.attributeValue("path");
+  if (!context.isPathNotProcessed(path)) {
+    return;
+  }
+  Map<String,String> structureIds=(Map<String,String>)context.getNewPrimaryKeysMap(JournalStructure.class);
+  Map<String,String> templateIds=(Map<String,String>)context.getNewPrimaryKeysMap(JournalTemplate.class);
+  Map<String,String> feedIds=(Map<String,String>)context.getNewPrimaryKeysMap(JournalFeed.class);
+  JournalFeed feed=(JournalFeed)context.getZipEntryAsObject(path);
+  long userId=context.getUserId(feed.getUserUuid());
+  long groupId=context.getGroupId();
+  String feedId=feed.getFeedId();
+  boolean autoFeedId=false;
+  if ((Validator.isNumber(feedId)) || (JournalFeedUtil.fetchByG_F(groupId,feedId) != null)) {
+    autoFeedId=true;
+  }
+  String parentStructureId=MapUtil.getString(structureIds,feed.getStructureId(),feed.getStructureId());
+  String parentTemplateId=MapUtil.getString(templateIds,feed.getTemplateId(),feed.getTemplateId());
+  String parentRenderTemplateId=MapUtil.getString(templateIds,feed.getRendererTemplateId(),feed.getRendererTemplateId());
+  JournalCreationStrategy creationStrategy=JournalCreationStrategyFactory.getInstance();
+  long authorId=creationStrategy.getAuthorUserId(context,feed);
+  if (authorId != JournalCreationStrategy.USE_DEFAULT_USER_ID_STRATEGY) {
+    userId=authorId;
+  }
+  boolean addCommunityPermissions=creationStrategy.addCommunityPermissions(context,feed);
+  boolean addGuestPermissions=creationStrategy.addGuestPermissions(context,feed);
+  ServiceContext serviceContext=new ServiceContext();
+  serviceContext.setAddCommunityPermissions(addCommunityPermissions);
+  serviceContext.setAddGuestPermissions(addGuestPermissions);
+  serviceContext.setCreateDate(feed.getCreateDate());
+  serviceContext.setModifiedDate(feed.getModifiedDate());
+  JournalFeed existingFeed=null;
+  if (context.getDataStrategy().equals(PortletDataHandlerKeys.DATA_STRATEGY_MIRROR)) {
+    existingFeed=JournalFeedUtil.fetchByUUID_G(feed.getUuid(),groupId);
+    if (existingFeed == null) {
+      existingFeed=JournalFeedLocalServiceUtil.addFeed(feed.getUuid(),userId,groupId,feedId,autoFeedId,feed.getName(),feed.getDescription(),feed.getType(),parentStructureId,parentTemplateId,parentRenderTemplateId,feed.getDelta(),feed.getOrderByCol(),feed.getOrderByType(),feed.getTargetLayoutFriendlyUrl(),feed.getTargetPortletId(),feed.getContentField(),feed.getFeedType(),feed.getFeedVersion(),serviceContext);
+    }
+ else {
+      existingFeed=JournalFeedLocalServiceUtil.updateFeed(existingFeed.getGroupId(),existingFeed.getFeedId(),feed.getName(),feed.getDescription(),feed.getType(),parentStructureId,parentTemplateId,parentRenderTemplateId,feed.getDelta(),feed.getOrderByCol(),feed.getOrderByType(),feed.getTargetLayoutFriendlyUrl(),feed.getTargetPortletId(),feed.getContentField(),feed.getFeedType(),feed.getFeedVersion(),serviceContext);
+    }
+  }
+ else {
+    existingFeed=JournalFeedLocalServiceUtil.addFeed(userId,groupId,feedId,autoFeedId,feed.getName(),feed.getDescription(),feed.getType(),parentStructureId,parentTemplateId,parentRenderTemplateId,feed.getDelta(),feed.getOrderByCol(),feed.getOrderByType(),feed.getTargetLayoutFriendlyUrl(),feed.getTargetPortletId(),feed.getContentField(),feed.getFeedType(),feed.getFeedVersion(),serviceContext);
+  }
+  feedIds.put(feedId,existingFeed.getFeedId());
+  context.importPermissions(JournalFeed.class,feed.getId(),existingFeed.getId());
+  if (!feedId.equals(existingFeed.getFeedId())) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("A feed with the ID " + feedId + " already "+ "exists. The new generated ID is "+ existingFeed.getFeedId());
+    }
+  }
+}

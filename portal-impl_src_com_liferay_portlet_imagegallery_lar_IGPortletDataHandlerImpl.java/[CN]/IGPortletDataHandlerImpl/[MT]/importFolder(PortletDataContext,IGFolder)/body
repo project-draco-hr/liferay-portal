@@ -1,0 +1,42 @@
+{
+  Map<Long,Long> folderPKs=(Map<Long,Long>)context.getNewPrimaryKeysMap(IGFolder.class);
+  long userId=context.getUserId(folder.getUserUuid());
+  long parentFolderId=MapUtil.getLong(folderPKs,folder.getParentFolderId(),folder.getParentFolderId());
+  ServiceContext serviceContext=new ServiceContext();
+  serviceContext.setAddCommunityPermissions(true);
+  serviceContext.setAddGuestPermissions(true);
+  serviceContext.setCreateDate(folder.getCreateDate());
+  serviceContext.setModifiedDate(folder.getModifiedDate());
+  serviceContext.setScopeGroupId(context.getGroupId());
+  if ((parentFolderId != IGFolderConstants.DEFAULT_PARENT_FOLDER_ID) && (parentFolderId == folder.getParentFolderId())) {
+    String path=getImportFolderPath(context,parentFolderId);
+    IGFolder parentFolder=(IGFolder)context.getZipEntryAsObject(path);
+    importFolder(context,parentFolder);
+    parentFolderId=MapUtil.getLong(folderPKs,folder.getParentFolderId(),folder.getParentFolderId());
+  }
+  IGFolder importedFolder=null;
+  try {
+    if (parentFolderId != IGFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+      IGFolderUtil.findByPrimaryKey(parentFolderId);
+    }
+    if (context.getDataStrategy().equals(PortletDataHandlerKeys.DATA_STRATEGY_MIRROR)) {
+      IGFolder existingFolder=IGFolderUtil.fetchByUUID_G(folder.getUuid(),context.getGroupId());
+      if (existingFolder == null) {
+        String name=getFolderName(context.getCompanyId(),context.getGroupId(),parentFolderId,folder.getName(),2);
+        importedFolder=IGFolderLocalServiceUtil.addFolder(folder.getUuid(),userId,parentFolderId,name,folder.getDescription(),serviceContext);
+      }
+ else {
+        importedFolder=IGFolderLocalServiceUtil.updateFolder(existingFolder.getFolderId(),parentFolderId,folder.getName(),folder.getDescription(),false,serviceContext);
+      }
+    }
+ else {
+      String name=getFolderName(context.getCompanyId(),context.getGroupId(),parentFolderId,folder.getName(),2);
+      importedFolder=IGFolderLocalServiceUtil.addFolder(null,userId,parentFolderId,name,folder.getDescription(),serviceContext);
+    }
+    folderPKs.put(folder.getFolderId(),importedFolder.getFolderId());
+    context.importPermissions(IGFolder.class,folder.getFolderId(),importedFolder.getFolderId());
+  }
+ catch (  NoSuchFolderException nsfe) {
+    _log.error("Could not find the parent folder for folder " + folder.getFolderId());
+  }
+}

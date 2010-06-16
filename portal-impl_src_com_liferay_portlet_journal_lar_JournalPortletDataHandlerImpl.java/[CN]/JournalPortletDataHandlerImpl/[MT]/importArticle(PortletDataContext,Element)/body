@@ -1,0 +1,214 @@
+{
+  String path=articleEl.attributeValue("path");
+  if (!context.isPathNotProcessed(path)) {
+    return;
+  }
+  Map<String,String> structureIds=(Map<String,String>)context.getNewPrimaryKeysMap(JournalStructure.class);
+  Map<String,String> templateIds=(Map<String,String>)context.getNewPrimaryKeysMap(JournalTemplate.class);
+  Map<String,String> articleIds=(Map<String,String>)context.getNewPrimaryKeysMap(JournalArticle.class);
+  JournalArticle article=(JournalArticle)context.getZipEntryAsObject(path);
+  long userId=context.getUserId(article.getUserUuid());
+  User user=UserLocalServiceUtil.getUser(userId);
+  long groupId=context.getScopeGroupId();
+  String articleId=article.getArticleId();
+  boolean autoArticleId=false;
+  if ((Validator.isNumber(articleId)) || (JournalArticleUtil.fetchByG_A_V(groupId,articleId,JournalArticleConstants.DEFAULT_VERSION) != null)) {
+    autoArticleId=true;
+  }
+  String newArticleId=articleIds.get(articleId);
+  if (Validator.isNotNull(newArticleId)) {
+    articleId=newArticleId;
+    autoArticleId=false;
+  }
+  String content=article.getContent();
+  content=importDLFileEntries(context,articleEl,content);
+  content=importIGImages(context,articleEl,content);
+  Group group=GroupLocalServiceUtil.getGroup(groupId);
+  content=StringUtil.replace(content,"@data_handler_group_friendly_url@",group.getFriendlyURL());
+  article.setContent(content);
+  String parentStructureId=MapUtil.getString(structureIds,article.getStructureId(),article.getStructureId());
+  String parentTemplateId=MapUtil.getString(templateIds,article.getTemplateId(),article.getTemplateId());
+  Date displayDate=article.getDisplayDate();
+  int displayDateMonth=0;
+  int displayDateDay=0;
+  int displayDateYear=0;
+  int displayDateHour=0;
+  int displayDateMinute=0;
+  if (displayDate != null) {
+    Calendar displayCal=CalendarFactoryUtil.getCalendar(user.getTimeZone());
+    displayCal.setTime(displayDate);
+    displayDateMonth=displayCal.get(Calendar.MONTH);
+    displayDateDay=displayCal.get(Calendar.DATE);
+    displayDateYear=displayCal.get(Calendar.YEAR);
+    displayDateHour=displayCal.get(Calendar.HOUR);
+    displayDateMinute=displayCal.get(Calendar.MINUTE);
+    if (displayCal.get(Calendar.AM_PM) == Calendar.PM) {
+      displayDateHour+=12;
+    }
+  }
+  Date expirationDate=article.getExpirationDate();
+  int expirationDateMonth=0;
+  int expirationDateDay=0;
+  int expirationDateYear=0;
+  int expirationDateHour=0;
+  int expirationDateMinute=0;
+  boolean neverExpire=true;
+  if (expirationDate != null) {
+    Calendar expirationCal=CalendarFactoryUtil.getCalendar(user.getTimeZone());
+    expirationCal.setTime(expirationDate);
+    expirationDateMonth=expirationCal.get(Calendar.MONTH);
+    expirationDateDay=expirationCal.get(Calendar.DATE);
+    expirationDateYear=expirationCal.get(Calendar.YEAR);
+    expirationDateHour=expirationCal.get(Calendar.HOUR);
+    expirationDateMinute=expirationCal.get(Calendar.MINUTE);
+    neverExpire=false;
+    if (expirationCal.get(Calendar.AM_PM) == Calendar.PM) {
+      expirationDateHour+=12;
+    }
+  }
+  Date reviewDate=article.getReviewDate();
+  int reviewDateMonth=0;
+  int reviewDateDay=0;
+  int reviewDateYear=0;
+  int reviewDateHour=0;
+  int reviewDateMinute=0;
+  boolean neverReview=true;
+  if (reviewDate != null) {
+    Calendar reviewCal=CalendarFactoryUtil.getCalendar(user.getTimeZone());
+    reviewCal.setTime(reviewDate);
+    reviewDateMonth=reviewCal.get(Calendar.MONTH);
+    reviewDateDay=reviewCal.get(Calendar.DATE);
+    reviewDateYear=reviewCal.get(Calendar.YEAR);
+    reviewDateHour=reviewCal.get(Calendar.HOUR);
+    reviewDateMinute=reviewCal.get(Calendar.MINUTE);
+    neverReview=false;
+    if (reviewCal.get(Calendar.AM_PM) == Calendar.PM) {
+      reviewDateHour+=12;
+    }
+  }
+  if (Validator.isNotNull(article.getStructureId())) {
+    JournalStructure structure=JournalStructureUtil.fetchByG_S(context.getGroupId(),article.getStructureId());
+    if (structure == null) {
+      String newStructureId=structureIds.get(article.getStructureId());
+      if (Validator.isNotNull(newStructureId)) {
+        structure=JournalStructureUtil.fetchByG_S(context.getGroupId(),String.valueOf(newStructureId));
+      }
+      if (structure == null) {
+        if (_log.isWarnEnabled()) {
+          StringBundler sb=new StringBundler();
+          sb.append("Structure ");
+          sb.append(article.getStructureId());
+          sb.append(" is missing for article ");
+          sb.append(article.getArticleId());
+          sb.append(", skipping this article.");
+          _log.warn(sb.toString());
+        }
+        return;
+      }
+    }
+  }
+  if (Validator.isNotNull(article.getTemplateId())) {
+    JournalTemplate template=JournalTemplateUtil.fetchByG_T(context.getGroupId(),article.getTemplateId());
+    if (template == null) {
+      String newTemplateId=templateIds.get(article.getTemplateId());
+      if (Validator.isNotNull(newTemplateId)) {
+        template=JournalTemplateUtil.fetchByG_T(context.getGroupId(),newTemplateId);
+      }
+      if (template == null) {
+        if (_log.isWarnEnabled()) {
+          StringBundler sb=new StringBundler();
+          sb.append("Template ");
+          sb.append(article.getTemplateId());
+          sb.append(" is missing for article ");
+          sb.append(article.getArticleId());
+          sb.append(", skipping this article.");
+          _log.warn(sb.toString());
+        }
+        return;
+      }
+    }
+  }
+  File smallFile=null;
+  String smallImagePath=articleEl.attributeValue("small-image-path");
+  if (article.isSmallImage() && Validator.isNotNull(smallImagePath)) {
+    byte[] bytes=context.getZipEntryAsByteArray(smallImagePath);
+    smallFile=File.createTempFile(String.valueOf(article.getSmallImageId()),StringPool.PERIOD + article.getSmallImageType());
+    FileUtil.write(smallFile,bytes);
+  }
+  Map<String,byte[]> images=new HashMap<String,byte[]>();
+  if (context.getBooleanParameter(_NAMESPACE,"images")) {
+    String imagePath=articleEl.attributeValue("image-path");
+    List<String> imageFiles=context.getZipFolderEntries(imagePath);
+    for (    String imageFile : imageFiles) {
+      String fileName=imageFile;
+      if (fileName.contains(StringPool.SLASH)) {
+        fileName=fileName.substring(fileName.lastIndexOf(StringPool.SLASH) + 1);
+      }
+      if (fileName.endsWith(".xml")) {
+        continue;
+      }
+      int pos=fileName.lastIndexOf(StringPool.PERIOD);
+      if (pos != -1) {
+        fileName=fileName.substring(0,pos);
+      }
+      images.put(fileName,context.getZipEntryAsByteArray(imageFile));
+    }
+  }
+  String articleURL=null;
+  long[] assetCategoryIds=null;
+  String[] assetTagNames=null;
+  if (context.getBooleanParameter(_NAMESPACE,"categories")) {
+    assetCategoryIds=context.getAssetCategoryIds(JournalArticle.class,article.getResourcePrimKey());
+  }
+  if (context.getBooleanParameter(_NAMESPACE,"tags")) {
+    assetTagNames=context.getAssetTagNames(JournalArticle.class,article.getResourcePrimKey());
+  }
+  JournalCreationStrategy creationStrategy=JournalCreationStrategyFactory.getInstance();
+  long authorId=creationStrategy.getAuthorUserId(context,article);
+  if (authorId != JournalCreationStrategy.USE_DEFAULT_USER_ID_STRATEGY) {
+    userId=authorId;
+  }
+  String newContent=creationStrategy.getTransformedContent(context,article);
+  if (newContent != JournalCreationStrategy.ARTICLE_CONTENT_UNCHANGED) {
+    article.setContent(newContent);
+  }
+  boolean addCommunityPermissions=creationStrategy.addCommunityPermissions(context,article);
+  boolean addGuestPermissions=creationStrategy.addGuestPermissions(context,article);
+  ServiceContext serviceContext=new ServiceContext();
+  serviceContext.setAddCommunityPermissions(addCommunityPermissions);
+  serviceContext.setAddGuestPermissions(addGuestPermissions);
+  serviceContext.setAssetCategoryIds(assetCategoryIds);
+  serviceContext.setAssetTagNames(assetTagNames);
+  serviceContext.setCreateDate(article.getCreateDate());
+  serviceContext.setModifiedDate(article.getModifiedDate());
+  serviceContext.setScopeGroupId(groupId);
+  if (article.getStatus() != WorkflowConstants.STATUS_APPROVED) {
+    serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
+  }
+  JournalArticle importedArticle=null;
+  if (context.getDataStrategy().equals(PortletDataHandlerKeys.DATA_STRATEGY_MIRROR)) {
+    JournalArticle existingArticle=JournalArticleUtil.fetchByUUID_G(article.getUuid(),groupId);
+    if (existingArticle == null) {
+      importedArticle=JournalArticleLocalServiceUtil.addArticle(article.getUuid(),userId,groupId,articleId,autoArticleId,article.getVersion(),article.getTitle(),article.getDescription(),article.getContent(),article.getType(),parentStructureId,parentTemplateId,displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,expirationDateMonth,expirationDateDay,expirationDateYear,expirationDateHour,expirationDateMinute,neverExpire,reviewDateMonth,reviewDateDay,reviewDateYear,reviewDateHour,reviewDateMinute,neverReview,article.isIndexable(),article.isSmallImage(),article.getSmallImageURL(),smallFile,images,articleURL,serviceContext);
+    }
+ else {
+      importedArticle=JournalArticleLocalServiceUtil.updateArticle(userId,existingArticle.getGroupId(),existingArticle.getArticleId(),0.0,article.getTitle(),article.getDescription(),article.getContent(),article.getType(),parentStructureId,parentTemplateId,displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,expirationDateMonth,expirationDateDay,expirationDateYear,expirationDateHour,expirationDateMinute,neverExpire,reviewDateMonth,reviewDateDay,reviewDateYear,reviewDateHour,reviewDateMinute,neverReview,article.isIndexable(),article.isSmallImage(),article.getSmallImageURL(),smallFile,images,articleURL,serviceContext);
+    }
+  }
+ else {
+    importedArticle=JournalArticleLocalServiceUtil.addArticle(userId,groupId,articleId,autoArticleId,article.getVersion(),article.getTitle(),article.getDescription(),article.getContent(),article.getType(),parentStructureId,parentTemplateId,displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,expirationDateMonth,expirationDateDay,expirationDateYear,expirationDateHour,expirationDateMinute,neverExpire,reviewDateMonth,reviewDateDay,reviewDateYear,reviewDateHour,reviewDateMinute,neverReview,article.isIndexable(),article.isSmallImage(),article.getSmallImageURL(),smallFile,images,articleURL,serviceContext);
+  }
+  context.importPermissions(JournalArticle.class,article.getResourcePrimKey(),importedArticle.getResourcePrimKey());
+  if (context.getBooleanParameter(_NAMESPACE,"comments")) {
+    context.importComments(JournalArticle.class,article.getResourcePrimKey(),importedArticle.getResourcePrimKey(),groupId);
+  }
+  if (context.getBooleanParameter(_NAMESPACE,"ratings")) {
+    context.importRatingsEntries(JournalArticle.class,article.getResourcePrimKey(),importedArticle.getResourcePrimKey());
+  }
+  articleIds.put(articleId,importedArticle.getArticleId());
+  if (!articleId.equals(importedArticle.getArticleId())) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("An article with the ID " + articleId + " already "+ "exists. The new generated ID is "+ importedArticle.getArticleId());
+    }
+  }
+}

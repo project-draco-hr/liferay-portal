@@ -1,0 +1,98 @@
+{
+  StringBuilder sb=new StringBuilder(content);
+  int beginPos=content.length();
+  int currentLocation=-1;
+  while (true) {
+    currentLocation=content.lastIndexOf("/document_library/get_file?",beginPos);
+    if (currentLocation == -1) {
+      currentLocation=content.lastIndexOf("/documents/",beginPos);
+    }
+    if (currentLocation == -1) {
+      return sb.toString();
+    }
+    beginPos=currentLocation;
+    int endPos1=content.indexOf(StringPool.APOSTROPHE,beginPos);
+    int endPos2=content.indexOf(StringPool.CLOSE_BRACKET,beginPos);
+    int endPos3=content.indexOf(StringPool.CLOSE_PARENTHESIS,beginPos);
+    int endPos4=content.indexOf(StringPool.LESS_THAN,beginPos);
+    int endPos5=content.indexOf(StringPool.QUOTE,beginPos);
+    int endPos6=content.indexOf(StringPool.SPACE,beginPos);
+    int endPos=endPos1;
+    if ((endPos == -1) || ((endPos2 != -1) && (endPos2 < endPos))) {
+      endPos=endPos2;
+    }
+    if ((endPos == -1) || ((endPos3 != -1) && (endPos3 < endPos))) {
+      endPos=endPos3;
+    }
+    if ((endPos == -1) || ((endPos4 != -1) && (endPos4 < endPos))) {
+      endPos=endPos4;
+    }
+    if ((endPos == -1) || ((endPos5 != -1) && (endPos5 < endPos))) {
+      endPos=endPos5;
+    }
+    if ((endPos == -1) || ((endPos6 != -1) && (endPos6 < endPos))) {
+      endPos=endPos6;
+    }
+    if ((beginPos == -1) || (endPos == -1)) {
+      break;
+    }
+    try {
+      String oldParameters=content.substring(beginPos,endPos);
+      while (oldParameters.contains(StringPool.AMPERSAND_ENCODED)) {
+        oldParameters=oldParameters.replace(StringPool.AMPERSAND_ENCODED,StringPool.AMPERSAND);
+      }
+      Map<String,String> map=new HashMap<String,String>();
+      if (oldParameters.startsWith("/documents/")) {
+        String[] pathArray=oldParameters.split(StringPool.SLASH);
+        map.put("groupId",pathArray[2]);
+        if (pathArray.length == 4) {
+          map.put("uuid",pathArray[3]);
+        }
+ else         if (pathArray.length > 4) {
+          map.put("folderId",pathArray[3]);
+          map.put("name",pathArray[4]);
+        }
+      }
+ else {
+        oldParameters=oldParameters.substring(oldParameters.indexOf(StringPool.QUESTION) + 1);
+        map=MapUtil.toLinkedHashMap(oldParameters.split(StringPool.AMPERSAND),StringPool.EQUAL);
+      }
+      DLFileEntry fileEntry=null;
+      if (map.containsKey("uuid")) {
+        String uuid=map.get("uuid");
+        String groupIdString=map.get("groupId");
+        long groupId=GetterUtil.getLong(groupIdString);
+        if (groupIdString.equals("@group_id@")) {
+          groupId=context.getScopeGroupId();
+        }
+        fileEntry=DLFileEntryLocalServiceUtil.getFileEntryByUuidAndGroupId(uuid,groupId);
+      }
+ else       if (map.containsKey("folderId")) {
+        long folderId=GetterUtil.getLong(map.get("folderId"));
+        String name=map.get("name");
+        String groupIdString=map.get("groupId");
+        long groupId=GetterUtil.getLong(groupIdString);
+        if (groupIdString.equals("@group_id@")) {
+          groupId=context.getScopeGroupId();
+        }
+        fileEntry=DLFileEntryLocalServiceUtil.getFileEntryByTitle(groupId,folderId,name);
+      }
+      if (fileEntry == null) {
+        beginPos--;
+        continue;
+      }
+      String path=DLPortletDataHandlerImpl.getFileEntryPath(context,fileEntry);
+      entityEl.addElement("dl-reference").addAttribute("path",path);
+      DLPortletDataHandlerImpl.exportFileEntry(context,foldersEl,fileEntriesEl,fileRanksEl,fileEntry);
+      String reference="[$dl-reference=" + path + "$]";
+      sb.replace(beginPos,endPos,reference);
+    }
+ catch (    Exception e) {
+      if (_log.isWarnEnabled()) {
+        _log.warn(e);
+      }
+    }
+    beginPos--;
+  }
+  return sb.toString();
+}
