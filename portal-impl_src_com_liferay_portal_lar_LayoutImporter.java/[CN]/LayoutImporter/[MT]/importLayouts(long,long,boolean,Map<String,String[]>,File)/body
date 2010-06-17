@@ -99,7 +99,7 @@
   List<Layout> previousLayouts=LayoutUtil.findByG_P(groupId,privateLayout);
   List<Layout> newLayouts=new ArrayList<Layout>();
   Set<Long> newLayoutIds=new HashSet<Long>();
-  Map<Long,Long> newLayoutIdPlidMap=(Map<Long,Long>)context.getNewPrimaryKeysMap(Layout.class);
+  Map<Long,Layout> newLayoutIdPlidMap=(Map<Long,Layout>)context.getNewPrimaryKeysMap(Layout.class);
   List<Element> layoutEls=root.element("layouts").elements("layout");
   if (_log.isDebugEnabled()) {
     if (layoutEls.size() > 0) {
@@ -107,161 +107,7 @@
     }
   }
   for (  Element layoutRefEl : layoutEls) {
-    long layoutId=GetterUtil.getInteger(layoutRefEl.attributeValue("layout-id"));
-    long oldLayoutId=layoutId;
-    boolean deleteLayout=GetterUtil.getBoolean(layoutRefEl.attributeValue("delete"));
-    if (deleteLayout) {
-      try {
-        LayoutLocalServiceUtil.deleteLayout(context.getGroupId(),privateLayout,oldLayoutId);
-      }
- catch (      NoSuchLayoutException nsle) {
-        _log.warn("Error deleting layout for {" + sourceGroupId + ", "+ privateLayout+ ", "+ oldLayoutId+ "}");
-      }
-      continue;
-    }
-    String layoutPath=layoutRefEl.attributeValue("path");
-    Element layoutEl=null;
-    try {
-      Document layoutDoc=SAXReaderUtil.read(context.getZipEntryAsString(layoutPath));
-      layoutEl=layoutDoc.getRootElement();
-    }
- catch (    DocumentException de) {
-      throw new SystemException(de);
-    }
-    long parentLayoutId=GetterUtil.getInteger(layoutEl.elementText("parent-layout-id"));
-    if (_log.isDebugEnabled()) {
-      _log.debug("Importing layout with layout id " + layoutId + " and parent layout id "+ parentLayoutId);
-    }
-    long oldPlid=GetterUtil.getInteger(layoutEl.attributeValue("old-plid"));
-    String name=layoutEl.elementText("name");
-    String title=layoutEl.elementText("title");
-    String description=layoutEl.elementText("description");
-    String type=layoutEl.elementText("type");
-    String typeSettings=layoutEl.elementText("type-settings");
-    boolean hidden=GetterUtil.getBoolean(layoutEl.elementText("hidden"));
-    String friendlyURL=layoutEl.elementText("friendly-url");
-    boolean iconImage=GetterUtil.getBoolean(layoutEl.elementText("icon-image"));
-    byte[] iconBytes=null;
-    if (iconImage) {
-      String path=layoutEl.elementText("icon-image-path");
-      iconBytes=context.getZipEntryAsByteArray(path);
-    }
-    if (useThemeZip) {
-      themeId=StringPool.BLANK;
-      colorSchemeId=StringPool.BLANK;
-    }
- else {
-      themeId=layoutEl.elementText("theme-id");
-      colorSchemeId=layoutEl.elementText("color-scheme-id");
-    }
-    String wapThemeId=layoutEl.elementText("wap-theme-id");
-    String wapColorSchemeId=layoutEl.elementText("wap-color-scheme-id");
-    String css=layoutEl.elementText("css");
-    int priority=GetterUtil.getInteger(layoutEl.elementText("priority"));
-    Layout layout=null;
-    if (layoutsImportMode.equals(PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_ADD_AS_NEW)) {
-      layoutId=LayoutLocalServiceUtil.getNextLayoutId(groupId,privateLayout);
-      friendlyURL=StringPool.SLASH + layoutId;
-    }
- else     if (layoutsImportMode.equals(PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_MERGE_BY_LAYOUT_NAME)) {
-      Locale locale=LocaleUtil.getDefault();
-      String localizedName=LocalizationUtil.getLocalization(name,LocaleUtil.toLanguageId(locale));
-      for (      Layout curLayout : previousLayouts) {
-        if (curLayout.getName(locale).equals(localizedName)) {
-          layout=curLayout;
-          break;
-        }
-      }
-      if (layout == null) {
-        layoutId=LayoutLocalServiceUtil.getNextLayoutId(groupId,privateLayout);
-      }
-    }
- else {
-      layout=LayoutUtil.fetchByG_P_L(groupId,privateLayout,layoutId);
-      if (layout == null) {
-        layoutId=LayoutLocalServiceUtil.getNextLayoutId(groupId,privateLayout);
-      }
-    }
-    if (_log.isDebugEnabled()) {
-      if (layout == null) {
-        _log.debug("Layout with {groupId=" + groupId + ",privateLayout="+ privateLayout+ ",layoutId="+ layoutId+ "} does not exist");
-      }
- else {
-        _log.debug("Layout with {groupId=" + groupId + ",privateLayout="+ privateLayout+ ",layoutId="+ layoutId+ "} exists");
-      }
-    }
-    if (layout == null) {
-      Layout existingLayout=LayoutUtil.fetchByG_P_F(groupId,privateLayout,friendlyURL);
-      if (existingLayout != null) {
-        layout=existingLayout;
-      }
- else {
-        long plid=CounterLocalServiceUtil.increment();
-        layout=LayoutUtil.create(plid);
-      }
-      layout.setGroupId(groupId);
-      layout.setPrivateLayout(privateLayout);
-      layout.setLayoutId(layoutId);
-    }
-    layout.setCompanyId(user.getCompanyId());
-    if (parentLayoutId > 0) {
-      long parentLayoutPlid=newLayoutIdPlidMap.get(parentLayoutId);
-      Layout parentLayout=LayoutLocalServiceUtil.getLayout(parentLayoutPlid);
-      parentLayoutId=parentLayout.getLayoutId();
-    }
-    layout.setParentLayoutId(parentLayoutId);
-    layout.setName(name);
-    layout.setTitle(title);
-    layout.setDescription(description);
-    layout.setType(type);
-    if (layout.isTypePortlet() && Validator.isNotNull(layout.getTypeSettings()) && !portletsMergeMode.equals(PortletDataHandlerKeys.PORTLETS_MERGE_MODE_REPLACE)) {
-      mergePortlets(layout,typeSettings,portletsMergeMode);
-    }
- else     if (layout.isTypeLinkToLayout() && Validator.isNotNull(layout.getTypeSettings())) {
-      UnicodeProperties typeSettingsProperties=layout.getTypeSettingsProperties();
-      long oldLinkToLayoutId=GetterUtil.getLong(typeSettingsProperties.getProperty("linkToLayoutId"));
-      if (oldLinkToLayoutId > 0) {
-        long linkToLayoutPlid=newLayoutIdPlidMap.get(oldLinkToLayoutId);
-        Layout linkToLayout=LayoutLocalServiceUtil.getLayout(linkToLayoutPlid);
-        typeSettingsProperties.setProperty("linkToLayoutId",String.valueOf(linkToLayout.getLayoutId()));
-        layout.setTypeSettingsProperties(typeSettingsProperties);
-      }
- else {
-        layout.setTypeSettings(typeSettings);
-      }
-    }
- else {
-      layout.setTypeSettings(typeSettings);
-    }
-    layout.setHidden(hidden);
-    layout.setFriendlyURL(friendlyURL);
-    if (iconImage) {
-      layout.setIconImage(iconImage);
-      if (layout.isNew()) {
-        long iconImageId=CounterLocalServiceUtil.increment();
-        layout.setIconImageId(iconImageId);
-      }
-    }
-    layout.setThemeId(themeId);
-    layout.setColorSchemeId(colorSchemeId);
-    layout.setWapThemeId(wapThemeId);
-    layout.setWapColorSchemeId(wapColorSchemeId);
-    layout.setCss(css);
-    layout.setPriority(priority);
-    fixTypeSettings(layout);
-    LayoutUtil.update(layout,false);
-    if ((iconBytes != null) && (iconBytes.length > 0)) {
-      ImageLocalServiceUtil.updateImage(layout.getIconImageId(),iconBytes);
-    }
-    context.setPlid(layout.getPlid());
-    context.setOldPlid(oldPlid);
-    newLayoutIdPlidMap.put(oldLayoutId,layout.getPlid());
-    newLayoutIds.add(layoutId);
-    newLayouts.add(layout);
-    if (importPermissions) {
-      _permissionImporter.importLayoutPermissions(layoutCache,companyId,groupId,userId,layout,layoutEl,root,importUserPermissions);
-    }
-    _portletImporter.importPortletData(context,PortletKeys.LAYOUT_CONFIGURATION,null,layoutEl);
+    importLayout(context,user,layoutCache,previousLayouts,newLayouts,newLayoutIdPlidMap,newLayoutIds,portletsMergeMode,themeId,colorSchemeId,layoutsImportMode,privateLayout,importPermissions,importUserPermissions,useThemeZip,root,layoutRefEl);
   }
   List<Element> portletEls=root.element("portlets").elements("portlet");
   if (deletePortletData) {
@@ -273,7 +119,7 @@
     for (    Element portletRefEl : portletEls) {
       String portletId=portletRefEl.attributeValue("portlet-id");
       long layoutId=GetterUtil.getLong(portletRefEl.attributeValue("layout-id"));
-      long plid=newLayoutIdPlidMap.get(layoutId);
+      long plid=newLayoutIdPlidMap.get(layoutId).getPlid();
       context.setPlid(plid);
       _portletImporter.deletePortletData(context,portletId,plid);
     }
@@ -287,7 +133,7 @@
     String portletPath=portletRefEl.attributeValue("path");
     String portletId=portletRefEl.attributeValue("portlet-id");
     long layoutId=GetterUtil.getLong(portletRefEl.attributeValue("layout-id"));
-    long plid=newLayoutIdPlidMap.get(layoutId);
+    long plid=newLayoutIdPlidMap.get(layoutId).getPlid();
     long oldPlid=GetterUtil.getLong(portletRefEl.attributeValue("old-plid"));
     Layout layout=LayoutUtil.findByPrimaryKey(plid);
     context.setPlid(plid);
