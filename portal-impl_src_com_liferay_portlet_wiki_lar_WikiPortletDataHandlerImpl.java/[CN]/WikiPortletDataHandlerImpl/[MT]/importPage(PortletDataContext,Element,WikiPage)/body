@@ -1,0 +1,60 @@
+{
+  long userId=context.getUserId(page.getUserUuid());
+  Map<Long,Long> nodePKs=(Map<Long,Long>)context.getNewPrimaryKeysMap(WikiNode.class);
+  long nodeId=MapUtil.getLong(nodePKs,page.getNodeId(),page.getNodeId());
+  long[] assetCategoryIds=null;
+  String[] assetTagNames=null;
+  if (context.getBooleanParameter(_NAMESPACE,"categories") && page.isHead()) {
+    assetCategoryIds=context.getAssetCategoryIds(WikiPage.class,page.getResourcePrimKey());
+  }
+  if (context.getBooleanParameter(_NAMESPACE,"tags") && page.isHead()) {
+    assetTagNames=context.getAssetTagNames(WikiPage.class,page.getResourcePrimKey());
+  }
+  ServiceContext serviceContext=new ServiceContext();
+  serviceContext.setAddCommunityPermissions(true);
+  serviceContext.setAddGuestPermissions(true);
+  serviceContext.setAssetCategoryIds(assetCategoryIds);
+  serviceContext.setAssetTagNames(assetTagNames);
+  serviceContext.setCreateDate(page.getCreateDate());
+  serviceContext.setModifiedDate(page.getModifiedDate());
+  if (page.getStatus() != WorkflowConstants.STATUS_APPROVED) {
+    serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
+  }
+  WikiPage importedPage=null;
+  if (context.isDataStrategyMirror()) {
+    WikiPage existingPage=WikiPageUtil.fetchByUUID_G(page.getUuid(),context.getScopeGroupId());
+    if (existingPage == null) {
+      try {
+        existingPage=WikiPageLocalServiceUtil.getPage(nodeId,page.getTitle());
+      }
+ catch (      NoSuchPageException nspe) {
+      }
+    }
+    if (existingPage == null) {
+      importedPage=WikiPageLocalServiceUtil.addPage(page.getUuid(),userId,nodeId,page.getTitle(),page.getVersion(),page.getContent(),page.getSummary(),true,page.getFormat(),page.getHead(),page.getParentTitle(),page.getRedirectTitle(),serviceContext);
+    }
+ else {
+      importedPage=WikiPageLocalServiceUtil.updatePage(userId,nodeId,existingPage.getTitle(),0,page.getContent(),page.getSummary(),true,page.getFormat(),page.getParentTitle(),page.getRedirectTitle(),serviceContext);
+    }
+  }
+ else {
+    importedPage=WikiPageLocalServiceUtil.addPage(null,userId,nodeId,page.getTitle(),page.getVersion(),page.getContent(),page.getSummary(),true,page.getFormat(),page.getHead(),page.getParentTitle(),page.getRedirectTitle(),serviceContext);
+  }
+  if (context.getBooleanParameter(_NAMESPACE,"attachments") && page.isHead()) {
+    for (    Element attachmentElement : pageElement.elements("attachment")) {
+      String name=attachmentElement.attributeValue("name");
+      String binPath=attachmentElement.attributeValue("bin-path");
+      InputStream inputStream=context.getZipEntryAsInputStream(binPath);
+      WikiPageLocalServiceUtil.addPageAttachment(importedPage.getCompanyId(),importedPage.getAttachmentsDir(),importedPage.getModifiedDate(),name,inputStream);
+    }
+  }
+  if (page.isHead()) {
+    context.importPermissions(WikiPage.class,page.getResourcePrimKey(),importedPage.getResourcePrimKey());
+  }
+  if (context.getBooleanParameter(_NAMESPACE,"comments") && page.isHead()) {
+    context.importComments(WikiPage.class,page.getResourcePrimKey(),importedPage.getResourcePrimKey(),context.getScopeGroupId());
+  }
+  if (context.getBooleanParameter(_NAMESPACE,"ratings") && page.isHead()) {
+    context.importRatingsEntries(WikiPage.class,page.getResourcePrimKey(),importedPage.getResourcePrimKey());
+  }
+}
