@@ -1,0 +1,38 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  long classNameId=0;
+  try {
+    con=DataAccess.getConnection();
+    ps=con.prepareStatement("SELECT * FROM Group_ WHERE groupId = ?");
+    ps.setLong(1,groupId);
+    rs=ps.executeQuery();
+    if (rs.next()) {
+      classNameId=rs.getLong("classNameId");
+    }
+    String className=PortalUtil.getClassName(classNameId);
+    long communityContentReviewerRoleId=getRoleId(companyId,_ROLE_COMMUNITY_CONTENT_REVIEWER);
+    long organizationContentReviewerRoleId=getRoleId(companyId,_ROLE_ORGANIZATION_CONTENT_REVIEWER);
+    long portalContentReviewerRoleId=getRoleId(companyId,_ROLE_PORTAL_CONTENT_REVIEWER);
+    ps=con.prepareStatement("(SELECT u.* FROM User_ u, Users_Roles ur WHERE " + "u.userId = ur.userId AND ur.roleId = ?) UNION ALL " + "(SELECT u.* FROM User_ u, UserGroupRole ugr WHERE "+ "u.userId = ugr.userId AND ugr.roleId = ?)");
+    ps.setLong(1,roleId);
+    ps.setLong(1,roleId);
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      long userId=rs.getLong("userId");
+      if (className.equals(Group.class.getName())) {
+        addUserGroupRole(userId,groupId,communityContentReviewerRoleId);
+      }
+ else       if (className.equals(Organization.class.getName())) {
+        addUserGroupRole(userId,groupId,organizationContentReviewerRoleId);
+      }
+ else       if (className.equals(Company.class.getName())) {
+        addUserRole(userId,portalContentReviewerRoleId);
+      }
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}
