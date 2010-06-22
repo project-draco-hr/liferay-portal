@@ -4,39 +4,11 @@
     response.sendError(HttpServletResponse.SC_BAD_REQUEST);
     return;
   }
-  byte[] bytes=null;
-  int length=0;
-  File cacheFile=getCacheFile(request);
-  if (cacheFile.exists()) {
-    bytes=FileUtil.getBytes(cacheFile);
-    length=bytes.length;
-  }
- else {
-    StringBundler sb=new StringBundler(parameterMap.size());
-    for (    String modulePath : parameterMap.keySet()) {
-      File file=getFile(modulePath);
-      if (file != null) {
-        String moduleContent=FileUtil.read(file);
-        sb.append(moduleContent);
-      }
-    }
-    String content=sb.toString();
-    if (Validator.isNotNull(content)) {
-      String minifierType=ParamUtil.getString(request,"minifierType");
-      if (minifierType.equals("css")) {
-        content=MinifierUtil.minifyCss(content);
-      }
- else       if (minifierType.equals("js")) {
-        content=MinifierUtil.minifyJavaScript(content);
-      }
-      ByteBuffer contentByteBuffer=CharsetEncoderUtil.encode(StringPool.UTF8,content);
-      bytes=contentByteBuffer.array();
-      length=contentByteBuffer.limit();
-      FileUtil.write(cacheFile,bytes,0,length);
-    }
- else {
-      bytes=new byte[0];
-    }
+  String minifierType=ParamUtil.getString(request,"minifierType");
+  int size=parameterMap.size();
+  byte[][] bytesArray=new byte[size][];
+  for (  String modulePath : parameterMap.keySet()) {
+    bytesArray[--size]=getFileContent(modulePath,minifierType);
   }
   String contentType=ContentTypes.TEXT_JAVASCRIPT;
   String firstModulePath=(String)request.getParameterNames().nextElement();
@@ -45,5 +17,5 @@
     contentType=ContentTypes.TEXT_CSS;
   }
   response.setContentType(contentType);
-  ServletResponseUtil.write(response,bytes,length);
+  ServletResponseUtil.write(response,bytesArray);
 }
