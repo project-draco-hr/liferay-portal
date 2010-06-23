@@ -1,12 +1,21 @@
 {
   String fileContentKey=path.concat(StringPool.QUESTION).concat(minifierType);
-  byte[] fileContent=_fileContents.get(fileContentKey);
-  if (fileContent != null) {
-    return fileContent;
+  FileContentBag fileContentBag=_fileContents.get(fileContentKey);
+  if (fileContentBag != null && !PropsValues.COMBO_SERVLET_DEVELOPMENT) {
+    return fileContentBag._fileContent;
   }
   File file=getFile(path);
+  long lastModified=file.lastModified();
+  if (fileContentBag != null && PropsValues.COMBO_SERVLET_DEVELOPMENT) {
+    if (lastModified == fileContentBag._lastModifiedTime) {
+      return fileContentBag._fileContent;
+    }
+ else {
+      _fileContents.remove(fileContentKey,fileContentBag);
+    }
+  }
   if (file == null) {
-    fileContent=_EMPTY_FILE_CONTENT;
+    fileContentBag=_EMPTY_FILE_CONTENT_BAG;
   }
  else {
     String stringFileContent=FileUtil.read(file);
@@ -16,11 +25,11 @@
  else     if (minifierType.equals("js")) {
       stringFileContent=MinifierUtil.minifyJavaScript(stringFileContent);
     }
-    fileContent=stringFileContent.getBytes(StringPool.UTF8);
+    fileContentBag=new FileContentBag(stringFileContent.getBytes(StringPool.UTF8),lastModified);
   }
-  byte[] oldFileContent=_fileContents.putIfAbsent(fileContentKey,fileContent);
-  if (oldFileContent != null) {
-    fileContent=oldFileContent;
+  FileContentBag oldFileContentBag=_fileContents.putIfAbsent(fileContentKey,fileContentBag);
+  if (oldFileContentBag != null) {
+    fileContentBag=oldFileContentBag;
   }
-  return fileContent;
+  return fileContentBag._fileContent;
 }
