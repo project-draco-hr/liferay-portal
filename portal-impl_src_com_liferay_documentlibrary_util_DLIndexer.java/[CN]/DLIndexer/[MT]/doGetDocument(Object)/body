@@ -47,13 +47,22 @@
     _log.debug("Indexing document " + companyId + " "+ portletId+ " "+ scopeGroupId+ " "+ repositoryId+ " "+ fileName+ " "+ fileEntryId);
   }
   InputStream is=null;
+  boolean indexContent=true;
   try {
     Hook hook=HookFactory.getInstance();
-    is=hook.getFileAsStream(companyId,repositoryId,fileName);
+    if (PropsValues.DL_FILE_INDEXING_MAX_SIZE != -1) {
+      long size=hook.getFileSize(companyId,repositoryId,fileName);
+      if (size > PropsValues.DL_FILE_INDEXING_MAX_SIZE) {
+        indexContent=false;
+      }
+    }
+    if (indexContent) {
+      is=hook.getFileAsStream(companyId,repositoryId,fileName);
+    }
   }
  catch (  Exception e) {
   }
-  if (is == null) {
+  if (indexContent && (is == null)) {
     if (_log.isDebugEnabled()) {
       _log.debug("Document " + companyId + " "+ portletId+ " "+ scopeGroupId+ " "+ repositoryId+ " "+ fileName+ " "+ fileEntryId+ " does not have any content");
     }
@@ -67,11 +76,13 @@
   document.addKeyword(Field.GROUP_ID,groupId);
   document.addKeyword(Field.SCOPE_GROUP_ID,scopeGroupId);
   document.addKeyword(Field.USER_ID,userId);
-  try {
-    document.addFile(Field.CONTENT,is,fileEntry.getTitle());
-  }
- catch (  IOException ioe) {
-    throw new SearchException("Cannot extract text from file" + companyId + " "+ portletId+ " "+ scopeGroupId+ " "+ repositoryId+ " "+ fileName);
+  if (indexContent) {
+    try {
+      document.addFile(Field.CONTENT,is,fileEntry.getTitle());
+    }
+ catch (    IOException ioe) {
+      throw new SearchException("Cannot extract text from file" + companyId + " "+ portletId+ " "+ scopeGroupId+ " "+ repositoryId+ " "+ fileName);
+    }
   }
   document.addText(Field.PROPERTIES,properties);
   document.addKeyword(Field.ASSET_CATEGORY_IDS,assetCategoryIds);
