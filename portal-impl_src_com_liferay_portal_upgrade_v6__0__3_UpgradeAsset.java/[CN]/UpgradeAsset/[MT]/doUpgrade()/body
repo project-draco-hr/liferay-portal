@@ -1,0 +1,36 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getConnection();
+    ps=con.prepareStatement("select * from AssetEntry");
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      long classPK=rs.getLong("classPK");
+      long classNameId=rs.getLong("classNameId");
+      PreparedStatement classPs=con.prepareStatement("select * from ClassName_ where classNameId = ?");
+      classPs.setLong(1,classNameId);
+      ResultSet classRs=classPs.executeQuery();
+      classRs.next();
+      String className=classRs.getString("value");
+      String[] tableAndColumn=getTableAndColumnName(className);
+      if (Validator.isNull(tableAndColumn[0]) || Validator.isNull(tableAndColumn[1])) {
+        continue;
+      }
+      classPs=con.prepareStatement("select * from " + tableAndColumn[0] + " where "+ tableAndColumn[1]+ " = ?");
+      classPs.setLong(1,classPK);
+      classRs=classPs.executeQuery();
+      classRs.next();
+      String uuid=classRs.getString("uuid_");
+      classPs=con.prepareStatement("update AssetEntry set classUuid = ? where classNameId = ? " + "and classPK = ?");
+      classPs.setString(1,uuid);
+      classPs.setLong(2,classNameId);
+      classPs.setLong(3,classPK);
+      classPs.executeUpdate();
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}
