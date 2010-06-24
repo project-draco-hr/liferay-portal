@@ -4,31 +4,18 @@
   ResultSet rs=null;
   try {
     con=DataAccess.getConnection();
-    ps=con.prepareStatement("select * from AssetEntry");
+    ps=con.prepareStatement("select classNameId, classPK from AssetEntry");
     rs=ps.executeQuery();
     while (rs.next()) {
-      long classPK=rs.getLong("classPK");
       long classNameId=rs.getLong("classNameId");
-      PreparedStatement classPs=con.prepareStatement("select * from ClassName_ where classNameId = ?");
-      classPs.setLong(1,classNameId);
-      ResultSet classRs=classPs.executeQuery();
-      classRs.next();
-      String className=classRs.getString("value");
+      long classPK=rs.getLong("classPK");
+      String className=PortalUtil.getClassName(classNameId);
       String[] tableAndColumn=getTableAndColumnName(className);
       if (Validator.isNull(tableAndColumn[0]) || Validator.isNull(tableAndColumn[1])) {
         continue;
       }
-      classPs=con.prepareStatement("select * from " + tableAndColumn[0] + " where "+ tableAndColumn[1]+ " = ? or "+ tableAndColumn[2]+ " = ?");
-      classPs.setLong(1,classPK);
-      classPs.setLong(2,classPK);
-      classRs=classPs.executeQuery();
-      classRs.next();
-      String uuid=classRs.getString("uuid_");
-      classPs=con.prepareStatement("update AssetEntry set classUuid = ? where classNameId = ? " + "and classPK = ?");
-      classPs.setString(1,uuid);
-      classPs.setLong(2,classNameId);
-      classPs.setLong(3,classPK);
-      classPs.executeUpdate();
+      String uuid=getUuid(tableAndColumn[0],tableAndColumn[1],tableAndColumn[2],classPK);
+      updateAssetEntry(classNameId,classPK,uuid);
     }
   }
   finally {
