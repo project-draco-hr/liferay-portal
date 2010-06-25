@@ -2,12 +2,12 @@
   Connection con=null;
   PreparedStatement ps=null;
   ResultSet rs=null;
-  long classNameId=0;
   try {
     con=DataAccess.getConnection();
-    ps=con.prepareStatement("SELECT * FROM Group_ WHERE groupId = ?");
+    ps=con.prepareStatement("select classNameId from Group_ where groupId = ?");
     ps.setLong(1,groupId);
     rs=ps.executeQuery();
+    long classNameId=0;
     if (rs.next()) {
       classNameId=rs.getLong("classNameId");
     }
@@ -15,20 +15,27 @@
     long communityContentReviewerRoleId=getRoleId(companyId,_ROLE_COMMUNITY_CONTENT_REVIEWER);
     long organizationContentReviewerRoleId=getRoleId(companyId,_ROLE_ORGANIZATION_CONTENT_REVIEWER);
     long portalContentReviewerRoleId=getRoleId(companyId,_ROLE_PORTAL_CONTENT_REVIEWER);
-    ps=con.prepareStatement("(SELECT u.* FROM User_ u, Users_Roles ur WHERE " + "u.userId = ur.userId AND ur.roleId = ?) UNION ALL " + "(SELECT u.* FROM User_ u, UserGroupRole ugr WHERE "+ "u.userId = ugr.userId AND ugr.roleId = ?)");
+    StringBundler sb=new StringBundler();
+    sb.append("(select User_.* from User_, Users_Roles where ");
+    sb.append("User_.userId = Users_Roles.userId and ");
+    sb.append("Users_Roles.roleId = ?) union all (select User_.* ");
+    sb.append("from User_, UserGroupRole where User_.userId = ");
+    sb.append("UserGroupRole.userId AND ugr.roleId = ?)");
+    String sql=sb.toString();
+    ps=con.prepareStatement(sql);
     ps.setLong(1,roleId);
     ps.setLong(1,roleId);
     rs=ps.executeQuery();
     while (rs.next()) {
       long userId=rs.getLong("userId");
-      if (className.equals(Group.class.getName())) {
+      if (className.equals(Company.class.getName())) {
+        addUserRole(userId,portalContentReviewerRoleId);
+      }
+ else       if (className.equals(Group.class.getName())) {
         addUserGroupRole(userId,groupId,communityContentReviewerRoleId);
       }
  else       if (className.equals(Organization.class.getName())) {
         addUserGroupRole(userId,groupId,organizationContentReviewerRoleId);
-      }
- else       if (className.equals(Company.class.getName())) {
-        addUserRole(userId,portalContentReviewerRoleId);
       }
     }
   }
