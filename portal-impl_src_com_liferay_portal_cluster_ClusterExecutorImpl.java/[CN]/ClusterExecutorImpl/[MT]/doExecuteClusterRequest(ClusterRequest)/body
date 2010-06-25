@@ -1,0 +1,45 @@
+{
+  boolean isMulticast=clusterRequest.isMulticast();
+  List<Address> addresses=null;
+  if (isMulticast) {
+    addresses=getControlAddresses();
+  }
+ else {
+    Collection<String> clusterNodeIds=clusterRequest.getTargetClusterNodeIds();
+    addresses=new ArrayList<Address>(clusterNodeIds.size());
+    for (    String clusterNodeId : clusterNodeIds) {
+      Address address=getAddress(clusterNodeId);
+      addresses.add(address);
+    }
+  }
+  Address localControlAddress=getLocalControlAddress();
+  FutureClusterResponses futureClusterResponses=new FutureClusterResponses(addresses.size());
+  _executionResultMap.put(clusterRequest.getUuid(),futureClusterResponses);
+  for (  Address address : addresses) {
+    futureClusterResponses.addExpectedReplyAddress(address);
+    if (_shortcutLocalMethod && address.equals(localControlAddress)) {
+      ClusterNodeResponse clusterNodeResponse=runLocalMethod(clusterRequest.getMethodWrapper());
+      futureClusterResponses.addClusterResponse(clusterNodeResponse);
+    }
+    if (!isMulticast) {
+      org.jgroups.Address jGroupsAddress=(org.jgroups.Address)address.getRealAddress();
+      try {
+        _controlChannel.send(jGroupsAddress,null,clusterRequest);
+      }
+ catch (      ChannelException ce) {
+        _log.error("Unable to send unicast message " + clusterRequest,ce);
+        throw new SystemException("Unable to send unicast request",ce);
+      }
+    }
+  }
+  if (isMulticast) {
+    try {
+      _controlChannel.send(null,null,clusterRequest);
+    }
+ catch (    ChannelException ce) {
+      _log.error("Unable to send unicast message " + clusterRequest,ce);
+      throw new SystemException("Unable to send cluster request",ce);
+    }
+  }
+  return futureClusterResponses;
+}
