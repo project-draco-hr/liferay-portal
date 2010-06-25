@@ -1,24 +1,24 @@
 {
-  ClusterMessageType requestType=clusterRequest.getMessageType();
+  ClusterMessageType clusterMessageType=clusterRequest.getClusterMessageType();
   ClusterNodeResponse clusterNodeResponse=new ClusterNodeResponse();
-  if (requestType.equals(ClusterMessageType.NOTIFY) || requestType.equals(ClusterMessageType.UPDATE)) {
-    ClusterNode clusterNode=clusterRequest.getOriginatingClusterNode();
-    if (clusterNode != null) {
-      _clusterExecutorImpl.memberJoined(new AddressImpl(sourceAddress),clusterNode);
-      clusterNodeResponse.setClusterNode(clusterNode);
-      clusterNodeResponse.setMessageType(requestType);
+  if (clusterMessageType.equals(ClusterMessageType.NOTIFY) || clusterMessageType.equals(ClusterMessageType.UPDATE)) {
+    ClusterNode originatingClusterNode=clusterRequest.getOriginatingClusterNode();
+    if (originatingClusterNode != null) {
+      _clusterExecutorImpl.memberJoined(new AddressImpl(sourceAddress),originatingClusterNode);
+      clusterNodeResponse.setClusterMessageType(clusterMessageType);
+      clusterNodeResponse.setClusterNode(originatingClusterNode);
     }
  else {
       if (_log.isWarnEnabled()) {
-        _log.warn("Content of Notify Message does not " + "contain ClusterNode information");
+        _log.warn("Content of notify message does not contain cluster " + "node information");
       }
       return;
     }
   }
  else {
+    clusterNodeResponse.setClusterMessageType(ClusterMessageType.EXECUTE);
     clusterNodeResponse.setMulticast(clusterRequest.isMulticast());
     clusterNodeResponse.setUuid(clusterRequest.getUuid());
-    clusterNodeResponse.setMessageType(ClusterMessageType.EXECUTE);
     MethodWrapper methodWrapper=clusterRequest.getMethodWrapper();
     if (methodWrapper != null) {
       try {
@@ -38,8 +38,9 @@
       clusterNodeResponse.setException(new ClusterException("Payload is not of type " + MethodWrapper.class.getName()));
     }
   }
+  Channel controlChannel=_clusterExecutorImpl.getControlChannel();
   try {
-    _clusterExecutorImpl.getControlChannel().send(sourceAddress,localAddress,clusterNodeResponse);
+    controlChannel.send(sourceAddress,localAddress,clusterNodeResponse);
   }
  catch (  ChannelException ce) {
     _log.error("Unable to send response message " + clusterNodeResponse,ce);
