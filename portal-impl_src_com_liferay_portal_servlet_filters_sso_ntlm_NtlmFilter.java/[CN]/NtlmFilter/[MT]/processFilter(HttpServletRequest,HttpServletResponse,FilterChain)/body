@@ -19,15 +19,28 @@
         return;
       }
  else {
-        byte[] serverChallenge=_serverChallenges.get(request.getRemoteAddr());
-        NtlmUserAccount ntlmUserAccount=ntlmManager.authenticate(src,serverChallenge);
+        byte[] serverChallenge=(byte[])_serverChallenges.get(request.getRemoteAddr());
+        if (serverChallenge == null) {
+          return;
+        }
+        NtlmUserAccount ntlmUserAccount=null;
+        try {
+          ntlmUserAccount=ntlmManager.authenticate(src,serverChallenge);
+        }
+ catch (        Exception e) {
+          if (_log.isErrorEnabled()) {
+            _log.error("Unable to perform NTLM authentication",e);
+          }
+        }
+ finally {
+          _serverChallenges.remove(request.getRemoteAddr());
+        }
         if (ntlmUserAccount == null) {
           return;
         }
         if (_log.isDebugEnabled()) {
           _log.debug("NTLM remote user " + ntlmUserAccount.getUserName());
         }
-        _serverChallenges.remove(request.getRemoteAddr());
         request.setAttribute(WebKeys.NTLM_REMOTE_USER,ntlmUserAccount.getUserName());
         if (session != null) {
           session.setAttribute(WebKeys.NTLM_USER_ACCOUNT,ntlmUserAccount);
