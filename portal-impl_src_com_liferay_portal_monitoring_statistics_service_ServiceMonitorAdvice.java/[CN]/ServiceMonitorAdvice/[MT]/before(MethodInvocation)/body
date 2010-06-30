@@ -1,0 +1,26 @@
+{
+  ServiceRequestDataSample serviceRequestDataSample=null;
+  if (_active && (_permissiveMode || _isMonitored(methodInvocation))) {
+    serviceRequestDataSample=new ServiceRequestDataSample(methodInvocation);
+    serviceRequestDataSample.prepare();
+  }
+  try {
+    Object results=nextMethodInterceptor.invoke(methodInvocation);
+    if (serviceRequestDataSample != null) {
+      serviceRequestDataSample.capture(RequestStatus.SUCCESS);
+    }
+    return results;
+  }
+ catch (  Throwable throwable) {
+    if (serviceRequestDataSample != null) {
+      serviceRequestDataSample.capture(RequestStatus.ERROR);
+    }
+    throw throwable;
+  }
+ finally {
+    if (serviceRequestDataSample != null) {
+      MessageBusUtil.sendMessage(_monitoringDestinationName,serviceRequestDataSample);
+      DataSampleThreadLocal.addDataSample(serviceRequestDataSample);
+    }
+  }
+}
