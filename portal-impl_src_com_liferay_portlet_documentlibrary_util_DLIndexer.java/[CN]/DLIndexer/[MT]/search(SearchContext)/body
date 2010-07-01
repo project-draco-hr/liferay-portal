@@ -1,0 +1,32 @@
+{
+  int end=searchContext.getEnd();
+  int start=searchContext.getStart();
+  searchContext.setEnd(QueryUtil.ALL_POS);
+  searchContext.setStart(QueryUtil.ALL_POS);
+  Hits hits=super.search(searchContext);
+  PermissionChecker permissionChecker=PermissionThreadLocal.getPermissionChecker();
+  List<Document> docs=new ArrayList<Document>();
+  List<Float> scores=new ArrayList<Float>();
+  for (int i=0; i < hits.getLength(); i++) {
+    Document doc=hits.doc(i);
+    Long fileEntryId=GetterUtil.getLong(doc.get(Field.ENTRY_CLASS_PK));
+    try {
+      if (DLFileEntryPermission.contains(permissionChecker,fileEntryId,ActionKeys.VIEW)) {
+        docs.add(hits.doc(i));
+        scores.add(hits.score(i));
+      }
+    }
+ catch (    Exception e) {
+    }
+  }
+  int length=docs.size();
+  hits.setLength(length);
+  if (end > length) {
+    end=length;
+  }
+  docs=docs.subList(start,end);
+  hits.setDocs(docs.toArray(new Document[docs.size()]));
+  hits.setScores(scores.toArray(new Float[docs.size()]));
+  hits.setSearchTime((float)(System.currentTimeMillis() - hits.getStart()) / Time.SECOND);
+  return hits;
+}
