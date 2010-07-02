@@ -2,5 +2,24 @@
   if (!isEnabled()) {
     return null;
   }
-  return doExecuteClusterRequest(clusterRequest);
+  List<Address> addresses=prepareAddresses(clusterRequest);
+  FutureClusterResponses futureClusterResponses=new FutureClusterResponses(addresses);
+  if (!clusterRequest.isFireAndForget()) {
+    String uuid=clusterRequest.getUuid();
+    Reference<FutureClusterResponses> reference=FinalizeManager.register(futureClusterResponses,new RemoveResultKeyFinalizeAction(uuid));
+    _executionResultMap.put(uuid,reference);
+  }
+  if (!clusterRequest.isSkipLocal() && _shortcutLocalMethod) {
+    ClusterNodeResponse clusterNodeResponse=runLocalMethod(clusterRequest.getMethodWrapper());
+    clusterNodeResponse.setMulticast(clusterRequest.isMulticast());
+    clusterNodeResponse.setUuid(clusterRequest.getUuid());
+    futureClusterResponses.addClusterNodeResponse(clusterNodeResponse);
+  }
+  if (clusterRequest.isMulticast()) {
+    sendMulticasrRequest(clusterRequest);
+  }
+ else {
+    sendUnicastRequest(clusterRequest,addresses);
+  }
+  return futureClusterResponses;
 }
