@@ -9,32 +9,28 @@
   Date now=new Date();
   DLFileEntry fileEntry=dlFileEntryPersistence.findByG_F_N(groupId,folderId,name);
   validate(groupId,folderId,name,fileEntry.getExtension(),title,sourceFileName,is);
-  fileEntry.setTitle(title);
-  fileEntry.setDescription(description);
-  fileEntry.setExtraSettings(extraSettings);
-  fileEntry.setExpandoBridgeAttributes(serviceContext);
   String version=getNextVersion(fileEntry,majorVersion,serviceContext.getWorkflowAction());
   DLFileVersion fileVersion=null;
+  String extension=FileUtil.getExtension(sourceFileName);
   try {
     DLFileVersion latestFileVersion=dlFileVersionLocalService.getLatestFileVersion(groupId,folderId,name);
     if (size == 0) {
       size=latestFileVersion.getSize();
     }
     if (latestFileVersion.getStatus() != WorkflowConstants.STATUS_APPROVED) {
-      updateFileVersion(user,latestFileVersion,serviceContext.getModifiedDate(now),version,versionDescription,size,latestFileVersion.getStatus());
-    }
- else     if (is != null) {
-      fileVersion=addFileVersion(user,fileEntry,serviceContext.getModifiedDate(now),version,versionDescription,size,WorkflowConstants.STATUS_DRAFT);
+      serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
+      version=latestFileVersion.getVersion();
+      updateFileVersion(user,latestFileVersion,serviceContext.getModifiedDate(now),sourceFileName,extension,title,description,extraSettings,changelog,version,size,latestFileVersion.getStatus(),serviceContext);
     }
  else {
-      version=fileEntry.getVersion();
+      fileVersion=addFileVersion(user,fileEntry,serviceContext.getModifiedDate(now),extension,title,description,extraSettings,changelog,version,size,WorkflowConstants.STATUS_DRAFT,serviceContext);
     }
     if (fileVersion == null) {
       fileVersion=latestFileVersion;
     }
   }
  catch (  NoSuchFileVersionException nsfve) {
-    fileVersion=addFileVersion(user,fileEntry,serviceContext.getModifiedDate(now),version,versionDescription,size,WorkflowConstants.STATUS_DRAFT);
+    fileVersion=addFileVersion(user,fileEntry,serviceContext.getModifiedDate(now),extension,title,description,extraSettings,changelog,version,size,WorkflowConstants.STATUS_DRAFT,serviceContext);
   }
   if ((is == null) && !version.equals(fileEntry.getVersion())) {
     int fetchFailures=0;
@@ -58,12 +54,6 @@
     }
   }
   updateAsset(userId,fileEntry,fileVersion,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
-  fileEntry.setVersionUserId(user.getUserId());
-  fileEntry.setVersionUserName(user.getFullName());
-  fileEntry.setModifiedDate(serviceContext.getModifiedDate(now));
-  fileEntry.setSize(size);
-  fileEntry.setExpandoBridgeAttributes(serviceContext);
-  dlFileEntryPersistence.update(fileEntry,false);
   if (fileEntry.getFolderId() != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
     DLFolder folder=dlFolderPersistence.findByPrimaryKey(fileEntry.getFolderId());
     folder.setLastPostDate(fileEntry.getModifiedDate());
