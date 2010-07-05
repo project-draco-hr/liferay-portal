@@ -1,6 +1,5 @@
 {
   long userId=context.getUserId(folder.getUserUuid());
-  long groupId=context.getScopeGroupId();
   Map<Long,Long> folderPKs=(Map<Long,Long>)context.getNewPrimaryKeysMap(DLFolder.class);
   long parentFolderId=MapUtil.getLong(folderPKs,folder.getParentFolderId(),folder.getParentFolderId());
   ServiceContext serviceContext=new ServiceContext();
@@ -15,29 +14,21 @@
     parentFolderId=MapUtil.getLong(folderPKs,folder.getParentFolderId(),folder.getParentFolderId());
   }
   DLFolder importedFolder=null;
-  try {
-    if (parentFolderId != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
-      DLFolderUtil.findByPrimaryKey(parentFolderId);
-    }
-    if (context.isDataStrategyMirror()) {
-      DLFolder existingFolder=DLFolderUtil.fetchByUUID_G(folder.getUuid(),groupId);
-      if (existingFolder == null) {
-        String name=getFolderName(context.getCompanyId(),groupId,parentFolderId,folder.getName(),2);
-        serviceContext.setUuid(folder.getUuid());
-        importedFolder=DLFolderLocalServiceUtil.addFolder(userId,groupId,parentFolderId,name,folder.getDescription(),serviceContext);
-      }
- else {
-        importedFolder=DLFolderLocalServiceUtil.updateFolder(existingFolder.getFolderId(),parentFolderId,folder.getName(),folder.getDescription(),serviceContext);
-      }
+  if (context.isDataStrategyMirror()) {
+    DLFolder existingFolder=DLFolderUtil.fetchByUUID_G(folder.getUuid(),context.getScopeGroupId());
+    if (existingFolder == null) {
+      String name=getFolderName(context.getCompanyId(),context.getScopeGroupId(),parentFolderId,folder.getName(),2);
+      serviceContext.setUuid(folder.getUuid());
+      importedFolder=DLFolderLocalServiceUtil.addFolder(userId,context.getScopeGroupId(),parentFolderId,name,folder.getDescription(),serviceContext);
     }
  else {
-      String name=getFolderName(context.getCompanyId(),groupId,parentFolderId,folder.getName(),2);
-      importedFolder=DLFolderLocalServiceUtil.addFolder(userId,groupId,parentFolderId,name,folder.getDescription(),serviceContext);
+      importedFolder=DLFolderLocalServiceUtil.updateFolder(existingFolder.getFolderId(),parentFolderId,folder.getName(),folder.getDescription(),serviceContext);
     }
-    folderPKs.put(folder.getFolderId(),importedFolder.getFolderId());
-    context.importPermissions(DLFolder.class,folder.getFolderId(),importedFolder.getFolderId());
   }
- catch (  NoSuchFolderException nsfe) {
-    _log.error("Could not find the parent folder for folder " + folder.getFolderId());
+ else {
+    String name=getFolderName(context.getCompanyId(),context.getScopeGroupId(),parentFolderId,folder.getName(),2);
+    importedFolder=DLFolderLocalServiceUtil.addFolder(userId,context.getScopeGroupId(),parentFolderId,name,folder.getDescription(),serviceContext);
   }
+  folderPKs.put(folder.getFolderId(),importedFolder.getFolderId());
+  context.importPermissions(DLFolder.class,folder.getFolderId(),importedFolder.getFolderId());
 }
