@@ -1,0 +1,20 @@
+{
+  MethodTargetClassKey methodTargetClassKey=buildMethodTargetClassKey(methodInvocation);
+  BufferedIncrement annotation=findAnnotation(methodTargetClassKey);
+  if (annotation == _nullBufferedIncrement) {
+    return null;
+  }
+  Object[] args=methodInvocation.getArguments();
+  Object value=args[args.length - 1];
+  CacheKeyGenerator cacheKeyGenerator=CacheKeyGeneratorUtil.getCacheKeyGenerator(_cacheKeyGeneratorName);
+  cacheKeyGenerator.append(methodTargetClassKey.toString());
+  for (int i=0; i < args.length - 1; i++) {
+    cacheKeyGenerator.append(String.valueOf(args[i]));
+  }
+  String batchKey=cacheKeyGenerator.finish();
+  Increment increment=_createCounter(annotation.incrementClass(),value);
+  BufferedIncreasableEntry entry=new BufferedIncreasableEntry(nextMethodInterceptor,methodInvocation,batchKey,increment);
+  _batchablePipe.put(entry);
+  MessageBusUtil.sendMessage(DestinationNames.BUFFERED_INCREMENT,_batchablePipe);
+  return nullResult;
+}
