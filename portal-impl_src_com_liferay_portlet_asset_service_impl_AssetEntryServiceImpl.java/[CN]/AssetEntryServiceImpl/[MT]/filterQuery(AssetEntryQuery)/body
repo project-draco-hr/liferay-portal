@@ -1,6 +1,29 @@
 {
-  entryQuery.setAllCategoryIds(filterCategoryIds(entryQuery.getAllCategoryIds()));
-  entryQuery.setAnyCategoryIds(filterCategoryIds(entryQuery.getAnyCategoryIds()));
-  entryQuery.setAllTagIds(filterTagIds(entryQuery.getAllTagIds()));
-  entryQuery.setAnyTagIds(filterTagIds(entryQuery.getAnyTagIds()));
+  int start=entryQuery.getStart();
+  int end=entryQuery.getEnd();
+  entryQuery.setStart(0);
+  entryQuery.setEnd(end + ASSET_FILTER_SEARCH_LIMIT);
+  List<AssetEntry> entries=assetEntryLocalService.getEntries(entryQuery);
+  PermissionChecker permissionChecker=getPermissionChecker();
+  List<AssetEntry> filteredEntries=new ArrayList<AssetEntry>();
+  for (  AssetEntry entry : entries) {
+    String className=entry.getClassName();
+    long classPK=entry.getClassPK();
+    AssetRendererFactory factory=AssetRendererFactoryRegistryUtil.getAssetRendererFactoryByClassName(className);
+    try {
+      if (factory.hasPermission(permissionChecker,classPK,ActionKeys.VIEW)) {
+        filteredEntries.add(entry);
+      }
+    }
+ catch (    Exception e) {
+    }
+  }
+  int length=filteredEntries.size();
+  if ((start != QueryUtil.ALL_POS) && (end != QueryUtil.ALL_POS)) {
+    if (end > length) {
+      end=length;
+    }
+    filteredEntries=filteredEntries.subList(start,end);
+  }
+  return new Object[]{filteredEntries,length};
 }
