@@ -9,6 +9,7 @@
     if (!OpenSSOUtil.isAuthenticated(request,serviceUrl)) {
       return credentials;
     }
+    boolean ldapImportEnabled=PrefsPropsUtil.getBoolean(companyId,PropsKeys.OPEN_SSO_LDAP_IMPORT_ENABLED,PropsValues.OPEN_SSO_LDAP_IMPORT_ENABLED);
     String screenNameAttr=PrefsPropsUtil.getString(companyId,PropsKeys.OPEN_SSO_SCREEN_NAME_ATTR,PropsValues.OPEN_SSO_SCREEN_NAME_ATTR);
     String emailAddressAttr=PrefsPropsUtil.getString(companyId,PropsKeys.OPEN_SSO_EMAIL_ADDRESS_ATTR,PropsValues.OPEN_SSO_EMAIL_ADDRESS_ATTR);
     String firstNameAttr=PrefsPropsUtil.getString(companyId,PropsKeys.OPEN_SSO_FIRST_NAME_ATTR,PropsValues.OPEN_SSO_FIRST_NAME_ATTR);
@@ -21,14 +22,21 @@
     if (_log.isDebugEnabled()) {
       _log.debug("Validating user information for " + firstName + " "+ lastName+ " with screen name "+ screenName+ " and email address "+ emailAddress);
     }
-    if (Validator.isNull(emailAddress)) {
-      throw new AutoLoginException("Email address is null");
-    }
     User user=null;
-    try {
-      user=UserLocalServiceUtil.getUserByScreenName(companyId,screenName);
+    if (ldapImportEnabled) {
+      user=PortalLDAPImporterUtil.importLDAPUserByScreenName(companyId,screenName);
     }
- catch (    NoSuchUserException nsue) {
+ else {
+      if (Validator.isNull(emailAddress)) {
+        throw new AutoLoginException("Email address is null");
+      }
+      try {
+        user=UserLocalServiceUtil.getUserByScreenName(companyId,screenName);
+      }
+ catch (      NoSuchUserException nsue) {
+      }
+    }
+    if (user == null) {
       ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
       Locale locale=LocaleUtil.getDefault();
       if (themeDisplay != null) {
