@@ -2,11 +2,26 @@
   ObjectInputStream ois=new ObjectInputStream(request.getInputStream());
   Object returnObj=null;
   try {
-    ObjectValuePair<HttpPrincipal,MethodHandler> ovp=(ObjectValuePair<HttpPrincipal,MethodHandler>)ois.readObject();
+    ObjectValuePair<HttpPrincipal,Object> ovp=(ObjectValuePair<HttpPrincipal,Object>)ois.readObject();
     HttpPrincipal httpPrincipal=ovp.getKey();
-    MethodHandler methodHandler=ovp.getValue();
-    if (!isValidRequest(methodHandler)) {
-      return;
+    Object ovpValue=ovp.getValue();
+    MethodHandler methodHandler=null;
+    MethodWrapper methodWrapper=null;
+    if (ovpValue instanceof MethodHandler) {
+      methodHandler=(MethodHandler)ovpValue;
+    }
+ else {
+      methodWrapper=(MethodWrapper)ovpValue;
+    }
+    if (methodHandler != null) {
+      if (!isValidRequest(methodHandler.getClassName())) {
+        return;
+      }
+    }
+ else {
+      if (!isValidRequest(methodWrapper.getClassName())) {
+        return;
+      }
     }
     long companyId=PortalInstances.getCompanyId(request);
     if (Validator.isNotNull(httpPrincipal.getLogin())) {
@@ -37,7 +52,12 @@
       }
     }
     if (returnObj == null) {
-      returnObj=methodHandler.invoke(true);
+      if (methodHandler != null) {
+        returnObj=methodHandler.invoke(true);
+      }
+ else {
+        returnObj=MethodInvoker.invoke(methodWrapper);
+      }
     }
   }
  catch (  InvocationTargetException ite) {
