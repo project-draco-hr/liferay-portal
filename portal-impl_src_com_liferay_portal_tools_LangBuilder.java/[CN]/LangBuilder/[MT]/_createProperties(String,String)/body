@@ -1,13 +1,8 @@
 {
-  File propsFile=new File(_langDir + "/" + _langFile+ "_"+ languageId+ ".properties");
-  Properties props=new Properties();
-  if (propsFile.exists()) {
-    props.load(new FileInputStream(propsFile));
-  }
-  File missingPropsFile=new File(_langDir + "/" + _langFile+ "_"+ languageId+ ".properties.missing");
-  Properties missingProps=new Properties();
-  if (missingPropsFile.exists()) {
-    missingProps.load(new FileInputStream(missingPropsFile));
+  File propertiesFile=new File(_langDir + "/" + _langFile+ "_"+ languageId+ ".properties");
+  Properties properties=new Properties();
+  if (propertiesFile.exists()) {
+    properties.load(new FileInputStream(propertiesFile));
   }
   String translationId="en_" + languageId;
   if (translationId.equals("en_pt_BR")) {
@@ -26,8 +21,7 @@
     translationId="en_hi";
   }
   UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new UnsyncStringReader(content));
-  UnsyncBufferedWriter missingPropsUnsyncBufferedWriter=new UnsyncBufferedWriter(new FileWriter(missingPropsFile));
-  UnsyncBufferedWriter propsUnsyncBufferedWriter=new UnsyncBufferedWriter(new FileWriter(propsFile));
+  UnsyncBufferedWriter unsyncBufferedWriter=new UnsyncBufferedWriter(new FileWriter(propertiesFile));
   String line=null;
   while ((line=unsyncBufferedReader.readLine()) != null) {
     line=line.trim();
@@ -35,29 +29,24 @@
     if (pos != -1) {
       String key=line.substring(0,pos);
       String value=line.substring(pos + 1,line.length());
-      String missingValue=_getProperty(missingProps,key);
-      String translatedText=_getProperty(props,key);
-      if ((missingValue == null) && (translatedText == null) && (_renameKeys != null)) {
+      String translatedText=_getProperty(properties,key);
+      if ((translatedText == null) && (_renameKeys != null)) {
         String renameKey=_renameKeys.getProperty(key);
         if (renameKey != null) {
-          missingValue=_getProperty(missingProps,key);
-          translatedText=_getProperty(props,key);
+          translatedText=_getProperty(properties,key);
         }
       }
       if ((translatedText != null) && ((translatedText.indexOf("Babel Fish") != -1) || (translatedText.indexOf("Yahoo! - 999") != -1))) {
         translatedText="";
       }
- else       if ((missingValue != null) && (missingValue.endsWith(_AUTOMATIC_TRANSLATION))) {
-        translatedText+=_AUTOMATIC_TRANSLATION;
-      }
       if ((translatedText == null) || translatedText.equals("")) {
         if (line.indexOf("{") != -1 || line.indexOf("<") != -1) {
-          translatedText=value + _AUTOMATIC_COPY;
+          translatedText=value + AUTOMATIC_COPY;
         }
  else         if (line.indexOf("[") != -1) {
           pos=line.indexOf("[");
           String baseKey=line.substring(0,pos);
-          translatedText=_getProperty(props,baseKey) + _AUTOMATIC_COPY;
+          translatedText=_getProperty(properties,baseKey) + AUTOMATIC_COPY;
         }
  else         if (key.equals("lang.dir")) {
           translatedText="ltr";
@@ -86,7 +75,10 @@
  else {
           translatedText=_translate(translationId,key,value,0);
           if (Validator.isNull(translatedText)) {
-            translatedText=value + _AUTOMATIC_COPY;
+            translatedText=value + AUTOMATIC_COPY;
+          }
+ else {
+            translatedText=value + AUTOMATIC_TRANSLATION;
           }
         }
       }
@@ -98,17 +90,17 @@
           translatedText=StringUtil.replace(translatedText,"&#39;","\'");
         }
         translatedText=StringUtil.replace(translatedText.trim(),"  "," ");
-        _writeLine(missingPropsUnsyncBufferedWriter,propsUnsyncBufferedWriter,key + "=" + translatedText);
-      }
- else       if (missingProps.containsKey(key)) {
-        _writeLine(missingPropsUnsyncBufferedWriter,propsUnsyncBufferedWriter,key + "=");
+        unsyncBufferedWriter.write(key + "=" + translatedText);
+        unsyncBufferedWriter.newLine();
+        unsyncBufferedWriter.flush();
       }
     }
  else {
-      _writeLine(missingPropsUnsyncBufferedWriter,propsUnsyncBufferedWriter,line);
+      unsyncBufferedWriter.write(line);
+      unsyncBufferedWriter.newLine();
+      unsyncBufferedWriter.flush();
     }
   }
   unsyncBufferedReader.close();
-  missingPropsUnsyncBufferedWriter.close();
-  propsUnsyncBufferedWriter.close();
+  unsyncBufferedWriter.close();
 }
