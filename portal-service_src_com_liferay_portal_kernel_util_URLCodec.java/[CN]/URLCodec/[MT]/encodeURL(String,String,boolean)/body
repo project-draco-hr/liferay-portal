@@ -1,0 +1,53 @@
+{
+  if (rawURLString == null) {
+    return null;
+  }
+  int rawLength=rawURLString.length();
+  if (rawLength == 0) {
+    return StringPool.BLANK;
+  }
+  StringBuilder sb=new StringBuilder(rawLength);
+  CharsetEncoder charsetEncoder=null;
+  char[] hexes=new char[2];
+  boolean changed=false;
+  for (int i=0; i < rawLength; i++) {
+    char c=rawURLString.charAt(i);
+    if (_remainChars.get(c)) {
+      sb.append(c);
+    }
+ else     if (c == CharPool.SPACE) {
+      if (escapeSpaces) {
+        sb.append("%20");
+      }
+ else {
+        sb.append(CharPool.PLUS);
+      }
+      changed=true;
+    }
+ else {
+      CharBuffer charBuffer=getRawCharBuffer(rawURLString,i);
+      if (charsetEncoder == null) {
+        charsetEncoder=CharsetEncoderUtil.getCharsetEncoder(charsetName);
+      }
+      ByteBuffer byteBuffer=null;
+      try {
+        byteBuffer=charsetEncoder.encode(charBuffer);
+      }
+ catch (      CharacterCodingException cce) {
+        _log.error(cce,cce);
+        return StringPool.BLANK;
+      }
+      for (int j=byteBuffer.position(); j < byteBuffer.limit(); j++) {
+        sb.append(CharPool.PERCENT);
+        sb.append(UnicodeFormatter.byteToHex(byteBuffer.get(),hexes));
+      }
+      i+=charBuffer.capacity();
+    }
+  }
+  if (sb.length() == rawLength && !changed) {
+    return rawURLString;
+  }
+ else {
+    return sb.toString();
+  }
+}
