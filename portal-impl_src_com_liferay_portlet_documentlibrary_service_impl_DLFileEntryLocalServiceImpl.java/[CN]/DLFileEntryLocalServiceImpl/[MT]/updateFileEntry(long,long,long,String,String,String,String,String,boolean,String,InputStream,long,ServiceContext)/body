@@ -20,14 +20,18 @@
   }
   boolean updatedFileVersion=false;
   try {
-    DLFileVersion latestFileVersion=dlFileVersionLocalService.getLatestFileVersion(groupId,folderId,name);
+    DLFileVersion latestFileVersion=fileEntry.getLatestFileVersion();
     if (size == 0) {
       size=latestFileVersion.getSize();
     }
-    if (latestFileVersion.getStatus() != WorkflowConstants.STATUS_APPROVED) {
-      serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
-      version=latestFileVersion.getVersion();
-      updatedFileVersion=true;
+    if (!latestFileVersion.isApproved()) {
+      if (!PropsValues.DL_FILE_ENTRY_DRAFTS_ENABLED) {
+        serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
+        version=latestFileVersion.getVersion();
+      }
+      if (version.equals(latestFileVersion.getVersion())) {
+        updatedFileVersion=true;
+      }
       updateFileVersion(user,latestFileVersion,sourceFileName,extension,title,description,changeLog,extraSettings,version,size,latestFileVersion.getStatus(),serviceContext.getModifiedDate(now),serviceContext);
     }
  else {
@@ -75,6 +79,8 @@
     }
     dlLocalService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,fileEntry.getGroupId(),fileEntry.getRepositoryId(),name,fileEntry.getExtension(),false,version,sourceFileName,fileEntry.getFileEntryId(),fileEntry.getLuceneProperties(),fileEntry.getModifiedDate(),serviceContext,is);
   }
-  WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),groupId,userId,DLFileEntry.class.getName(),fileEntry.getFileEntryId(),fileEntry,serviceContext);
+  if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
+    WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),groupId,userId,DLFileEntry.class.getName(),fileEntry.getFileEntryId(),fileEntry,serviceContext);
+  }
   return fileEntry;
 }
