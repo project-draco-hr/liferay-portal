@@ -1,0 +1,87 @@
+{
+  String[] footerArticleValues=preferences.getValues("footer-article-values",new String[]{"0",""});
+  String[] headerArticleValues=preferences.getValues("header-article-values",new String[]{"0",""});
+  String footerArticleId=footerArticleValues[1];
+  String headerArticleId=headerArticleValues[1];
+  if (Validator.isNull(footerArticleId) && Validator.isNull(headerArticleId)) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("No article ids found in preferences of portlet " + portletId);
+    }
+    return StringPool.BLANK;
+  }
+  long footerGroupId=GetterUtil.getLong(footerArticleValues[0]);
+  long headerGroupId=GetterUtil.getLong(headerArticleValues[0]);
+  if ((footerGroupId <= 0) && (headerGroupId <= 0)) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("No group ids found in preferences of portlet " + portletId);
+    }
+    return StringPool.BLANK;
+  }
+  List<JournalArticle> articles=new ArrayList<JournalArticle>(2);
+  JournalArticle footerArticle=null;
+  try {
+    footerArticle=JournalArticleLocalServiceUtil.getLatestArticle(footerGroupId,footerArticleId,WorkflowConstants.STATUS_APPROVED);
+    articles.add(footerArticle);
+  }
+ catch (  NoSuchArticleException nsae) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("No approved article found with group id " + footerGroupId + " and article id "+ footerArticleId);
+    }
+  }
+  JournalArticle headerArticle=null;
+  try {
+    headerArticle=JournalArticleLocalServiceUtil.getLatestArticle(headerGroupId,headerArticleId,WorkflowConstants.STATUS_APPROVED);
+    articles.add(headerArticle);
+  }
+ catch (  NoSuchArticleException nsae) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("No approved article found with group id " + headerGroupId + " and article id "+ headerArticleId);
+    }
+  }
+  if ((footerArticle == null) && (headerArticle == null)) {
+    return StringPool.BLANK;
+  }
+  Document document=SAXReaderUtil.createDocument();
+  Element rootElement=document.addElement("journal-content-data");
+  Element dlFoldersElement=rootElement.addElement("dl-folders");
+  Element dlFilesElement=rootElement.addElement("dl-file-entries");
+  Element dlFileRanksElement=rootElement.addElement("dl-file-ranks");
+  Element igFoldersElement=rootElement.addElement("ig-folders");
+  Element igImagesElement=rootElement.addElement("ig-images");
+  for (  JournalArticle article : articles) {
+    String path=JournalPortletDataHandlerImpl.getArticlePath(context,article);
+    Element articleElement=null;
+    if (article == footerArticle) {
+      articleElement=rootElement.addElement("footer-article");
+    }
+ else {
+      articleElement=rootElement.addElement("header-article");
+    }
+    articleElement.addAttribute("path",path);
+    JournalPortletDataHandlerImpl.exportArticle(context,rootElement,rootElement,rootElement,dlFoldersElement,dlFilesElement,dlFileRanksElement,igFoldersElement,igImagesElement,article,false);
+    Group companyGroup=GroupLocalServiceUtil.getCompanyGroup(article.getCompanyId());
+    String structureId=article.getStructureId();
+    if (Validator.isNotNull(structureId)) {
+      JournalStructure structure=null;
+      try {
+        structure=JournalStructureLocalServiceUtil.getStructure(article.getGroupId(),structureId);
+      }
+ catch (      NoSuchStructureException nsse) {
+        structure=JournalStructureLocalServiceUtil.getStructure(companyGroup.getGroupId(),structureId);
+      }
+      JournalPortletDataHandlerImpl.exportStructure(context,rootElement,structure);
+    }
+    String templateId=article.getTemplateId();
+    if (Validator.isNotNull(templateId)) {
+      JournalTemplate template=null;
+      try {
+        template=JournalTemplateLocalServiceUtil.getTemplate(context.getScopeGroupId(),templateId);
+      }
+ catch (      NoSuchTemplateException nste) {
+        template=JournalTemplateLocalServiceUtil.getTemplate(companyGroup.getGroupId(),templateId);
+      }
+      JournalPortletDataHandlerImpl.exportTemplate(context,rootElement,dlFoldersElement,dlFilesElement,dlFileRanksElement,igFoldersElement,igImagesElement,template,false);
+    }
+  }
+  return document.formattedString();
+}
