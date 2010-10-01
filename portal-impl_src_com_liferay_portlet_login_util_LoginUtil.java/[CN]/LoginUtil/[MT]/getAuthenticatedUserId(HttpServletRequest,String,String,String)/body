@@ -1,7 +1,8 @@
 {
   long userId=GetterUtil.getLong(login);
   Company company=PortalUtil.getCompany(request);
-  if (request.getRequestURI().startsWith("/tunnel-web/liferay") || request.getRequestURI().startsWith("/tunnel-web/secure/liferay")) {
+  String requestURI=request.getRequestURI();
+  if (requestURI.startsWith("/tunnel-web/liferay") || requestURI.startsWith("/tunnel-web/secure/liferay")) {
     long companyId=company.getCompanyId();
     userId=UserLocalServiceUtil.authenticateForBasic(companyId,CompanyConstants.AUTH_TYPE_EA,login,password);
     if (userId > 0) {
@@ -12,9 +13,11 @@
       return userId;
     }
     userId=UserLocalServiceUtil.authenticateForBasic(companyId,CompanyConstants.AUTH_TYPE_ID,login,password);
+    if (userId <= 0) {
+      throw new AuthException();
+    }
   }
  else {
-    int authResult=Authenticator.FAILURE;
     Map<String,String[]> headerMap=new HashMap<String,String[]>();
     Enumeration<String> enu1=request.getHeaderNames();
     while (enu1.hasMoreElements()) {
@@ -32,6 +35,7 @@
     if (Validator.isNull(authType)) {
       authType=company.getAuthType();
     }
+    int authResult=Authenticator.FAILURE;
     if (authType.equals(CompanyConstants.AUTH_TYPE_EA)) {
       authResult=UserLocalServiceUtil.authenticateByEmailAddress(company.getCompanyId(),login,password,headerMap,parameterMap,resultsMap);
       userId=MapUtil.getLong(resultsMap,"userId",userId);
