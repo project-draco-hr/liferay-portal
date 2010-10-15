@@ -48,6 +48,8 @@
       ActionRequestImpl actionRequestImpl=ActionRequestFactory.create(request,portlet,invokerPortlet,portletContext,windowState,portletMode,portletPreferences,layout.getPlid());
       ActionResponseImpl actionResponseImpl=ActionResponseFactory.create(actionRequestImpl,response,portletId,user,layout,windowState,portletMode);
       actionRequestImpl.defineObjects(portletConfig,actionResponseImpl);
+      ServiceContext serviceContext=ServiceContextFactory.getInstance(actionRequestImpl);
+      ServiceContextThreadLocal.pushServiceContext(serviceContext);
       invokerPortlet.processAction(actionRequestImpl,actionResponseImpl);
       actionResponseImpl.transferHeaders(response);
       RenderParametersPool.put(request,layout.getPlid(),portletId,actionResponseImpl.getRenderParameterMap());
@@ -71,6 +73,7 @@
       if (uploadRequest != null) {
         uploadRequest.cleanUp();
       }
+      ServiceContextThreadLocal.popServiceContext();
     }
   }
  else   if (lifecycle.equals(PortletRequest.RENDER_PHASE) || lifecycle.equals(PortletRequest.RESOURCE_PHASE)) {
@@ -89,7 +92,14 @@
     ResourceRequestImpl resourceRequestImpl=ResourceRequestFactory.create(request,portlet,invokerPortlet,portletContext,windowState,portletMode,portletPreferences,layout.getPlid());
     ResourceResponseImpl resourceResponseImpl=ResourceResponseFactory.create(resourceRequestImpl,response,portletId,companyId);
     resourceRequestImpl.defineObjects(portletConfig,resourceResponseImpl);
-    invokerPortlet.serveResource(resourceRequestImpl,resourceResponseImpl);
+    try {
+      ServiceContext serviceContext=ServiceContextFactory.getInstance(resourceRequestImpl);
+      ServiceContextThreadLocal.pushServiceContext(serviceContext);
+      invokerPortlet.serveResource(resourceRequestImpl,resourceResponseImpl);
+    }
+  finally {
+      ServiceContextThreadLocal.popServiceContext();
+    }
   }
   return portlet;
 }
