@@ -17,6 +17,8 @@
     if (PropsValues.DL_WEBDAV_SAVE_TO_SINGLE_VERSION) {
       serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
     }
+    HttpServletRequest httpServletRequest=webDavRequest.getHttpServletRequest();
+    long contentLength=GetterUtil.getLong(httpServletRequest.getHeader(HttpHeaders.CONTENT_LENGTH));
     try {
       DLFileEntry fileEntry=DLFileEntryServiceUtil.getFileEntryByTitle(groupId,parentFolderId,name);
       if (isLocked(fileEntry,webDavRequest.getLockUuid())) {
@@ -27,14 +29,24 @@
       extraSettings=fileEntry.getExtraSettings();
       String[] assetTagNames=AssetTagLocalServiceUtil.getTagNames(DLFileEntry.class.getName(),fileEntry.getFileEntryId());
       serviceContext.setAssetTagNames(assetTagNames);
-      file=FileUtil.createTempFile(FileUtil.getExtension(name));
-      FileUtil.write(file,request.getInputStream());
-      DLFileEntryServiceUtil.updateFileEntry(groupId,parentFolderId,name,title,title,description,changeLog,false,extraSettings,file,serviceContext);
+      if (contentLength > 0) {
+        DLFileEntryServiceUtil.updateFileEntry(groupId,parentFolderId,name,title,title,description,changeLog,false,extraSettings,request.getInputStream(),contentLength,serviceContext);
+      }
+ else {
+        file=FileUtil.createTempFile(FileUtil.getExtension(name));
+        FileUtil.write(file,request.getInputStream());
+        DLFileEntryServiceUtil.updateFileEntry(groupId,parentFolderId,name,title,title,description,changeLog,false,extraSettings,file,serviceContext);
+      }
     }
  catch (    NoSuchFileEntryException nsfee) {
-      file=FileUtil.createTempFile(FileUtil.getExtension(name));
-      FileUtil.write(file,request.getInputStream());
-      DLFileEntryServiceUtil.addFileEntry(groupId,parentFolderId,name,title,description,changeLog,extraSettings,file,serviceContext);
+      if (contentLength > 0) {
+        DLFileEntryServiceUtil.addFileEntry(groupId,parentFolderId,name,title,description,changeLog,extraSettings,request.getInputStream(),contentLength,serviceContext);
+      }
+ else {
+        file=FileUtil.createTempFile(FileUtil.getExtension(name));
+        FileUtil.write(file,request.getInputStream());
+        DLFileEntryServiceUtil.addFileEntry(groupId,parentFolderId,name,title,description,changeLog,extraSettings,file,serviceContext);
+      }
     }
     if (_log.isInfoEnabled()) {
       _log.info("Added " + StringUtil.merge(pathArray,StringPool.SLASH));
