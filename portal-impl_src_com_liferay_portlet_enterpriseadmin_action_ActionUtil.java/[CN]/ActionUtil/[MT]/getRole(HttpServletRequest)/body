@@ -1,8 +1,43 @@
 {
   long roleId=ParamUtil.getLong(request,"roleId");
+  Group group=(Group)request.getAttribute(WebKeys.GROUP);
+  ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+  long userId=themeDisplay.getUserId();
   Role role=null;
-  if (roleId > 0) {
-    role=RoleServiceUtil.getRole(roleId);
+  if (group.isCommunity()) {
+    if (UserGroupRoleLocalServiceUtil.hasUserGroupRole(userId,group.getGroupId(),RoleConstants.COMMUNITY_ADMINISTRATOR,true) || UserGroupRoleLocalServiceUtil.hasUserGroupRole(userId,group.getGroupId(),RoleConstants.COMMUNITY_OWNER,true)) {
+      if (roleId > 0) {
+        role=RoleLocalServiceUtil.getRole(roleId);
+      }
+    }
+ else {
+      if (roleId > 0) {
+        role=RoleServiceUtil.getRole(roleId);
+      }
+    }
+  }
+ else   if (group.isOrganization()) {
+    long organizationId=group.getOrganizationId();
+    while (organizationId != OrganizationConstants.DEFAULT_PARENT_ORGANIZATION_ID) {
+      Organization organization=OrganizationLocalServiceUtil.getOrganization(organizationId);
+      Group organizationGroup=organization.getGroup();
+      long organizationGroupId=organizationGroup.getGroupId();
+      if (UserGroupRoleLocalServiceUtil.hasUserGroupRole(userId,organizationGroupId,RoleConstants.ORGANIZATION_ADMINISTRATOR,true) || UserGroupRoleLocalServiceUtil.hasUserGroupRole(userId,organizationGroupId,RoleConstants.ORGANIZATION_OWNER,true)) {
+        if (roleId > 0) {
+          role=RoleLocalServiceUtil.getRole(roleId);
+        }
+        break;
+      }
+      organizationId=organization.getParentOrganizationId();
+    }
+    if (roleId > 0 && role == null) {
+      role=RoleServiceUtil.getRole(roleId);
+    }
+  }
+ else {
+    if (roleId > 0) {
+      role=RoleServiceUtil.getRole(roleId);
+    }
   }
   request.setAttribute(WebKeys.ROLE,role);
 }
