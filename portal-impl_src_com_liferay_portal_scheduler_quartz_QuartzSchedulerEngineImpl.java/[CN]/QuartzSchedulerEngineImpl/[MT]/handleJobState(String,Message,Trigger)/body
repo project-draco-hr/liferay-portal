@@ -1,0 +1,44 @@
+{
+  ObjectValuePair<TriggerState,Exception> jobState=getJobState(fullName);
+  Exception exception=jobState.getValue();
+  if (exception != null) {
+    message.put(JOB_STATE,jobState);
+    return;
+  }
+  TriggerState triggerState=jobState.getKey();
+  try {
+    if (trigger == null) {
+      if (triggerState == null) {
+        triggerState=TriggerState.COMPLETE;
+      }
+ else       if (!triggerState.equals(TriggerState.UNSCHEDULED) && !triggerState.equals(TriggerState.ERROR)) {
+        triggerState=TriggerState.COMPLETE;
+      }
+    }
+ else {
+      int quartzTriggerState=_scheduler.getTriggerState(trigger.getName(),trigger.getGroup());
+switch (quartzTriggerState) {
+case Trigger.STATE_ERROR:
+        triggerState=TriggerState.ERROR;
+      break;
+case Trigger.STATE_NORMAL:
+    triggerState=TriggerState.NORMAL;
+  break;
+case Trigger.STATE_PAUSED:
+triggerState=TriggerState.PAUSED;
+break;
+default :
+triggerState=TriggerState.ERROR;
+exception=new SchedulerException("Unable to handle quartz job state :" + quartzTriggerState);
+}
+}
+if (triggerState.equals(TriggerState.ERROR) && exception == null) {
+exception=new SchedulerException("Unable to get exception for job :" + fullName);
+}
+jobState=setJobState(fullName,triggerState,exception);
+message.put(JOB_STATE,jobState);
+}
+ catch (org.quartz.SchedulerException se) {
+throw new SchedulerException("Unable to handle job state",se);
+}
+}

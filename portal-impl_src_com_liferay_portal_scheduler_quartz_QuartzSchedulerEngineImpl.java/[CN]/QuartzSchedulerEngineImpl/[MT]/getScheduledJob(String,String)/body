@@ -1,0 +1,35 @@
+{
+  if (!PropsValues.SCHEDULER_ENABLED) {
+    return null;
+  }
+  try {
+    JobDetail jobDetail=_scheduler.getJobDetail(jobName,groupName);
+    if (jobDetail == null) {
+      return null;
+    }
+    JobDataMap jobDataMap=jobDetail.getJobDataMap();
+    String description=jobDataMap.getString(DESCRIPTION);
+    Message message=(Message)jobDataMap.get(MESSAGE);
+    SchedulerRequest schedulerRequest=null;
+    Trigger trigger=_scheduler.getTrigger(jobName,groupName);
+    String fullName=jobDetail.getFullName();
+    handleJobState(fullName,message,trigger);
+    if (trigger == null) {
+      schedulerRequest=SchedulerRequest.createRetrieveResponseRequest(jobName,groupName,description,message);
+    }
+ else {
+      if (CronTrigger.class.isAssignableFrom(trigger.getClass())) {
+        CronTrigger cronTrigger=CronTrigger.class.cast(trigger);
+        schedulerRequest=SchedulerRequest.createRetrieveResponseRequest(new com.liferay.portal.kernel.scheduler.CronTrigger(jobName,groupName,cronTrigger.getStartTime(),cronTrigger.getEndTime(),cronTrigger.getCronExpression()),description,message);
+      }
+ else       if (SimpleTrigger.class.isAssignableFrom(trigger.getClass())) {
+        SimpleTrigger simpleTrigger=SimpleTrigger.class.cast(trigger);
+        schedulerRequest=SchedulerRequest.createRetrieveResponseRequest(new IntervalTrigger(jobName,groupName,simpleTrigger.getStartTime(),simpleTrigger.getEndTime(),simpleTrigger.getRepeatInterval()),description,message);
+      }
+    }
+    return schedulerRequest;
+  }
+ catch (  org.quartz.SchedulerException se) {
+    throw new SchedulerException("Unable to retrieve job",se);
+  }
+}
