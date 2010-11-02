@@ -6,6 +6,11 @@
   if (!neverExpire) {
     expirationDate=PortalUtil.getDate(expirationDateMonth,expirationDateDay,expirationDateYear,expirationDateHour,expirationDateMinute,user.getTimeZone(),new ArticleExpirationDateException());
   }
+  boolean expired=false;
+  Date now=new Date();
+  if ((expirationDate != null) && expirationDate.before(now)) {
+    expired=true;
+  }
   Date reviewDate=null;
   if (!neverReview) {
     reviewDate=PortalUtil.getDate(reviewDateMonth,reviewDateDay,reviewDateYear,reviewDateHour,reviewDateMinute,user.getTimeZone(),new ArticleReviewDateException());
@@ -16,7 +21,6 @@
   }
  catch (  IOException ioe) {
   }
-  Date now=new Date();
   validate(user.getCompanyId(),groupId,title,content,type,structureId,templateId,smallImage,smallImageURL,smallFile,smallBytes);
   JournalArticle oldArticle=null;
   double oldVersion=0;
@@ -25,7 +29,12 @@
   if (imported) {
     oldArticle=getArticle(groupId,articleId,version);
     oldVersion=version;
-    incrementVersion=true;
+    if (!expired) {
+      incrementVersion=true;
+    }
+ else {
+      return expireArticle(userId,groupId,articleId,version,articleURL,serviceContext);
+    }
   }
  else {
     oldArticle=getLatestArticle(groupId,articleId,WorkflowConstants.STATUS_ANY);
@@ -68,7 +77,7 @@
   if (oldArticle.isPending()) {
     article.setStatus(oldArticle.getStatus());
   }
- else   if ((expirationDate == null) || expirationDate.after(now)) {
+ else   if (!expired) {
     article.setStatus(WorkflowConstants.STATUS_DRAFT);
   }
  else {
