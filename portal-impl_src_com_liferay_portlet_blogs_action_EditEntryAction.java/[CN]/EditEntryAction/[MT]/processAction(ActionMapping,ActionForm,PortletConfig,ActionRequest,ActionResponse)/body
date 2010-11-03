@@ -1,5 +1,6 @@
 {
   String cmd=ParamUtil.getString(actionRequest,Constants.CMD);
+  int workflowAction=ParamUtil.getInteger(actionRequest,"workflowAction",WorkflowConstants.ACTION_SAVE_DRAFT);
   try {
     BlogsEntry entry=null;
     String oldUrlTitle=StringPool.BLANK;
@@ -38,26 +39,32 @@
       redirect=newRedirect;
       updateRedirect=true;
     }
-    if ((entry != null) && (actionRequest.getWindowState().equals(LiferayWindowState.EXCLUSIVE))) {
-      JSONObject jsonObj=JSONFactoryUtil.createJSONObject();
-      jsonObj.put("entryId",entry.getEntryId());
-      jsonObj.put("redirect",redirect);
-      jsonObj.put("updateRedirect",updateRedirect);
-      HttpServletRequest request=PortalUtil.getHttpServletRequest(actionRequest);
-      HttpServletResponse response=PortalUtil.getHttpServletResponse(actionResponse);
-      InputStream is=new UnsyncByteArrayInputStream(jsonObj.toString().getBytes());
-      String contentType=ContentTypes.TEXT_JAVASCRIPT;
-      ServletResponseUtil.sendFile(request,response,null,is,contentType);
-      setForward(actionRequest,ActionConstants.COMMON_NULL);
-    }
- else {
-      ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
-      LayoutTypePortlet layoutTypePortlet=themeDisplay.getLayoutTypePortlet();
-      if (layoutTypePortlet.hasPortletId(portletConfig.getPortletName())) {
+    if (entry != null) {
+      if (actionRequest.getWindowState().equals(LiferayWindowState.EXCLUSIVE)) {
+        JSONObject jsonObj=JSONFactoryUtil.createJSONObject();
+        jsonObj.put("entryId",entry.getEntryId());
+        jsonObj.put("redirect",redirect);
+        jsonObj.put("updateRedirect",updateRedirect);
+        HttpServletRequest request=PortalUtil.getHttpServletRequest(actionRequest);
+        HttpServletResponse response=PortalUtil.getHttpServletResponse(actionResponse);
+        InputStream is=new UnsyncByteArrayInputStream(jsonObj.toString().getBytes());
+        String contentType=ContentTypes.TEXT_JAVASCRIPT;
+        ServletResponseUtil.sendFile(request,response,null,is,contentType);
+        setForward(actionRequest,ActionConstants.COMMON_NULL);
+      }
+ else       if (workflowAction == WorkflowConstants.ACTION_SAVE_DRAFT) {
+        redirect=getSaveAndContinueRedirect(portletConfig,actionRequest,entry,redirect);
         sendRedirect(actionRequest,actionResponse,redirect);
       }
  else {
-        actionResponse.sendRedirect(redirect);
+        ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+        LayoutTypePortlet layoutTypePortlet=themeDisplay.getLayoutTypePortlet();
+        if (layoutTypePortlet.hasPortletId(portletConfig.getPortletName())) {
+          sendRedirect(actionRequest,actionResponse,redirect);
+        }
+ else {
+          actionResponse.sendRedirect(redirect);
+        }
       }
     }
   }
