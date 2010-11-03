@@ -1,21 +1,35 @@
 {
   User user=userPersistence.findByPrimaryKey(userId);
   Date displayDate=PortalUtil.getDate(displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,user.getTimeZone(),new EntryDisplayDateException());
-  validate(title,content);
+  byte[] smallBytes=null;
+  try {
+    smallBytes=FileUtil.getBytes(smallFile);
+  }
+ catch (  IOException ioe) {
+  }
+  validate(title,content,smallImage,smallImageURL,smallFile,smallBytes);
   BlogsEntry entry=blogsEntryPersistence.findByPrimaryKey(entryId);
   String oldUrlTitle=entry.getUrlTitle();
   entry.setModifiedDate(serviceContext.getModifiedDate(null));
   entry.setTitle(title);
   entry.setUrlTitle(getUniqueUrlTitle(entryId,entry.getGroupId(),title));
   entry.setContent(content);
+  entry.setDescription(description);
   entry.setDisplayDate(displayDate);
   entry.setAllowPingbacks(allowPingbacks);
   entry.setAllowTrackbacks(allowTrackbacks);
   entry.setExpandoBridgeAttributes(serviceContext);
+  entry.setSmallImage(smallImage);
+  entry.setSmallImageURL(smallImageURL);
+  entry.setSmallImageId(entry.getSmallImageId());
+  if (entry.getSmallImageId() == 0) {
+    entry.setSmallImageId(counterLocalService.increment());
+  }
   blogsEntryPersistence.update(entry,false);
   if ((serviceContext.getCommunityPermissions() != null) || (serviceContext.getGuestPermissions() != null)) {
     updateEntryResources(entry,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
   }
+  saveImages(smallImage,entry.getSmallImageId(),smallFile,smallBytes);
   updateAsset(userId,entry,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
   boolean pingOldTrackbacks=false;
   if (!oldUrlTitle.equals(entry.getUrlTitle())) {

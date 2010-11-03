@@ -2,8 +2,14 @@
   User user=userPersistence.findByPrimaryKey(userId);
   long groupId=serviceContext.getScopeGroupId();
   Date displayDate=PortalUtil.getDate(displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,user.getTimeZone(),new EntryDisplayDateException());
+  byte[] smallBytes=null;
+  try {
+    smallBytes=FileUtil.getBytes(smallFile);
+  }
+ catch (  IOException ioe) {
+  }
   Date now=new Date();
-  validate(title,content);
+  validate(title,content,smallImage,smallImageURL,smallFile,smallBytes);
   long entryId=counterLocalService.increment();
   BlogsEntry entry=blogsEntryPersistence.create(entryId);
   entry.setUuid(serviceContext.getUuid());
@@ -16,9 +22,13 @@
   entry.setTitle(title);
   entry.setUrlTitle(getUniqueUrlTitle(entryId,groupId,title));
   entry.setContent(content);
+  entry.setDescription(description);
   entry.setDisplayDate(displayDate);
   entry.setAllowPingbacks(allowPingbacks);
   entry.setAllowTrackbacks(allowTrackbacks);
+  entry.setSmallImage(smallImage);
+  entry.setSmallImageURL(smallImageURL);
+  entry.setSmallImageId(counterLocalService.increment());
   entry.setStatus(WorkflowConstants.STATUS_DRAFT);
   entry.setStatusDate(serviceContext.getModifiedDate(now));
   entry.setExpandoBridgeAttributes(serviceContext);
@@ -29,6 +39,7 @@
  else {
     addEntryResources(entry,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
   }
+  saveImages(smallImage,entry.getSmallImageId(),smallFile,smallBytes);
   updateAsset(userId,entry,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
   if (PropsValues.BLOGS_ENTRY_COMMENTS_ENABLED) {
     mbMessageLocalService.addDiscussionMessage(userId,entry.getUserName(),groupId,BlogsEntry.class.getName(),entryId,WorkflowConstants.ACTION_PUBLISH);
