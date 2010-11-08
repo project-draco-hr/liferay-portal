@@ -1,31 +1,31 @@
 {
   String path=templateElement.attributeValue("path");
-  if (!context.isPathNotProcessed(path)) {
+  if (!portletDataContext.isPathNotProcessed(path)) {
     return;
   }
-  JournalTemplate template=(JournalTemplate)context.getZipEntryAsObject(path);
-  long userId=context.getUserId(template.getUserUuid());
+  JournalTemplate template=(JournalTemplate)portletDataContext.getZipEntryAsObject(path);
+  long userId=portletDataContext.getUserId(template.getUserUuid());
   String templateId=template.getTemplateId();
   boolean autoTemplateId=false;
-  if ((Validator.isNumber(templateId)) || (JournalTemplateUtil.fetchByG_T(context.getScopeGroupId(),templateId) != null)) {
+  if ((Validator.isNumber(templateId)) || (JournalTemplateUtil.fetchByG_T(portletDataContext.getScopeGroupId(),templateId) != null)) {
     autoTemplateId=true;
   }
-  Map<String,String> structureIds=(Map<String,String>)context.getNewPrimaryKeysMap(JournalStructure.class);
+  Map<String,String> structureIds=(Map<String,String>)portletDataContext.getNewPrimaryKeysMap(JournalStructure.class);
   String parentStructureId=MapUtil.getString(structureIds,template.getStructureId(),template.getStructureId());
   String xsl=template.getXsl();
-  xsl=importDLFileEntries(context,templateElement,xsl);
-  xsl=importIGImages(context,templateElement,xsl);
-  Group group=GroupLocalServiceUtil.getGroup(context.getScopeGroupId());
+  xsl=importDLFileEntries(portletDataContext,templateElement,xsl);
+  xsl=importIGImages(portletDataContext,templateElement,xsl);
+  Group group=GroupLocalServiceUtil.getGroup(portletDataContext.getScopeGroupId());
   xsl=StringUtil.replace(xsl,"@data_handler_group_friendly_url@",group.getFriendlyURL());
   template.setXsl(xsl);
   boolean formatXsl=false;
   JournalCreationStrategy creationStrategy=JournalCreationStrategyFactory.getInstance();
-  long authorId=creationStrategy.getAuthorUserId(context,template);
+  long authorId=creationStrategy.getAuthorUserId(portletDataContext,template);
   if (authorId != JournalCreationStrategy.USE_DEFAULT_USER_ID_STRATEGY) {
     userId=authorId;
   }
-  boolean addCommunityPermissions=creationStrategy.addCommunityPermissions(context,template);
-  boolean addGuestPermissions=creationStrategy.addGuestPermissions(context,template);
+  boolean addCommunityPermissions=creationStrategy.addCommunityPermissions(portletDataContext,template);
+  boolean addGuestPermissions=creationStrategy.addGuestPermissions(portletDataContext,template);
   ServiceContext serviceContext=new ServiceContext();
   serviceContext.setAddCommunityPermissions(addCommunityPermissions);
   serviceContext.setAddGuestPermissions(addGuestPermissions);
@@ -37,29 +37,29 @@
     if (smallImagePath.endsWith(StringPool.PERIOD)) {
       smallImagePath+=template.getSmallImageType();
     }
-    byte[] bytes=context.getZipEntryAsByteArray(smallImagePath);
+    byte[] bytes=portletDataContext.getZipEntryAsByteArray(smallImagePath);
     if (bytes != null) {
       smallFile=File.createTempFile(String.valueOf(template.getSmallImageId()),StringPool.PERIOD + template.getSmallImageType());
       FileUtil.write(smallFile,bytes);
     }
   }
   JournalTemplate existingTemplate=null;
-  if (context.isDataStrategyMirror()) {
-    existingTemplate=JournalTemplateUtil.fetchByUUID_G(template.getUuid(),context.getScopeGroupId());
+  if (portletDataContext.isDataStrategyMirror()) {
+    existingTemplate=JournalTemplateUtil.fetchByUUID_G(template.getUuid(),portletDataContext.getScopeGroupId());
     if (existingTemplate == null) {
       serviceContext.setUuid(template.getUuid());
-      existingTemplate=JournalTemplateLocalServiceUtil.addTemplate(userId,context.getScopeGroupId(),templateId,autoTemplateId,parentStructureId,template.getName(),template.getDescription(),template.getXsl(),formatXsl,template.getLangType(),template.getCacheable(),template.isSmallImage(),template.getSmallImageURL(),smallFile,serviceContext);
+      existingTemplate=JournalTemplateLocalServiceUtil.addTemplate(userId,portletDataContext.getScopeGroupId(),templateId,autoTemplateId,parentStructureId,template.getName(),template.getDescription(),template.getXsl(),formatXsl,template.getLangType(),template.getCacheable(),template.isSmallImage(),template.getSmallImageURL(),smallFile,serviceContext);
     }
  else {
       existingTemplate=JournalTemplateLocalServiceUtil.updateTemplate(existingTemplate.getGroupId(),existingTemplate.getTemplateId(),existingTemplate.getStructureId(),template.getName(),template.getDescription(),template.getXsl(),formatXsl,template.getLangType(),template.getCacheable(),template.isSmallImage(),template.getSmallImageURL(),smallFile,serviceContext);
     }
   }
  else {
-    existingTemplate=JournalTemplateLocalServiceUtil.addTemplate(userId,context.getScopeGroupId(),templateId,autoTemplateId,parentStructureId,template.getName(),template.getDescription(),template.getXsl(),formatXsl,template.getLangType(),template.getCacheable(),template.isSmallImage(),template.getSmallImageURL(),smallFile,serviceContext);
+    existingTemplate=JournalTemplateLocalServiceUtil.addTemplate(userId,portletDataContext.getScopeGroupId(),templateId,autoTemplateId,parentStructureId,template.getName(),template.getDescription(),template.getXsl(),formatXsl,template.getLangType(),template.getCacheable(),template.isSmallImage(),template.getSmallImageURL(),smallFile,serviceContext);
   }
-  Map<String,String> templateIds=(Map<String,String>)context.getNewPrimaryKeysMap(JournalTemplate.class);
+  Map<String,String> templateIds=(Map<String,String>)portletDataContext.getNewPrimaryKeysMap(JournalTemplate.class);
   templateIds.put(templateId,existingTemplate.getTemplateId());
-  context.importPermissions(JournalTemplate.class,template.getId(),existingTemplate.getId());
+  portletDataContext.importPermissions(JournalTemplate.class,template.getId(),existingTemplate.getId());
   if (!templateId.equals(existingTemplate.getTemplateId())) {
     if (_log.isWarnEnabled()) {
       _log.warn("A template with the ID " + templateId + " already "+ "exists. The new generated ID is "+ existingTemplate.getTemplateId());
