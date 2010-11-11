@@ -2,6 +2,8 @@
   Session session=null;
   try {
     session=JCRFactoryUtil.createSession();
+    Workspace workspace=session.getWorkspace();
+    VersionManager versionManager=workspace.getVersionManager();
     Node rootNode=getRootNode(session,companyId);
     Node repositoryNode=getFolderNode(rootNode,repositoryId);
     Node fileNode=repositoryNode.getNode(fileName);
@@ -13,7 +15,7 @@
  else {
       Node newFileNode=newRepositoryNode.addNode(fileName,JCRConstants.NT_FILE);
       Node newContentNode=newFileNode.addNode(JCRConstants.JCR_CONTENT,JCRConstants.NT_RESOURCE);
-      VersionHistory versionHistory=contentNode.getVersionHistory();
+      VersionHistory versionHistory=versionManager.getVersionHistory(contentNode.getPath());
       String[] versionLabels=versionHistory.getVersionLabels();
       for (int i=(versionLabels.length - 1); i >= 0; i--) {
         Version version=versionHistory.getVersionByLabel(versionLabels[i]);
@@ -22,14 +24,15 @@
           newContentNode.addMixin(JCRConstants.MIX_VERSIONABLE);
         }
  else {
-          newContentNode.checkout();
+          versionManager.checkout(newContentNode.getPath());
         }
         newContentNode.setProperty(JCRConstants.JCR_MIME_TYPE,"text/plain");
-        newContentNode.setProperty(JCRConstants.JCR_DATA,frozenContentNode.getProperty(JCRConstants.JCR_DATA).getStream());
+        Binary binary=frozenContentNode.getProperty(JCRConstants.JCR_DATA).getBinary();
+        newContentNode.setProperty(JCRConstants.JCR_DATA,binary);
         newContentNode.setProperty(JCRConstants.JCR_LAST_MODIFIED,Calendar.getInstance());
         session.save();
-        Version newVersion=newContentNode.checkin();
-        VersionHistory newVersionHistory=newContentNode.getVersionHistory();
+        Version newVersion=versionManager.checkin(newContentNode.getPath());
+        VersionHistory newVersionHistory=versionManager.getVersionHistory(newContentNode.getPath());
         newVersionHistory.addVersionLabel(newVersion.getName(),versionLabels[i],PropsValues.DL_HOOK_JCR_MOVE_VERSION_LABELS);
       }
       fileNode.remove();
