@@ -1,21 +1,17 @@
 {
-  ServiceBag serviceBag=_servicesContainer.findByServiceType(serviceType);
-  if (serviceBag != null) {
-    throw new IllegalStateException(serviceType + " is already overridden by " + serviceBag.getServletContextName());
-  }
   AdvisedSupport advisedSupport=getAdvisedSupport(serviceProxy);
   TargetSource targetSource=advisedSupport.getTargetSource();
-  Object originalService=targetSource.getTarget();
-  if (Proxy.isProxyClass(originalService.getClass())) {
-    InvocationHandler invocationHandler=Proxy.getInvocationHandler(originalService);
+  Object previousService=targetSource.getTarget();
+  if (Proxy.isProxyClass(previousService.getClass())) {
+    InvocationHandler invocationHandler=Proxy.getInvocationHandler(previousService);
     if (invocationHandler instanceof ClassLoaderBeanHandler) {
       ClassLoaderBeanHandler classLoaderBeanHandler=(ClassLoaderBeanHandler)invocationHandler;
-      originalService=classLoaderBeanHandler.getBean();
+      previousService=classLoaderBeanHandler.getBean();
     }
   }
-  Object customService=serviceImplConstructor.newInstance(originalService);
-  Object customTarget=Proxy.newProxyInstance(portletClassLoader,new Class<?>[]{serviceTypeClass},new ClassLoaderBeanHandler(customService,portletClassLoader));
-  TargetSource customTargetSource=new SingletonTargetSource(customTarget);
-  advisedSupport.setTargetSource(customTargetSource);
-  _servicesContainer.addServiceBag(servletContextName,serviceType,originalService);
+  Object nextService=serviceImplConstructor.newInstance(previousService);
+  Object nextTarget=Proxy.newProxyInstance(portletClassLoader,new Class<?>[]{serviceTypeClass},new ClassLoaderBeanHandler(nextService,portletClassLoader));
+  TargetSource nextTargetSource=new SingletonTargetSource(nextTarget);
+  advisedSupport.setTargetSource(nextTargetSource);
+  _servicesContainer.addServiceBag(servletContextName,portletClassLoader,serviceType,serviceTypeClass,serviceImplConstructor,previousService);
 }
