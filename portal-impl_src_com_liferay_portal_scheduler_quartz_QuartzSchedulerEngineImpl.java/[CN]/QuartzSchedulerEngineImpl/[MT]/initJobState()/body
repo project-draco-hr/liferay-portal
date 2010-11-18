@@ -5,7 +5,28 @@
     String[] jobNames=_scheduler.getJobNames(groupName);
     for (    String jobName : jobNames) {
       JobDetail jobDetail=_scheduler.getJobDetail(jobName,groupName);
-      schedulerContext.put(jobDetail.getFullName(),new ObjectValuePair<TriggerState,Exception>());
+      JobDataMap jobDataMap=jobDetail.getJobDataMap();
+      String destinationName=jobDataMap.getString(DESTINATION_NAME);
+      if (destinationName.equals(DestinationNames.SCHEDULER_DISPATCH)) {
+        continue;
+      }
+      JobState jobState=(JobState)jobDataMap.get(JOB_STATE);
+      if (jobState == null) {
+        Trigger trigger=_scheduler.getTrigger(jobName,groupName);
+        if (trigger == null) {
+          throw new Exception("Unable to get trigger details of job {jobName=" + jobName + ", groupName="+ groupName+ "}");
+        }
+ else {
+          Message message=(Message)jobDataMap.get(MESSAGE);
+          jobState=new JobState(TriggerState.NORMAL,message.getInteger(MAX_EXCEPTION_NUMBER));
+          jobState.setTriggerTimeInfomation(SchedulerEngine.START_TIME,trigger.getStartTime());
+          jobState.setTriggerTimeInfomation(SchedulerEngine.END_TIME,trigger.getEndTime());
+          jobState.setTriggerTimeInfomation(SchedulerEngine.NEXT_FIRE_TIME,null);
+          jobState.setTriggerTimeInfomation(SchedulerEngine.PREVIOUS_FIRE_TIME,trigger.getPreviousFireTime());
+          jobState.setTriggerTimeInfomation(SchedulerEngine.FINAL_FIRE_TIME,trigger.getFinalFireTime());
+        }
+      }
+      schedulerContext.put(jobDetail.getFullName(),jobState);
     }
   }
 }
