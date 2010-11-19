@@ -1,0 +1,31 @@
+{
+  if (!PropsValues.SCHEDULER_ENABLED) {
+    return;
+  }
+  Trigger quartzTrigger=getQuartzTrigger(trigger);
+  if (quartzTrigger == null) {
+    return;
+  }
+  String jobName=quartzTrigger.getJobName();
+  String groupName=quartzTrigger.getGroup();
+  try {
+    if (_scheduler.getTrigger(jobName,groupName) != null) {
+      _scheduler.rescheduleJob(jobName,groupName,quartzTrigger);
+    }
+ else {
+      JobDetail jobDetail=_scheduler.getJobDetail(jobName,groupName);
+      if (jobDetail == null) {
+        return;
+      }
+      JobState jobState=getJobState(jobName,groupName);
+      jobState.setTriggerState(TriggerState.NORMAL);
+synchronized (this) {
+        _scheduler.deleteJob(jobName,groupName);
+        _scheduler.scheduleJob(jobDetail,quartzTrigger);
+      }
+    }
+  }
+ catch (  Exception e) {
+    throw new SchedulerException("Unable to update trigger for job {jobName=" + jobName + ", groupName="+ groupName+ "}",e);
+  }
+}
