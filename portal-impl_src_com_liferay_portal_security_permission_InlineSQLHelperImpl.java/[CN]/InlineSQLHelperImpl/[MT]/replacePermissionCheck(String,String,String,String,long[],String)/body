@@ -1,0 +1,38 @@
+{
+  if (!isEnabled(groupIds)) {
+    return sql;
+  }
+  if (Validator.isNull(className)) {
+    throw new IllegalArgumentException("className is null");
+  }
+  if (Validator.isNull(classPKField)) {
+    throw new IllegalArgumentException("classPKField is null");
+  }
+  if (Validator.isNull(sql)) {
+    return sql;
+  }
+  PermissionChecker permissionChecker=PermissionThreadLocal.getPermissionChecker();
+  String permissionJoin=StringPool.BLANK;
+  if (Validator.isNotNull(bridgeJoin)) {
+    permissionJoin=bridgeJoin;
+  }
+  permissionJoin+=CustomSQLUtil.get(JOIN_RESOURCE_PERMISSION);
+  StringBundler ownerSQL=new StringBundler(5);
+  if (Validator.isNotNull(userIdField)) {
+    ownerSQL.append("(");
+    ownerSQL.append(userIdField);
+    ownerSQL.append(" = ");
+    ownerSQL.append(String.valueOf(getUserId()));
+    ownerSQL.append(") OR ");
+  }
+  permissionJoin=StringUtil.replace(permissionJoin,new String[]{"[$CLASS_NAME$]","[$CLASS_PK_FIELD$]","[$COMPANY_ID$]","[$GROUP_IDS$]","[$OWNER_CHECK$]","[$ROLE_IDS$]"},new String[]{className,classPKField,String.valueOf(permissionChecker.getCompanyId()),StringUtil.merge(groupIds,"','"),ownerSQL.toString(),StringUtil.merge(getRoleIds(groupIds))});
+  int pos=sql.indexOf(_WHERE_CLAUSE);
+  if (pos != -1) {
+    return sql.substring(0,pos + 1).concat(permissionJoin).concat(sql.substring(pos + 1));
+  }
+  pos=sql.indexOf(_ORDER_BY_CLAUSE);
+  if (pos != -1) {
+    return sql.substring(0,pos + 1).concat(permissionJoin).concat(sql.substring(pos + 1));
+  }
+  return sql.concat(StringPool.SPACE).concat(permissionJoin);
+}
