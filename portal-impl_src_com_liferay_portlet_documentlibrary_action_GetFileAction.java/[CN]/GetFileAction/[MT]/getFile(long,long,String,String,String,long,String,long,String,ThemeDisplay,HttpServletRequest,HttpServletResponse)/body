@@ -1,0 +1,67 @@
+{
+  if (name.startsWith("DLFE-")) {
+    name=name.substring("DLFE-".length());
+  }
+  name=FileUtil.stripExtension(name);
+  DLFileEntry fileEntry=null;
+  if (Validator.isNotNull(uuid) && (groupId > 0)) {
+    try {
+      fileEntry=DLAppServiceUtil.getFileEntryByUuidAndGroupId(uuid,groupId);
+      folderId=fileEntry.getFolderId();
+      name=fileEntry.getName();
+    }
+ catch (    Exception e) {
+    }
+  }
+  if (fileEntryId > 0) {
+    fileEntry=DLAppServiceUtil.getFileEntry(fileEntryId);
+  }
+ else   if (fileShortcutId <= 0) {
+    if (Validator.isNotNull(name)) {
+      fileEntry=DLAppServiceUtil.getFileEntry(groupId,folderId,name);
+      title=fileEntry.getTitle();
+    }
+ else     if (Validator.isNotNull(title)) {
+      fileEntry=DLAppServiceUtil.getFileEntryByTitle(groupId,folderId,title);
+      name=fileEntry.getName();
+    }
+  }
+ else {
+    DLFileShortcut fileShortcut=DLAppServiceUtil.getFileShortcut(fileShortcutId);
+    fileEntryId=fileShortcut.getToFileEntryId();
+    fileEntry=DLAppServiceUtil.getFileEntry(fileEntryId);
+  }
+  if (Validator.isNull(version)) {
+    if (Validator.isNotNull(fileEntry.getVersion())) {
+      version=fileEntry.getVersion();
+    }
+ else {
+      throw new NoSuchFileEntryException();
+    }
+  }
+  InputStream is=DLAppServiceUtil.getFileAsStream(groupId,folderId,name,version);
+  boolean converted=false;
+  String fileName=fileEntry.getTitle();
+  if (Validator.isNotNull(targetExtension)) {
+    String id=DocumentConversionUtil.getTempFileId(fileEntry.getFileEntryId(),version);
+    String sourceExtension=FileUtil.getExtension(fileName);
+    InputStream convertedIS=DocumentConversionUtil.convert(id,is,sourceExtension,targetExtension);
+    if ((convertedIS != null) && (convertedIS != is)) {
+      fileName=FileUtil.stripExtension(fileEntry.getTitle()).concat(StringPool.PERIOD).concat(targetExtension);
+      is=convertedIS;
+      converted=true;
+    }
+  }
+  int contentLength=0;
+  if (!converted) {
+    if (DLUtil.compareVersions(version,fileEntry.getVersion()) >= 0) {
+      contentLength=(int)fileEntry.getSize();
+    }
+ else {
+      DLFileVersion fileVersion=fileEntry.getFileVersion(version);
+      contentLength=(int)fileVersion.getSize();
+    }
+  }
+  String contentType=MimeTypesUtil.getContentType(fileName);
+  ServletResponseUtil.sendFile(request,response,fileName,is,contentLength,contentType);
+}
