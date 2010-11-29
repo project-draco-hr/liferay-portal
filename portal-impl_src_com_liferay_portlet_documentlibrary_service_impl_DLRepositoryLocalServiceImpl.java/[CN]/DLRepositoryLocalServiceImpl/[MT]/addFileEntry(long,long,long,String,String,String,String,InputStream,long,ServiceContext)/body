@@ -1,0 +1,46 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  folderId=getFolderId(user.getCompanyId(),folderId);
+  String extension=FileUtil.getExtension(title);
+  String name=String.valueOf(counterLocalService.increment(DLFileEntry.class.getName()));
+  Date now=new Date();
+  validateFile(groupId,folderId,title,is);
+  long fileEntryId=counterLocalService.increment();
+  DLFileEntry fileEntry=dlFileEntryPersistence.create(fileEntryId);
+  fileEntry.setUuid(serviceContext.getUuid());
+  fileEntry.setGroupId(groupId);
+  fileEntry.setCompanyId(user.getCompanyId());
+  fileEntry.setUserId(user.getUserId());
+  fileEntry.setUserName(user.getFullName());
+  fileEntry.setVersionUserId(user.getUserId());
+  fileEntry.setVersionUserName(user.getFullName());
+  fileEntry.setCreateDate(serviceContext.getCreateDate(now));
+  fileEntry.setModifiedDate(serviceContext.getModifiedDate(now));
+  fileEntry.setFolderId(folderId);
+  fileEntry.setName(name);
+  fileEntry.setExtension(extension);
+  fileEntry.setTitle(title);
+  fileEntry.setDescription(description);
+  fileEntry.setExtraSettings(extraSettings);
+  fileEntry.setVersion(DLFileEntryConstants.DEFAULT_VERSION);
+  fileEntry.setSize(size);
+  fileEntry.setReadCount(DLFileEntryConstants.DEFAULT_READ_COUNT);
+  dlFileEntryPersistence.update(fileEntry,false);
+  if (serviceContext.getAddCommunityPermissions() || serviceContext.getAddGuestPermissions()) {
+    addFileEntryResources(fileEntry,serviceContext.getAddCommunityPermissions(),serviceContext.getAddGuestPermissions());
+  }
+ else {
+    addFileEntryResources(fileEntry,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
+  }
+  DLFileVersion fileVersion=addFileVersion(user,fileEntry,serviceContext.getModifiedDate(now),extension,title,description,null,extraSettings,DLFileEntryConstants.DEFAULT_VERSION,size,WorkflowConstants.STATUS_DRAFT,serviceContext);
+  if (folderId != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+    DLFolder folder=dlFolderPersistence.findByPrimaryKey(folderId);
+    folder.setLastPostDate(fileEntry.getModifiedDate());
+    dlFolderPersistence.update(folder,false);
+  }
+  updateAsset(userId,fileEntry,fileVersion,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
+  dlAppHelperLocalService.addFileEntry(fileEntry,fileVersion,serviceContext);
+  dlLocalService.addFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,fileEntry.getGroupId(),fileEntry.getRepositoryId(),name,false,fileEntryId,fileEntry.getLuceneProperties(),fileEntry.getModifiedDate(),serviceContext,is);
+  WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),groupId,userId,DLFileEntry.class.getName(),fileEntryId,fileEntry,serviceContext);
+  return fileEntry;
+}

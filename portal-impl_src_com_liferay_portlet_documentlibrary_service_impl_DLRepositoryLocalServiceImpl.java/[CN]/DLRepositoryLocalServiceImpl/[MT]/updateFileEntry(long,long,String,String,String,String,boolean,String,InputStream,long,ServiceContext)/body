@@ -1,0 +1,86 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  DLFileEntry fileEntry=dlFileEntryPersistence.findByPrimaryKey(fileEntryId);
+  if (Validator.isNull(title)) {
+    title=sourceFileName;
+    if (Validator.isNull(title)) {
+      title=fileEntry.getTitle();
+    }
+  }
+  Date now=new Date();
+  validateFile(fileEntry.getGroupId(),fileEntry.getFolderId(),fileEntry.getFileEntryId(),fileEntry.getExtension(),title,sourceFileName,is);
+  String version=getNextVersion(fileEntry,majorVersion,serviceContext.getWorkflowAction());
+  DLFileVersion fileVersion=null;
+  String extension=null;
+  if (Validator.isNotNull(sourceFileName)) {
+    extension=FileUtil.getExtension(sourceFileName);
+  }
+ else {
+    extension=fileEntry.getExtension();
+  }
+  boolean updatedFileVersion=false;
+  try {
+    DLFileVersion latestFileVersion=fileEntry.getLatestFileVersion();
+    if (size == 0) {
+      size=latestFileVersion.getSize();
+    }
+    if (!latestFileVersion.isApproved()) {
+      if (!PropsValues.DL_FILE_ENTRY_DRAFTS_ENABLED) {
+        serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
+        version=latestFileVersion.getVersion();
+      }
+      if (version.equals(latestFileVersion.getVersion())) {
+        updatedFileVersion=true;
+      }
+      updateFileVersion(user,latestFileVersion,sourceFileName,extension,title,description,changeLog,extraSettings,version,size,latestFileVersion.getStatus(),serviceContext.getModifiedDate(now),serviceContext);
+    }
+ else {
+      fileVersion=addFileVersion(user,fileEntry,serviceContext.getModifiedDate(now),extension,title,description,changeLog,extraSettings,version,size,WorkflowConstants.STATUS_DRAFT,serviceContext);
+    }
+    if (fileVersion == null) {
+      fileVersion=latestFileVersion;
+    }
+  }
+ catch (  NoSuchFileVersionException nsfve) {
+    fileVersion=addFileVersion(user,fileEntry,serviceContext.getModifiedDate(now),extension,title,description,changeLog,extraSettings,version,size,WorkflowConstants.STATUS_DRAFT,serviceContext);
+  }
+  if ((is == null) && !updatedFileVersion) {
+    int fetchFailures=0;
+    while (is == null) {
+      try {
+        is=dlLocalService.getFileAsStream(user.getCompanyId(),fileEntry.getRepositoryId(),fileEntry.getName());
+      }
+ catch (      NoSuchFileException nsfe) {
+        fetchFailures++;
+        if (PropsValues.DL_HOOK_IMPL.equals(JCRHook.class.getName()) && (fetchFailures < PropsValues.DL_HOOK_JCR_FETCH_MAX_FAILURES)) {
+          try {
+            Thread.sleep(PropsValues.DL_HOOK_JCR_FETCH_DELAY);
+          }
+ catch (          InterruptedException ie) {
+          }
+        }
+ else {
+          throw nsfe;
+        }
+      }
+    }
+  }
+  updateAsset(userId,fileEntry,fileVersion,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
+  if (fileEntry.getFolderId() != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+    DLFolder folder=dlFolderPersistence.findByPrimaryKey(fileEntry.getFolderId());
+    folder.setLastPostDate(fileEntry.getModifiedDate());
+    dlFolderPersistence.update(folder,false);
+  }
+  if (is != null) {
+    try {
+      dlLocalService.deleteFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,fileEntry.getRepositoryId(),fileEntry.getName(),version);
+    }
+ catch (    NoSuchFileException nsfe) {
+    }
+    dlLocalService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,fileEntry.getGroupId(),fileEntry.getRepositoryId(),fileEntry.getName(),fileEntry.getExtension(),false,version,sourceFileName,fileEntry.getFileEntryId(),fileEntry.getLuceneProperties(),fileEntry.getModifiedDate(),serviceContext,is);
+  }
+  if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
+    WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),fileEntry.getGroupId(),userId,DLFileEntry.class.getName(),fileEntry.getFileEntryId(),fileEntry,serviceContext);
+  }
+  return fileEntry;
+}
