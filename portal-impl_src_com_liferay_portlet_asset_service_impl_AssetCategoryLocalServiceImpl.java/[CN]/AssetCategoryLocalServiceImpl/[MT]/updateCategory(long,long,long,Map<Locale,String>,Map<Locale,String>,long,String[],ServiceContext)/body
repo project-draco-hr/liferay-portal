@@ -1,42 +1,33 @@
 {
-  User user=userPersistence.findByPrimaryKey(userId);
-  long groupId=serviceContext.getScopeGroupId();
   String name=titleMap.get(LocaleUtil.getDefault());
   if (categoryProperties == null) {
     categoryProperties=new String[0];
   }
-  Date now=new Date();
-  validate(0,parentCategoryId,name,vocabularyId);
+  validate(categoryId,parentCategoryId,name,vocabularyId);
   if (parentCategoryId > 0) {
     assetCategoryPersistence.findByPrimaryKey(parentCategoryId);
   }
   assetVocabularyPersistence.findByPrimaryKey(vocabularyId);
-  long categoryId=counterLocalService.increment();
-  AssetCategory category=assetCategoryPersistence.create(categoryId);
-  category.setUuid(serviceContext.getUuid());
-  category.setGroupId(groupId);
-  category.setCompanyId(user.getCompanyId());
-  category.setUserId(user.getUserId());
-  category.setUserName(user.getFullName());
-  category.setCreateDate(now);
-  category.setModifiedDate(now);
+  AssetCategory category=assetCategoryPersistence.findByPrimaryKey(categoryId);
+  category.setModifiedDate(new Date());
   category.setParentCategoryId(parentCategoryId);
   category.setName(name);
   category.setTitleMap(titleMap);
+  category.setDescriptionMap(descriptionMap);
   category.setVocabularyId(vocabularyId);
   assetCategoryPersistence.update(category,false);
-  if (serviceContext.getAddCommunityPermissions() || serviceContext.getAddGuestPermissions()) {
-    addCategoryResources(category,serviceContext.getAddCommunityPermissions(),serviceContext.getAddGuestPermissions());
-  }
- else {
-    addCategoryResources(category,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
+  List<AssetCategoryProperty> oldCategoryProperties=assetCategoryPropertyPersistence.findByCategoryId(categoryId);
+  for (  AssetCategoryProperty categoryProperty : oldCategoryProperties) {
+    assetCategoryPropertyLocalService.deleteAssetCategoryProperty(categoryProperty);
   }
   for (int i=0; i < categoryProperties.length; i++) {
     String[] categoryProperty=StringUtil.split(categoryProperties[i],StringPool.COLON);
     String key=StringPool.BLANK;
+    if (categoryProperty.length > 0) {
+      key=GetterUtil.getString(categoryProperty[0]);
+    }
     String value=StringPool.BLANK;
     if (categoryProperty.length > 1) {
-      key=GetterUtil.getString(categoryProperty[0]);
       value=GetterUtil.getString(categoryProperty[1]);
     }
     if (Validator.isNotNull(key)) {
