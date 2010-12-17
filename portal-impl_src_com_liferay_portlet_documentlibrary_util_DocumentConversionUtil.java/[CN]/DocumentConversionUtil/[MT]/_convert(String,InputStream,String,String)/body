@@ -2,6 +2,8 @@
   if (!PrefsPropsUtil.getBoolean(PropsKeys.OPENOFFICE_SERVER_ENABLED,PropsValues.OPENOFFICE_SERVER_ENABLED)) {
     return null;
   }
+  sourceExtension=_fixExtension(sourceExtension);
+  targetExtension=_fixExtension(targetExtension);
   StringBundler sb=new StringBundler(5);
   sb.append(SystemProperties.get(SystemProperties.TMP_DIR));
   sb.append("/liferay/document_conversion/");
@@ -12,13 +14,16 @@
   File file=new File(fileName);
   if (!PropsValues.OPENOFFICE_CACHE_ENABLED || !file.exists()) {
     DocumentFormatRegistry registry=new DefaultDocumentFormatRegistry();
-    DocumentConverter converter=_getConverter(registry);
-    if (sourceExtension.equals("htm")) {
-      sourceExtension="html";
-    }
+    DocumentConverter converter=_getConverter();
     DocumentFormat inputFormat=registry.getFormatByFileExtension(sourceExtension);
-    UnsyncByteArrayOutputStream ubaos=new UnsyncByteArrayOutputStream();
     DocumentFormat outputFormat=registry.getFormatByFileExtension(targetExtension);
+    if (!inputFormat.isImportable()) {
+      throw new SystemException("Conversion is not supported from " + inputFormat.getName());
+    }
+ else     if (!inputFormat.isExportableTo(outputFormat)) {
+      throw new SystemException("Conversion is not supported from " + inputFormat.getName() + " to "+ outputFormat.getName());
+    }
+    UnsyncByteArrayOutputStream ubaos=new UnsyncByteArrayOutputStream();
     converter.convert(is,inputFormat,ubaos,outputFormat);
     FileUtil.write(file,ubaos.unsafeGetByteArray(),0,ubaos.size());
   }
