@@ -1,0 +1,44 @@
+{
+  long companyId=message.getCompanyId();
+  if (!PrefsPropsUtil.getBoolean(companyId,PropsKeys.DISCUSSION_EMAIL_COMMENTS_ADDED_ENABLED)) {
+    return;
+  }
+  String className=(String)serviceContext.getAttribute("className");
+  long classPK=GetterUtil.getLong((String)serviceContext.getAttribute("classPK"));
+  String contentURL=serviceContext.getPortalURL().concat(serviceContext.getCurrentURL());
+  User user=userPersistence.findByPrimaryKey(userId);
+  String fromName=PrefsPropsUtil.getString(companyId,PropsKeys.ADMIN_EMAIL_FROM_NAME);
+  String fromAddress=PrefsPropsUtil.getString(companyId,PropsKeys.ADMIN_EMAIL_FROM_ADDRESS);
+  String subject=PrefsPropsUtil.getContent(companyId,PropsKeys.DISCUSSION_EMAIL_SUBJECT);
+  String body=PrefsPropsUtil.getContent(companyId,PropsKeys.DISCUSSION_EMAIL_BODY);
+  subject=StringUtil.replace(subject,new String[]{"[$COMMENTS_BODY$]","[$COMMENTS_USER_ADDRESS$]","[$COMMENTS_USER_NAME$]","[$CONTENT_URL$]","[$FROM_ADDRESS$]","[$FROM_NAME$]"},new String[]{message.getBody(),user.getEmailAddress(),user.getFullName(),contentURL,fromAddress,fromName});
+  body=StringUtil.replace(body,new String[]{"[$COMMENTS_BODY$]","[$COMMENTS_USER_ADDRESS$]","[$COMMENTS_USER_NAME$]","[$ASSET_URL$]","[$FROM_ADDRESS$]","[$FROM_NAME$]"},new String[]{message.getBody(),user.getEmailAddress(),user.getFullName(),contentURL,fromAddress,fromName});
+  Set<Long> sent=new HashSet<Long>();
+  List<Subscription> subscriptions=SubscriptionLocalServiceUtil.getSubscriptions(companyId,className,classPK);
+  for (  Subscription subscription : subscriptions) {
+    long subscriptorUserId=subscription.getUserId();
+    if (subscriptorUserId == userId) {
+      continue;
+    }
+    if (_log.isDebugEnabled()) {
+      _log.debug("Add user " + subscriptorUserId + " to the list of users who have received an email");
+    }
+    sent.add(subscriptorUserId);
+    User curMessageUser=null;
+    try {
+      curMessageUser=userLocalService.getUserById(subscriptorUserId);
+    }
+ catch (    NoSuchUserException nsue) {
+      continue;
+    }
+    if (!curMessageUser.isActive()) {
+      continue;
+    }
+    InternetAddress from=new InternetAddress(fromAddress,fromName);
+    InternetAddress to=new InternetAddress(curMessageUser.getEmailAddress(),curMessageUser.getFullName());
+    String curSubject=StringUtil.replace(subject,new String[]{"[$TO_ADDRESS$]","[$TO_NAME$]"},new String[]{curMessageUser.getFullName(),curMessageUser.getEmailAddress()});
+    String curBody=StringUtil.replace(body,new String[]{"[$TO_ADDRESS$]","[$TO_NAME$]"},new String[]{curMessageUser.getFullName(),curMessageUser.getEmailAddress()});
+    MailMessage mailMessage=new MailMessage(from,to,curSubject,curBody,true);
+    mailService.sendEmail(mailMessage);
+  }
+}
