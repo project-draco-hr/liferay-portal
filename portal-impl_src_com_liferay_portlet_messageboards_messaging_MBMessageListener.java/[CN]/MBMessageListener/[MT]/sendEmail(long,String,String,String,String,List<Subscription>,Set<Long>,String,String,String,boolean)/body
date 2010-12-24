@@ -1,4 +1,5 @@
 {
+  List<InternetAddress> addresses=new ArrayList<InternetAddress>();
   for (  Subscription subscription : subscriptions) {
     long subscribedUserId=subscription.getUserId();
     if (sent.contains(subscribedUserId)) {
@@ -27,26 +28,18 @@
     if (!user.isActive()) {
       continue;
     }
-    if (!GroupLocalServiceUtil.hasUserGroup(subscribedUserId,groupId)) {
+    Group group=GroupLocalServiceUtil.getGroup(groupId);
+    int type=group.getType();
+    if (!GroupLocalServiceUtil.hasUserGroup(subscribedUserId,groupId) && (type != GroupConstants.TYPE_COMMUNITY_OPEN)) {
       if (_log.isInfoEnabled()) {
         _log.info("Subscription " + subscription.getSubscriptionId() + " is stale and will be deleted");
       }
       SubscriptionLocalServiceUtil.deleteSubscription(subscription.getSubscriptionId());
       continue;
     }
-    try {
-      InternetAddress from=new InternetAddress(fromAddress,fromName);
-      InternetAddress to=new InternetAddress(user.getEmailAddress(),user.getFullName());
-      String curSubject=StringUtil.replace(subject,new String[]{"[$TO_ADDRESS$]","[$TO_NAME$]"},new String[]{user.getFullName(),user.getEmailAddress()});
-      String curBody=StringUtil.replace(body,new String[]{"[$TO_ADDRESS$]","[$TO_NAME$]"},new String[]{user.getFullName(),user.getEmailAddress()});
-      InternetAddress replyTo=new InternetAddress(replyToAddress,replyToAddress);
-      MailMessage message=new MailMessage(from,to,curSubject,curBody,htmlFormat);
-      message.setReplyTo(new InternetAddress[]{replyTo});
-      message.setMessageId(mailId);
-      MailServiceUtil.sendEmail(message);
-    }
- catch (    Exception e) {
-      _log.error(e);
-    }
+    InternetAddress userAddress=new InternetAddress(user.getEmailAddress(),user.getFullName());
+    addresses.add(userAddress);
   }
+  InternetAddress[] bulkAddresses=addresses.toArray(new InternetAddress[addresses.size()]);
+  sendMail(fromAddress,fromName,bulkAddresses,subject,body,replyToAddress,mailId,inReplyTo,htmlFormat,null);
 }
