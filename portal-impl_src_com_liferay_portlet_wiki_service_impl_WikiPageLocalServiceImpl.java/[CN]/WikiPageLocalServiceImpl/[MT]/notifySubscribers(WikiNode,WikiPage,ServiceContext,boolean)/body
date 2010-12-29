@@ -64,8 +64,6 @@
   String portletName=PortalUtil.getPortletTitle(PortletKeys.WIKI,user);
   String fromName=WikiUtil.getEmailFromName(preferences);
   String fromAddress=WikiUtil.getEmailFromAddress(preferences);
-  String replyToAddress=fromAddress;
-  String mailId=WikiUtil.getMailId(company.getMx(),page.getNodeId(),page.getPageId());
   fromName=StringUtil.replace(fromName,new String[]{"[$COMPANY_ID$]","[$COMPANY_MX$]","[$COMPANY_NAME$]","[$COMMUNITY_NAME$]","[$PAGE_USER_ADDRESS$]","[$PAGE_USER_NAME$]","[$PORTLET_NAME$]"},new String[]{String.valueOf(company.getCompanyId()),company.getMx(),company.getName(),group.getName(),user.getEmailAddress(),user.getFullName(),portletName});
   fromAddress=StringUtil.replace(fromAddress,new String[]{"[$COMPANY_ID$]","[$COMPANY_MX$]","[$COMPANY_NAME$]","[$COMMUNITY_NAME$]","[$PAGE_USER_ADDRESS$]","[$PAGE_USER_NAME$]","[$PORTLET_NAME$]"},new String[]{String.valueOf(company.getCompanyId()),company.getMx(),company.getName(),group.getName(),user.getEmailAddress(),user.getFullName(),portletName});
   String subjectPrefix=null;
@@ -90,18 +88,17 @@
   if (subject.indexOf(subjectPrefix) == -1) {
     subject=subjectPrefix + StringPool.SPACE + subject;
   }
-  Message message=new Message();
-  message.put("companyId",node.getCompanyId());
-  message.put("userId",node.getUserId());
-  message.put("groupId",node.getGroupId());
-  message.put("nodeId",node.getNodeId());
-  message.put("pageResourcePrimKey",page.getResourcePrimKey());
-  message.put("fromName",fromName);
-  message.put("fromAddress",fromAddress);
-  message.put("subject",subject);
-  message.put("body",body);
-  message.put("replyToAddress",replyToAddress);
-  message.put("mailId",mailId);
-  message.put("htmlFormat",Boolean.TRUE);
-  MessageBusUtil.sendMessage(DestinationNames.WIKI,message);
+  SubscriptionSender subscriptionSender=new SubscriptionSender();
+  subscriptionSender.setBody(body);
+  subscriptionSender.setCompanyId(node.getCompanyId());
+  subscriptionSender.setFrom(fromAddress,fromName);
+  subscriptionSender.setGroupId(node.getGroupId());
+  subscriptionSender.setHtmlFormat(true);
+  subscriptionSender.setMailId(WikiUtil.getMailId(company.getMx(),page.getNodeId(),page.getPageId()));
+  subscriptionSender.setReplyToAddress(fromAddress);
+  subscriptionSender.setSubject(subject);
+  subscriptionSender.setUserId(node.getUserId());
+  subscriptionSender.addPersistedSubscribers(WikiNode.class.getName(),node.getNodeId());
+  subscriptionSender.addPersistedSubscribers(WikiPage.class.getName(),page.getResourcePrimKey());
+  subscriptionSender.flushNotificationsAsync();
 }
