@@ -90,30 +90,33 @@
   if (message.getParentMessageId() != MBMessageConstants.DEFAULT_PARENT_MESSAGE_ID) {
     inReplyTo=MBUtil.getMailId(company.getMx(),message.getCategoryId(),message.getParentMessageId());
   }
-  MBSubscriptionSender mbSubscriptionSender=new MBSubscriptionSender();
-  mbSubscriptionSender.setBody(body);
-  mbSubscriptionSender.setBulk(true);
-  mbSubscriptionSender.setCompanyId(message.getCompanyId());
-  mbSubscriptionSender.setFrom(fromAddress,fromName);
-  mbSubscriptionSender.setGroupId(message.getGroupId());
-  mbSubscriptionSender.setHtmlFormat(MBUtil.getEmailHtmlFormat(preferences));
-  mbSubscriptionSender.setInReplyTo(inReplyTo);
-  mbSubscriptionSender.setMailId(MBUtil.getMailId(company.getMx(),message.getCategoryId(),message.getMessageId()));
-  mbSubscriptionSender.setReplyToAddress(mailingListAddress);
-  mbSubscriptionSender.setSubject(subject);
-  mbSubscriptionSender.setUserId(message.getUserId());
+  SubscriptionSender subscriptionSenderPrototype=new MBSubscriptionSender();
+  subscriptionSenderPrototype.setBody(body);
+  subscriptionSenderPrototype.setBulk(true);
+  subscriptionSenderPrototype.setCompanyId(message.getCompanyId());
+  subscriptionSenderPrototype.setFrom(fromAddress,fromName);
+  subscriptionSenderPrototype.setGroupId(message.getGroupId());
+  subscriptionSenderPrototype.setHtmlFormat(MBUtil.getEmailHtmlFormat(preferences));
+  subscriptionSenderPrototype.setInReplyTo(inReplyTo);
+  subscriptionSenderPrototype.setMailId(MBUtil.getMailId(company.getMx(),message.getCategoryId(),message.getMessageId()));
+  subscriptionSenderPrototype.setReplyToAddress(mailingListAddress);
+  subscriptionSenderPrototype.setSubject(subject);
+  subscriptionSenderPrototype.setUserId(message.getUserId());
+  SubscriptionSender subscriptionSender=(SubscriptionSender)SerializationUtils.clone(subscriptionSenderPrototype);
   for (  long categoryId : categoryIds) {
     if (categoryId == MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) {
       categoryId=message.getGroupId();
     }
-    mbSubscriptionSender.addPersistedSubscribers(MBCategory.class.getName(),categoryId);
+    subscriptionSender.addPersistedSubscribers(MBCategory.class.getName(),categoryId);
   }
-  mbSubscriptionSender.addPersistedSubscribers(MBThread.class.getName(),message.getThreadId());
+  subscriptionSender.addPersistedSubscribers(MBThread.class.getName(),message.getThreadId());
+  subscriptionSender.flushNotificationsAsync();
   if (!MailingListThreadLocal.isSourceMailingList()) {
-    mbSubscriptionSender.setBulk(false);
     for (    long categoryId : categoryIds) {
-      mbSubscriptionSender.addMailingListSubscriber(message.getGroupId(),categoryId);
+      MBSubscriptionSender sourceMailingListSubscriptionSender=(MBSubscriptionSender)SerializationUtils.clone(subscriptionSenderPrototype);
+      sourceMailingListSubscriptionSender.setBulk(false);
+      sourceMailingListSubscriptionSender.addMailingListSubscriber(message.getGroupId(),categoryId);
+      sourceMailingListSubscriptionSender.flushNotificationsAsync();
     }
   }
-  mbSubscriptionSender.flushNotificationsAsync();
 }
