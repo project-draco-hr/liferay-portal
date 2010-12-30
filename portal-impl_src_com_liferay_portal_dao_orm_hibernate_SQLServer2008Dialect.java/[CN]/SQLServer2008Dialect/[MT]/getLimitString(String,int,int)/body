@@ -1,25 +1,48 @@
 {
+  if (offset == 0 || sql.endsWith(StringPool.CLOSE_PARENTHESIS)) {
+    return super.getLimitString(sql,offset,limit);
+  }
   String lowerCaseSql=sql.toLowerCase();
   int lastOrderByPos=lowerCaseSql.lastIndexOf("order by");
-  if ((lastOrderByPos < 0) || (offset == 0) || StringUtil.endsWith(sql,StringPool.CLOSE_PARENTHESIS)) {
-    return super.getLimitString(sql,0,limit);
+  if (lastOrderByPos < 0) {
+    return super.getLimitString(sql,offset,limit);
   }
+  String orderByString=sql.substring(lastOrderByPos + 9,sql.length());
+  String[] orderByArray=StringUtil.split(orderByString,StringPool.COMMA);
+  int orderByCount=orderByArray.length;
+  for (int i=0; i < orderByCount; i++) {
+    String orderBy=orderByArray[i].trim();
+    String orderByColumn;
+    String orderByType;
+    int columnPos=orderBy.indexOf(CharPool.SPACE);
+    if (columnPos == -1) {
+      orderByColumn=orderBy;
+      orderByType="ASC";
+    }
  else {
-    int fromPos=lowerCaseSql.indexOf("from");
-    String orderBy=sql.substring(lastOrderByPos,sql.length());
-    String selectFrom=sql.substring(0,fromPos);
-    String selectFromWhere=sql.substring(fromPos,lastOrderByPos);
-    StringBundler sb=new StringBundler(10);
-    sb.append("select * from (");
-    sb.append(selectFrom);
-    sb.append(", _page_row_num = row_number() over(");
-    sb.append(orderBy);
-    sb.append(")");
-    sb.append(selectFromWhere);
-    sb.append(" ) temp where _page_row_num between ");
-    sb.append(offset + 1);
-    sb.append(" and ");
-    sb.append(limit);
-    return sb.toString();
+      orderByColumn=orderBy.substring(0,columnPos);
+      orderByType=orderBy.substring(columnPos + 1);
+    }
+    Pattern aliasPattern=Pattern.compile("(\\S+) as \\Q".concat(orderByColumn).concat("\\E\\W"),Pattern.CASE_INSENSITIVE);
+    Matcher aliasMatcher=aliasPattern.matcher(sql);
+    if (aliasMatcher.find()) {
+      orderByColumn=aliasMatcher.group(1);
+    }
+    orderByArray[i]=orderByColumn.concat(StringPool.SPACE).concat(orderByType);
   }
+  int fromPos=lowerCaseSql.indexOf("from");
+  String selectFrom=sql.substring(0,fromPos);
+  String selectFromWhere=sql.substring(fromPos,lastOrderByPos);
+  StringBundler sb=new StringBundler(10);
+  sb.append("select * from (");
+  sb.append(selectFrom);
+  sb.append(", row_number() over (order by ");
+  sb.append(StringUtil.merge(orderByArray,StringPool.COMMA));
+  sb.append(") as _page_row_num ");
+  sb.append(selectFromWhere);
+  sb.append(" ) temp where _page_row_num between ");
+  sb.append(offset + 1);
+  sb.append(" and ");
+  sb.append(limit);
+  return sb.toString();
 }
