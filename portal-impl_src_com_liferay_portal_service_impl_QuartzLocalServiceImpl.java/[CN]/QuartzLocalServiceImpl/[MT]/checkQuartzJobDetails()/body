@@ -2,57 +2,52 @@
   Connection con=null;
   PreparedStatement ps=null;
   ResultSet rs=null;
-  List<Object[]> updateList=new ArrayList<Object[]>();
+  List<Object[]> arrays=new ArrayList<Object[]>();
   try {
     con=DataAccess.getConnection();
     ps=con.prepareStatement("select JOB_NAME, JOB_GROUP, JOB_DATA from QUARTZ_JOB_DETAILS");
     rs=ps.executeQuery();
     while (rs.next()) {
-      byte[] jobDataBytes=rs.getBytes("JOB_DATA");
-      jobDataBytes=convertMessageToJSON(jobDataBytes);
-      if (jobDataBytes != null) {
-        String jobName=rs.getString("JOB_NAME");
-        String groupName=rs.getString("JOB_GROUP");
-        Object[] entry=new Object[3];
-        entry[0]=jobDataBytes;
-        entry[1]=jobName;
-        entry[2]=groupName;
-        updateList.add(entry);
+      String jobName=rs.getString("JOB_NAME");
+      String jobGroup=rs.getString("JOB_GROUP");
+      byte[] jobData=rs.getBytes("JOB_DATA");
+      jobData=convertMessageToJSON(jobData);
+      if (jobData == null) {
+        continue;
       }
+      Object[] array=new Object[3];
+      array[0]=jobName;
+      array[1]=jobGroup;
+      array[2]=jobData;
+      arrays.add(array);
     }
   }
  catch (  Exception e) {
-    if (_log.isErrorEnabled()) {
-      _log.error(e,e);
-    }
+    _log.error(e,e);
   }
  finally {
     DataAccess.cleanUp(con,ps,rs);
   }
-  if (!updateList.isEmpty()) {
-    try {
-      con=DataAccess.getConnection();
-      ps=con.prepareStatement("update QUARTZ_JOB_DETAILS set JOB_DATA = ? " + "where JOB_NAME = ? and JOB_GROUP = ?");
-      for (      Object[] entry : updateList) {
-        byte[] jobDataBytes=(byte[])entry[0];
-        String jobName=(String)entry[1];
-        String groupName=(String)entry[2];
-        ps.setBytes(1,jobDataBytes);
-        ps.setString(2,jobName);
-        ps.setString(3,groupName);
-        ps.executeUpdate();
-        if (_log.isInfoEnabled()) {
-          _log.info("Updated JobDetail for " + jobName + " : "+ groupName);
-        }
-      }
+  if (arrays.isEmpty()) {
+    return;
+  }
+  try {
+    con=DataAccess.getConnection();
+    ps=con.prepareStatement("update QUARTZ_JOB_DETAILS set JOB_DATA = ? where JOB_NAME = " + "? and JOB_GROUP = ?");
+    for (    Object[] array : arrays) {
+      String jobName=(String)array[0];
+      String jobGroup=(String)array[1];
+      byte[] jobData=(byte[])array[2];
+      ps.setBytes(1,jobData);
+      ps.setString(2,jobName);
+      ps.setString(3,jobGroup);
+      ps.executeUpdate();
     }
- catch (    Exception e) {
-      if (_log.isErrorEnabled()) {
-        _log.error(e,e);
-      }
-    }
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
  finally {
-      DataAccess.cleanUp(con,ps,rs);
-    }
+    DataAccess.cleanUp(con,ps,rs);
   }
 }
