@@ -1,4 +1,5 @@
 {
+  String servletContextName=ParamUtil.getString(request,"servletContextName");
   String className=ParamUtil.getString(request,"serviceClassName");
   String methodName=ParamUtil.getString(request,"serviceMethodName");
   String[] serviceParameters=getStringArrayFromJSON(request,"serviceParameters");
@@ -8,7 +9,13 @@
   }
   Thread currentThread=Thread.currentThread();
   ClassLoader contextClassLoader=currentThread.getContextClassLoader();
-  Class<?> classObj=contextClassLoader.loadClass(className);
+  ClassLoader serviceClassloader=contextClassLoader;
+  if (Validator.isNotNull(servletContextName)) {
+    BeanLocator beanLocator=PortletBeanLocatorUtil.getBeanLocator(servletContextName);
+    serviceClassloader=beanLocator.getClassLoader();
+    currentThread.setContextClassLoader(serviceClassloader);
+  }
+  Class<?> classObj=serviceClassloader.loadClass(className);
   Object[] methodAndParameterTypes=getMethodAndParameterTypes(classObj,methodName,serviceParameters,serviceParameterTypes);
   if (methodAndParameterTypes != null) {
     Method method=(Method)methodAndParameterTypes[0];
@@ -42,6 +49,11 @@
         jsonObject.put("exception",e.getMessage());
       }
       return jsonObject.toString();
+    }
+ finally {
+      if (serviceClassloader != contextClassLoader) {
+        currentThread.setContextClassLoader(contextClassLoader);
+      }
     }
   }
   return null;
