@@ -4,12 +4,16 @@
   ResultSet rs=null;
   try {
     con=DataAccess.getConnection();
-    ps=con.prepareStatement("select plid, name, title from Layout");
+    ps=con.prepareStatement("select plid, name, title, typeSettings from Layout");
     rs=ps.executeQuery();
+    Locale[] locales=LanguageUtil.getAvailableLocales();
+    Locale defaultLocale=LocaleUtil.getDefault();
+    String defaultLanguageId=LocaleUtil.toLanguageId(defaultLocale);
     while (rs.next()) {
       long plid=rs.getLong("plid");
       String name=rs.getString("name");
       String title=rs.getString("title");
+      String typeSettings=rs.getString("typeSettings");
       if (Validator.isNotNull(name)) {
         name=StringUtil.replace(name,new String[]{"<name","</name>"},new String[]{"<Name","</Name>"});
         updateName(plid,name);
@@ -17,6 +21,23 @@
       if (Validator.isNotNull(title)) {
         title=StringUtil.replace(title,new String[]{"<title","</title>"},new String[]{"<Title","</Title>"});
         updateTitle(plid,title);
+      }
+      if (Validator.isNotNull(typeSettings)) {
+        UnicodeProperties typeSettingsProperties=new UnicodeProperties(true);
+        typeSettingsProperties.load(typeSettings);
+        String defaultDescription=typeSettingsProperties.getProperty("meta-description_" + defaultLanguageId);
+        if (Validator.isNotNull(defaultDescription)) {
+          typeSettingsProperties=updateMetaField(plid,locales,typeSettingsProperties,"meta-description_","Description","description");
+        }
+        String defaultKeywords=typeSettingsProperties.getProperty("meta-keywords_" + defaultLanguageId);
+        if (Validator.isNotNull(defaultKeywords)) {
+          typeSettingsProperties=updateMetaField(plid,locales,typeSettingsProperties,"meta-keywords_","Keywords","keywords");
+        }
+        String defaultRobots=typeSettingsProperties.getProperty("meta-robots_" + defaultLanguageId);
+        if (Validator.isNotNull(defaultRobots)) {
+          typeSettingsProperties=updateMetaField(plid,locales,typeSettingsProperties,"meta-robots_","Robots","robots");
+        }
+        updateTypeSettings(plid,typeSettingsProperties.toString());
       }
     }
   }
