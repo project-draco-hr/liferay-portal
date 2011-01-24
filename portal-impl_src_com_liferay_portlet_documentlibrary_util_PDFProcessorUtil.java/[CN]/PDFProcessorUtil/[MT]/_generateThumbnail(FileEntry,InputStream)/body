@@ -1,0 +1,42 @@
+{
+  String id=DLUtil.getTempFileId(fileEntry.getFileEntryId(),fileEntry.getVersion());
+  File thumbnail=getFile(id);
+  if (thumbnail.exists()) {
+    return;
+  }
+  if (PropsValues.IMAGEMAGICK_ENABLED) {
+    if (fileEntry.getExtension().equals("pdf")) {
+      InputStream tempIs=DLRepositoryLocalServiceUtil.getFileAsStream(fileEntry.getUserId(),fileEntry.getFileEntryId(),fileEntry.getVersion());
+      String filePath=DocumentConversionUtil.getFilePath(id,"pdf");
+      File file=new File(filePath);
+      try {
+        FileUtil.write(file,tempIs);
+        _generateThumbnail(fileEntry,file);
+      }
+  finally {
+        file.delete();
+      }
+    }
+ else {
+      File file=DocumentConversionUtil.convertToFile(id,is,fileEntry.getExtension(),"pdf");
+      _generateThumbnail(fileEntry,file);
+    }
+  }
+ else {
+    PDDocument document=null;
+    try {
+      document=PDDocument.load(is);
+      List pages=document.getDocumentCatalog().getAllPages();
+      PDPage page=(PDPage)pages.get(0);
+      RenderedImage renderedImage=page.convertToImage(BufferedImage.TYPE_USHORT_565_RGB,72);
+      RenderedImage thumbnailImage=ImageProcessorUtil.scale(renderedImage,_DIMENSION,_DIMENSION);
+      thumbnail.createNewFile();
+      ImageIO.write(thumbnailImage,THUMBNAIL_TYPE,new FileOutputStream(thumbnail));
+    }
+  finally {
+      if (document != null) {
+        document.close();
+      }
+    }
+  }
+}
