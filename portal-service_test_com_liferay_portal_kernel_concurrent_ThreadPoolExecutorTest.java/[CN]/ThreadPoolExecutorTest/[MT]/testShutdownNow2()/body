@@ -1,0 +1,30 @@
+{
+  ThreadPoolExecutor threadPoolExecutor=new ThreadPoolExecutor(1,1,TestUtil.KEEPALIVE_TIME,TimeUnit.MILLISECONDS,true,1);
+  MarkerBlockingJob markerBlockingJob=new MarkerBlockingJob(true);
+  threadPoolExecutor.execute(markerBlockingJob);
+  markerBlockingJob.waitUntilBlock();
+  ReentrantLock mainLock=threadPoolExecutor.getMainLock();
+  ReentrantLock takeLock=threadPoolExecutor.getTaskQueue().getTakeLock();
+  takeLock.lock();
+  try {
+    markerBlockingJob.unBlock();
+    while (!takeLock.hasQueuedThreads()) {
+      Thread.sleep(1);
+    }
+    mainLock.lock();
+  }
+  finally {
+    takeLock.unlock();
+  }
+  try {
+    while (!mainLock.hasQueuedThreads()) {
+      Thread.sleep(1);
+    }
+    threadPoolExecutor.shutdownNow();
+  }
+  finally {
+    mainLock.unlock();
+  }
+  assertTrue(threadPoolExecutor.isShutdown());
+  assertTrue(threadPoolExecutor.awaitTermination(1,TimeUnit.SECONDS));
+}
