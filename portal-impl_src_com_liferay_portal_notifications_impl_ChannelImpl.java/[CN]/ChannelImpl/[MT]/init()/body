@@ -1,0 +1,33 @@
+{
+  try {
+    Collection<UserNotificationEvent> persistedNotificationEvents=_userNotificationEventLocalService.getUserNotificationEvents(getCompanyId(),getUserId());
+    Collection<String> invalidNotificationEvents=new ArrayList<String>(_unconfirmedNotificationEvents.size());
+    long currentTime=System.currentTimeMillis();
+    for (    UserNotificationEvent persistedNotificationEvent : persistedNotificationEvents) {
+      try {
+        JSONObject payload=JSONFactoryUtil.createJSONObject(persistedNotificationEvent.getPayload());
+        NotificationEvent notificationEvent=NotificationEventFactoryUtil.createChannelEvent(persistedNotificationEvent.getTimestamp(),persistedNotificationEvent.getType(),payload);
+        notificationEvent.setDeliveryRequired(persistedNotificationEvent.getDeliverBy());
+        boolean remove=evaluateRemoval(notificationEvent,currentTime);
+        if (!remove) {
+          _unconfirmedNotificationEvents.put(notificationEvent.getUuid(),notificationEvent);
+        }
+ else {
+          invalidNotificationEvents.add(notificationEvent.getUuid());
+        }
+      }
+ catch (      JSONException e) {
+        if (_log.isErrorEnabled()) {
+          _log.error(e);
+        }
+        invalidNotificationEvents.add(persistedNotificationEvent.getUuid());
+      }
+    }
+    if (invalidNotificationEvents.size() > 0) {
+      _userNotificationEventLocalService.deleteUserNotificationEvents(invalidNotificationEvents);
+    }
+  }
+ catch (  Exception e) {
+    throw new ChannelException("Unable to init channel " + getUserId(),e);
+  }
+}
