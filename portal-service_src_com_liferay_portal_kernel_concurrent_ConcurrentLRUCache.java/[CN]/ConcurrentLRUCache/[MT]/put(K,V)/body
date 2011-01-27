@@ -2,28 +2,16 @@
   if (key == null) {
     throw new NullPointerException("Key is null");
   }
-  _putCount.getAndIncrement();
+  ValueWrapper<V> valueWrapper=new ValueWrapper<V>(value);
   _writeLock.lock();
   try {
-    Entry<K,V> currentEntry=_lastEntry._previousEntry;
-    while (currentEntry != _headEntry) {
-      if (currentEntry._key.equals(key)) {
-        currentEntry._value=value;
-        if (currentEntry._nextEntry != _lastEntry) {
-          _detachEntry(currentEntry);
-          _insertEntryBefore(_lastEntry,currentEntry);
-        }
-        return;
-      }
-      currentEntry=currentEntry._previousEntry;
+    if (!_cache.containsKey(key) && (_cache.size() >= _maxSize)) {
+      cleanUp();
     }
-    while (_size.get() >= _maxSize) {
-      _removeHeadEntry();
-    }
-    _insertEntryBefore(_lastEntry,new Entry<K,V>(key,value));
-    _size.getAndIncrement();
+    _cache.put(key,valueWrapper);
   }
   finally {
     _writeLock.unlock();
   }
+  _putCount.getAndIncrement();
 }
