@@ -1,47 +1,11 @@
 {
-  if ((offset == 0) || sql.endsWith(StringPool.CLOSE_PARENTHESIS)) {
-    return super.getLimitString(sql,offset,limit);
-  }
   String sqlLowerCase=sql.toLowerCase();
-  int orderByPos=sqlLowerCase.lastIndexOf("order by");
-  if (orderByPos < 0) {
-    return super.getLimitString(sql,offset,limit);
+  String limitString;
+  if (sqlLowerCase.contains(" union ")) {
+    limitString=getLimitStringUnion(sql,sqlLowerCase,offset,limit);
   }
-  String orderByString=sql.substring(orderByPos + 9,sql.length());
-  String[] orderByArray=StringUtil.split(orderByString,StringPool.COMMA);
-  for (int i=0; i < orderByArray.length; i++) {
-    String orderBy=orderByArray[i].trim();
-    String orderByColumn=null;
-    String orderByType=null;
-    int columnPos=orderBy.indexOf(CharPool.SPACE);
-    if (columnPos == -1) {
-      orderByColumn=orderBy;
-      orderByType="ASC";
-    }
  else {
-      orderByColumn=orderBy.substring(0,columnPos);
-      orderByType=orderBy.substring(columnPos + 1);
-    }
-    Pattern pattern=Pattern.compile("(\\S+) as \\Q".concat(orderByColumn).concat("\\E\\W"),Pattern.CASE_INSENSITIVE);
-    Matcher matcher=pattern.matcher(sql);
-    if (matcher.find()) {
-      orderByColumn=matcher.group(1);
-    }
-    orderByArray[i]=orderByColumn.concat(StringPool.SPACE).concat(orderByType);
+    limitString=getLimitString(sql,sqlLowerCase,offset,limit);
   }
-  int fromPos=sqlLowerCase.indexOf("from");
-  String selectFrom=sql.substring(0,fromPos);
-  String selectFromWhere=sql.substring(fromPos,orderByPos);
-  StringBundler sb=new StringBundler(10);
-  sb.append("select * from (");
-  sb.append(selectFrom);
-  sb.append(", row_number() over (order by ");
-  sb.append(StringUtil.merge(orderByArray,StringPool.COMMA));
-  sb.append(") as _page_row_num ");
-  sb.append(selectFromWhere);
-  sb.append(" ) temp where _page_row_num between ");
-  sb.append(offset + 1);
-  sb.append(" and ");
-  sb.append(limit);
-  return sb.toString();
+  return limitString;
 }
