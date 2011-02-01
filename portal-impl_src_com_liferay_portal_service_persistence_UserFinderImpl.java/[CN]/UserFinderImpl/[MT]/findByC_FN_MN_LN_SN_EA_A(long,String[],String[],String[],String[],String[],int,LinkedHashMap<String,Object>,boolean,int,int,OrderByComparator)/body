@@ -7,20 +7,21 @@
   Session session=null;
   try {
     session=openSession();
-    String sql=CustomSQLUtil.get(COUNT_BY_C_FN_MN_LN_SN_EA_A);
+    String sql=CustomSQLUtil.get(FIND_BY_C_FN_MN_LN_SN_EA_A);
     sql=CustomSQLUtil.replaceKeywords(sql,"lower(User_.firstName)",StringPool.LIKE,false,firstNames);
     sql=CustomSQLUtil.replaceKeywords(sql,"lower(User_.middleName)",StringPool.LIKE,false,middleNames);
     sql=CustomSQLUtil.replaceKeywords(sql,"lower(User_.lastName)",StringPool.LIKE,false,lastNames);
     sql=CustomSQLUtil.replaceKeywords(sql,"lower(User_.screenName)",StringPool.LIKE,false,screenNames);
     sql=CustomSQLUtil.replaceKeywords(sql,"lower(User_.emailAddress)",StringPool.LIKE,true,emailAddresses);
-    if (active == null) {
-      sql=StringUtil.replace(sql,ACTIVE_SQL,StringPool.BLANK);
+    if (status == WorkflowConstants.STATUS_ANY) {
+      sql=StringUtil.replace(sql,STATUS_SQL,StringPool.BLANK);
     }
     sql=StringUtil.replace(sql,"[$JOIN$]",getJoin(params));
     sql=StringUtil.replace(sql,"[$WHERE$]",getWhere(params));
     sql=CustomSQLUtil.replaceAndOperator(sql,andOperator);
+    sql=CustomSQLUtil.replaceOrderBy(sql,obc);
     SQLQuery q=session.createSQLQuery(sql);
-    q.addScalar(COUNT_COLUMN_NAME,Type.LONG);
+    q.addEntity("User_",UserImpl.class);
     QueryPos qPos=QueryPos.getInstance(q);
     setJoin(qPos,params);
     qPos.add(companyId);
@@ -30,17 +31,10 @@
     qPos.add(lastNames,2);
     qPos.add(screenNames,2);
     qPos.add(emailAddresses,2);
-    if (active != null) {
-      qPos.add(active);
+    if (status != WorkflowConstants.STATUS_ANY) {
+      qPos.add(status);
     }
-    Iterator<Long> itr=q.list().iterator();
-    if (itr.hasNext()) {
-      Long count=itr.next();
-      if (count != null) {
-        return count.intValue();
-      }
-    }
-    return 0;
+    return (List<User>)QueryUtil.list(q,getDialect(),start,end);
   }
  catch (  Exception e) {
     throw new SystemException(e);
