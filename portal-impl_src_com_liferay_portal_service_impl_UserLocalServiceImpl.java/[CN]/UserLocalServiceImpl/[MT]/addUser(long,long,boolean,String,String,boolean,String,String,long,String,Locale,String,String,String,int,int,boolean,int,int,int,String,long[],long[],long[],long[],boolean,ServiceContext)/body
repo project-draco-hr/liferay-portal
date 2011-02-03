@@ -16,11 +16,7 @@
     emailAddress=emailAddressGenerator.generate(companyId,userId);
   }
   validate(companyId,userId,autoPassword,password1,password2,autoScreenName,screenName,emailAddress,firstName,middleName,lastName,organizationIds);
-  if (autoPassword) {
-    PasswordPolicy passwordPolicy=passwordPolicyLocalService.getPasswordPolicy(companyId,organizationIds);
-    password1=PwdToolkitUtil.generate(passwordPolicy);
-  }
- else {
+  if (!autoPassword) {
     if (Validator.isNull(password1) || Validator.isNull(password2)) {
       throw new UserPasswordException(UserPasswordException.PASSWORD_INVALID);
     }
@@ -50,8 +46,10 @@
   user.setModifiedDate(now);
   user.setDefaultUser(false);
   user.setContactId(counterLocalService.increment());
-  user.setPassword(PwdEncryptor.encrypt(password1));
-  user.setPasswordUnencrypted(password1);
+  if (Validator.isNotNull(password1)) {
+    user.setPassword(PwdEncryptor.encrypt(password1));
+    user.setPasswordUnencrypted(password1);
+  }
   user.setPasswordEncrypted(true);
   user.setPasswordReset(false);
   user.setDigest(StringPool.BLANK);
@@ -66,7 +64,7 @@
   user.setMiddleName(middleName);
   user.setLastName(lastName);
   user.setJobTitle(jobTitle);
-  user.setStatus(WorkflowConstants.STATUS_APPROVED);
+  user.setStatus(WorkflowConstants.STATUS_DRAFT);
   userPersistence.update(user,false,serviceContext);
   String creatorUserName=StringPool.BLANK;
   if (creatorUserId <= 0) {
@@ -120,14 +118,13 @@
     updateAsset(creatorUserId,user,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
   }
   user.setExpandoBridgeAttributes(serviceContext);
-  if (sendEmail) {
-    try {
-      sendEmail(user,password1);
-    }
- catch (    IOException ioe) {
-      throw new SystemException(ioe);
-    }
+  serviceContext.setAttribute(_NOTIFY_USER_CONTEXT_ATTR,sendEmail);
+  serviceContext.setAttribute(_AUTO_PASSWORD_CONTEXT_ATT,autoPassword);
+  long workflowUserId=creatorUserId;
+  if (workflowUserId == user.getUserId()) {
+    workflowUserId=defaultUser.getUserId();
   }
+  WorkflowHandlerRegistryUtil.startWorkflowInstance(companyId,workflowUserId,User.class.getName(),user.getUserId(),user,serviceContext);
   Indexer indexer=IndexerRegistryUtil.getIndexer(User.class);
   indexer.reindex(user);
   return user;
