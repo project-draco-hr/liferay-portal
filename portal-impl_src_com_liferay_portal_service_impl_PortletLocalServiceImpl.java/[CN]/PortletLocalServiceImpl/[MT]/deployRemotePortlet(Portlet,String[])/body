@@ -1,0 +1,27 @@
+{
+  Map<String,Portlet> portletsPool=_getPortletsPool();
+  portletsPool.put(portlet.getPortletId(),portlet);
+  PortletInstanceFactoryUtil.clear(portlet,false);
+  PortletConfigFactoryUtil.destroy(portlet);
+  PortletContextFactory.destroy(portlet);
+  clearCache();
+  List<String> portletActions=ResourceActionsUtil.getPortletResourceActions(portlet.getPortletId());
+  resourceActionLocalService.checkResourceActions(portlet.getPortletId(),portletActions);
+  long companyId=portlet.getCompanyId();
+  PortletCategory portletCategory=(PortletCategory)WebAppPool.get(String.valueOf(companyId),WebKeys.PORTLET_CATEGORY);
+  if (portletCategory == null) {
+    _log.error("Unable to register remote portlet for company " + companyId + " because it does not exist");
+    return portlet;
+  }
+  portletCategory.separate(portlet.getPortletId());
+  for (  String categoryName : categoryNames) {
+    PortletCategory newPortletCategory=new PortletCategory(categoryName);
+    if (newPortletCategory.getParentCategory() == null) {
+      PortletCategory rootPortletCategory=new PortletCategory();
+      rootPortletCategory.addCategory(newPortletCategory);
+    }
+    newPortletCategory.getPortletIds().add(portlet.getPortletId());
+    portletCategory.merge(newPortletCategory.getRootCategory());
+  }
+  return portlet;
+}
