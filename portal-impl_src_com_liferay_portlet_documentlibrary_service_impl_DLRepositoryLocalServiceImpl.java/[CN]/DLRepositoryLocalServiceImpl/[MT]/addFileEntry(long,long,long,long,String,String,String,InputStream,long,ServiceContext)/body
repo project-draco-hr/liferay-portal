@@ -1,0 +1,46 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  folderId=getFolderId(user.getCompanyId(),folderId);
+  String name=String.valueOf(counterLocalService.increment(DLFileEntry.class.getName()));
+  String extension=(String)serviceContext.getAttribute("extension");
+  Date now=new Date();
+  validateFile(groupId,folderId,title,extension,is);
+  long fileEntryId=counterLocalService.increment();
+  DLFileEntry dlFileEntry=dlFileEntryPersistence.create(fileEntryId);
+  dlFileEntry.setUuid(serviceContext.getUuid());
+  dlFileEntry.setGroupId(groupId);
+  dlFileEntry.setCompanyId(user.getCompanyId());
+  dlFileEntry.setUserId(user.getUserId());
+  dlFileEntry.setUserName(user.getFullName());
+  dlFileEntry.setVersionUserId(user.getUserId());
+  dlFileEntry.setVersionUserName(user.getFullName());
+  dlFileEntry.setCreateDate(serviceContext.getCreateDate(now));
+  dlFileEntry.setModifiedDate(serviceContext.getModifiedDate(now));
+  dlFileEntry.setRepositoryId(repositoryId);
+  dlFileEntry.setFolderId(folderId);
+  dlFileEntry.setName(name);
+  dlFileEntry.setExtension(extension);
+  dlFileEntry.setTitle(title);
+  dlFileEntry.setDescription(description);
+  dlFileEntry.setVersion(DLFileEntryConstants.DEFAULT_VERSION);
+  dlFileEntry.setSize(size);
+  dlFileEntry.setReadCount(DLFileEntryConstants.DEFAULT_READ_COUNT);
+  dlFileEntryPersistence.update(dlFileEntry,false);
+  if (serviceContext.getAddCommunityPermissions() || serviceContext.getAddGuestPermissions()) {
+    addFileEntryResources(dlFileEntry,serviceContext.getAddCommunityPermissions(),serviceContext.getAddGuestPermissions());
+  }
+ else {
+    addFileEntryResources(dlFileEntry,serviceContext.getCommunityPermissions(),serviceContext.getGuestPermissions());
+  }
+  DLFileVersion dlFileVersion=addFileVersion(user,dlFileEntry,serviceContext.getModifiedDate(now),extension,title,description,null,StringPool.BLANK,DLFileEntryConstants.DEFAULT_VERSION,size,WorkflowConstants.STATUS_DRAFT,serviceContext);
+  if (folderId != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+    DLFolder folder=dlFolderPersistence.findByPrimaryKey(folderId);
+    folder.setLastPostDate(dlFileEntry.getModifiedDate());
+    dlFolderPersistence.update(folder,false);
+  }
+  updateAsset(userId,dlFileEntry,dlFileVersion,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
+  dlAppHelperLocalService.addFileEntry(new LiferayFileEntry(dlFileEntry),new LiferayFileVersion(dlFileVersion),serviceContext);
+  dlLocalService.addFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,dlFileEntry.getGroupId(),dlFileEntry.getDataRepositoryId(),name,false,fileEntryId,dlFileEntry.getLuceneProperties(),dlFileEntry.getModifiedDate(),serviceContext,is);
+  WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),groupId,userId,DLFileEntry.class.getName(),fileEntryId,dlFileEntry,serviceContext);
+  return dlFileEntry;
+}
