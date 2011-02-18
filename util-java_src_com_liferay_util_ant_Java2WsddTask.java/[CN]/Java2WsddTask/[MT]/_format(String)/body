@@ -3,45 +3,49 @@
   Document document=SAXReaderUtil.read(content);
   Element rootElement=document.getRootElement();
   Element serviceElement=rootElement.element("service");
-  Map<String,Element> parameterElementsByName=new TreeMap<String,Element>();
-  List<Element> parameterElements=serviceElement.elements("parameter");
-  for (  Element parameterElement : parameterElements) {
-    parameterElement.detach();
-    String name=parameterElement.attributeValue("name");
-    if (name.equals("allowedMethods")) {
-      Attribute valueAttribute=parameterElement.attribute("value");
-      String[] allowedMethods=StringUtil.split(valueAttribute.getValue()," ");
-      Arrays.sort(allowedMethods);
-      valueAttribute.setValue(StringUtil.merge(allowedMethods," "));
+  Map<String,Element> arrayMappingElements=new TreeMap<String,Element>();
+  Map<String,Element> typeMappingElements=new TreeMap<String,Element>();
+  Map<String,Element> operationElements=new TreeMap<String,Element>();
+  Map<String,Element> parameterElements=new TreeMap<String,Element>();
+  for (  Element element : serviceElement.elements()) {
+    String elementName=element.getName();
+    if (elementName.equals("arrayMapping")) {
+      element.detach();
+      arrayMappingElements.put(element.toString(),element);
     }
-    parameterElementsByName.put(name,parameterElement);
-  }
-  for (  Map.Entry<String,Element> entry : parameterElementsByName.entrySet()) {
-    Element parameterElement=entry.getValue();
-    serviceElement.add(parameterElement);
-  }
-  Map<String,Element> operationElementsById=new TreeMap<String,Element>();
-  List<Element> operationElements=serviceElement.elements("operation");
-  for (  Element operationElement : operationElements) {
-    operationElement.detach();
-    StringBundler sb=new StringBundler();
-    String name=operationElement.attributeValue("name");
-    sb.append(name);
-    sb.append("_METHOD_");
-    parameterElements=operationElement.elements("parameter");
-    for (    Element parameterElement : parameterElements) {
-      String type=parameterElement.attributeValue("type");
-      sb.append(type);
-      sb.append("_PARAMETER_");
+ else     if (elementName.equals("operation")) {
+      element.detach();
+      StringBundler sb=new StringBundler();
+      String name=element.attributeValue("name");
+      sb.append(name);
+      sb.append("_METHOD_");
+      for (      Element parameterElement : element.elements("parameter")) {
+        String type=parameterElement.attributeValue("type");
+        sb.append(type);
+        sb.append("_PARAMETER_");
+      }
+      operationElements.put(sb.toString(),element);
     }
-    operationElementsById.put(sb.toString(),operationElement);
+ else     if (elementName.equals("parameter")) {
+      element.detach();
+      String name=element.attributeValue("name");
+      if (name.equals("allowedMethods")) {
+        Attribute valueAttribute=element.attribute("value");
+        String[] allowedMethods=StringUtil.split(valueAttribute.getValue()," ");
+        Arrays.sort(allowedMethods);
+        valueAttribute.setValue(StringUtil.merge(allowedMethods," "));
+      }
+      parameterElements.put(name,element);
+    }
+ else     if (elementName.equals("typeMapping")) {
+      element.detach();
+      typeMappingElements.put(element.toString(),element);
+    }
   }
-  for (  Map.Entry<String,Element> entry : operationElementsById.entrySet()) {
-    Element operationElement=entry.getValue();
-    serviceElement.add(operationElement);
-  }
+  _addElements(serviceElement,arrayMappingElements);
+  _addElements(serviceElement,typeMappingElements);
+  _addElements(serviceElement,operationElements);
+  _addElements(serviceElement,parameterElements);
   content=StringUtil.replace(document.formattedString(),"\"/>","\" />");
-  content=_moveElement(content,"typeMapping");
-  content=_moveElement(content,"arrayMapping");
   return content;
 }
