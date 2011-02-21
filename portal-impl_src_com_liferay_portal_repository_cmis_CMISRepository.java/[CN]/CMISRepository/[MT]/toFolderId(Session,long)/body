@@ -1,18 +1,23 @@
 {
-  ObjectId objectId=null;
-  DLFolder dlFolder=DLFolderUtil.fetchByPrimaryKey(folderId);
-  if (dlFolder != null) {
-    if (!dlFolder.isMountPoint()) {
-      throw new RepositoryException("CMIS repository should not be used for folder ID " + folderId);
-    }
-    objectId=new ObjectIdImpl(session.getRepositoryInfo().getRootFolderId());
-  }
- else {
-    RepositoryEntry repositoryEntry=RepositoryEntryUtil.fetchByPrimaryKey(folderId);
-    if (repositoryEntry == null) {
+  RepositoryEntry repositoryEntry=RepositoryEntryUtil.fetchByPrimaryKey(folderId);
+  if (repositoryEntry == null) {
+    DLFolder dlFolder=DLFolderUtil.fetchByPrimaryKey(folderId);
+    if (dlFolder == null) {
       throw new NoSuchFolderException("No CMIS folder with {folderId=" + folderId + "}");
     }
-    objectId=new ObjectIdImpl(repositoryEntry.getMappedId());
+ else     if (!dlFolder.isMountPoint()) {
+      throw new RepositoryException("CMIS repository should not be used for folder ID " + folderId);
+    }
+    String rootFolderId=session.getRepositoryInfo().getRootFolderId();
+    repositoryEntry=RepositoryEntryUtil.fetchByR_M(getRepositoryId(),rootFolderId);
+    if (repositoryEntry == null) {
+      long repositoryEntryId=counterLocalService.increment();
+      repositoryEntry=RepositoryEntryUtil.create(repositoryEntryId);
+      repositoryEntry.setGroupId(getGroupId());
+      repositoryEntry.setRepositoryId(getRepositoryId());
+      repositoryEntry.setMappedId(rootFolderId);
+      RepositoryEntryUtil.update(repositoryEntry,false);
+    }
   }
-  return objectId;
+  return new ObjectIdImpl(repositoryEntry.getMappedId());
 }

@@ -1,3 +1,45 @@
 {
-  return null;
+  Document document=null;
+  try {
+    Session session=getSession();
+    ObjectId versionSeriesId=toFileEntryId(fileEntryId);
+    document=(Document)session.getObject(versionSeriesId);
+    ObjectId pwcId=document.checkOut();
+    if (!pwcId.toString().equals(versionSeriesId.toString())) {
+      document=(Document)session.getObject(pwcId);
+    }
+    String oldTitle=document.getName();
+    Map<String,Object> properties=new HashMap<String,Object>();
+    ContentStream contentStream=null;
+    if (Validator.isNotNull(title) && !title.equals(oldTitle)) {
+      properties.put(PropertyIds.NAME,title);
+    }
+    if (is != null) {
+      String contentType=(String)serviceContext.getAttribute("contentType");
+      contentStream=new ContentStreamImpl(sourceFileName,BigInteger.valueOf(size),contentType,is);
+    }
+    ObjectId newObjectId=document.checkIn(majorVersion,properties,contentStream,changeLog);
+    if (!versionSeriesId.toString().equals(newObjectId.toString())) {
+      document=(Document)session.getObject(newObjectId);
+      updateMappedId(fileEntryId,document.getVersionSeriesId());
+    }
+    FileEntry fileEntry=toFileEntry(document);
+    document=null;
+    return fileEntry;
+  }
+ catch (  PortalException pe) {
+    throw pe;
+  }
+catch (  SystemException se) {
+    throw se;
+  }
+catch (  Exception e) {
+    processException(e);
+    throw new RepositoryException(e);
+  }
+ finally {
+    if (document != null) {
+      document.cancelCheckOut();
+    }
+  }
 }

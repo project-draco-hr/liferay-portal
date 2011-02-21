@@ -1,2 +1,54 @@
 {
+  Document document=null;
+  try {
+    Session session=getSession();
+    ObjectId versionSeriesId=toFileEntryId(fileEntryId);
+    document=(Document)session.getObject(versionSeriesId);
+    Document oldVersion=null;
+    List<Document> documentVersions=document.getAllVersions();
+    for (    Document currentVersion : documentVersions) {
+      String currentVersionLabel=currentVersion.getVersionLabel();
+      if (Validator.isNull(currentVersionLabel)) {
+        currentVersionLabel=DLFileEntryConstants.DEFAULT_VERSION;
+      }
+      if (currentVersionLabel.equals(version)) {
+        oldVersion=currentVersion;
+        break;
+      }
+    }
+    String changeLog="Reverted to " + version;
+    String title=oldVersion.getName();
+    ContentStream contentStream=oldVersion.getContentStream();
+    String oldTitle=document.getName();
+    ObjectId pwcId=document.checkOut();
+    if (!pwcId.toString().equals(versionSeriesId.toString())) {
+      document=(Document)session.getObject(pwcId);
+    }
+    Map<String,Object> properties=new HashMap<String,Object>();
+    if (Validator.isNotNull(title) && !title.equals(oldTitle)) {
+      properties.put(PropertyIds.NAME,title);
+    }
+    ObjectId newObjectId=document.checkIn(true,properties,contentStream,changeLog);
+    if (!versionSeriesId.toString().equals(newObjectId.toString())) {
+      document=(Document)session.getObject(newObjectId);
+      updateMappedId(fileEntryId,document.getVersionSeriesId());
+    }
+    toFileEntry(document);
+    document=null;
+  }
+ catch (  PortalException pe) {
+    throw pe;
+  }
+catch (  SystemException se) {
+    throw se;
+  }
+catch (  Exception e) {
+    processException(e);
+    throw new RepositoryException(e);
+  }
+ finally {
+    if (document != null) {
+      document.cancelCheckOut();
+    }
+  }
 }
