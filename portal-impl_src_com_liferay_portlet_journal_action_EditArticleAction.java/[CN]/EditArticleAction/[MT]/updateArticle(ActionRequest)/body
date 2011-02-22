@@ -6,15 +6,29 @@
   String articleId=ParamUtil.getString(uploadRequest,"articleId");
   boolean autoArticleId=ParamUtil.getBoolean(uploadRequest,"autoArticleId");
   double version=ParamUtil.getDouble(uploadRequest,"version");
-  String title=ParamUtil.getString(uploadRequest,"title");
-  String description=ParamUtil.getString(uploadRequest,"description");
+  boolean localized=ParamUtil.getBoolean(uploadRequest,"localized");
+  String lastLanguageId=ParamUtil.getString(uploadRequest,"lastLanguageId");
+  String defaultLanguageId=ParamUtil.getString(uploadRequest,"defaultLanguageId");
+  String toLanguageId=ParamUtil.getString(uploadRequest,"toLanguageId");
+  if (Validator.isNull(lastLanguageId)) {
+    lastLanguageId=defaultLanguageId;
+  }
+  String title=StringPool.BLANK;
+  String description=StringPool.BLANK;
+  Locale toLocale=null;
+  if (Validator.isNull(toLanguageId)) {
+    title=ParamUtil.getString(uploadRequest,"title_" + defaultLanguageId);
+    description=ParamUtil.getString(uploadRequest,"description_" + defaultLanguageId);
+  }
+ else {
+    title=ParamUtil.getString(uploadRequest,"title_" + toLanguageId);
+    description=ParamUtil.getString(uploadRequest,"description_" + toLanguageId);
+    toLocale=LocaleUtil.fromLanguageId(toLanguageId);
+  }
   String content=ParamUtil.getString(uploadRequest,"content");
   String type=ParamUtil.getString(uploadRequest,"type");
   String structureId=ParamUtil.getString(uploadRequest,"structureId");
   String templateId=ParamUtil.getString(uploadRequest,"templateId");
-  boolean localized=ParamUtil.getBoolean(uploadRequest,"localized");
-  String lastLanguageId=ParamUtil.getString(uploadRequest,"lastLanguageId");
-  String defaultLanguageId=ParamUtil.getString(uploadRequest,"defaultLanguageId");
   int displayDateMonth=ParamUtil.getInteger(uploadRequest,"displayDateMonth");
   int displayDateDay=ParamUtil.getInteger(uploadRequest,"displayDateDay");
   int displayDateYear=ParamUtil.getInteger(uploadRequest,"displayDateYear");
@@ -51,24 +65,38 @@
   Map<String,byte[]> images=getImages(uploadRequest);
   String articleURL=ParamUtil.getString(uploadRequest,"articleURL");
   ServiceContext serviceContext=ServiceContextFactory.getInstance(JournalArticle.class.getName(),actionRequest);
+  serviceContext.setAttribute("defaultLanguageId",defaultLanguageId);
   JournalArticle article=null;
   String oldUrlTitle=StringPool.BLANK;
+  Locale defaultLocale=LocaleUtil.fromLanguageId(defaultLanguageId);
+  JournalArticle curArticle=null;
+  if (Validator.isNotNull(articleId)) {
+    curArticle=JournalArticleServiceUtil.getArticle(groupId,articleId,version);
+  }
+  Map<Locale,String> descriptionMap=null;
+  Map<Locale,String> titleMap=null;
   if (cmd.equals(Constants.ADD)) {
+    titleMap=new HashMap<Locale,String>();
+    descriptionMap=new HashMap<Locale,String>();
+    titleMap.put(defaultLocale,title);
+    descriptionMap.put(defaultLocale,description);
     if (Validator.isNull(structureId)) {
       content=LocalizationUtil.updateLocalization(StringPool.BLANK,"static-content",content,lastLanguageId,defaultLanguageId,true,localized);
     }
-    article=JournalArticleServiceUtil.addArticle(groupId,articleId,autoArticleId,title,description,content,type,structureId,templateId,displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,expirationDateMonth,expirationDateDay,expirationDateYear,expirationDateHour,expirationDateMinute,neverExpire,reviewDateMonth,reviewDateDay,reviewDateYear,reviewDateHour,reviewDateMinute,neverReview,indexable,smallImage,smallImageURL,smallFile,images,articleURL,serviceContext);
+    article=JournalArticleServiceUtil.addArticle(groupId,articleId,autoArticleId,titleMap,descriptionMap,content,type,structureId,templateId,displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,expirationDateMonth,expirationDateDay,expirationDateYear,expirationDateHour,expirationDateMinute,neverExpire,reviewDateMonth,reviewDateDay,reviewDateYear,reviewDateHour,reviewDateMinute,neverReview,indexable,smallImage,smallImageURL,smallFile,images,articleURL,serviceContext);
     AssetPublisherUtil.addAndStoreSelection(actionRequest,JournalArticle.class.getName(),article.getResourcePrimKey(),-1);
   }
  else {
-    JournalArticle curArticle=JournalArticleServiceUtil.getArticle(groupId,articleId,version);
     if (Validator.isNull(structureId)) {
       if (!curArticle.isTemplateDriven()) {
         String curContent=StringPool.BLANK;
-        if (localized) {
-          curContent=curArticle.getContent();
+        curContent=curArticle.getContent();
+        if (cmd.equals(Constants.TRANSLATE)) {
+          content=LocalizationUtil.updateLocalization(curContent,"static-content",content,toLanguageId,defaultLanguageId,true,true);
         }
-        content=LocalizationUtil.updateLocalization(curContent,"static-content",content,lastLanguageId,defaultLanguageId,true,localized);
+ else {
+          content=LocalizationUtil.updateLocalization(curContent,"static-content",content,lastLanguageId,defaultLanguageId,true,localized);
+        }
       }
     }
  else {
@@ -80,13 +108,66 @@
  catch (        NoSuchStructureException nsse) {
           structure=JournalStructureLocalServiceUtil.getStructure(themeDisplay.getCompanyGroupId(),structureId);
         }
-        content=JournalUtil.mergeArticleContent(curArticle.getContent(),content);
+        content=JournalUtil.mergeArticleContent(curArticle.getContent(),content,true);
         content=JournalUtil.removeOldContent(content,structure.getMergedXsd());
       }
     }
     article=JournalArticleServiceUtil.getArticle(groupId,articleId,version);
     String tempOldUrlTitle=article.getUrlTitle();
-    article=JournalArticleServiceUtil.updateArticle(groupId,articleId,version,title,description,content,type,structureId,templateId,displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,expirationDateMonth,expirationDateDay,expirationDateYear,expirationDateHour,expirationDateMinute,neverExpire,reviewDateMonth,reviewDateDay,reviewDateYear,reviewDateHour,reviewDateMinute,neverReview,indexable,smallImage,smallImageURL,smallFile,images,articleURL,serviceContext);
+    titleMap=article.getTitleMap();
+    descriptionMap=article.getDescriptionMap();
+    if (cmd.equals(Constants.UPDATE)) {
+      titleMap.put(defaultLocale,title);
+      descriptionMap.put(defaultLocale,description);
+    }
+ else {
+      titleMap.put(toLocale,title);
+      descriptionMap.put(toLocale,description);
+      Date displayDate=article.getDisplayDate();
+      Date expirationDate=article.getExpirationDate();
+      Date reviewDate=article.getReviewDate();
+      if (displayDate != null) {
+        Calendar displayCal=CalendarFactoryUtil.getCalendar(themeDisplay.getTimeZone());
+        displayCal.setTime(displayDate);
+        displayDateMonth=displayCal.get(Calendar.MONTH);
+        displayDateDay=displayCal.get(Calendar.DATE);
+        displayDateYear=displayCal.get(Calendar.YEAR);
+        displayDateHour=displayCal.get(Calendar.HOUR);
+        displayDateMinute=displayCal.get(Calendar.MINUTE);
+        if (displayCal.get(Calendar.AM_PM) == Calendar.PM) {
+          displayDateHour+=12;
+        }
+      }
+      neverExpire=true;
+      if (expirationDate != null) {
+        Calendar expirationCal=CalendarFactoryUtil.getCalendar(themeDisplay.getTimeZone());
+        expirationCal.setTime(expirationDate);
+        expirationDateMonth=expirationCal.get(Calendar.MONTH);
+        expirationDateDay=expirationCal.get(Calendar.DATE);
+        expirationDateYear=expirationCal.get(Calendar.YEAR);
+        expirationDateHour=expirationCal.get(Calendar.HOUR);
+        expirationDateMinute=expirationCal.get(Calendar.MINUTE);
+        neverExpire=false;
+        if (expirationCal.get(Calendar.AM_PM) == Calendar.PM) {
+          expirationDateHour+=12;
+        }
+      }
+      neverReview=true;
+      if (reviewDate != null) {
+        Calendar reviewCal=CalendarFactoryUtil.getCalendar(themeDisplay.getTimeZone());
+        reviewCal.setTime(reviewDate);
+        reviewDateMonth=reviewCal.get(Calendar.MONTH);
+        reviewDateDay=reviewCal.get(Calendar.DATE);
+        reviewDateYear=reviewCal.get(Calendar.YEAR);
+        reviewDateHour=reviewCal.get(Calendar.HOUR);
+        reviewDateMinute=reviewCal.get(Calendar.MINUTE);
+        neverReview=false;
+        if (reviewCal.get(Calendar.AM_PM) == Calendar.PM) {
+          reviewDateHour+=12;
+        }
+      }
+    }
+    article=JournalArticleServiceUtil.updateArticle(groupId,articleId,version,titleMap,descriptionMap,content,article.getType(),article.getStructureId(),article.getTemplateId(),displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,expirationDateMonth,expirationDateDay,expirationDateYear,expirationDateHour,expirationDateMinute,neverExpire,reviewDateMonth,reviewDateDay,reviewDateYear,reviewDateHour,reviewDateMinute,neverReview,indexable,article.getSmallImage(),article.getSmallImageURL(),smallFile,images,articleURL,serviceContext);
     if (!tempOldUrlTitle.equals(article.getUrlTitle())) {
       oldUrlTitle=tempOldUrlTitle;
     }
