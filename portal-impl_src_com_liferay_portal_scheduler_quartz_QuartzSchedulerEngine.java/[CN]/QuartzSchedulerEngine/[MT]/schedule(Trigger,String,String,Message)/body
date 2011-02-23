@@ -1,0 +1,24 @@
+{
+  try {
+    String jobName=trigger.getName();
+    String groupName=trigger.getGroup();
+    JobDetail jobDetail=new JobDetail(jobName,groupName,MessageSenderJob.class);
+    jobDetail.setDurability(true);
+    JobDataMap jobDataMap=jobDetail.getJobDataMap();
+    jobDataMap.put(DESCRIPTION,description);
+    jobDataMap.put(DESTINATION_NAME,destinationName);
+    jobDataMap.put(MESSAGE,JSONFactoryUtil.serialize(message));
+    JobState jobState=new JobState(TriggerState.NORMAL,message.getInteger(EXCEPTIONS_MAX_SIZE));
+    SchedulerContext schedulerContext=_scheduler.getContext();
+    schedulerContext.put(jobDetail.getFullName(),jobState);
+synchronized (this) {
+      _scheduler.deleteJob(jobName,groupName);
+      _scheduler.scheduleJob(jobDetail,trigger);
+    }
+  }
+ catch (  ObjectAlreadyExistsException oare) {
+    if (_log.isInfoEnabled()) {
+      _log.info("Message is already scheduled");
+    }
+  }
+}

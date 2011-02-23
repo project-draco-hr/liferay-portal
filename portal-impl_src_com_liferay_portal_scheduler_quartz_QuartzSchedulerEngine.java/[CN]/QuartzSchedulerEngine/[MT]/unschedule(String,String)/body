@@ -3,8 +3,30 @@
     return;
   }
   try {
-    Scheduler scheduler=selectScheduler(groupName);
-    unschedule(jobName,groupName,scheduler);
+    jobName=fixMaxLength(jobName,JOB_NAME_MAX_LENGTH);
+    groupName=fixMaxLength(groupName,GROUP_NAME_MAX_LENGTH);
+    JobDetail jobDetail=_scheduler.getJobDetail(jobName,groupName);
+    if (jobDetail == null) {
+      return;
+    }
+    JobState jobState=getJobState(jobName,groupName);
+    Trigger trigger=_scheduler.getTrigger(jobName,groupName);
+    Date previousFireTime=trigger.getPreviousFireTime();
+    jobState.setTriggerTimeInfomation(END_TIME,new Date());
+    jobState.setTriggerTimeInfomation(FINAL_FIRE_TIME,previousFireTime);
+    jobState.setTriggerTimeInfomation(NEXT_FIRE_TIME,null);
+    jobState.setTriggerTimeInfomation(PREVIOUS_FIRE_TIME,previousFireTime);
+    jobState.setTriggerTimeInfomation(START_TIME,trigger.getStartTime());
+    jobState.setTriggerState(TriggerState.UNSCHEDULED);
+    JobDataMap jobDataMap=jobDetail.getJobDataMap();
+    Message message=getMessage(jobDataMap);
+    if (message.getBoolean(PERMANENT)) {
+      JobState jobStateClone=(JobState)jobState.clone();
+      jobStateClone.clearExceptions();
+      jobDataMap.put(JOB_STATE,jobStateClone);
+    }
+    _scheduler.unscheduleJob(jobName,groupName);
+    _scheduler.addJob(jobDetail,true);
   }
  catch (  Exception e) {
     throw new SchedulerException("Unable to unschedule job {jobName=" + jobName + ", groupName="+ groupName+ "}",e);
