@@ -1,7 +1,23 @@
 {
-  LiferayPortletRequest portletRequest=(LiferayPortletRequest)actionRequest;
-  LiferayPortletResponse portletResponse=(LiferayPortletResponse)actionResponse;
+  final LiferayPortletRequest portletRequest=(LiferayPortletRequest)actionRequest;
+  final LiferayPortletResponse portletResponse=(LiferayPortletResponse)actionResponse;
   String portletId=_getPortletId(portletResponse);
-  List<ActionFilter> actionFilters=_actionFiltersMap.get(portletId);
-  invoke(portletRequest,portletResponse,PortletRequest.ACTION_PHASE,actionFilters);
+  final List<ActionFilter> actionFilters=_actionFiltersMap.get(portletId);
+  if (PropsValues.PORTLET_ASYNC_EXECUTE_ENABLED && (_portletModel.getActionTimeout() > 0)) {
+    try {
+      PortalExecutorManagerUtil.execute(PORTLET_EXECUTOR_NAME,new CopyThreadLocalCallable<Void>(false,true){
+        public Void doCall() throws Exception {
+          invoke(portletRequest,portletResponse,PortletRequest.ACTION_PHASE,actionFilters);
+          return null;
+        }
+      }
+,_portletModel.getActionTimeout(),TimeUnit.SECONDS);
+    }
+ catch (    Exception e) {
+      throw new PortletException(e);
+    }
+  }
+ else {
+    invoke(portletRequest,portletResponse,PortletRequest.ACTION_PHASE,actionFilters);
+  }
 }
