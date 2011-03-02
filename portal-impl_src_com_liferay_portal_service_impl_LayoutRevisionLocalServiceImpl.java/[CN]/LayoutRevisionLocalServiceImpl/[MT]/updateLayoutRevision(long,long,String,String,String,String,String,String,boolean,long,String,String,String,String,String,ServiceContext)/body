@@ -2,7 +2,8 @@
   User user=userPersistence.findByPrimaryKey(userId);
   LayoutRevision layoutRevision=layoutRevisionPersistence.findByPrimaryKey(layoutRevisionId);
   Date now=new Date();
-  LayoutRevision newLayoutRevision=layoutRevisionPersistence.create(layoutRevisionId);
+  long newLayoutRevisionId=counterLocalService.increment();
+  LayoutRevision newLayoutRevision=layoutRevisionPersistence.create(newLayoutRevisionId);
   newLayoutRevision.setGroupId(layoutRevision.getGroupId());
   newLayoutRevision.setCompanyId(layoutRevision.getCompanyId());
   newLayoutRevision.setUserId(user.getUserId());
@@ -29,8 +30,13 @@
   newLayoutRevision.setWapThemeId(wapThemeId);
   newLayoutRevision.setWapColorSchemeId(wapColorSchemeId);
   newLayoutRevision.setCss(css);
+  newLayoutRevision.setStatus(WorkflowConstants.STATUS_DRAFT);
+  newLayoutRevision.setStatusDate(serviceContext.getModifiedDate(now));
   layoutRevisionPersistence.update(newLayoutRevision,false);
-  copyPortletPreferences(newLayoutRevision,serviceContext);
+  copyPortletPreferences(newLayoutRevision,newLayoutRevision.getParentLayoutRevisionId(),serviceContext);
+  PortalPreferences portalPreferences=PortletPreferencesFactoryUtil.getPortalPreferences(newLayoutRevision.getCompanyId(),userId,serviceContext.isSignedIn());
+  portalPreferences.setValue(Staging.class.getName(),LayoutRevisionConstants.encodeKey(newLayoutRevision.getLayoutSetBranchId(),newLayoutRevision.getPlid()),String.valueOf(newLayoutRevision.getLayoutRevisionId()));
+  serviceContext.setWorkflowAction(WorkflowConstants.STATUS_DRAFT);
   WorkflowHandlerRegistryUtil.startWorkflowInstance(newLayoutRevision.getCompanyId(),newLayoutRevision.getGroupId(),userId,LayoutRevision.class.getName(),newLayoutRevision.getLayoutRevisionId(),newLayoutRevision,serviceContext);
   return newLayoutRevision;
 }
