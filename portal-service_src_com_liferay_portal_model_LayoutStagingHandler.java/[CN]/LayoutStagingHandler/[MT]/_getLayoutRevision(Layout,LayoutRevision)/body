@@ -2,36 +2,40 @@
   if (layoutRevision != null) {
     return layoutRevision;
   }
-  long layoutRevisionId=0;
-  long layoutSetBranchId=0;
   ServiceContext serviceContext=ServiceContextThreadLocal.getServiceContext();
-  if (serviceContext != null) {
-    layoutRevisionId=ParamUtil.getLong(serviceContext,"layoutRevisionId");
-    layoutSetBranchId=ParamUtil.getLong(serviceContext,"layoutSetBranchId");
+  if (!serviceContext.isSignedIn()) {
+    return layoutRevision;
   }
-  if (layoutRevisionId > 0) {
-    return LayoutRevisionLocalServiceUtil.getLayoutRevision(layoutRevisionId);
+  long layoutRevisionId=ParamUtil.getLong(serviceContext,"layoutRevisionId");
+  long layoutSetBranchId=ParamUtil.getLong(serviceContext,"layoutSetBranchId");
+  PortalPreferences portalPreferences=PortletPreferencesFactoryUtil.getPortalPreferences(layout.getCompanyId(),serviceContext.getUserId(),serviceContext.isSignedIn());
+  if (layoutSetBranchId <= 0) {
+    layoutSetBranchId=GetterUtil.getLong(portalPreferences.getValue(Staging.class.getName(),"LAYOUT_SET_BRANCH_ID"));
   }
   LayoutSetBranch layoutSetBranch=null;
   if (layoutSetBranchId > 0) {
     layoutSetBranch=LayoutSetBranchLocalServiceUtil.getLayoutSetBranch(layoutSetBranchId);
-    try {
-      return LayoutRevisionLocalServiceUtil.getLayoutRevision(layoutSetBranch.getLayoutSetBranchId(),layout.getPlid(),true);
-    }
- catch (    NoSuchLayoutRevisionException nslre) {
-    }
   }
  else {
     layoutSetBranch=LayoutSetBranchLocalServiceUtil.getMasterLayoutSetBranch(layout.getGroupId(),layout.isPrivateLayout());
+    layoutSetBranchId=layoutSetBranch.getLayoutSetBranchId();
+  }
+  if (layoutRevisionId <= 0) {
+    layoutRevisionId=GetterUtil.getLong(portalPreferences.getValue(Staging.class.getName(),LayoutRevisionConstants.encodeKey(layoutSetBranchId,layout.getPlid())));
   }
   try {
-    layoutRevision=LayoutRevisionLocalServiceUtil.getLayoutRevision(layoutSetBranch.getLayoutSetBranchId(),layout.getPlid(),true);
+    return LayoutRevisionLocalServiceUtil.getLayoutRevision(layoutRevisionId);
   }
  catch (  NoSuchLayoutRevisionException nslre) {
-    if (layoutSetBranchId <= 0) {
-      layoutSetBranchId=layoutSetBranch.getLayoutSetBranchId();
-    }
-    layoutRevision=LayoutRevisionLocalServiceUtil.addLayoutRevision(serviceContext.getUserId(),layoutSetBranchId,LayoutRevisionConstants.DEFAULT_PARENT_LAYOUT_REVISION_ID,true,layout.getPlid(),layout.getPrivateLayout(),layout.getName(),layout.getTitle(),layout.getDescription(),layout.getTypeSettings(),layout.getIconImage(),layout.getIconImageId(),layout.getThemeId(),layout.getColorSchemeId(),layout.getWapThemeId(),layout.getWapColorSchemeId(),layout.getCss(),serviceContext);
   }
-  return layoutRevision;
+  try {
+    return LayoutRevisionLocalServiceUtil.getLayoutRevision(layoutSetBranch.getLayoutSetBranchId(),layout.getPlid(),true);
+  }
+ catch (  NoSuchLayoutRevisionException nslre) {
+    List<LayoutRevision> revisions=LayoutRevisionLocalServiceUtil.getLayoutRevisions(layoutSetBranch.getLayoutSetBranchId(),layout.getPlid(),LayoutRevisionConstants.DEFAULT_PARENT_LAYOUT_REVISION_ID);
+    if (!revisions.isEmpty()) {
+      return revisions.get(0);
+    }
+  }
+  return LayoutRevisionLocalServiceUtil.addLayoutRevision(serviceContext.getUserId(),layoutSetBranchId,LayoutRevisionConstants.DEFAULT_PARENT_LAYOUT_REVISION_ID,true,layout.getPlid(),layout.getPrivateLayout(),layout.getName(),layout.getTitle(),layout.getDescription(),layout.getTypeSettings(),layout.getIconImage(),layout.getIconImageId(),layout.getThemeId(),layout.getColorSchemeId(),layout.getWapThemeId(),layout.getWapColorSchemeId(),layout.getCss(),serviceContext);
 }
