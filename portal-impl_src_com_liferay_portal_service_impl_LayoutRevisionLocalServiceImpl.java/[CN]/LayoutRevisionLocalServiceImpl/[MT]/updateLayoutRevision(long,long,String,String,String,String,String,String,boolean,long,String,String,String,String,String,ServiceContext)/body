@@ -1,42 +1,52 @@
 {
   User user=userPersistence.findByPrimaryKey(userId);
-  LayoutRevision layoutRevision=layoutRevisionPersistence.findByPrimaryKey(layoutRevisionId);
+  LayoutRevision oldLayoutRevision=layoutRevisionPersistence.findByPrimaryKey(layoutRevisionId);
   Date now=new Date();
-  long newLayoutRevisionId=counterLocalService.increment();
-  LayoutRevision newLayoutRevision=layoutRevisionPersistence.create(newLayoutRevisionId);
-  newLayoutRevision.setGroupId(layoutRevision.getGroupId());
-  newLayoutRevision.setCompanyId(layoutRevision.getCompanyId());
-  newLayoutRevision.setUserId(user.getUserId());
-  newLayoutRevision.setUserName(user.getFullName());
-  newLayoutRevision.setCreateDate(serviceContext.getCreateDate(now));
-  newLayoutRevision.setModifiedDate(serviceContext.getModifiedDate(now));
-  newLayoutRevision.setLayoutSetBranchId(layoutRevision.getLayoutSetBranchId());
-  newLayoutRevision.setParentLayoutRevisionId(layoutRevision.getLayoutRevisionId());
-  newLayoutRevision.setHead(false);
-  newLayoutRevision.setPlid(layoutRevision.getPlid());
-  newLayoutRevision.setPrivateLayout(layoutRevision.getPrivateLayout());
-  newLayoutRevision.setName(name);
-  newLayoutRevision.setTitle(title);
-  newLayoutRevision.setDescription(description);
-  newLayoutRevision.setKeywords(keywords);
-  newLayoutRevision.setRobots(robots);
-  newLayoutRevision.setTypeSettings(typeSettings);
-  if (iconImage) {
-    newLayoutRevision.setIconImage(iconImage);
-    newLayoutRevision.setIconImageId(iconImageId);
+  LayoutRevision layoutRevision=null;
+  int workflowAction=serviceContext.getWorkflowAction();
+  if (workflowAction != WorkflowConstants.ACTION_PUBLISH) {
+    long newLayoutRevisionId=counterLocalService.increment();
+    layoutRevision=layoutRevisionPersistence.create(newLayoutRevisionId);
+    layoutRevision.setGroupId(oldLayoutRevision.getGroupId());
+    layoutRevision.setCompanyId(oldLayoutRevision.getCompanyId());
+    layoutRevision.setUserId(user.getUserId());
+    layoutRevision.setUserName(user.getFullName());
+    layoutRevision.setCreateDate(serviceContext.getCreateDate(now));
+    layoutRevision.setModifiedDate(serviceContext.getModifiedDate(now));
+    layoutRevision.setLayoutSetBranchId(oldLayoutRevision.getLayoutSetBranchId());
+    layoutRevision.setParentLayoutRevisionId(oldLayoutRevision.getLayoutRevisionId());
+    layoutRevision.setHead(false);
+    layoutRevision.setPlid(oldLayoutRevision.getPlid());
+    layoutRevision.setPrivateLayout(oldLayoutRevision.getPrivateLayout());
+    layoutRevision.setName(name);
+    layoutRevision.setTitle(title);
+    layoutRevision.setDescription(description);
+    layoutRevision.setKeywords(keywords);
+    layoutRevision.setRobots(robots);
+    layoutRevision.setTypeSettings(typeSettings);
+    if (iconImage) {
+      layoutRevision.setIconImage(iconImage);
+      layoutRevision.setIconImageId(iconImageId);
+    }
+    layoutRevision.setThemeId(themeId);
+    layoutRevision.setColorSchemeId(colorSchemeId);
+    layoutRevision.setWapThemeId(wapThemeId);
+    layoutRevision.setWapColorSchemeId(wapColorSchemeId);
+    layoutRevision.setCss(css);
+    layoutRevision.setStatus(WorkflowConstants.STATUS_DRAFT);
+    layoutRevision.setStatusDate(serviceContext.getModifiedDate(now));
+    layoutRevisionPersistence.update(layoutRevision,false);
+    copyPortletPreferences(layoutRevision,layoutRevision.getParentLayoutRevisionId(),serviceContext);
+    PortalPreferences portalPreferences=PortletPreferencesFactoryUtil.getPortalPreferences(layoutRevision.getCompanyId(),userId,serviceContext.isSignedIn());
+    portalPreferences.setValue(Staging.class.getName(),LayoutRevisionConstants.encodeKey(layoutRevision.getLayoutSetBranchId(),layoutRevision.getPlid()),String.valueOf(layoutRevision.getLayoutRevisionId()));
   }
-  newLayoutRevision.setThemeId(themeId);
-  newLayoutRevision.setColorSchemeId(colorSchemeId);
-  newLayoutRevision.setWapThemeId(wapThemeId);
-  newLayoutRevision.setWapColorSchemeId(wapColorSchemeId);
-  newLayoutRevision.setCss(css);
-  newLayoutRevision.setStatus(WorkflowConstants.STATUS_DRAFT);
-  newLayoutRevision.setStatusDate(serviceContext.getModifiedDate(now));
-  layoutRevisionPersistence.update(newLayoutRevision,false);
-  copyPortletPreferences(newLayoutRevision,newLayoutRevision.getParentLayoutRevisionId(),serviceContext);
-  PortalPreferences portalPreferences=PortletPreferencesFactoryUtil.getPortalPreferences(newLayoutRevision.getCompanyId(),userId,serviceContext.isSignedIn());
-  portalPreferences.setValue(Staging.class.getName(),LayoutRevisionConstants.encodeKey(newLayoutRevision.getLayoutSetBranchId(),newLayoutRevision.getPlid()),String.valueOf(newLayoutRevision.getLayoutRevisionId()));
-  serviceContext.setWorkflowAction(WorkflowConstants.STATUS_DRAFT);
-  WorkflowHandlerRegistryUtil.startWorkflowInstance(newLayoutRevision.getCompanyId(),newLayoutRevision.getGroupId(),userId,LayoutRevision.class.getName(),newLayoutRevision.getLayoutRevisionId(),newLayoutRevision,serviceContext);
-  return newLayoutRevision;
+ else {
+    layoutRevision=oldLayoutRevision;
+  }
+  boolean major=ParamUtil.getBoolean(serviceContext,"major");
+  if (major) {
+    updateMajor(layoutRevision);
+  }
+  WorkflowHandlerRegistryUtil.startWorkflowInstance(layoutRevision.getCompanyId(),layoutRevision.getGroupId(),userId,LayoutRevision.class.getName(),layoutRevision.getLayoutRevisionId(),layoutRevision,serviceContext);
+  return layoutRevision;
 }
