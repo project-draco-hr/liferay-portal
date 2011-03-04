@@ -46,11 +46,14 @@
  catch (  NoSuchFileVersionException nsfve) {
     dlFileVersion=addFileVersion(user,dlFileEntry,serviceContext.getModifiedDate(now),extension,title,description,changeLog,extraSettings,version,size,WorkflowConstants.STATUS_DRAFT,serviceContext);
   }
+  File file=null;
   if ((is == null) && !updatedFileVersion) {
     int fetchFailures=0;
     while (is == null) {
       try {
         is=dlLocalService.getFileAsStream(user.getCompanyId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName());
+        file=FileUtil.createTempFile(FileUtil.getExtension(title));
+        FileUtil.write(file,is);
       }
  catch (      NoSuchFileException nsfe) {
         fetchFailures++;
@@ -65,6 +68,9 @@
           throw nsfe;
         }
       }
+catch (      IOException ioe) {
+        new SystemException(ioe);
+      }
     }
   }
   updateAsset(userId,dlFileEntry,dlFileVersion,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
@@ -73,11 +79,19 @@
     dlFolder.setLastPostDate(dlFileEntry.getModifiedDate());
     dlFolderPersistence.update(dlFolder,false);
   }
-  if (is != null) {
+  if ((is != null) || (file != null)) {
     try {
       dlLocalService.deleteFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),version);
     }
  catch (    NoSuchFileException nsfe) {
+    }
+    if (file != null) {
+      try {
+        is=new UnsyncBufferedInputStream(new FileInputStream(file));
+      }
+ catch (      IOException ioe) {
+        throw new SystemException(ioe);
+      }
     }
     dlLocalService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,dlFileEntry.getGroupId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),dlFileEntry.getExtension(),false,version,sourceFileName,dlFileEntry.getFileEntryId(),dlFileEntry.getLuceneProperties(),dlFileEntry.getModifiedDate(),serviceContext,is);
   }
