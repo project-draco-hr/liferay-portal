@@ -1,20 +1,7 @@
 {
-  long subscriptionUserId=subscription.getUserId();
-  if (_sentUserIds.contains(subscriptionUserId)) {
-    if (_log.isDebugEnabled()) {
-      _log.debug("Do not send a duplicate email to user " + subscriptionUserId);
-    }
-    return;
-  }
- else {
-    if (_log.isDebugEnabled()) {
-      _log.debug("Add user " + subscriptionUserId + " to the list of users who have received an email");
-    }
-    _sentUserIds.add(subscriptionUserId);
-  }
   User user=null;
   try {
-    user=UserLocalServiceUtil.getUserById(subscriptionUserId);
+    user=UserLocalServiceUtil.getUserById(subscription.getUserId());
   }
  catch (  NoSuchUserException nsue) {
     if (_log.isInfoEnabled()) {
@@ -23,15 +10,28 @@
     deleteSubscription(subscription);
     return;
   }
+  String emailAddress=user.getEmailAddress();
+  if (_sentAddresses.contains(emailAddress)) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Do not send a duplicate email to " + emailAddress);
+    }
+    return;
+  }
+ else {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Add " + emailAddress + " to the list of users who have received an email");
+    }
+    _sentAddresses.add(emailAddress);
+  }
   if (!user.isActive()) {
     if (_log.isDebugEnabled()) {
-      _log.debug("Skip inactive user " + subscriptionUserId);
+      _log.debug("Skip inactive user " + user.getUserId());
     }
     return;
   }
   Group group=GroupLocalServiceUtil.getGroup(groupId);
   int type=group.getType();
-  if (!GroupLocalServiceUtil.hasUserGroup(subscriptionUserId,groupId) && (type != GroupConstants.TYPE_COMMUNITY_OPEN)) {
+  if (!GroupLocalServiceUtil.hasUserGroup(user.getUserId(),groupId) && (type != GroupConstants.TYPE_COMMUNITY_OPEN)) {
     if (_log.isInfoEnabled()) {
       _log.info("Subscription " + subscription.getSubscriptionId() + " is stale and will be deleted");
     }
@@ -41,7 +41,7 @@
   try {
     if (!hasPermission(subscription,user)) {
       if (_log.isDebugEnabled()) {
-        _log.debug("Skip unauthorized user " + subscriptionUserId);
+        _log.debug("Skip unauthorized user " + user.getUserId());
       }
       return;
     }
