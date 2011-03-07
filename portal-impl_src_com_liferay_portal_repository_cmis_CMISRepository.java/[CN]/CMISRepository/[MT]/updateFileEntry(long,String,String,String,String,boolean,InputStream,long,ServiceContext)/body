@@ -1,30 +1,44 @@
 {
   Document document=null;
+  boolean checkedOut=false;
   try {
     Session session=getSession();
     ObjectId versionSeriesId=toFileEntryId(fileEntryId);
     document=(Document)session.getObject(versionSeriesId);
-    ObjectId pwcId=document.checkOut();
-    if (!pwcId.toString().equals(versionSeriesId.toString())) {
-      document=(Document)session.getObject(pwcId);
+    document.refresh();
+    Set<Action> allowableActionsSet=document.getAllowableActions().getAllowableActions();
+    if (allowableActionsSet.contains(Action.CAN_CHECK_OUT)) {
+      document.checkOut();
+      checkedOut=true;
     }
+    document=document.getObjectOfLatestVersion(false);
     String oldTitle=document.getName();
-    Map<String,Object> properties=new HashMap<String,Object>();
+    Map<String,Object> properties=null;
     ContentStream contentStream=null;
     if (Validator.isNotNull(title) && !title.equals(oldTitle)) {
+      properties=new HashMap<String,Object>();
       properties.put(PropertyIds.NAME,title);
     }
     if (is != null) {
       String contentType=(String)serviceContext.getAttribute("contentType");
       contentStream=new ContentStreamImpl(sourceFileName,BigInteger.valueOf(size),contentType,is);
     }
-    String documentId=document.getId();
-    ObjectId newObjectId=document.checkIn(majorVersion,properties,contentStream,changeLog);
-    if (!documentId.equals(newObjectId.toString())) {
-      document=(Document)session.getObject(newObjectId);
+    checkUpdatable(allowableActionsSet,properties,contentStream);
+    if (checkedOut) {
+      document.checkIn(majorVersion,properties,contentStream,changeLog);
+      checkedOut=false;
     }
+ else {
+      if (properties != null) {
+        document=(Document)document.updateProperties(properties);
+      }
+      if (contentStream != null) {
+        document.setContentStream(contentStream,true);
+      }
+    }
+    document=(Document)session.getObject(versionSeriesId);
+    document.refresh();
     FileEntry fileEntry=toFileEntry(document);
-    document=null;
     return fileEntry;
   }
  catch (  PortalException pe) {
@@ -38,7 +52,7 @@ catch (  Exception e) {
     throw new RepositoryException(e);
   }
  finally {
-    if (document != null) {
+    if (checkedOut) {
       document.cancelCheckOut();
     }
   }

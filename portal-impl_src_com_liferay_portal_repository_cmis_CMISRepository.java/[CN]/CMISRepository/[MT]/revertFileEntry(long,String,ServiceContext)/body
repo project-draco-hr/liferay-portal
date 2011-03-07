@@ -1,9 +1,11 @@
 {
   Document document=null;
+  boolean checkedOut=false;
   try {
     Session session=getSession();
     ObjectId versionSeriesId=toFileEntryId(fileEntryId);
     document=(Document)session.getObject(versionSeriesId);
+    document.refresh();
     Document oldVersion=null;
     List<Document> documentVersions=document.getAllVersions();
     for (    Document currentVersion : documentVersions) {
@@ -19,22 +21,31 @@
     String changeLog="Reverted to " + version;
     String title=oldVersion.getName();
     ContentStream contentStream=oldVersion.getContentStream();
-    String oldTitle=document.getName();
-    ObjectId pwcId=document.checkOut();
-    if (!pwcId.toString().equals(versionSeriesId.toString())) {
-      document=(Document)session.getObject(pwcId);
+    Set<Action> allowableActionsSet=document.getAllowableActions().getAllowableActions();
+    if (allowableActionsSet.contains(Action.CAN_CHECK_OUT)) {
+      document.checkOut();
+      checkedOut=true;
     }
-    Map<String,Object> properties=new HashMap<String,Object>();
+    document=document.getObjectOfLatestVersion(false);
+    String oldTitle=document.getName();
+    Map<String,Object> properties=null;
     if (Validator.isNotNull(title) && !title.equals(oldTitle)) {
+      properties=new HashMap<String,Object>();
       properties.put(PropertyIds.NAME,title);
     }
-    String documentId=document.getId();
-    ObjectId newObjectId=document.checkIn(true,properties,contentStream,changeLog);
-    if (!documentId.equals(newObjectId.toString())) {
-      document=(Document)session.getObject(newObjectId);
+    checkUpdatable(allowableActionsSet,properties,contentStream);
+    if (checkedOut) {
+      document.checkIn(true,properties,contentStream,changeLog);
+      checkedOut=false;
     }
-    toFileEntry(document);
-    document=null;
+ else {
+      if (properties != null) {
+        document=(Document)document.updateProperties(properties);
+      }
+      document.setContentStream(contentStream,true);
+    }
+    document=(Document)session.getObject(versionSeriesId);
+    document.refresh();
   }
  catch (  PortalException pe) {
     throw pe;
@@ -47,7 +58,7 @@ catch (  Exception e) {
     throw new RepositoryException(e);
   }
  finally {
-    if (document != null) {
+    if (checkedOut) {
       document.cancelCheckOut();
     }
   }
