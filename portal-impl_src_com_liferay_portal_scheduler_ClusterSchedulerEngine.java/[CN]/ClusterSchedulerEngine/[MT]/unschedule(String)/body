@@ -1,3 +1,27 @@
 {
-  _schedulerEngine.unschedule(groupName);
+  StorageType storageType=getStorageType(groupName);
+  try {
+    if ((storageType == StorageType.MEMORY_SINGLE_INSTANCE) && !isMemorySchedulerClusterLockOwner(lockMemorySchedulerCluster(null))) {
+      Iterator<Map.Entry<String,ObjectValuePair<SchedulerResponse,TriggerState>>> iterator=_memorySingleInstanceJobs.entrySet().iterator();
+      while (iterator.hasNext()) {
+        Map.Entry<String,ObjectValuePair<SchedulerResponse,TriggerState>> entry=iterator.next();
+        SchedulerResponse schedulerResponse=entry.getValue().getKey();
+        if (schedulerResponse.getGroupName().equals(groupName)) {
+          iterator.remove();
+        }
+      }
+      return;
+    }
+  }
+ catch (  Exception e) {
+    throw new SchedulerException("Unable to unschedule jobs in group {" + groupName + "}",e);
+  }
+  _readLock.lock();
+  try {
+    _schedulerEngine.unschedule(groupName);
+  }
+  finally {
+    _readLock.unlock();
+  }
+  skipClusterInvoking(storageType);
 }

@@ -1,3 +1,26 @@
 {
-  _schedulerEngine.delete(groupName);
+  StorageType storageType=getStorageType(groupName);
+  try {
+    if ((storageType == StorageType.MEMORY_SINGLE_INSTANCE) && !isMemorySchedulerClusterLockOwner(lockMemorySchedulerCluster(null))) {
+      Iterator<Map.Entry<String,ObjectValuePair<SchedulerResponse,TriggerState>>> iterator=_memorySingleInstanceJobs.entrySet().iterator();
+      while (iterator.hasNext()) {
+        SchedulerResponse schedulerResponse=iterator.next().getValue().getKey();
+        if (schedulerResponse.getGroupName().equals(groupName)) {
+          iterator.remove();
+        }
+      }
+      return;
+    }
+  }
+ catch (  Exception e) {
+    throw new SchedulerException("Unable to delete jobs in group {" + groupName + "}",e);
+  }
+  _readLock.lock();
+  try {
+    _schedulerEngine.delete(groupName);
+  }
+  finally {
+    _readLock.unlock();
+  }
+  skipClusterInvoking(storageType);
 }

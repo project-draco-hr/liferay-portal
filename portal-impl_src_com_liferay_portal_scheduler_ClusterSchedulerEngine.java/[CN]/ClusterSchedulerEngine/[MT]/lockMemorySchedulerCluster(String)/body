@@ -1,13 +1,28 @@
 {
-  if (_localClusterNodeAddress == null) {
-    _localClusterNodeAddress=getSerializedString(ClusterExecutorUtil.getLocalClusterNodeAddress());
-  }
   Lock lock=null;
   if (owner == null) {
     lock=LockLocalServiceUtil.lock(_LOCK_CLASS_NAME,_LOCK_CLASS_NAME,_localClusterNodeAddress,PropsValues.MEMORY_CLUSTER_SCHEDULER_LOCK_CACHE_ENABLED);
   }
  else {
     lock=LockLocalServiceUtil.lock(_LOCK_CLASS_NAME,_LOCK_CLASS_NAME,owner,_localClusterNodeAddress,PropsValues.MEMORY_CLUSTER_SCHEDULER_LOCK_CACHE_ENABLED);
+  }
+  if (lock.isNew()) {
+    _writeLock.lock();
+    ProxyModeThreadLocal.setForceSync(true);
+    try {
+      for (      ObjectValuePair<SchedulerResponse,TriggerState> memorySingleInstanceJob : _memorySingleInstanceJobs.values()) {
+        SchedulerResponse schedulerResponse=memorySingleInstanceJob.getKey();
+        _schedulerEngine.schedule(schedulerResponse.getTrigger(),schedulerResponse.getDescription(),schedulerResponse.getDestinationName(),schedulerResponse.getMessage());
+        TriggerState triggerState=memorySingleInstanceJob.getValue();
+        if (triggerState.equals(TriggerState.PAUSED)) {
+          _schedulerEngine.pause(schedulerResponse.getJobName(),schedulerResponse.getGroupName());
+        }
+      }
+    }
+  finally {
+      ProxyModeThreadLocal.setForceSync(false);
+      _writeLock.unlock();
+    }
   }
   return lock;
 }

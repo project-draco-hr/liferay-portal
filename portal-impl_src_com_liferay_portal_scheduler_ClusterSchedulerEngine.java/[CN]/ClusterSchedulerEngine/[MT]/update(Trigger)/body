@@ -1,3 +1,28 @@
 {
-  _schedulerEngine.update(trigger);
+  String jobName=trigger.getJobName();
+  String groupName=trigger.getGroupName();
+  StorageType storageType=getStorageType(groupName);
+  try {
+    if ((storageType == StorageType.MEMORY_SINGLE_INSTANCE) && !isMemorySchedulerClusterLockOwner(lockMemorySchedulerCluster(null))) {
+      for (      ObjectValuePair<SchedulerResponse,TriggerState> value : _memorySingleInstanceJobs.values()) {
+        SchedulerResponse schedulerResponse=value.getKey();
+        if (schedulerResponse.getGroupName().equals(groupName) && schedulerResponse.getJobName().equals(jobName)) {
+          schedulerResponse.setTrigger(trigger);
+          return;
+        }
+      }
+      throw new Exception("Unable to update trigger for memory single instance job");
+    }
+  }
+ catch (  Exception e) {
+    throw new SchedulerException("Unable to update job {jobName=" + jobName + ", groupName="+ groupName+ "}",e);
+  }
+  _readLock.lock();
+  try {
+    _schedulerEngine.update(trigger);
+  }
+  finally {
+    _readLock.unlock();
+  }
+  skipClusterInvoking(storageType);
 }

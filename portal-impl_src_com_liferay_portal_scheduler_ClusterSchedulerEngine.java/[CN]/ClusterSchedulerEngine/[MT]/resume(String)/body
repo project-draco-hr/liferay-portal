@@ -1,3 +1,25 @@
 {
-  _schedulerEngine.resume(groupName);
+  StorageType storageType=getStorageType(groupName);
+  try {
+    if ((storageType == StorageType.MEMORY_SINGLE_INSTANCE) && !isMemorySchedulerClusterLockOwner(lockMemorySchedulerCluster(null))) {
+      for (      ObjectValuePair<SchedulerResponse,TriggerState> value : _memorySingleInstanceJobs.values()) {
+        SchedulerResponse schedulerResponse=value.getKey();
+        if (schedulerResponse.getGroupName().equals(groupName)) {
+          value.setValue(TriggerState.NORMAL);
+        }
+      }
+      return;
+    }
+  }
+ catch (  Exception e) {
+    throw new SchedulerException("Unable to resume jobs in group {" + groupName + "}",e);
+  }
+  _readLock.lock();
+  try {
+    _schedulerEngine.resume(groupName);
+  }
+  finally {
+    _readLock.unlock();
+  }
+  skipClusterInvoking(storageType);
 }
