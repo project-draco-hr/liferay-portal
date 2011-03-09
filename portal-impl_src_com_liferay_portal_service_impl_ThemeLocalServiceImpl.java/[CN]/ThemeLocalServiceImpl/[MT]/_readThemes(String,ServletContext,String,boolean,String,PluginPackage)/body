@@ -3,16 +3,15 @@
   if (xml == null) {
     return themeIds;
   }
-  Document doc=SAXReaderUtil.read(xml,true);
-  Element root=doc.getRootElement();
+  Document document=SAXReaderUtil.read(xml,true);
+  Element rootElement=document.getRootElement();
   Version portalVersion=_getVersion(ReleaseInfo.getVersion());
   boolean compatible=false;
-  Element compatibilityEl=root.element("compatibility");
-  if (compatibilityEl != null) {
-    Iterator<Element> itr=compatibilityEl.elements("version").iterator();
-    while (itr.hasNext()) {
-      Element versionEl=itr.next();
-      Version version=_getVersion(versionEl.getTextTrim());
+  Element compatibilityElement=rootElement.element("compatibility");
+  if (compatibilityElement != null) {
+    List<Element> versionElements=compatibilityElement.elements("version");
+    for (    Element versionElement : versionElements) {
+      Version version=_getVersion(versionElement.getTextTrim());
       if (version.includes(portalVersion)) {
         compatible=true;
         break;
@@ -24,130 +23,123 @@
     return themeIds;
   }
   ThemeCompanyLimit companyLimit=null;
-  Element companyLimitEl=root.element("company-limit");
-  if (companyLimitEl != null) {
+  Element companyLimitElement=rootElement.element("company-limit");
+  if (companyLimitElement != null) {
     companyLimit=new ThemeCompanyLimit();
-    Element companyIncludesEl=companyLimitEl.element("company-includes");
-    if (companyIncludesEl != null) {
-      companyLimit.setIncludes(_getCompanyLimitIncludes(companyIncludesEl));
+    Element companyIncludesElement=companyLimitElement.element("company-includes");
+    if (companyIncludesElement != null) {
+      companyLimit.setIncludes(_getCompanyLimitIncludes(companyIncludesElement));
     }
-    Element companyExcludesEl=companyLimitEl.element("company-excludes");
-    if (companyExcludesEl != null) {
-      companyLimit.setExcludes(_getCompanyLimitExcludes(companyExcludesEl));
+    Element companyExcludesElement=companyLimitElement.element("company-excludes");
+    if (companyExcludesElement != null) {
+      companyLimit.setExcludes(_getCompanyLimitExcludes(companyExcludesElement));
     }
   }
   ThemeGroupLimit groupLimit=null;
-  Element groupLimitEl=root.element("group-limit");
-  if (groupLimitEl != null) {
+  Element groupLimitElement=rootElement.element("group-limit");
+  if (groupLimitElement != null) {
     groupLimit=new ThemeGroupLimit();
-    Element groupIncludesEl=groupLimitEl.element("group-includes");
-    if (groupIncludesEl != null) {
-      groupLimit.setIncludes(_getGroupLimitIncludes(groupIncludesEl));
+    Element groupIncludesElement=groupLimitElement.element("group-includes");
+    if (groupIncludesElement != null) {
+      groupLimit.setIncludes(_getGroupLimitIncludes(groupIncludesElement));
     }
-    Element groupExcludesEl=groupLimitEl.element("group-excludes");
-    if (groupExcludesEl != null) {
-      groupLimit.setExcludes(_getGroupLimitExcludes(groupExcludesEl));
+    Element groupExcludesElement=groupLimitElement.element("group-excludes");
+    if (groupExcludesElement != null) {
+      groupLimit.setExcludes(_getGroupLimitExcludes(groupExcludesElement));
     }
   }
   long timestamp=ServletContextUtil.getLastModified(servletContext);
-  Iterator<Element> itr1=root.elements("theme").iterator();
-  while (itr1.hasNext()) {
-    Element theme=itr1.next();
+  List<Element> themeElements=rootElement.elements("theme");
+  for (  Element themeElement : themeElements) {
     ContextReplace themeContextReplace=new ContextReplace();
     themeContextReplace.addValue("themes-path",themesPath);
-    String themeId=theme.attributeValue("id");
+    String themeId=themeElement.attributeValue("id");
     if (servletContextName != null) {
       themeId=themeId + PortletConstants.WAR_SEPARATOR + servletContextName;
     }
     themeId=PortalUtil.getJsSafePortletId(themeId);
     themeContextReplace.addValue("theme-id",themeId);
     themeIds.add(themeId);
-    Theme themeModel=_themes.get(themeId);
-    if (themeModel == null) {
-      themeModel=new ThemeImpl(themeId);
-      _themes.put(themeId,themeModel);
+    Theme theme=_themes.get(themeId);
+    if (theme == null) {
+      theme=new ThemeImpl(themeId);
+      _themes.put(themeId,theme);
     }
-    themeModel.setTimestamp(timestamp);
+    theme.setTimestamp(timestamp);
     PluginSetting pluginSetting=pluginSettingLocalService.getDefaultPluginSetting();
-    themeModel.setPluginPackage(pluginPackage);
-    themeModel.setDefaultPluginSetting(pluginSetting);
-    themeModel.setThemeCompanyLimit(companyLimit);
-    themeModel.setThemeGroupLimit(groupLimit);
+    theme.setPluginPackage(pluginPackage);
+    theme.setDefaultPluginSetting(pluginSetting);
+    theme.setThemeCompanyLimit(companyLimit);
+    theme.setThemeGroupLimit(groupLimit);
     if (servletContextName != null) {
-      themeModel.setServletContextName(servletContextName);
+      theme.setServletContextName(servletContextName);
     }
-    themeModel.setLoadFromServletContext(loadFromServletContext);
-    String name=GetterUtil.getString(theme.attributeValue("name"),themeModel.getName());
-    String rootPath=GetterUtil.getString(theme.elementText("root-path"),themeModel.getRootPath());
+    theme.setLoadFromServletContext(loadFromServletContext);
+    String name=GetterUtil.getString(themeElement.attributeValue("name"),theme.getName());
+    String rootPath=GetterUtil.getString(themeElement.elementText("root-path"),theme.getRootPath());
     rootPath=themeContextReplace.replace(rootPath);
     themeContextReplace.addValue("root-path",rootPath);
-    String templatesPath=GetterUtil.getString(theme.elementText("templates-path"),themeModel.getTemplatesPath());
+    String templatesPath=GetterUtil.getString(themeElement.elementText("templates-path"),theme.getTemplatesPath());
     templatesPath=themeContextReplace.replace(templatesPath);
     templatesPath=StringUtil.safePath(templatesPath);
     themeContextReplace.addValue("templates-path",templatesPath);
-    String cssPath=GetterUtil.getString(theme.elementText("css-path"),themeModel.getCssPath());
+    String cssPath=GetterUtil.getString(themeElement.elementText("css-path"),theme.getCssPath());
     cssPath=themeContextReplace.replace(cssPath);
     cssPath=StringUtil.safePath(cssPath);
     themeContextReplace.addValue("css-path",cssPath);
-    String imagesPath=GetterUtil.getString(theme.elementText("images-path"),themeModel.getImagesPath());
+    String imagesPath=GetterUtil.getString(themeElement.elementText("images-path"),theme.getImagesPath());
     imagesPath=themeContextReplace.replace(imagesPath);
     imagesPath=StringUtil.safePath(imagesPath);
     themeContextReplace.addValue("images-path",imagesPath);
-    String javaScriptPath=GetterUtil.getString(theme.elementText("javascript-path"),themeModel.getJavaScriptPath());
+    String javaScriptPath=GetterUtil.getString(themeElement.elementText("javascript-path"),theme.getJavaScriptPath());
     javaScriptPath=themeContextReplace.replace(javaScriptPath);
     javaScriptPath=StringUtil.safePath(javaScriptPath);
     themeContextReplace.addValue("javascript-path",javaScriptPath);
-    String virtualPath=GetterUtil.getString(theme.elementText("virtual-path"),themeModel.getVirtualPath());
-    String templateExtension=GetterUtil.getString(theme.elementText("template-extension"),themeModel.getTemplateExtension());
-    themeModel.setName(name);
-    themeModel.setRootPath(rootPath);
-    themeModel.setTemplatesPath(templatesPath);
-    themeModel.setCssPath(cssPath);
-    themeModel.setImagesPath(imagesPath);
-    themeModel.setJavaScriptPath(javaScriptPath);
-    themeModel.setVirtualPath(virtualPath);
-    themeModel.setTemplateExtension(templateExtension);
-    Element settingsEl=theme.element("settings");
-    if (settingsEl != null) {
-      Iterator<Element> itr2=settingsEl.elements("setting").iterator();
-      while (itr2.hasNext()) {
-        Element settingEl=itr2.next();
-        boolean configurable=GetterUtil.getBoolean(settingEl.attributeValue("configurable"));
-        String key=settingEl.attributeValue("key");
-        String options=settingEl.attributeValue("options");
-        String type=settingEl.attributeValue("type");
-        String value=settingEl.attributeValue("value");
-        String[] optionsArray=null;
-        if (Validator.isNotNull(options)) {
-          optionsArray=StringUtil.split(options);
-        }
-        themeModel.addSetting(key,value,configurable,type,optionsArray);
+    String virtualPath=GetterUtil.getString(themeElement.elementText("virtual-path"),theme.getVirtualPath());
+    String templateExtension=GetterUtil.getString(themeElement.elementText("template-extension"),theme.getTemplateExtension());
+    theme.setName(name);
+    theme.setRootPath(rootPath);
+    theme.setTemplatesPath(templatesPath);
+    theme.setCssPath(cssPath);
+    theme.setImagesPath(imagesPath);
+    theme.setJavaScriptPath(javaScriptPath);
+    theme.setVirtualPath(virtualPath);
+    theme.setTemplateExtension(templateExtension);
+    Element settingsElement=themeElement.element("settings");
+    if (settingsElement != null) {
+      List<Element> settingElements=settingsElement.elements("setting");
+      for (      Element settingElement : settingElements) {
+        boolean configurable=GetterUtil.getBoolean(settingElement.attributeValue("configurable"));
+        String key=settingElement.attributeValue("key");
+        String[] options=StringUtil.split(settingElement.attributeValue("options"));
+        String type=settingElement.attributeValue("type");
+        String value=settingElement.attributeValue("value");
+        theme.addSetting(key,value,configurable,type,options);
       }
     }
-    themeModel.setWapTheme(GetterUtil.getBoolean(theme.elementText("wap-theme"),themeModel.isWapTheme()));
-    Element rolesEl=theme.element("roles");
-    if (rolesEl != null) {
-      Iterator<Element> itr2=rolesEl.elements("role-name").iterator();
-      while (itr2.hasNext()) {
-        Element roleNameEl=itr2.next();
-        pluginSetting.addRole(roleNameEl.getText());
+    theme.setWapTheme(GetterUtil.getBoolean(themeElement.elementText("wap-theme"),theme.isWapTheme()));
+    Element rolesElement=themeElement.element("roles");
+    if (rolesElement != null) {
+      List<Element> roleNameElements=rolesElement.elements("role-name");
+      for (      Element roleNameElement : roleNameElements) {
+        pluginSetting.addRole(roleNameElement.getText());
       }
     }
-    _readColorSchemes(theme,themeModel.getColorSchemesMap(),themeContextReplace);
-    _readColorSchemes(theme,themeModel.getColorSchemesMap(),themeContextReplace);
-    Element layoutTemplatesEl=theme.element("layout-templates");
-    if (layoutTemplatesEl != null) {
-      Element standardEl=layoutTemplatesEl.element("standard");
-      if (standardEl != null) {
-        layoutTemplateLocalService.readLayoutTemplate(servletContextName,servletContext,null,standardEl,true,themeId,pluginPackage);
+    _readColorSchemes(themeElement,theme.getColorSchemesMap(),themeContextReplace);
+    _readColorSchemes(themeElement,theme.getColorSchemesMap(),themeContextReplace);
+    Element layoutTemplatesElement=themeElement.element("layout-templates");
+    if (layoutTemplatesElement != null) {
+      Element standardElement=layoutTemplatesElement.element("standard");
+      if (standardElement != null) {
+        layoutTemplateLocalService.readLayoutTemplate(servletContextName,servletContext,null,standardElement,true,themeId,pluginPackage);
       }
-      Element customEl=layoutTemplatesEl.element("custom");
-      if (customEl != null) {
-        layoutTemplateLocalService.readLayoutTemplate(servletContextName,servletContext,null,customEl,false,themeId,pluginPackage);
+      Element customElement=layoutTemplatesElement.element("custom");
+      if (customElement != null) {
+        layoutTemplateLocalService.readLayoutTemplate(servletContextName,servletContext,null,customElement,false,themeId,pluginPackage);
       }
     }
-    if (!themeModel.isWapTheme()) {
-      _setSpriteImages(servletContext,themeModel,imagesPath);
+    if (!theme.isWapTheme()) {
+      _setSpriteImages(servletContext,theme,imagesPath);
     }
   }
   return themeIds;
