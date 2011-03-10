@@ -1,0 +1,43 @@
+{
+  try {
+    String xml=context.getZipEntryAsString(context.getSourceRootPath() + "/expando-tables.xml");
+    if (xml == null) {
+      return;
+    }
+    Document doc=SAXReaderUtil.read(xml);
+    Element root=doc.getRootElement();
+    List<Element> expandoTableElements=root.elements("expando-table");
+    for (    Element expandoTableElement : expandoTableElements) {
+      String className=expandoTableElement.attributeValue("class-name");
+      ExpandoTable expandoTable=null;
+      try {
+        expandoTable=ExpandoTableLocalServiceUtil.getDefaultTable(context.getCompanyId(),className);
+      }
+ catch (      NoSuchTableException e) {
+        expandoTable=ExpandoTableLocalServiceUtil.addDefaultTable(context.getCompanyId(),className);
+      }
+      List<Element> expandoColumnElements=expandoTableElement.elements("expando-column");
+      for (      Element expandoColumnElement : expandoColumnElements) {
+        long importedColumnId=GetterUtil.getLong(expandoColumnElement.attributeValue("column-id"));
+        String name=expandoColumnElement.attributeValue("name");
+        int type=GetterUtil.getInteger(expandoColumnElement.attributeValue("type"));
+        String typeSettings=expandoColumnElement.elementText("type-settings");
+        String defaultData=expandoColumnElement.elementText("default-data");
+        Serializable defaultDataObject=ExpandoConverterUtil.getAttributeFromString(type,defaultData);
+        ExpandoColumn expandoColumn=null;
+        try {
+          expandoColumn=ExpandoColumnLocalServiceUtil.getColumn(expandoTable.getTableId(),name);
+          ExpandoColumnLocalServiceUtil.updateColumn(expandoColumn.getColumnId(),name,type,defaultDataObject);
+        }
+ catch (        NoSuchColumnException e) {
+          expandoColumn=ExpandoColumnLocalServiceUtil.addColumn(expandoTable.getTableId(),name,type,defaultDataObject);
+        }
+        ExpandoColumnLocalServiceUtil.updateTypeSettings(expandoColumn.getColumnId(),typeSettings);
+        context.importPermissions(ExpandoColumn.class,importedColumnId,expandoColumn.getColumnId());
+      }
+    }
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+}
