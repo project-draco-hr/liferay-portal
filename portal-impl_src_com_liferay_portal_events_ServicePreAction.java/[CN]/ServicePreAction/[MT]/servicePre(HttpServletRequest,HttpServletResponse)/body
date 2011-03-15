@@ -201,6 +201,8 @@
       rememberVisitedGroupIds(request,group.getGroupId());
     }
   }
+  boolean personalizedView=SessionParamUtil.getBoolean(request,"personalized_view",true);
+  boolean isPersonalizable=false;
   LayoutTypePortlet layoutTypePortlet=null;
   layouts=mergeAdditionalLayouts(request,user,permissionChecker,layout,layouts);
   LayoutSet layoutSet=null;
@@ -234,6 +236,16 @@
     plid=layout.getPlid();
     layout=(Layout)layout.clone();
     layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
+    isPersonalizable=layoutTypePortlet.isPersonalizable();
+    if (!isPersonalizable) {
+      personalizedView=false;
+    }
+    layoutTypePortlet.setPersonalizedView(personalizedView);
+    layoutTypePortlet.setUpdatePermission(LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.UPDATE));
+    if (signedIn && isPersonalizable && personalizedView&& LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.PERSONALIZE)) {
+      PortalPreferences portalPreferences=PortletPreferencesFactoryUtil.getPortalPreferences(companyId,user.getUserId(),true);
+      layoutTypePortlet.setPortalPreferences(portalPreferences);
+    }
     LayoutClone layoutClone=LayoutCloneFactory.getInstance();
     if (layoutClone != null) {
       String typeSettings=layoutClone.get(request,plid);
@@ -433,7 +445,7 @@
       boolean freeformLayout=layoutTypePortlet.getLayoutTemplateId().equals("freeform");
       themeDisplay.setFreeformLayout(freeformLayout);
       boolean hasUpdateLayoutPermission=LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.UPDATE);
-      if (hasUpdateLayoutPermission) {
+      if (hasUpdateLayoutPermission && !personalizedView) {
         themeDisplay.setShowAddContentIconPermission(true);
         if (!LiferayWindowState.isMaximized(request)) {
           themeDisplay.setShowAddContentIcon(true);
@@ -441,6 +453,14 @@
         themeDisplay.setShowLayoutTemplatesIcon(true);
         themeDisplay.setURLAddContent("Liferay.LayoutConfiguration.toggle('".concat(PortletKeys.LAYOUT_CONFIGURATION).concat("');"));
         themeDisplay.setURLLayoutTemplates("Liferay.LayoutConfiguration.showTemplates();");
+      }
+      boolean hasPersonalizePermission=LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.PERSONALIZE);
+      if (hasPersonalizePermission && personalizedView) {
+        themeDisplay.setShowAddContentIconPermission(true);
+        if (!LiferayWindowState.isMaximized(request)) {
+          themeDisplay.setShowAddContentIcon(true);
+        }
+        themeDisplay.setURLAddContent("Liferay.LayoutConfiguration.toggle('".concat(PortletKeys.LAYOUT_CONFIGURATION).concat("');"));
       }
     }
     boolean hasManageLayoutsPermission=GroupPermissionUtil.contains(permissionChecker,scopeGroupId,ActionKeys.MANAGE_LAYOUTS);

@@ -10,17 +10,23 @@
   boolean updateLayout=true;
   boolean deletePortlet=false;
   if (cmd.equals(Constants.ADD)) {
-    portletId=layoutTypePortlet.addPortletId(userId,portletId);
-    String columnId=ParamUtil.getString(request,"p_p_col_id");
-    int columnPos=ParamUtil.getInteger(request,"p_p_col_pos");
-    if (Validator.isNotNull(columnId) && Validator.isNotNull(portletId)) {
-      layoutTypePortlet.movePortletId(userId,portletId,columnId,columnPos);
+    String columnId=ParamUtil.getString(request,"p_p_col_id",null);
+    int columnPos=ParamUtil.getInteger(request,"p_p_col_pos",-1);
+    portletId=layoutTypePortlet.addPortletId(userId,portletId,columnId,columnPos);
+    if (layoutTypePortlet.isPersonalizable() && !layoutTypePortlet.isColumnDisabled(columnId)) {
+      updateLayout=false;
     }
   }
  else   if (cmd.equals(Constants.DELETE)) {
     if (layoutTypePortlet.hasPortletId(portletId)) {
-      deletePortlet=true;
       layoutTypePortlet.removePortletId(userId,portletId);
+      if (layoutTypePortlet.isPersonalizable() && layoutTypePortlet.isPersonalizedView()) {
+        updateLayout=false;
+        deletePortlet=false;
+      }
+ else {
+        deletePortlet=true;
+      }
     }
   }
  else   if (cmd.equals("drag")) {
@@ -61,6 +67,9 @@
     String columnId=ParamUtil.getString(request,"p_p_col_id");
     int columnPos=ParamUtil.getInteger(request,"p_p_col_pos");
     layoutTypePortlet.movePortletId(userId,portletId,columnId,columnPos);
+    if (layoutTypePortlet.isPersonalizable() && !layoutTypePortlet.isColumnDisabled(columnId)) {
+      updateLayout=false;
+    }
   }
  else   if (cmd.equals("select_layout_revision")) {
     long layoutRevisionId=ParamUtil.getLong(request,"layoutRevisionId");
@@ -68,10 +77,13 @@
     StagingUtil.setRecentLayoutRevisionId(request,layoutSetBranchId,layout.getPlid(),layoutRevisionId);
     updateLayout=false;
   }
+ else   if (cmd.equals("toggle_personalized_view")) {
+    updateLayout=false;
+  }
   if (updateLayout) {
     layoutTypePortlet.resetModes();
     layoutTypePortlet.resetStates();
-    LayoutServiceUtil.updateLayout(layout.getGroupId(),layout.isPrivateLayout(),layout.getLayoutId(),layout.getTypeSettings());
+    layout=LayoutServiceUtil.updateLayout(layout.getGroupId(),layout.isPrivateLayout(),layout.getLayoutId(),layout.getTypeSettings());
     if (deletePortlet) {
       String rootPortletId=PortletConstants.getRootPortletId(portletId);
       ResourceLocalServiceUtil.deleteResource(layout.getCompanyId(),rootPortletId,ResourceConstants.SCOPE_INDIVIDUAL,PortletPermissionUtil.getPrimaryKey(layout.getPlid(),portletId));
