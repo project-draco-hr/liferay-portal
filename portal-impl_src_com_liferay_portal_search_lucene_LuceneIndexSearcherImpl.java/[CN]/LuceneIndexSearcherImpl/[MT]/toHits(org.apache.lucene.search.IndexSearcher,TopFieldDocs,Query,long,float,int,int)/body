@@ -5,6 +5,10 @@
     end=length;
   }
   String[] queryTerms=getQueryTerms(query);
+  IndexReader ir=indexSearcher.getIndexReader();
+  List<String> indexedFieldNames=new ArrayList<String>(ir.getFieldNames(IndexReader.FieldOption.INDEXED));
+  org.apache.lucene.search.Query luceneQuery=QueryTranslator.translate(query);
+  int scoredFieldCount=LuceneHelperUtil.countScoredField(luceneQuery,ArrayUtil.toStringArray(indexedFieldNames.toArray()));
   Hits hits=new HitsImpl();
   if ((start > -1) && (start <= end)) {
     if (end > length) {
@@ -33,8 +37,16 @@
  else {
         subsetSnippets.add(StringPool.BLANK);
       }
-      Float subsetScore=topFieldDocs.scoreDocs[i].score;
+      Float subsetScore=topFieldDocs.scoreDocs[i].score / scoredFieldCount;
       subsetScores.add(subsetScore);
+      if (_log.isDebugEnabled()) {
+        try {
+          Explanation explanation=indexSearcher.explain(luceneQuery,topFieldDocs.scoreDocs[i].doc);
+          _log.debug(explanation.toString());
+        }
+ catch (        Exception e) {
+        }
+      }
     }
     hits.setStart(startTime);
     hits.setSearchTime(searchTime);
