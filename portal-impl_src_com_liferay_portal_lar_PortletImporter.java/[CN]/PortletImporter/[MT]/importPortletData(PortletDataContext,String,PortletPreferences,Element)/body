@@ -1,5 +1,5 @@
 {
-  Portlet portlet=PortletLocalServiceUtil.getPortletById(context.getCompanyId(),portletId);
+  Portlet portlet=PortletLocalServiceUtil.getPortletById(portletDataContext.getCompanyId(),portletId);
   if (portlet == null) {
     if (_log.isDebugEnabled()) {
       _log.debug("Do not import portlet data for " + portletId + " because the portlet does not exist");
@@ -16,16 +16,16 @@
   if (_log.isDebugEnabled()) {
     _log.debug("Importing data for " + portletId);
   }
-  long groupId=context.getGroupId();
-  String scopeType=context.getScopeType();
-  String scopeLayoutUuid=context.getScopeLayoutUuid();
+  long groupId=portletDataContext.getGroupId();
+  String scopeType=portletDataContext.getScopeType();
+  String scopeLayoutUuid=portletDataContext.getScopeLayoutUuid();
   if (Validator.isNull(scopeType)) {
     scopeLayoutUuid=GetterUtil.getString(portletDataRefEl.getParent().attributeValue("scope-layout-uuid"));
   }
   try {
     Group scopeGroup=null;
     if (scopeType.equals("company")) {
-      scopeGroup=GroupLocalServiceUtil.getCompanyGroup(context.getCompanyId());
+      scopeGroup=GroupLocalServiceUtil.getCompanyGroup(portletDataContext.getCompanyId());
     }
  else     if (Validator.isNotNull(scopeLayoutUuid)) {
       Layout scopeLayout=LayoutLocalServiceUtil.getLayoutByUuidAndGroupId(scopeLayoutUuid,groupId);
@@ -34,12 +34,12 @@
       }
  else {
         String name=String.valueOf(scopeLayout.getPlid());
-        scopeGroup=GroupLocalServiceUtil.addGroup(context.getUserId(null),Layout.class.getName(),scopeLayout.getPlid(),name,null,0,null,true,null);
+        scopeGroup=GroupLocalServiceUtil.addGroup(portletDataContext.getUserId(null),Layout.class.getName(),scopeLayout.getPlid(),name,null,0,null,true,null);
       }
       Group group=scopeLayout.getGroup();
       if (group.isStaged() && !group.isStagedRemotely()) {
         try {
-          Layout oldLayout=LayoutLocalServiceUtil.getLayoutByUuidAndGroupId(scopeLayoutUuid,context.getSourceGroupId());
+          Layout oldLayout=LayoutLocalServiceUtil.getLayoutByUuidAndGroupId(scopeLayoutUuid,portletDataContext.getSourceGroupId());
           Group oldScopeGroup=oldLayout.getScopeGroup();
           oldScopeGroup.setLiveGroupId(scopeGroup.getGroupId());
           GroupLocalServiceUtil.updateGroup(oldScopeGroup,true);
@@ -50,7 +50,7 @@
           }
         }
       }
-      context.setScopeGroupId(scopeGroup.getGroupId());
+      portletDataContext.setScopeGroupId(scopeGroup.getGroupId());
     }
   }
  catch (  PortalException pe) {
@@ -59,18 +59,18 @@
   if (portletPreferences != null) {
     portletPreferencesImpl=(PortletPreferencesImpl)PortletPreferencesFactoryUtil.fromDefaultXML(portletPreferences.getPreferences());
   }
-  String portletData=context.getZipEntryAsString(portletDataRefEl.attributeValue("path"));
+  String portletData=portletDataContext.getZipEntryAsString(portletDataRefEl.attributeValue("path"));
   try {
     SocialActivityThreadLocal.setEnabled(false);
     WorkflowThreadLocal.setEnabled(false);
-    portletPreferencesImpl=(PortletPreferencesImpl)portletDataHandler.importData(context,portletId,portletPreferencesImpl,portletData);
+    portletPreferencesImpl=(PortletPreferencesImpl)portletDataHandler.importData(portletDataContext,portletId,portletPreferencesImpl,portletData);
   }
  catch (  Exception e) {
     _log.error(e,e);
     throw new SystemException(e);
   }
  finally {
-    context.setScopeGroupId(groupId);
+    portletDataContext.setScopeGroupId(groupId);
     SocialActivityThreadLocal.setEnabled(true);
     WorkflowThreadLocal.setEnabled(true);
   }
