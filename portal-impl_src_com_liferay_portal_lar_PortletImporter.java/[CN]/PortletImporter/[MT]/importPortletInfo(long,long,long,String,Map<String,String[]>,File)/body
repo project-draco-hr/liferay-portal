@@ -6,77 +6,76 @@
   boolean importPortletArchivedSetups=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_ARCHIVED_SETUPS);
   boolean importPortletSetup=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_SETUP);
   boolean importPortletUserPreferences=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_USER_PREFERENCES);
-  String userIdStrategy=MapUtil.getString(parameterMap,PortletDataHandlerKeys.USER_ID_STRATEGY);
+  String userIdStrategyString=MapUtil.getString(parameterMap,PortletDataHandlerKeys.USER_ID_STRATEGY);
   StopWatch stopWatch=null;
   if (_log.isInfoEnabled()) {
     stopWatch=new StopWatch();
     stopWatch.start();
   }
   Layout layout=LayoutLocalServiceUtil.getLayout(plid);
-  long companyId=layout.getCompanyId();
   User user=UserUtil.findByPrimaryKey(userId);
-  UserIdStrategy strategy=getUserIdStrategy(user,userIdStrategy);
+  UserIdStrategy userIdStrategy=getUserIdStrategy(user,userIdStrategyString);
   ZipReader zipReader=ZipReaderFactoryUtil.getZipReader(file);
-  PortletDataContext portletDataContext=new PortletDataContextImpl(companyId,groupId,parameterMap,new HashSet<String>(),strategy,zipReader);
+  PortletDataContext portletDataContext=new PortletDataContextImpl(layout.getCompanyId(),groupId,parameterMap,new HashSet<String>(),userIdStrategy,zipReader);
   portletDataContext.setPortetDataContextListener(new PortletDataContextListenerImpl(portletDataContext));
   portletDataContext.setPlid(plid);
   portletDataContext.setPrivateLayout(layout.isPrivateLayout());
-  Element root=null;
   String xml=portletDataContext.getZipEntryAsString("/manifest.xml");
+  Element rootElement=null;
   try {
-    Document doc=SAXReaderUtil.read(xml);
-    root=doc.getRootElement();
+    Document document=SAXReaderUtil.read(xml);
+    rootElement=document.getRootElement();
   }
  catch (  Exception e) {
-    throw new LARFileException("Cannot locate a manifest in this LAR file.");
+    throw new LARFileException("Unable to read /manifest.xml");
   }
-  Element header=root.element("header");
+  Element headerElement=rootElement.element("header");
   int buildNumber=ReleaseInfo.getBuildNumber();
-  int importBuildNumber=GetterUtil.getInteger(header.attributeValue("build-number"));
+  int importBuildNumber=GetterUtil.getInteger(headerElement.attributeValue("build-number"));
   if (buildNumber != importBuildNumber) {
     throw new LayoutImportException("LAR build number " + importBuildNumber + " does not match "+ "portal build number "+ buildNumber);
   }
-  String type=header.attributeValue("type");
+  String type=headerElement.attributeValue("type");
   if (!type.equals("portlet")) {
     throw new LARTypeException("Invalid type of LAR file (" + type + ")");
   }
-  String rootPortletId=header.attributeValue("root-portlet-id");
+  String rootPortletId=headerElement.attributeValue("root-portlet-id");
   if (!PortletConstants.getRootPortletId(portletId).equals(rootPortletId)) {
     throw new PortletIdException("Invalid portlet id " + rootPortletId);
   }
-  long sourceGroupId=GetterUtil.getLong(header.attributeValue("group-id"));
+  long sourceGroupId=GetterUtil.getLong(headerElement.attributeValue("group-id"));
   portletDataContext.setSourceGroupId(sourceGroupId);
   if (importPermissions) {
     _permissionImporter.readPortletDataPermissions(portletDataContext);
   }
-  readCategories(portletDataContext);
-  readComments(portletDataContext,root);
-  readLocks(portletDataContext,root);
-  readRatings(portletDataContext,root);
-  readTags(portletDataContext,root);
+  readAssetCategories(portletDataContext);
+  readAssetTags(portletDataContext,rootElement);
+  readComments(portletDataContext,rootElement);
+  readLocks(portletDataContext,rootElement);
+  readRatingsEntries(portletDataContext,rootElement);
   if (_log.isDebugEnabled()) {
     _log.debug("Deleting portlet data");
   }
   if (deletePortletData) {
     deletePortletData(portletDataContext,portletId,plid);
   }
-  Element portletRefEl=root.element("portlet");
-  Element portletEl=null;
+  Element portletElement=null;
   try {
-    Document portletDoc=SAXReaderUtil.read(portletDataContext.getZipEntryAsString(portletRefEl.attributeValue("path")));
-    portletEl=portletDoc.getRootElement();
+    portletElement=rootElement.element("portlet");
+    Document portletDocument=SAXReaderUtil.read(portletDataContext.getZipEntryAsString(portletElement.attributeValue("path")));
+    portletElement=portletDocument.getRootElement();
   }
  catch (  DocumentException de) {
     throw new SystemException(de);
   }
-  importPortletPreferences(portletDataContext,layout.getCompanyId(),groupId,layout,portletId,portletEl,importPortletSetup,importPortletArchivedSetups,importPortletUserPreferences,true);
+  importPortletPreferences(portletDataContext,layout.getCompanyId(),groupId,layout,portletId,portletElement,importPortletSetup,importPortletArchivedSetups,importPortletUserPreferences,true);
   if (_log.isDebugEnabled()) {
     _log.debug("Importing portlet data");
   }
   if (importPortletData) {
-    Element portletDataRefEl=portletEl.element("portlet-data");
-    if (portletDataRefEl != null) {
-      importPortletData(portletDataContext,portletId,plid,portletDataRefEl);
+    Element portletDataElement=portletElement.element("portlet-data");
+    if (portletDataElement != null) {
+      importPortletData(portletDataContext,portletId,plid,portletDataElement);
     }
  else {
       if (_log.isWarnEnabled()) {
@@ -92,7 +91,7 @@
   }
   if (importPermissions) {
     LayoutCache layoutCache=new LayoutCache();
-    _permissionImporter.importPortletPermissions(layoutCache,layout.getCompanyId(),groupId,userId,layout,portletEl,portletId,importUserPermissions);
+    _permissionImporter.importPortletPermissions(layoutCache,layout.getCompanyId(),groupId,userId,layout,portletElement,portletId,importUserPermissions);
   }
   zipReader.close();
 }

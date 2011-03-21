@@ -1,0 +1,50 @@
+{
+  try {
+    String xml=portletDataContext.getZipEntryAsString(portletDataContext.getSourceRootPath() + "/categories-hierarchy.xml");
+    if (xml == null) {
+      return;
+    }
+    Document document=SAXReaderUtil.read(xml);
+    Element rootElement=document.getRootElement();
+    Element vocabulariesElement=rootElement.element("vocabularies");
+    List<Element> vocabularyElements=vocabulariesElement.elements("vocabulary");
+    Map<Long,Long> vocabularyPKs=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(AssetVocabulary.class);
+    for (    Element vocabularyElement : vocabularyElements) {
+      String path=vocabularyElement.attributeValue("path");
+      if (!portletDataContext.isPathNotProcessed(path)) {
+        continue;
+      }
+      AssetVocabulary assetVocabulary=(AssetVocabulary)portletDataContext.getZipEntryAsObject(path);
+      importAssetVocabulary(portletDataContext,vocabularyPKs,vocabularyElement,assetVocabulary);
+    }
+    Element categoriesElement=rootElement.element("categories");
+    List<Element> categoryElements=categoriesElement.elements("category");
+    Map<Long,Long> assetCategoryPKs=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(AssetCategory.class);
+    for (    Element categoryElement : categoryElements) {
+      String path=categoryElement.attributeValue("path");
+      if (!portletDataContext.isPathNotProcessed(path)) {
+        continue;
+      }
+      AssetCategory assetCategory=(AssetCategory)portletDataContext.getZipEntryAsObject(path);
+      importAssetCategory(portletDataContext,vocabularyPKs,assetCategoryPKs,categoryElement,assetCategory);
+    }
+    Element assetsElement=rootElement.element("assets");
+    List<Element> assetElements=assetsElement.elements("asset");
+    for (    Element assetElement : assetElements) {
+      String className=GetterUtil.getString(assetElement.attributeValue("class-name"));
+      long classPK=GetterUtil.getLong(assetElement.attributeValue("class-pk"));
+      String[] assetCategoryUuids=StringUtil.split(GetterUtil.getString(assetElement.attributeValue("category-uuids")));
+      long[] assetCategoryIds=new long[0];
+      for (      String assetCategoryUuid : assetCategoryUuids) {
+        AssetCategory assetCategory=AssetCategoryUtil.fetchByUUID_G(assetCategoryUuid,portletDataContext.getScopeGroupId());
+        if (assetCategory != null) {
+          assetCategoryIds=ArrayUtil.append(assetCategoryIds,assetCategory.getCategoryId());
+        }
+      }
+      portletDataContext.addAssetCategories(className,classPK,assetCategoryIds);
+    }
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+}
