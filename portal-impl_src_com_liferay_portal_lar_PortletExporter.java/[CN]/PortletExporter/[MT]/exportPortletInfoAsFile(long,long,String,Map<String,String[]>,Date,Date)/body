@@ -30,8 +30,7 @@
   if (!layout.isTypeControlPanel() && !layout.isTypePanel() && !layout.isTypePortlet()) {
     throw new LayoutImportException("Layout type " + layout.getType() + " is not valid");
   }
-  long companyId=layout.getCompanyId();
-  long defaultUserId=UserLocalServiceUtil.getDefaultUserId(companyId);
+  long defaultUserId=UserLocalServiceUtil.getDefaultUserId(layout.getCompanyId());
   ZipWriter zipWriter=ZipWriterFactoryUtil.getZipWriter();
   long scopeGroupId=groupId;
   javax.portlet.PortletPreferences jxPreferences=PortletPreferencesFactoryUtil.getLayoutPortletSetup(layout,portletId);
@@ -40,7 +39,7 @@
   if (Validator.isNotNull(scopeType)) {
     Group scopeGroup=null;
     if (scopeType.equals("company")) {
-      scopeGroup=GroupLocalServiceUtil.getCompanyGroup(companyId);
+      scopeGroup=GroupLocalServiceUtil.getCompanyGroup(layout.getCompanyId());
     }
  else     if (Validator.isNotNull(scopeLayoutUuid)) {
       scopeGroup=layout.getScopeGroup();
@@ -49,41 +48,41 @@
       scopeGroupId=scopeGroup.getGroupId();
     }
   }
-  PortletDataContext context=new PortletDataContextImpl(companyId,scopeGroupId,parameterMap,new HashSet<String>(),startDate,endDate,zipWriter);
-  context.setPortetDataContextListener(new PortletDataContextListenerImpl(context));
-  context.setPlid(plid);
-  context.setOldPlid(plid);
-  context.setScopeType(scopeType);
-  context.setScopeLayoutUuid(scopeLayoutUuid);
-  Document doc=SAXReaderUtil.createDocument();
-  Element root=doc.addElement("root");
-  Element header=root.addElement("header");
-  header.addAttribute("build-number",String.valueOf(ReleaseInfo.getBuildNumber()));
-  header.addAttribute("export-date",Time.getRFC822());
-  if (context.hasDateRange()) {
-    header.addAttribute("start-date",String.valueOf(context.getStartDate()));
-    header.addAttribute("end-date",String.valueOf(context.getEndDate()));
+  PortletDataContext portletDataContext=new PortletDataContextImpl(layout.getCompanyId(),scopeGroupId,parameterMap,new HashSet<String>(),startDate,endDate,zipWriter);
+  portletDataContext.setPortetDataContextListener(new PortletDataContextListenerImpl(portletDataContext));
+  portletDataContext.setPlid(plid);
+  portletDataContext.setOldPlid(plid);
+  portletDataContext.setScopeType(scopeType);
+  portletDataContext.setScopeLayoutUuid(scopeLayoutUuid);
+  Document document=SAXReaderUtil.createDocument();
+  Element rootElement=document.addElement("root");
+  Element headerElement=rootElement.addElement("header");
+  headerElement.addAttribute("build-number",String.valueOf(ReleaseInfo.getBuildNumber()));
+  headerElement.addAttribute("export-date",Time.getRFC822());
+  if (portletDataContext.hasDateRange()) {
+    headerElement.addAttribute("start-date",String.valueOf(portletDataContext.getStartDate()));
+    headerElement.addAttribute("end-date",String.valueOf(portletDataContext.getEndDate()));
   }
-  header.addAttribute("type","portlet");
-  header.addAttribute("group-id",String.valueOf(scopeGroupId));
-  header.addAttribute("private-layout",String.valueOf(layout.isPrivateLayout()));
-  header.addAttribute("root-portlet-id",PortletConstants.getRootPortletId(portletId));
-  exportPortlet(context,layoutCache,portletId,layout,root,defaultUserId,exportPermissions,exportPortletArchivedSetups,exportPortletData,exportPortletSetup,exportPortletUserPreferences,exportUserPermissions);
+  headerElement.addAttribute("type","portlet");
+  headerElement.addAttribute("group-id",String.valueOf(scopeGroupId));
+  headerElement.addAttribute("private-layout",String.valueOf(layout.isPrivateLayout()));
+  headerElement.addAttribute("root-portlet-id",PortletConstants.getRootPortletId(portletId));
+  exportPortlet(portletDataContext,layoutCache,portletId,layout,rootElement,defaultUserId,exportPermissions,exportPortletArchivedSetups,exportPortletData,exportPortletSetup,exportPortletUserPreferences,exportUserPermissions);
   if (exportCategories) {
-    exportCategories(context);
+    exportAssetCategories(portletDataContext);
   }
-  exportComments(context,root);
-  exportLocks(context,root);
+  exportAssetTags(portletDataContext,rootElement);
+  exportComments(portletDataContext,rootElement);
+  exportLocks(portletDataContext,rootElement);
   if (exportPermissions) {
-    _permissionExporter.exportPortletDataPermissions(context);
+    _permissionExporter.exportPortletDataPermissions(portletDataContext);
   }
-  exportRatings(context,root);
-  exportTags(context,root);
+  exportRatingsEntries(portletDataContext,rootElement);
   if (_log.isInfoEnabled()) {
     _log.info("Exporting portlet took " + stopWatch.getTime() + " ms");
   }
   try {
-    context.addZipEntry("/manifest.xml",doc.formattedString());
+    portletDataContext.addZipEntry("/manifest.xml",document.formattedString());
   }
  catch (  IOException ioe) {
     throw new SystemException(ioe);
