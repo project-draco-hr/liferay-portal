@@ -1,0 +1,35 @@
+{
+  if (PropsValues.INDEX_DUMP_GZIP_ENABLE) {
+    is=new GZIPInputStream(is);
+  }
+  ObjectInputStream objectInputStream=null;
+  try {
+    objectInputStream=new ObjectInputStream(is);
+    IndexCommitMetaInfo indexCommitMetaInfo=null;
+    try {
+      indexCommitMetaInfo=(IndexCommitMetaInfo)objectInputStream.readObject();
+    }
+ catch (    ClassNotFoundException cnfe) {
+      throw new IOException("Failed to retrieve indexCommitMetaInfo : " + cnfe.getCause());
+    }
+    if (_log.isDebugEnabled()) {
+      _log.debug("Deserializing IndexCommitMetaInfo : " + indexCommitMetaInfo);
+    }
+    if (indexCommitMetaInfo.isEmpty()) {
+      return;
+    }
+    List<FileInfo> fileInfoList=indexCommitMetaInfo.getFileInfoList();
+    for (    FileInfo fileInfo : fileInfoList) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Deserializing segment file name : " + fileInfo.getFileName() + ", size : "+ fileInfo.getFileSize());
+      }
+      deserializeSegmentFile(objectInputStream,fileInfo.getFileSize(),directory.createOutput(fileInfo.getFileName()));
+    }
+    createSegmentsGenFile(directory,indexCommitMetaInfo.getGeneration());
+  }
+  finally {
+    if (objectInputStream != null) {
+      objectInputStream.close();
+    }
+  }
+}
