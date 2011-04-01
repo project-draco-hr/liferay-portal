@@ -1,22 +1,21 @@
 {
   Document document=null;
-  boolean checkedOut=false;
+  ObjectId pwcId=null;
   try {
     Session session=getSession();
     String versionSeriesId=toFileEntryId(fileEntryId);
     document=(Document)session.getObject(versionSeriesId);
-    document.refresh();
-    String oldTitle=document.getName();
+    document=document.getObjectOfLatestVersion(false);
+    String currentTitle=document.getName();
     AllowableActions allowableActions=document.getAllowableActions();
     Set<Action> allowableActionsSet=allowableActions.getAllowableActions();
     if (allowableActionsSet.contains(Action.CAN_CHECK_OUT)) {
-      document.checkOut();
-      checkedOut=true;
+      pwcId=document.checkOut();
+      document=(Document)session.getObject(pwcId);
     }
-    document=document.getObjectOfLatestVersion(false);
     Map<String,Object> properties=null;
     ContentStream contentStream=null;
-    if (Validator.isNotNull(title) && !title.equals(oldTitle)) {
+    if (Validator.isNotNull(title) && !title.equals(currentTitle)) {
       properties=new HashMap<String,Object>();
       properties.put(PropertyIds.NAME,title);
     }
@@ -25,22 +24,20 @@
       contentStream=new ContentStreamImpl(sourceFileName,BigInteger.valueOf(size),contentType,is);
     }
     checkUpdatable(allowableActionsSet,properties,contentStream);
-    if (checkedOut) {
+    if (pwcId != null) {
       document.checkIn(majorVersion,properties,contentStream,changeLog);
-      checkedOut=false;
+      pwcId=null;
     }
  else {
       if (properties != null) {
         document=(Document)document.updateProperties(properties);
       }
       if (contentStream != null) {
-        document.setContentStream(contentStream,true);
+        document.setContentStream(contentStream,true,false);
       }
     }
     document=(Document)session.getObject(versionSeriesId);
-    document.refresh();
-    FileEntry fileEntry=toFileEntry(document);
-    return fileEntry;
+    return toFileEntry(document);
   }
  catch (  PortalException pe) {
     throw pe;
@@ -53,7 +50,7 @@ catch (  Exception e) {
     throw new RepositoryException(e);
   }
  finally {
-    if (checkedOut) {
+    if (pwcId != null) {
       document.cancelCheckOut();
     }
   }

@@ -1,11 +1,8 @@
 {
-  Document document=null;
-  boolean checkedOut=false;
   try {
     Session session=getSession();
     String versionSeriesId=toFileEntryId(fileEntryId);
-    document=(Document)session.getObject(versionSeriesId);
-    document.refresh();
+    Document document=(Document)session.getObject(versionSeriesId);
     Document oldVersion=null;
     List<Document> documentVersions=document.getAllVersions();
     for (    Document currentVersion : documentVersions) {
@@ -21,32 +18,8 @@
     String changeLog="Reverted to " + version;
     String title=oldVersion.getName();
     ContentStream contentStream=oldVersion.getContentStream();
-    AllowableActions allowableActions=document.getAllowableActions();
-    Set<Action> allowableActionsSet=allowableActions.getAllowableActions();
-    if (allowableActionsSet.contains(Action.CAN_CHECK_OUT)) {
-      document.checkOut();
-      checkedOut=true;
-    }
-    document=document.getObjectOfLatestVersion(false);
-    String oldTitle=document.getName();
-    Map<String,Object> properties=null;
-    if (Validator.isNotNull(title) && !title.equals(oldTitle)) {
-      properties=new HashMap<String,Object>();
-      properties.put(PropertyIds.NAME,title);
-    }
-    checkUpdatable(allowableActionsSet,properties,contentStream);
-    if (checkedOut) {
-      document.checkIn(true,properties,contentStream,changeLog);
-      checkedOut=false;
-    }
- else {
-      if (properties != null) {
-        document=(Document)document.updateProperties(properties);
-      }
-      document.setContentStream(contentStream,true);
-    }
-    document=(Document)session.getObject(versionSeriesId);
-    document.refresh();
+    serviceContext.setAttribute("contentType",oldVersion.getContentStreamMimeType());
+    updateFileEntry(fileEntryId,contentStream.getFileName(),title,StringPool.BLANK,changeLog,true,contentStream.getStream(),contentStream.getLength(),serviceContext);
   }
  catch (  PortalException pe) {
     throw pe;
@@ -57,10 +30,5 @@ catch (  SystemException se) {
 catch (  Exception e) {
     processException(e);
     throw new RepositoryException(e);
-  }
- finally {
-    if (checkedOut) {
-      document.cancelCheckOut();
-    }
   }
 }
