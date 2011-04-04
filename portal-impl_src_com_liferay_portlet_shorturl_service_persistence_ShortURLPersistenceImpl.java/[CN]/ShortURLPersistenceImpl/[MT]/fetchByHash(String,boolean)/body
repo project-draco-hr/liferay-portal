@@ -1,0 +1,63 @@
+{
+  Object[] finderArgs=new Object[]{hash};
+  Object result=null;
+  if (retrieveFromCache) {
+    result=FinderCacheUtil.getResult(FINDER_PATH_FETCH_BY_HASH,finderArgs,this);
+  }
+  if (result == null) {
+    StringBundler query=new StringBundler(2);
+    query.append(_SQL_SELECT_SHORTURL_WHERE);
+    if (hash == null) {
+      query.append(_FINDER_COLUMN_HASH_HASH_1);
+    }
+ else {
+      if (hash.equals(StringPool.BLANK)) {
+        query.append(_FINDER_COLUMN_HASH_HASH_3);
+      }
+ else {
+        query.append(_FINDER_COLUMN_HASH_HASH_2);
+      }
+    }
+    String sql=query.toString();
+    Session session=null;
+    try {
+      session=openSession();
+      Query q=session.createQuery(sql);
+      QueryPos qPos=QueryPos.getInstance(q);
+      if (hash != null) {
+        qPos.add(hash);
+      }
+      List<ShortURL> list=q.list();
+      result=list;
+      ShortURL shortURL=null;
+      if (list.isEmpty()) {
+        FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_HASH,finderArgs,list);
+      }
+ else {
+        shortURL=list.get(0);
+        cacheResult(shortURL);
+        if ((shortURL.getHash() == null) || !shortURL.getHash().equals(hash)) {
+          FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_HASH,finderArgs,shortURL);
+        }
+      }
+      return shortURL;
+    }
+ catch (    Exception e) {
+      throw processException(e);
+    }
+ finally {
+      if (result == null) {
+        FinderCacheUtil.removeResult(FINDER_PATH_FETCH_BY_HASH,finderArgs);
+      }
+      closeSession(session);
+    }
+  }
+ else {
+    if (result instanceof List<?>) {
+      return null;
+    }
+ else {
+      return (ShortURL)result;
+    }
+  }
+}
