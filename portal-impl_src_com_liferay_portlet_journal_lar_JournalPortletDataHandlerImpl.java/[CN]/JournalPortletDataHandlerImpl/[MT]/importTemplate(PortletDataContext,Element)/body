@@ -26,11 +26,9 @@
   boolean formatXsl=false;
   boolean addCommunityPermissions=creationStrategy.addCommunityPermissions(portletDataContext,template);
   boolean addGuestPermissions=creationStrategy.addGuestPermissions(portletDataContext,template);
-  ServiceContext serviceContext=new ServiceContext();
+  ServiceContext serviceContext=portletDataContext.createServiceContext(templateElement,template,_NAMESPACE);
   serviceContext.setAddCommunityPermissions(addCommunityPermissions);
   serviceContext.setAddGuestPermissions(addGuestPermissions);
-  serviceContext.setCreateDate(template.getCreateDate());
-  serviceContext.setModifiedDate(template.getModifiedDate());
   File smallFile=null;
   String smallImagePath=templateElement.attributeValue("small-image-path");
   if (template.isSmallImage() && Validator.isNotNull(smallImagePath)) {
@@ -43,29 +41,27 @@
       FileUtil.write(smallFile,bytes);
     }
   }
-  JournalTemplate existingTemplate=null;
+  JournalTemplate importedTemplate=null;
   if (portletDataContext.isDataStrategyMirror()) {
-    existingTemplate=JournalTemplateUtil.fetchByUUID_G(template.getUuid(),portletDataContext.getScopeGroupId());
+    JournalTemplate existingTemplate=JournalTemplateUtil.fetchByUUID_G(template.getUuid(),portletDataContext.getScopeGroupId());
     if (existingTemplate == null) {
       serviceContext.setUuid(template.getUuid());
-      existingTemplate=JournalTemplateLocalServiceUtil.addTemplate(userId,portletDataContext.getScopeGroupId(),templateId,autoTemplateId,parentStructureId,template.getName(),template.getDescription(),template.getXsl(),formatXsl,template.getLangType(),template.getCacheable(),template.isSmallImage(),template.getSmallImageURL(),smallFile,serviceContext);
+      importedTemplate=JournalTemplateLocalServiceUtil.addTemplate(userId,portletDataContext.getScopeGroupId(),templateId,autoTemplateId,parentStructureId,template.getName(),template.getDescription(),template.getXsl(),formatXsl,template.getLangType(),template.getCacheable(),template.isSmallImage(),template.getSmallImageURL(),smallFile,serviceContext);
     }
  else {
-      existingTemplate=JournalTemplateLocalServiceUtil.updateTemplate(existingTemplate.getGroupId(),existingTemplate.getTemplateId(),existingTemplate.getStructureId(),template.getName(),template.getDescription(),template.getXsl(),formatXsl,template.getLangType(),template.getCacheable(),template.isSmallImage(),template.getSmallImageURL(),smallFile,serviceContext);
+      importedTemplate=JournalTemplateLocalServiceUtil.updateTemplate(existingTemplate.getGroupId(),existingTemplate.getTemplateId(),existingTemplate.getStructureId(),template.getName(),template.getDescription(),template.getXsl(),formatXsl,template.getLangType(),template.getCacheable(),template.isSmallImage(),template.getSmallImageURL(),smallFile,serviceContext);
     }
   }
  else {
-    existingTemplate=JournalTemplateLocalServiceUtil.addTemplate(userId,portletDataContext.getScopeGroupId(),templateId,autoTemplateId,parentStructureId,template.getName(),template.getDescription(),template.getXsl(),formatXsl,template.getLangType(),template.getCacheable(),template.isSmallImage(),template.getSmallImageURL(),smallFile,serviceContext);
+    importedTemplate=JournalTemplateLocalServiceUtil.addTemplate(userId,portletDataContext.getScopeGroupId(),templateId,autoTemplateId,parentStructureId,template.getName(),template.getDescription(),template.getXsl(),formatXsl,template.getLangType(),template.getCacheable(),template.isSmallImage(),template.getSmallImageURL(),smallFile,serviceContext);
   }
   if (smallFile != null) {
     smallFile.delete();
   }
-  Map<String,String> templateIds=(Map<String,String>)portletDataContext.getNewPrimaryKeysMap(JournalTemplate.class);
-  templateIds.put(templateId,existingTemplate.getTemplateId());
-  portletDataContext.importPermissions(JournalTemplate.class,template.getId(),existingTemplate.getId());
-  if (!templateId.equals(existingTemplate.getTemplateId())) {
+  portletDataContext.importClassedModel(template,importedTemplate,_NAMESPACE);
+  if (!templateId.equals(importedTemplate.getTemplateId())) {
     if (_log.isWarnEnabled()) {
-      _log.warn("A template with the ID " + templateId + " already "+ "exists. The new generated ID is "+ existingTemplate.getTemplateId());
+      _log.warn("A template with the ID " + templateId + " already "+ "exists. The new generated ID is "+ importedTemplate.getTemplateId());
     }
   }
 }

@@ -21,24 +21,14 @@
       _log.error("Could not find attachments for message " + message.getMessageId());
     }
   }
-  String[] assetTagNames=null;
-  if (portletDataContext.getBooleanParameter(_NAMESPACE,"tags")) {
-    assetTagNames=portletDataContext.getAssetTagNames(MBMessage.class,message.getMessageId());
-  }
-  ServiceContext serviceContext=new ServiceContext();
-  serviceContext.setAddCommunityPermissions(true);
-  serviceContext.setAddGuestPermissions(true);
-  serviceContext.setAssetTagNames(assetTagNames);
-  serviceContext.setCreateDate(message.getCreateDate());
-  serviceContext.setModifiedDate(message.getModifiedDate());
-  serviceContext.setScopeGroupId(portletDataContext.getScopeGroupId());
+  ServiceContext serviceContext=portletDataContext.createServiceContext(messageElement,message,_NAMESPACE);
   if (message.getStatus() != WorkflowConstants.STATUS_APPROVED) {
     serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
   }
   if ((categoryId != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) && (categoryId != MBCategoryConstants.DISCUSSION_CATEGORY_ID) && (categoryId == message.getCategoryId())) {
     String path=getImportCategoryPath(portletDataContext,categoryId);
     MBCategory category=(MBCategory)portletDataContext.getZipEntryAsObject(path);
-    importCategory(portletDataContext,category);
+    importCategory(portletDataContext,path,category);
     categoryId=MapUtil.getLong(categoryPKs,message.getCategoryId(),message.getCategoryId());
   }
   MBMessage importedMessage=null;
@@ -56,10 +46,5 @@
     importedMessage=MBMessageLocalServiceUtil.addMessage(userId,userName,portletDataContext.getScopeGroupId(),categoryId,threadId,parentMessageId,message.getSubject(),message.getBody(),message.getFormat(),files,message.getAnonymous(),message.getPriority(),message.getAllowPingbacks(),serviceContext);
   }
   threadPKs.put(message.getThreadId(),importedMessage.getThreadId());
-  messagePKs.put(message.getMessageId(),importedMessage.getMessageId());
-  portletDataContext.importLocks(MBThread.class,String.valueOf(message.getThreadId()),String.valueOf(importedMessage.getThreadId()));
-  portletDataContext.importPermissions(MBMessage.class,message.getMessageId(),importedMessage.getMessageId());
-  if (portletDataContext.getBooleanParameter(_NAMESPACE,"ratings")) {
-    portletDataContext.importRatingsEntries(MBMessage.class,message.getMessageId(),importedMessage.getMessageId());
-  }
+  portletDataContext.importClassedModel(message,importedMessage,_NAMESPACE);
 }
