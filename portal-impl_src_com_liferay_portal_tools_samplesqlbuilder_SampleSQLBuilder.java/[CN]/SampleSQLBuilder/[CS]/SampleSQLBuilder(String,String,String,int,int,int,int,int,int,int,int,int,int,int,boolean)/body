@@ -23,44 +23,18 @@
     _resourceCodeCounter=new SimpleCounter();
     _userScreenNameIncrementer=new SimpleCounter();
     _dataFactory=new DataFactory(baseDir,_maxGroupCount,_maxUserToGroupCount,_counter,_permissionCounter,_resourceCounter,_resourceCodeCounter);
+    _specificDB=DBFactoryUtil.getDB(_dbType);
     final CharPipe charPipe=new CharPipe(1024 * 1024 * 10);
-    Reader pipeReader=charPipe.getReader();
-    final Writer pipeWriter=charPipe.getWriter();
-    Thread genericWriterThread=new Thread(){
-      public void run(){
-        try {
-          _writerGeneric=new UnsyncTeeWriter(pipeWriter,new FileWriter(_outputDir + "/sample.sql"));
-          createSample();
-          _writerGeneric.close();
-          charPipe.close();
-        }
- catch (        Exception e) {
-          e.printStackTrace();
-        }
-      }
+    generateGenericSQL(charPipe);
+    File tempDir=new File(_outputDir,_TEMP_DIR);
+    tempDir.mkdirs();
+    try {
+      translateSpecificSQL(charPipe.getReader());
+      mergeFinalSQL();
     }
-;
-    genericWriterThread.start();
-    Writer writerSpecific=new FileWriter(_outputDir + "/sample-" + dbType+ ".sql");
-    DB specificDB=DBFactoryUtil.getDB(_dbType);
-    boolean previousBlankLine=false;
-    UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(pipeReader);
-    String s=null;
-    while ((s=unsyncBufferedReader.readLine()) != null) {
-      s=specificDB.buildSQL(s).trim();
-      writerSpecific.write(s);
-      if (previousBlankLine && Validator.isNull(s)) {
-      }
- else {
-        writerSpecific.write(StringPool.NEW_LINE);
-      }
-      if (Validator.isNull(s)) {
-        previousBlankLine=true;
-      }
+  finally {
+      FileUtil.deltree(tempDir);
     }
-    unsyncBufferedReader.close();
-    writerSpecific.close();
-    genericWriterThread.join();
   }
  catch (  Exception e) {
     e.printStackTrace();
