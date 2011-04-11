@@ -2,17 +2,17 @@
   if (!isEnabled()) {
     return;
   }
+  PortalUtil.addPortalPortEventListener(this);
+  _localAddress=new AddressImpl(_controlChannel.getLocalAddress());
   try {
-    PortalUtil.addPortalPortEventListener(this);
-    ClusterNode clusterNode=getLocalClusterNode();
-    memberJoined(getLocalClusterNodeAddress(),clusterNode);
-    ClusterRequest clusterRequest=ClusterRequest.createClusterRequest(ClusterMessageType.NOTIFY,clusterNode);
-    _controlChannel.send(null,null,clusterRequest);
+    initLocalClusterNode();
   }
- catch (  ChannelException ce) {
-    _log.error("Unable to send multicast message ",ce);
-  }
-catch (  SystemException se) {
+ catch (  SystemException se) {
     _log.error("Unable to determine local network address",se);
   }
+  ObjectValuePair<Address,ClusterNode> localInstance=new ObjectValuePair<Address,ClusterNode>(_localAddress,_localClusterNode);
+  _checkInInstanceMap.put(localInstance,Long.MAX_VALUE);
+  _clusterNodeIdMap.put(_localClusterNode.getClusterNodeId(),_localAddress);
+  _scheduledExecutorService=Executors.newScheduledThreadPool(1,new NamedThreadFactory(ClusterExecutorImpl.class.getName(),Thread.NORM_PRIORITY,Thread.currentThread().getContextClassLoader()));
+  _scheduledExecutorService.scheduleWithFixedDelay(new CheckInTask(),0,_CHECK_IN_INTERVAL,TimeUnit.MILLISECONDS);
 }
