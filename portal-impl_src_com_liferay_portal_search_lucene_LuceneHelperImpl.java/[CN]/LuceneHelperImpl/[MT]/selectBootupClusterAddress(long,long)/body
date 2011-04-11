@@ -1,0 +1,57 @@
+{
+  if (!_loadIndexFromClusterEnabled()) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Load index from cluster is not enabled");
+    }
+    return null;
+  }
+  int clusterMembers=ClusterExecutorUtil.getClusterNodeAddresses().size();
+  if (clusterMembers <= 1) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("One or zero portal instance in cluster now, do not " + "need to load index from cluster");
+    }
+    return null;
+  }
+  ClusterRequest clusterRequest=ClusterRequest.createMulticastRequest(new MethodHandler(_GET_LAST_GENERATION_METHOD_KEY,companyId),true);
+  BlockingQueue<ClusterNodeResponse> clusterNodeResponses=ClusterExecutorUtil.execute(clusterRequest).getPartialResults();
+  Address bootupAddress=null;
+  do {
+    clusterMembers--;
+    ClusterNodeResponse clusterNodeResponse=null;
+    try {
+      clusterNodeResponse=clusterNodeResponses.poll(_BOOTUP_CLUSTER_NODE_RESPONSE_TIMEOUT,java.util.concurrent.TimeUnit.MILLISECONDS);
+    }
+ catch (    Exception e) {
+      throw new SystemException(e);
+    }
+    if (clusterNodeResponse == null) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Unable to get cluster node response in " + _BOOTUP_CLUSTER_NODE_RESPONSE_TIMEOUT + java.util.concurrent.TimeUnit.MILLISECONDS);
+      }
+      continue;
+    }
+    ClusterNode clusterNode=clusterNodeResponse.getClusterNode();
+    if (clusterNode.getPort() > 0) {
+      try {
+        long remoteLastGeneration=((Long)clusterNodeResponse.getResult()).longValue();
+        if (remoteLastGeneration > localLastGeneration) {
+          bootupAddress=clusterNodeResponse.getAddress();
+          break;
+        }
+      }
+ catch (      Exception e) {
+        if (_log.isDebugEnabled()) {
+          _log.debug("Suppress exception caused by remote method " + "invocation",e);
+        }
+        continue;
+      }
+    }
+ else {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Port of ClusterNode(" + clusterNode + ") is invalid");
+      }
+    }
+  }
+ while (bootupAddress == null && clusterMembers > 1);
+  return bootupAddress;
+}
