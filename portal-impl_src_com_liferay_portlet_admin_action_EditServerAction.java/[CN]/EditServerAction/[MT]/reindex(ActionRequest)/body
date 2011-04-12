@@ -1,6 +1,9 @@
 {
   String portletId=ParamUtil.getString(actionRequest,"portletId");
   long[] companyIds=PortalInstances.getCompanyIds();
+  if (LuceneHelperUtil.isLoadIndexFromClusterEnabled()) {
+    MessageValuesThreadLocal.setValue(ClusterLinkUtil._CLUSTER_FORWARD_MESSAGE,true);
+  }
   if (Validator.isNull(portletId)) {
     for (    long companyId : companyIds) {
       try {
@@ -30,5 +33,11 @@
         _log.error(e,e);
       }
     }
+  }
+  if (LuceneHelperUtil.isLoadIndexFromClusterEnabled()) {
+    Address localAddress=ClusterExecutorUtil.getLocalClusterNodeAddress();
+    ClusterRequest clusterRequest=ClusterRequest.createMulticastRequest(new MethodHandler(_LOAD_INDEXES_FROM_CLUSTER,companyIds,localAddress),true);
+    ClusterExecutorUtil.execute(clusterRequest);
+    return;
   }
 }
