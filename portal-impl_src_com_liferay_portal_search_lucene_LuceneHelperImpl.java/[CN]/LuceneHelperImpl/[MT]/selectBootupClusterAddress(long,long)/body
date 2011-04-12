@@ -1,22 +1,20 @@
 {
-  if (!_loadIndexFromClusterEnabled()) {
+  if (!_isLoadIndexFromClusterEnabled()) {
+    return null;
+  }
+  List<Address> clusterNodeAddresses=ClusterExecutorUtil.getClusterNodeAddresses();
+  int clusterNodeAddressesCount=clusterNodeAddresses.size();
+  if (clusterNodeAddressesCount <= 1) {
     if (_log.isDebugEnabled()) {
-      _log.debug("Load index from cluster is not enabled");
+      _log.debug("Do not load indexes because there is either one portal " + "instance or no portal instances in the cluster");
     }
     return null;
   }
-  int clusterMembers=ClusterExecutorUtil.getClusterNodeAddresses().size();
-  if (clusterMembers <= 1) {
-    if (_log.isDebugEnabled()) {
-      _log.debug("One or zero portal instance in cluster now, do not " + "need to load index from cluster");
-    }
-    return null;
-  }
-  ClusterRequest clusterRequest=ClusterRequest.createMulticastRequest(new MethodHandler(_GET_LAST_GENERATION_METHOD_KEY,companyId),true);
+  ClusterRequest clusterRequest=ClusterRequest.createMulticastRequest(new MethodHandler(_getLastGenerationMethodKey,companyId),true);
   BlockingQueue<ClusterNodeResponse> clusterNodeResponses=ClusterExecutorUtil.execute(clusterRequest).getPartialResults();
   Address bootupAddress=null;
   do {
-    clusterMembers--;
+    clusterNodeAddressesCount--;
     ClusterNodeResponse clusterNodeResponse=null;
     try {
       clusterNodeResponse=clusterNodeResponses.poll(_BOOTUP_CLUSTER_NODE_RESPONSE_TIMEOUT,java.util.concurrent.TimeUnit.MILLISECONDS);
@@ -33,7 +31,7 @@
     ClusterNode clusterNode=clusterNodeResponse.getClusterNode();
     if (clusterNode.getPort() > 0) {
       try {
-        long remoteLastGeneration=((Long)clusterNodeResponse.getResult()).longValue();
+        long remoteLastGeneration=(Long)clusterNodeResponse.getResult();
         if (remoteLastGeneration > localLastGeneration) {
           bootupAddress=clusterNodeResponse.getAddress();
           break;
@@ -48,10 +46,10 @@
     }
  else {
       if (_log.isDebugEnabled()) {
-        _log.debug("Port of ClusterNode(" + clusterNode + ") is invalid");
+        _log.debug("Cluster node " + clusterNode + " has invalid port");
       }
     }
   }
- while (bootupAddress == null && clusterMembers > 1);
+ while ((bootupAddress == null) && (clusterNodeAddressesCount > 1));
   return bootupAddress;
 }
