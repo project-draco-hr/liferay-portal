@@ -39,16 +39,16 @@
   long companyId=layoutSet.getCompanyId();
   long defaultUserId=UserLocalServiceUtil.getDefaultUserId(companyId);
   ZipWriter zipWriter=ZipWriterFactoryUtil.getZipWriter();
-  PortletDataContext context=new PortletDataContextImpl(companyId,groupId,parameterMap,new HashSet<String>(),startDate,endDate,zipWriter);
-  context.setPortetDataContextListener(new PortletDataContextListenerImpl(context));
+  PortletDataContext portletDataContext=new PortletDataContextImpl(companyId,groupId,parameterMap,new HashSet<String>(),startDate,endDate,zipWriter);
+  portletDataContext.setPortetDataContextListener(new PortletDataContextListenerImpl(portletDataContext));
   Document document=SAXReaderUtil.createDocument();
   Element rootElement=document.addElement("root");
   Element headerElement=rootElement.addElement("header");
   headerElement.addAttribute("build-number",String.valueOf(ReleaseInfo.getBuildNumber()));
   headerElement.addAttribute("export-date",Time.getRFC822());
-  if (context.hasDateRange()) {
-    headerElement.addAttribute("start-date",String.valueOf(context.getStartDate()));
-    headerElement.addAttribute("end-date",String.valueOf(context.getEndDate()));
+  if (portletDataContext.hasDateRange()) {
+    headerElement.addAttribute("start-date",String.valueOf(portletDataContext.getStartDate()));
+    headerElement.addAttribute("end-date",String.valueOf(portletDataContext.getEndDate()));
   }
   headerElement.addAttribute("type","layout-set");
   headerElement.addAttribute("group-id",String.valueOf(groupId));
@@ -59,11 +59,11 @@
     String layoutSetPrototypeUuid=layoutSetPrototype.getUuid();
     headerElement.addAttribute("layout-set-prototype-uuid",layoutSetPrototypeUuid);
     if (publishToRemote) {
-      String path=getLayoutSetPrototype(context,layoutSetPrototypeUuid);
+      String path=getLayoutSetPrototype(portletDataContext,layoutSetPrototypeUuid);
       File layoutSetPrototypeFile=CommunitiesUtil.exportLayoutSetPrototype(layoutSetPrototype,serviceContext);
       try {
-        context.addZipEntry(path.concat(".lar"),new FileInputStream(layoutSetPrototypeFile));
-        context.addZipEntry(path.concat(".xml"),layoutSetPrototype);
+        portletDataContext.addZipEntry(path.concat(".lar"),new FileInputStream(layoutSetPrototypeFile));
+        portletDataContext.addZipEntry(path.concat(".xml"),layoutSetPrototype);
       }
   finally {
         layoutSetPrototypeFile.delete();
@@ -76,7 +76,7 @@
   }
   Element cssElement=headerElement.addElement("css");
   cssElement.addCDATA(layoutSet.getCss());
-  Portlet layoutConfigurationPortlet=PortletLocalServiceUtil.getPortletById(context.getCompanyId(),PortletKeys.LAYOUT_CONFIGURATION);
+  Portlet layoutConfigurationPortlet=PortletLocalServiceUtil.getPortletById(portletDataContext.getCompanyId(),PortletKeys.LAYOUT_CONFIGURATION);
   Map<String,Object[]> portletIds=new LinkedHashMap<String,Object[]>();
   List<Layout> layouts=null;
   if ((layoutIds == null) || (layoutIds.length == 0)) {
@@ -110,7 +110,7 @@
   }
   Element layoutsElement=rootElement.addElement("layouts");
   for (  Layout layout : layouts) {
-    exportLayout(context,layoutConfigurationPortlet,layoutCache,portletIds,exportPermissions,exportUserPermissions,layout,layoutsElement);
+    exportLayout(portletDataContext,layoutConfigurationPortlet,layoutCache,portletIds,exportPermissions,exportUserPermissions,layout,layoutsElement);
   }
   if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM < 5) {
     Element rolesElement=rootElement.addElement("roles");
@@ -118,7 +118,7 @@
       _permissionExporter.exportLayoutRoles(layoutCache,companyId,groupId,rolesElement);
     }
   }
-  long previousScopeGroupId=context.getScopeGroupId();
+  long previousScopeGroupId=portletDataContext.getScopeGroupId();
   Element portletsElement=rootElement.addElement("portlets");
   for (  Map.Entry<String,Object[]> portletIdsEntry : portletIds.entrySet()) {
     Object[] portletObjects=portletIdsEntry.getValue();
@@ -141,26 +141,26 @@
       scopeLayoutUuid=(String)portletIdsEntry.getValue()[4];
     }
     Layout layout=LayoutLocalServiceUtil.getLayout(plid);
-    context.setPlid(layout.getPlid());
-    context.setOldPlid(layout.getPlid());
-    context.setScopeGroupId(scopeGroupId);
-    context.setScopeType(scopeType);
-    context.setScopeLayoutUuid(scopeLayoutUuid);
-    boolean[] exportPortletControls=getExportPortletControls(companyId,portletId,context,parameterMap);
-    _portletExporter.exportPortlet(context,layoutCache,portletId,layout,portletsElement,defaultUserId,exportPermissions,exportPortletArchivedSetups,exportPortletControls[0],exportPortletControls[1],exportPortletUserPreferences,exportUserPermissions);
+    portletDataContext.setPlid(layout.getPlid());
+    portletDataContext.setOldPlid(layout.getPlid());
+    portletDataContext.setScopeGroupId(scopeGroupId);
+    portletDataContext.setScopeType(scopeType);
+    portletDataContext.setScopeLayoutUuid(scopeLayoutUuid);
+    boolean[] exportPortletControls=getExportPortletControls(companyId,portletId,portletDataContext,parameterMap);
+    _portletExporter.exportPortlet(portletDataContext,layoutCache,portletId,layout,portletsElement,defaultUserId,exportPermissions,exportPortletArchivedSetups,exportPortletControls[0],exportPortletControls[1],exportPortletUserPreferences,exportUserPermissions);
   }
-  context.setScopeGroupId(previousScopeGroupId);
+  portletDataContext.setScopeGroupId(previousScopeGroupId);
   if (exportCategories) {
-    exportAssetCategories(context);
+    exportAssetCategories(portletDataContext);
   }
-  _portletExporter.exportAssetTags(context);
-  _portletExporter.exportComments(context);
-  _portletExporter.exportLocks(context);
+  _portletExporter.exportAssetTags(portletDataContext);
+  _portletExporter.exportComments(portletDataContext);
+  _portletExporter.exportLocks(portletDataContext);
   if (exportPermissions) {
-    _permissionExporter.exportPortletDataPermissions(context);
+    _permissionExporter.exportPortletDataPermissions(portletDataContext);
   }
-  _portletExporter.exportRatingsEntries(context,rootElement);
-  if (exportTheme && !context.isPerformDirectBinaryImport()) {
+  _portletExporter.exportRatingsEntries(portletDataContext,rootElement);
+  if (exportTheme && !portletDataContext.isPerformDirectBinaryImport()) {
     exportTheme(layoutSet,zipWriter);
   }
   if (_log.isInfoEnabled()) {
@@ -171,7 +171,7 @@
       _log.info("Exporting layouts is finished");
     }
   }
-  context.addZipEntry("/manifest.xml",document.formattedString());
+  portletDataContext.addZipEntry("/manifest.xml",document.formattedString());
   try {
     return zipWriter.getFile();
   }
