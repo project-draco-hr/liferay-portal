@@ -1,0 +1,36 @@
+{
+  List<Dependency> dependencies=new ArrayList<Dependency>();
+  MavenProject parentProject=project.getParent();
+  if (parentProject == null || !postBuildDependencyModules) {
+    return;
+  }
+  List<String> modules=parentProject.getModules();
+  List<String> reactorIncludes=new ArrayList<String>();
+  for (  Object obj : project.getDependencies()) {
+    Dependency dependency=(Dependency)obj;
+    System.out.println(obj.getClass().getName() + ": " + obj);
+    if (project.getGroupId().equals(dependency.getGroupId()) && modules.contains(dependency.getArtifactId())) {
+      reactorIncludes.add(dependency.getArtifactId() + "/pom.xml");
+    }
+  }
+  File parentBaseDir=project.getParent().getBasedir();
+  if (postBuildGoals == null) {
+    postBuildGoals=new ArrayList<String>();
+    postBuildGoals.add("install");
+  }
+  if (reactorIncludes.size() > 0) {
+    InvocationRequest request=new DefaultInvocationRequest();
+    request.setBaseDirectory(parentBaseDir);
+    request.activateReactor(reactorIncludes.toArray(new String[]{}),null);
+    request.setGoals(postBuildGoals);
+    request.setRecursive(false);
+    getLog().info("Executing: " + new MavenCommandLineBuilder().build(request));
+    InvocationResult result=invoker.execute(request);
+    if (result.getExecutionException() != null) {
+      throw result.getExecutionException();
+    }
+ else     if (result.getExitCode() != 0) {
+      throw new MojoExecutionException("Exit code was " + result.getExitCode());
+    }
+  }
+}
