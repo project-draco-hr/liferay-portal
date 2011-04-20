@@ -1,17 +1,50 @@
 {
-  Attributes groupAttributes=null;
-  try {
-    groupAttributes=PortalLDAPUtil.getGroupAttributes(ldapServerId,companyId,ldapContext,fullGroupDN);
+  Map<String,Long> groupDNCache=null;
+  if (PropsValues.LDAP_IMPORT_GROUP_CACHE_ENABLED) {
+    groupDNCache=_groupDNCache;
   }
- catch (  NameNotFoundException nnfe) {
-    _log.error("LDAP group not found with fullGroupDN " + fullGroupDN,nnfe);
+ else {
+    groupDNCache=_localGroupDNCache.get();
   }
-  UserGroup userGroup=importUserGroup(companyId,groupAttributes,groupMappings);
-  if (userGroup != null) {
+  Long userGroupId=null;
+  String cacheKey=null;
+  if (groupDNCache != null) {
+    StringBundler sb=new StringBundler(5);
+    sb.append(String.valueOf(ldapServerId));
+    sb.append(StringPool.UNDERLINE);
+    sb.append(String.valueOf(companyId));
+    sb.append(StringPool.UNDERLINE);
+    sb.append(fullGroupDN);
+    cacheKey=sb.toString();
+    userGroupId=_groupDNCache.get(cacheKey);
+  }
+  if (userGroupId != null) {
     if (_log.isDebugEnabled()) {
-      _log.debug("Adding " + user.getUserId() + " to group "+ userGroup.getUserGroupId());
+      _log.debug("Skipping re-import of fullGroupDN " + fullGroupDN);
     }
-    newUserGroupIds.add(userGroup.getUserGroupId());
+  }
+ else {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Importing fullGroupDN " + fullGroupDN);
+    }
+    Attributes groupAttributes=null;
+    try {
+      groupAttributes=PortalLDAPUtil.getGroupAttributes(ldapServerId,companyId,ldapContext,fullGroupDN);
+    }
+ catch (    NameNotFoundException nnfe) {
+      _log.error("LDAP group not found with fullGroupDN " + fullGroupDN,nnfe);
+    }
+    UserGroup userGroup=importUserGroup(companyId,groupAttributes,groupMappings);
+    userGroupId=userGroup.getUserGroupId();
+    if (groupDNCache != null) {
+      groupDNCache.put(cacheKey,userGroupId);
+    }
+  }
+  if (userGroupId != null) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Adding " + user.getUserId() + " to group "+ userGroupId);
+    }
+    newUserGroupIds.add(userGroupId);
   }
   return newUserGroupIds;
 }
