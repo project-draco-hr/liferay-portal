@@ -1,0 +1,39 @@
+{
+  UploadPortletRequest uploadRequest=PortalUtil.getUploadPortletRequest(actionRequest);
+  String cmd=ParamUtil.getString(uploadRequest,Constants.CMD);
+  long fileEntryId=ParamUtil.getLong(uploadRequest,"fileEntryId");
+  long repositoryId=ParamUtil.getLong(uploadRequest,"repositoryId");
+  long folderId=ParamUtil.getLong(uploadRequest,"folderId");
+  String sourceFileName=uploadRequest.getFileName("file");
+  String title=ParamUtil.getString(uploadRequest,"title");
+  String description=ParamUtil.getString(uploadRequest,"description");
+  String changeLog=ParamUtil.getString(uploadRequest,"changeLog");
+  boolean majorVersion=ParamUtil.getBoolean(uploadRequest,"majorVersion");
+  File file=uploadRequest.getFile("file");
+  String contentType=uploadRequest.getContentType("file");
+  if (Validator.isNotNull(sourceFileName) && !file.exists()) {
+    file.createNewFile();
+  }
+  ServiceContext serviceContext=ServiceContextFactory.getInstance(DLFileEntry.class.getName(),actionRequest);
+  if (cmd.equals(Constants.ADD)) {
+    if (Validator.isNull(title)) {
+      title=sourceFileName;
+    }
+    String extension=FileUtil.getExtension(sourceFileName);
+    serviceContext.setAttribute("contentType",contentType);
+    serviceContext.setAttribute("sourceFileName",sourceFileName);
+    serviceContext.setAttribute("extension",extension);
+    FileEntry fileEntry=DLAppServiceUtil.addFileEntry(repositoryId,folderId,title,description,changeLog,file,serviceContext);
+    AssetPublisherUtil.addAndStoreSelection(actionRequest,DLFileEntry.class.getName(),fileEntry.getFileEntryId(),-1);
+  }
+ else {
+    if (Validator.isNotNull(sourceFileName)) {
+      String extension=FileUtil.getExtension(sourceFileName);
+      serviceContext.setAttribute("contentType",contentType);
+      serviceContext.setAttribute("sourceFileName",sourceFileName);
+      serviceContext.setAttribute("extension",extension);
+    }
+    DLAppServiceUtil.updateFileEntry(fileEntryId,sourceFileName,title,description,changeLog,majorVersion,file,serviceContext);
+  }
+  AssetPublisherUtil.addRecentFolderId(actionRequest,DLFileEntry.class.getName(),folderId);
+}
