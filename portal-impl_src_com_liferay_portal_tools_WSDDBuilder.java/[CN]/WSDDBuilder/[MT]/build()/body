@@ -1,0 +1,29 @@
+{
+  if (!FileUtil.exists(_serverConfigFileName)) {
+    ClassLoader classLoader=getClass().getClassLoader();
+    String serverConfigContent=StringUtil.read(classLoader,"com/liferay/portal/tools/dependencies/server-config.wsdd");
+    FileUtil.write(_serverConfigFileName,serverConfigContent);
+  }
+  Document document=SAXReaderUtil.read(new File(_fileName),true);
+  Element rootElement=document.getRootElement();
+  String packagePath=rootElement.attributeValue("package-path");
+  Element portletElement=rootElement.element("portlet");
+  Element namespaceElement=rootElement.element("namespace");
+  if (portletElement != null) {
+    _portletShortName=portletElement.attributeValue("short-name");
+  }
+ else {
+    _portletShortName=namespaceElement.getText();
+  }
+  _outputPath+=StringUtil.replace(packagePath,".","/") + "/service/http";
+  _packagePath=packagePath;
+  List<Element> entityElements=rootElement.elements("entity");
+  for (  Element entityElement : entityElements) {
+    String entityName=entityElement.attributeValue("name");
+    boolean remoteService=GetterUtil.getBoolean(entityElement.attributeValue("remote-service"),true);
+    if (remoteService) {
+      _createServiceWSDD(entityName);
+      WSDDMerger.merge(_outputPath + "/" + entityName+ "Service_deploy.wsdd",_serverConfigFileName);
+    }
+  }
+}
