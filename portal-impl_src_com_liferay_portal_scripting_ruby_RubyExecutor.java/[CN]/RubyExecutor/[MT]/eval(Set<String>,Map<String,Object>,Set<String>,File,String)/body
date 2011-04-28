@@ -3,31 +3,29 @@
     throw new ExecutionException("Constrained execution not supported for Ruby");
   }
   try {
-    RubyInstanceConfig rubyInstanceConfig=_ruby.getInstanceConfig();
+    RubyInstanceConfig rubyInstanceConfig=_ruby.getProvider().getRubyInstanceConfig();
     rubyInstanceConfig.setCurrentDirectory(_basePath);
     rubyInstanceConfig.setLoadPaths(_loadPaths);
-    GlobalVariables globalVariables=_ruby.getGlobalVariables();
     for (    Map.Entry<String,Object> entry : inputObjects.entrySet()) {
       String inputName=entry.getKey();
       Object inputObject=entry.getValue();
       if (!inputName.startsWith(StringPool.DOLLAR)) {
         inputName=StringPool.DOLLAR + inputName;
       }
-      BeanGlobalVariable beanGlobalVariable=new BeanGlobalVariable(_ruby,inputObject,inputObject.getClass());
-      globalVariables.define(inputName,beanGlobalVariable);
+      _ruby.put(inputName,inputObject);
     }
     if (scriptFile != null) {
-      _ruby.runFromMain(new FileInputStream(scriptFile),scriptFile.toString());
+      _ruby.runScriptlet(new FileInputStream(scriptFile),scriptFile.toString());
     }
  else {
-      _ruby.evalScriptlet(script);
+      _ruby.runScriptlet(script);
     }
     if (outputNames == null) {
       return null;
     }
     Map<String,Object> outputObjects=new HashMap<String,Object>();
     for (    String outputName : outputNames) {
-      outputObjects.put(outputName,globalVariables.get(outputName));
+      outputObjects.put(outputName,_ruby.get(outputName));
     }
     return outputObjects;
   }
@@ -36,8 +34,5 @@
   }
 catch (  FileNotFoundException fnfe) {
     throw new ScriptingException(fnfe);
-  }
- finally {
-    JavaEmbedUtils.terminate(_ruby);
   }
 }
