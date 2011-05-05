@@ -19,9 +19,16 @@
   if (layout != null) {
     hasUpdateLayoutPermission=LayoutPermissionUtil.contains(permissionChecker,layout.getGroupId(),layout.isPrivateLayout(),layout.getLayoutId(),ActionKeys.UPDATE);
   }
+  boolean hasPermission=true;
+  if (group.isSite()) {
+    boolean publishToLive=GroupPermissionUtil.contains(permissionChecker,group.getGroupId(),ActionKeys.PUBLISH_STAGING) && cmd.equals("publish_to_live");
+    if (!GroupPermissionUtil.contains(permissionChecker,group.getGroupId(),ActionKeys.MANAGE_LAYOUTS) && !hasUpdateLayoutPermission && !publishToLive) {
+      hasPermission=false;
+    }
+  }
   if (group.isCompany()) {
     if (!permissionChecker.isCompanyAdmin()) {
-      throw new PrincipalException();
+      hasPermission=false;
     }
   }
  else   if (group.isLayoutPrototype()) {
@@ -34,13 +41,7 @@
     long organizationId=group.getOrganizationId();
     boolean publishToLive=OrganizationPermissionUtil.contains(permissionChecker,organizationId,ActionKeys.PUBLISH_STAGING) && cmd.equals("publish_to_live");
     if (!OrganizationPermissionUtil.contains(permissionChecker,organizationId,ActionKeys.MANAGE_LAYOUTS) && !hasUpdateLayoutPermission && !publishToLive) {
-      throw new PrincipalException();
-    }
-  }
- else   if (group.isRegularSite()) {
-    boolean publishToLive=GroupPermissionUtil.contains(permissionChecker,group.getGroupId(),ActionKeys.PUBLISH_STAGING) && cmd.equals("publish_to_live");
-    if (!GroupPermissionUtil.contains(permissionChecker,group.getGroupId(),ActionKeys.MANAGE_LAYOUTS) && !hasUpdateLayoutPermission && !publishToLive) {
-      throw new PrincipalException();
+      hasPermission=false;
     }
   }
  else   if (group.isUser()) {
@@ -49,7 +50,10 @@
     long[] organizationIds=groupUser.getOrganizationIds();
     UserPermissionUtil.check(permissionChecker,groupUserId,organizationIds,ActionKeys.UPDATE);
     if (!PropsValues.LAYOUT_USER_PRIVATE_LAYOUTS_MODIFIABLE && !PropsValues.LAYOUT_USER_PUBLIC_LAYOUTS_MODIFIABLE) {
-      throw new PrincipalException();
+      hasPermission=false;
     }
+  }
+  if (!hasPermission) {
+    throw new PrincipalException();
   }
 }
