@@ -1,0 +1,37 @@
+{
+  SearchContext searchContext=getSearchContext();
+  FacetConfiguration facetConfiguration=getFacetConfiguration();
+  JSONObject data=facetConfiguration.getData();
+  String[] values=null;
+  if (isStatic() && data.has("values")) {
+    JSONArray valuesJSONArray=data.getJSONArray("values");
+    values=new String[valuesJSONArray.length()];
+    for (int i=0; i < valuesJSONArray.length(); i++) {
+      values[i]=valuesJSONArray.getString(i);
+    }
+  }
+  String[] valuesParam=StringUtil.split(GetterUtil.getString(searchContext.getAttribute(getFieldName())));
+  if ((!isStatic()) && (valuesParam != null) && (valuesParam.length > 0)) {
+    values=valuesParam;
+  }
+  if ((values == null) || (values.length == 0)) {
+    return null;
+  }
+  BooleanQuery facetQuery=BooleanQueryFactoryUtil.create();
+  for (  String value : values) {
+    if ((searchContext.getUserId() > 0) && (!getFacetValueValidator().check(searchContext,value))) {
+      continue;
+    }
+    TermQuery termQuery=TermQueryFactoryUtil.create(getFieldName(),value);
+    try {
+      facetQuery.add(termQuery,BooleanClauseOccur.SHOULD);
+    }
+ catch (    ParseException pe) {
+      _log.error(pe,pe);
+    }
+  }
+  if (facetQuery.clauses().isEmpty()) {
+    return null;
+  }
+  return BooleanClauseFactoryUtil.create(facetQuery,BooleanClauseOccur.MUST.getName());
+}

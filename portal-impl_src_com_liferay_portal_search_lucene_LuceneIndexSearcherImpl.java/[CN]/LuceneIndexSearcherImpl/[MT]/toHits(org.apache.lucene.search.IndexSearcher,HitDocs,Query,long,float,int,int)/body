@@ -1,0 +1,64 @@
+{
+  int length=hitDocs.getTotalHits();
+  if ((start == QueryUtil.ALL_POS) && (end == QueryUtil.ALL_POS)) {
+    start=0;
+    end=length;
+  }
+  String[] queryTerms=getQueryTerms(query);
+  IndexReader indexReader=indexSearcher.getIndexReader();
+  List<String> indexedFieldNames=new ArrayList<String>(indexReader.getFieldNames(IndexReader.FieldOption.INDEXED));
+  org.apache.lucene.search.Query luceneQuery=(org.apache.lucene.search.Query)QueryTranslatorUtil.translate(query);
+  int scoredFieldNamesCount=LuceneHelperUtil.countScoredFieldNames(luceneQuery,ArrayUtil.toStringArray(indexedFieldNames.toArray()));
+  Hits hits=new HitsImpl();
+  if ((start > -1) && (start <= end)) {
+    if (end > length) {
+      end=length;
+    }
+    if (start > end) {
+      start=end;
+    }
+    int subsetTotal=end - start;
+    if (subsetTotal > PropsValues.INDEX_SEARCH_LIMIT) {
+      subsetTotal=PropsValues.INDEX_SEARCH_LIMIT;
+    }
+    List<Document> subsetDocs=new ArrayList<Document>(subsetTotal);
+    List<String> subsetSnippets=new ArrayList<String>(subsetTotal);
+    List<Float> subsetScores=new ArrayList<Float>(subsetTotal);
+    QueryConfig queryConfig=query.getQueryConfig();
+    boolean highlightEnabled=queryConfig.isHighlightEnabled();
+    for (int i=start; i < end; i++) {
+      if (i >= PropsValues.INDEX_SEARCH_LIMIT) {
+        break;
+      }
+      org.apache.lucene.document.Document document=indexSearcher.doc(hitDocs.getDocId(i));
+      Document subsetDocument=getDocument(document);
+      subsetDocs.add(subsetDocument);
+      if (highlightEnabled) {
+        String subsetSnippet=getSnippet(document,query,Field.CONTENT);
+        subsetSnippets.add(subsetSnippet);
+      }
+ else {
+        subsetSnippets.add(StringPool.BLANK);
+      }
+      Float subsetScore=hitDocs.getScore(i) / scoredFieldNamesCount;
+      subsetScores.add(subsetScore);
+      if (_log.isDebugEnabled()) {
+        try {
+          Explanation explanation=indexSearcher.explain(luceneQuery,hitDocs.getDocId(i));
+          _log.debug(explanation.toString());
+        }
+ catch (        Exception e) {
+        }
+      }
+    }
+    hits.setStart(startTime);
+    hits.setSearchTime(searchTime);
+    hits.setQuery(query);
+    hits.setQueryTerms(queryTerms);
+    hits.setDocs(subsetDocs.toArray(new Document[subsetDocs.size()]));
+    hits.setLength(length);
+    hits.setSnippets(subsetSnippets.toArray(new String[subsetSnippets.size()]));
+    hits.setScores(subsetScores.toArray(new Float[subsetScores.size()]));
+  }
+  return hits;
+}

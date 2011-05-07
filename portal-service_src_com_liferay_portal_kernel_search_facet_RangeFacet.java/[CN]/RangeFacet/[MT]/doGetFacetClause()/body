@@ -1,0 +1,36 @@
+{
+  SearchContext searchContext=getSearchContext();
+  FacetConfiguration facetConfiguration=getFacetConfiguration();
+  JSONObject data=facetConfiguration.getData();
+  String fieldName=getFieldName();
+  String start=StringPool.BLANK;
+  String end=StringPool.BLANK;
+  if (isStatic() && data.has("ranges")) {
+    String rangeString=data.getJSONArray("ranges").getString(0);
+    String[] range=RangeParserUtil.parserRange(rangeString);
+    start=range[0];
+    end=range[1];
+  }
+  String rangeParam=GetterUtil.getString(searchContext.getAttribute(fieldName));
+  if (!isStatic() && Validator.isNotNull(rangeParam)) {
+    String[] range=RangeParserUtil.parserRange(rangeParam);
+    start=range[0];
+    end=range[1];
+  }
+  if (Validator.isNull(start) && Validator.isNull(end)) {
+    return null;
+  }
+  if (Validator.isNotNull(start) && Validator.isNotNull(end) && start.compareTo(end) >= 0) {
+    throw new IllegalArgumentException("End value must be greater than Start value.");
+  }
+  String endString=StringPool.STAR;
+  String startString=StringPool.STAR;
+  if (Validator.isNotNull(start)) {
+    startString=start;
+  }
+  if (Validator.isNotNull(end)) {
+    endString=end;
+  }
+  TermRangeQuery facetQuery=TermRangeQueryFactoryUtil.create(fieldName,startString,endString,true,true);
+  return BooleanClauseFactoryUtil.create(facetQuery,BooleanClauseOccur.MUST.getName());
+}
