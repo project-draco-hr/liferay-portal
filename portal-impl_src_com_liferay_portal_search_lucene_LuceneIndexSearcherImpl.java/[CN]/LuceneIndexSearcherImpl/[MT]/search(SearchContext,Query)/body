@@ -2,36 +2,32 @@
   if (_log.isDebugEnabled()) {
     _log.debug("Query " + query);
   }
-  long companyId=searchContext.getCompanyId();
-  Sort[] sorts=searchContext.getSorts();
-  int start=searchContext.getStart();
-  int end=searchContext.getEnd();
   Hits hits=null;
   org.apache.lucene.search.IndexSearcher indexSearcher=null;
-  BoboIndexReader boboReader=null;
-  Browsable browser=null;
-  BrowseRequest browseRequest=null;
   Map<String,Facet> facets=null;
+  BrowseRequest browseRequest=null;
+  Browsable browsable=null;
   try {
-    indexSearcher=LuceneHelperUtil.getSearcher(companyId,true);
-    List<FacetHandler<?>> handlerList=new ArrayList<FacetHandler<?>>();
+    indexSearcher=LuceneHelperUtil.getSearcher(searchContext.getCompanyId(),true);
+    List<FacetHandler<?>> facetHandlers=new ArrayList<FacetHandler<?>>();
     facets=searchContext.getFacets();
     for (    Facet facet : facets.values()) {
       if (facet.isStatic()) {
         continue;
       }
       FacetConfiguration facetConfiguration=facet.getFacetConfiguration();
-      JSONObject dataJSONObject=facetConfiguration.getData();
       if (facet instanceof MultiValueFacet) {
         MultiValueFacetHandler multiValueFacetHandler=new MultiValueFacetHandler(facetConfiguration.getFieldName(),facetConfiguration.getFieldName());
+        JSONObject dataJSONObject=facetConfiguration.getData();
         if (dataJSONObject.has("maxTerms")) {
           multiValueFacetHandler.setMaxItems(dataJSONObject.getInt("maxTerms"));
         }
-        handlerList.add(multiValueFacetHandler);
+        facetHandlers.add(multiValueFacetHandler);
       }
  else       if (facet instanceof RangeFacet) {
         List<String> ranges=new ArrayList<String>();
-        JSONArray rangesJSONArray=facetConfiguration.getData().getJSONArray("ranges");
+        JSONObject dataJSONObject=facetConfiguration.getData();
+        JSONArray rangesJSONArray=dataJSONObject.getJSONArray("ranges");
         if (rangesJSONArray != null) {
           for (int i=0; i < rangesJSONArray.length(); i++) {
             JSONObject rangeJSONObject=rangesJSONArray.getJSONObject(i);
@@ -40,15 +36,16 @@
         }
         RangeFacetHandler rangeFacetHandler=new RangeFacetHandler(facetConfiguration.getFieldName(),facetConfiguration.getFieldName(),ranges);
         rangeFacetHandler.setTermCountSize(TermCountSize.large);
-        handlerList.add(rangeFacetHandler);
+        facetHandlers.add(rangeFacetHandler);
       }
  else       if (facet instanceof SimpleFacet) {
         SimpleFacetHandler simpleFacetHandler=new SimpleFacetHandler(facetConfiguration.getFieldName(),facetConfiguration.getFieldName());
-        handlerList.add(simpleFacetHandler);
+        facetHandlers.add(simpleFacetHandler);
       }
     }
-    boboReader=BoboIndexReader.getInstance(indexSearcher.getIndexReader(),handlerList);
+    BoboIndexReader boboIndexReader=BoboIndexReader.getInstance(indexSearcher.getIndexReader(),facetHandlers);
     SortField[] sortFields=new SortField[0];
+    Sort[] sorts=searchContext.getSorts();
     if (sorts != null) {
       sortFields=new SortField[sorts.length];
       for (int i=0; i < sorts.length; i++) {
@@ -62,26 +59,27 @@
         continue;
       }
       FacetConfiguration facetConfiguration=facet.getFacetConfiguration();
-      FacetSpec spec=new FacetSpec();
-      spec.setOrderBy(FacetSortSpec.valueOf(facetConfiguration.getOrder()));
-      browseRequest.setFacetSpec(facet.getFieldName(),spec);
+      FacetSpec facetSpec=new FacetSpec();
+      facetSpec.setOrderBy(FacetSortSpec.valueOf(facetConfiguration.getOrder()));
+      browseRequest.setFacetSpec(facet.getFieldName(),facetSpec);
     }
     browseRequest.setCount(PropsValues.INDEX_SEARCH_LIMIT);
     browseRequest.setOffset(0);
-    browseRequest.setSort(sortFields);
     browseRequest.setQuery((org.apache.lucene.search.Query)QueryTranslatorUtil.translate(query));
-    browser=new BoboBrowser(boboReader);
+    browseRequest.setSort(sortFields);
+    browsable=new BoboBrowser(boboIndexReader);
     long startTime=System.currentTimeMillis();
-    BrowseResult result=browser.browse(browseRequest);
-    BrowseHit[] browseHits=result.getHits();
+    BrowseResult browseResult=browsable.browse(browseRequest);
+    BrowseHit[] browseHits=browseResult.getHits();
     long endTime=System.currentTimeMillis();
     float searchTime=(float)(endTime - startTime) / Time.SECOND;
-    hits=toHits(indexSearcher,new HitDocs(browseHits),query,startTime,searchTime,start,end);
-    Map<String,FacetAccessible> facetMap=result.getFacetMap();
-    for (    Map.Entry<String,FacetAccessible> facetEntry : facetMap.entrySet()) {
-      Facet facet=facets.get(facetEntry.getKey());
-      FacetAccessible facetAccessible=facetEntry.getValue();
-      facet.setFacetCollector(new BoboFacetCollector(facetEntry.getKey(),facetAccessible));
+    hits=toHits(indexSearcher,new HitDocs(browseHits),query,startTime,searchTime,searchContext.getStart(),searchContext.getEnd());
+    Map<String,FacetAccessible> facetMap=browseResult.getFacetMap();
+    for (    Map.Entry<String,FacetAccessible> entry : facetMap.entrySet()) {
+      Facet facet=facets.get(entry.getKey());
+      FacetAccessible facetAccessible=entry.getValue();
+      FacetCollector facetCollector=new BoboFacetCollector(entry.getKey(),facetAccessible);
+      facet.setFacetCollector(facetCollector);
     }
   }
  catch (  BooleanQuery.TooManyClauses tmc) {
@@ -89,16 +87,17 @@
     BooleanQuery.setMaxClauseCount(Integer.MAX_VALUE);
     try {
       long startTime=System.currentTimeMillis();
-      BrowseResult result=browser.browse(browseRequest);
+      BrowseResult result=browsable.browse(browseRequest);
       BrowseHit[] browseHits=result.getHits();
       long endTime=System.currentTimeMillis();
       float searchTime=(float)(endTime - startTime) / Time.SECOND;
-      hits=toHits(indexSearcher,new HitDocs(browseHits),query,startTime,searchTime,start,end);
+      hits=toHits(indexSearcher,new HitDocs(browseHits),query,startTime,searchTime,searchContext.getStart(),searchContext.getEnd());
       Map<String,FacetAccessible> facetMap=result.getFacetMap();
-      for (      Map.Entry<String,FacetAccessible> facetEntry : facetMap.entrySet()) {
-        Facet facet=facets.get(facetEntry.getKey());
-        FacetAccessible facetAccessible=facetEntry.getValue();
-        facet.setFacetCollector(new BoboFacetCollector(facetEntry.getKey(),facetAccessible));
+      for (      Map.Entry<String,FacetAccessible> entry : facetMap.entrySet()) {
+        Facet facet=facets.get(entry.getKey());
+        FacetAccessible facetAccessible=entry.getValue();
+        FacetCollector facetCollector=new BoboFacetCollector(entry.getKey(),facetAccessible);
+        facet.setFacetCollector(facetCollector);
       }
     }
  catch (    Exception e) {
@@ -109,16 +108,16 @@
     }
   }
 catch (  ParseException pe) {
-    _log.error("Query: " + query,pe);
+    _log.error("Query " + query,pe);
     return new HitsImpl();
   }
 catch (  Exception e) {
     throw new SearchException(e);
   }
  finally {
-    if (browser != null) {
+    if (browsable != null) {
       try {
-        browser.close();
+        browsable.close();
       }
  catch (      IOException ioe) {
         _log.error(ioe,ioe);
