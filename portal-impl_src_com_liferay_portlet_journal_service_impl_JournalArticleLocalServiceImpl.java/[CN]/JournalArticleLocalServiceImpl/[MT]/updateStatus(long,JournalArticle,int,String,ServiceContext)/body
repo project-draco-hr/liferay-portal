@@ -29,13 +29,19 @@
           Date expirationDate=dateInterval[1];
           long[] assetCategoryIds=draftAssetEntry.getCategoryIds();
           String[] assetTagNames=draftAssetEntry.getTagNames();
-          assetEntryLocalService.updateEntry(userId,article.getGroupId(),JournalArticle.class.getName(),article.getResourcePrimKey(),article.getUuid(),assetCategoryIds,assetTagNames,true,null,null,displayDate,expirationDate,ContentTypes.TEXT_HTML,article.getTitle(),article.getDescription(),null,null,article.getLayoutUuid(),0,0,null,false);
+          boolean visible=true;
+          if (article.getClassNameId() > 0) {
+            visible=false;
+          }
+          assetEntryLocalService.updateEntry(userId,article.getGroupId(),JournalArticle.class.getName(),article.getResourcePrimKey(),article.getUuid(),assetCategoryIds,assetTagNames,visible,null,null,displayDate,expirationDate,ContentTypes.TEXT_HTML,article.getTitle(),article.getDescription(),null,null,article.getLayoutUuid(),0,0,null,false);
           assetEntryLocalService.deleteEntry(JournalArticle.class.getName(),article.getPrimaryKey());
         }
  catch (        NoSuchEntryException nsee) {
         }
       }
-      assetEntryLocalService.updateVisible(JournalArticle.class.getName(),article.getResourcePrimKey(),true);
+      if (article.getClassNameId() == 0) {
+        assetEntryLocalService.updateVisible(JournalArticle.class.getName(),article.getResourcePrimKey(),true);
+      }
       ExpandoBridge expandoBridge=article.getExpandoBridge();
       expandoBridge.setAttributes(serviceContext);
       Indexer indexer=IndexerRegistryUtil.getIndexer(JournalArticle.class);
@@ -45,22 +51,24 @@
       updatePreviousApprovedArticle(article);
     }
   }
-  if ((oldStatus != WorkflowConstants.STATUS_APPROVED) && (status == WorkflowConstants.STATUS_APPROVED)) {
-    socialEquityLogLocalService.addEquityLogs(userId,JournalArticle.class.getName(),article.getResourcePrimKey(),ActionKeys.ADD_ARTICLE,StringPool.BLANK);
+  if (article.getClassNameId() == 0) {
+    if ((oldStatus != WorkflowConstants.STATUS_APPROVED) && (status == WorkflowConstants.STATUS_APPROVED)) {
+      socialEquityLogLocalService.addEquityLogs(userId,JournalArticle.class.getName(),article.getResourcePrimKey(),ActionKeys.ADD_ARTICLE,StringPool.BLANK);
+    }
+    if ((oldStatus == WorkflowConstants.STATUS_PENDING) && ((status == WorkflowConstants.STATUS_APPROVED) || (status == WorkflowConstants.STATUS_DENIED))) {
+      String msg="granted";
+      if (status == WorkflowConstants.STATUS_DENIED) {
+        msg="denied";
+      }
+      try {
+        PortletPreferences preferences=ServiceContextUtil.getPortletPreferences(serviceContext);
+        sendEmail(article,articleURL,preferences,msg);
+      }
+ catch (      Exception e) {
+        _log.error("Unable to send email to notify the change of status " + " to " + msg + " for article "+ article.getId()+ ": "+ e.getMessage());
+      }
+    }
+    notifySubscribers(article,serviceContext);
   }
-  if ((oldStatus == WorkflowConstants.STATUS_PENDING) && ((status == WorkflowConstants.STATUS_APPROVED) || (status == WorkflowConstants.STATUS_DENIED))) {
-    String msg="granted";
-    if (status == WorkflowConstants.STATUS_DENIED) {
-      msg="denied";
-    }
-    try {
-      PortletPreferences preferences=ServiceContextUtil.getPortletPreferences(serviceContext);
-      sendEmail(article,articleURL,preferences,msg);
-    }
- catch (    Exception e) {
-      _log.error("Unable to send email to notify the change of status " + " to " + msg + " for article "+ article.getId()+ ": "+ e.getMessage());
-    }
-  }
-  notifySubscribers(article,serviceContext);
   return article;
 }
