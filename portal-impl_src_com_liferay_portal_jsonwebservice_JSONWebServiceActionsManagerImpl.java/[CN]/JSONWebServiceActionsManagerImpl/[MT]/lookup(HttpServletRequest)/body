@@ -1,0 +1,32 @@
+{
+  String path=GetterUtil.getString(request.getPathInfo());
+  String method=GetterUtil.getString(request.getMethod());
+  String pathParameters=null;
+  JSONRPCRequest jsonRpcRequest=null;
+  int pathParametersIndex=_getPathParametersIndex(path);
+  if (pathParametersIndex != -1) {
+    pathParameters=path.substring(pathParametersIndex);
+    path=path.substring(0,pathParametersIndex);
+  }
+ else {
+    if (method.equals(HttpMethods.POST) && !PortalUtil.isMultipartRequest(request)) {
+      jsonRpcRequest=new JSONRPCRequest(request);
+      if (jsonRpcRequest.isValid()) {
+        path+=StringPool.SLASH + jsonRpcRequest.getMethod();
+        method=null;
+      }
+ else {
+        jsonRpcRequest=null;
+      }
+    }
+  }
+  JSONWebServiceActionParameters restActionParameters=new JSONWebServiceActionParameters();
+  restActionParameters.collectAll(request,pathParameters,jsonRpcRequest);
+  String[] parameterNames=restActionParameters.getParameterNames();
+  int restActionConfigIndex=_getRESTActionConfigIndex(path,method,parameterNames);
+  if (restActionConfigIndex == -1) {
+    throw new RuntimeException("No REST action associated with path " + path + " and method "+ method);
+  }
+  JSONWebServiceActionConfig restActionConfig=_restActionConfig.get(restActionConfigIndex);
+  return new JSONWebServiceActionImpl(restActionConfig,restActionParameters);
+}
