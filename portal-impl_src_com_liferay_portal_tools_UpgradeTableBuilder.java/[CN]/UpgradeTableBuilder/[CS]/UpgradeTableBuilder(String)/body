@@ -1,23 +1,34 @@
 {
-  File[] files=new File("src/com/liferay/portal/upgrade").listFiles();
-  for (  File file : files) {
-    if (!file.isDirectory()) {
-      continue;
+  DirectoryScanner ds=new DirectoryScanner();
+  ds.setBasedir(".");
+  ds.setIncludes(new String[]{"**\\upgrade\\v**\\util\\*Table.java"});
+  ds.scan();
+  String[] fileNames=ds.getIncludedFiles();
+  for (  String fileName : fileNames) {
+    fileName=StringUtil.replace(fileName,"\\","/");
+    int x=fileName.indexOf("upgrade/v");
+    int y=fileName.indexOf("/util",x);
+    String version=StringUtil.replace(fileName.substring(x + 9,y),"_",".");
+    String upgradeFileVersion=version;
+    int z=upgradeFileVersion.indexOf(".to.");
+    if (z != -1) {
+      upgradeFileVersion=upgradeFileVersion.substring(z + 4);
     }
-    String folderName=file.getName();
-    if (!folderName.startsWith("v")) {
-      continue;
+    x=fileName.indexOf("/",y + 1);
+    y=fileName.indexOf("Table.java",x);
+    String upgradeFileName=upgradeTableDir + "/" + upgradeFileVersion+ "/"+ fileName.substring(x,y)+ "ModelImpl.java";
+    if (!_fileUtil.exists(upgradeFileName)) {
+      upgradeFileName=_findUpgradeFileName(fileName.substring(x,y));
+      if (upgradeFileName == null) {
+        continue;
+      }
     }
-    File utilFolder=new File(file,"util");
-    if (!utilFolder.exists()) {
-      continue;
-    }
-    String version=StringUtil.replace(folderName.substring(1),"_",".");
-    int pos=version.indexOf(".to.");
-    if (pos != -1) {
-      version=version.substring(pos + 4);
-    }
-    File upgradeDir=new File(upgradeTableDir,version);
-    checkUpgradeTable(upgradeDir,utilFolder.listFiles(),version);
+    String content=_fileUtil.read(upgradeFileName);
+    String packagePath="com.liferay.portal.upgrade.v" + StringUtil.replace(version,".","_") + ".util";
+    String className=fileName.substring(x + 1,y) + "Table";
+    String author=_getAuthor(fileName);
+    String[] addIndexes=_getAddIndexes(upgradeTableDir + "/" + upgradeFileVersion+ "/indexes.sql",fileName.substring(x + 1,y));
+    content=_getContent(packagePath,className,content,author,addIndexes);
+    _fileUtil.write(fileName,content);
   }
 }
