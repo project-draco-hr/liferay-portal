@@ -1,0 +1,39 @@
+{
+  boolean hasLock=lockLocalService.hasLock(userId,DLFileEntry.class.getName(),fileEntryId);
+  if (!hasLock) {
+    return;
+  }
+  User user=userPersistence.findByPrimaryKey(userId);
+  DLFileEntry dlFileEntry=dlFileEntryPersistence.findByPrimaryKey(fileEntryId);
+  String version=getNextVersion(dlFileEntry,majorVersion,serviceContext.getWorkflowAction());
+  DLFileVersion dlFileVersion=getLatestFileVersion(fileEntryId);
+  dlFileVersion.setVersion(version);
+  dlFileVersion.setChangeLog(changeLog);
+  dlFileVersionPersistence.update(dlFileVersion,false);
+  updateAsset(userId,dlFileEntry,dlFileVersion,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames(),serviceContext.getAssetLinkEntryIds());
+  if (dlFileEntry.getFolderId() != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+    DLFolder dlFolder=dlFolderPersistence.findByPrimaryKey(dlFileEntry.getFolderId());
+    dlFolder.setLastPostDate(dlFileEntry.getModifiedDate());
+    dlFolderPersistence.update(dlFolder,false);
+  }
+  File file=getAsFile(dlFileEntry,DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION);
+  InputStream is=null;
+  if (file != null) {
+    try {
+      dlLocalService.deleteFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION);
+    }
+ catch (    NoSuchFileException nsfe) {
+    }
+    try {
+      is=new FileInputStream(file);
+    }
+ catch (    IOException ioe) {
+      throw new SystemException(ioe);
+    }
+    dlLocalService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,dlFileEntry.getGroupId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),dlFileEntry.getExtension(),false,version,dlFileEntry.getTitle(),dlFileEntry.getFileEntryId(),dlFileEntry.getLuceneProperties(),dlFileEntry.getModifiedDate(),serviceContext,is);
+  }
+  if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
+    WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),dlFileEntry.getGroupId(),userId,DLFileEntry.class.getName(),dlFileEntry.getFileEntryId(),dlFileEntry,serviceContext);
+  }
+  lockLocalService.unlock(DLFileEntry.class.getName(),fileEntryId);
+}
