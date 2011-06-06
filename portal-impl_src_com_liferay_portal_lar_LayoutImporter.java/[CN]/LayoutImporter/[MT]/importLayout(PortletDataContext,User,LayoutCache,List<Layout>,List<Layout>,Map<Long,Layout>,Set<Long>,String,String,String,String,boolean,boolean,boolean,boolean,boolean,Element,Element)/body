@@ -79,7 +79,7 @@
   Node parentLayoutNode=rootElement.selectSingleNode("./layouts/layout[@layout-id='" + parentLayoutId + "']");
   String parentLayoutUuid=GetterUtil.getString(layoutElement.attributeValue("parent-layout-uuid"));
   if ((parentLayoutId != LayoutConstants.DEFAULT_PARENT_LAYOUT_ID) && (parentLayoutNode != null)) {
-    importLayout(portletDataContext,user,layoutCache,previousLayouts,newLayouts,newLayoutsMap,newLayoutIds,portletsMergeMode,themeId,colorSchemeId,layoutsImportMode,privateLayout,importPermissions,importUserPermissions,importThemeSettings,rootElement,(Element)parentLayoutNode);
+    importLayout(portletDataContext,user,layoutCache,previousLayouts,newLayouts,newLayoutsMap,newLayoutIds,portletsMergeMode,themeId,colorSchemeId,layoutsImportMode,privateLayout,importPermissions,importUserPermissions,addPublicLayoutPermission,importThemeSettings,rootElement,(Element)parentLayoutNode);
     Layout parentLayout=newLayoutsMap.get(parentLayoutId);
     parentLayoutId=parentLayout.getLayoutId();
   }
@@ -107,7 +107,7 @@
     if (linkToLayoutId > 0) {
       Node linkedLayoutNode=rootElement.selectSingleNode("./layouts/layout[@layout-id='" + linkToLayoutId + "']");
       if (linkedLayoutNode != null) {
-        importLayout(portletDataContext,user,layoutCache,previousLayouts,newLayouts,newLayoutsMap,newLayoutIds,portletsMergeMode,themeId,colorSchemeId,layoutsImportMode,privateLayout,importPermissions,importUserPermissions,importThemeSettings,rootElement,(Element)linkedLayoutNode);
+        importLayout(portletDataContext,user,layoutCache,previousLayouts,newLayouts,newLayoutsMap,newLayoutIds,portletsMergeMode,themeId,colorSchemeId,layoutsImportMode,privateLayout,importPermissions,importUserPermissions,addPublicLayoutPermission,importThemeSettings,rootElement,(Element)linkedLayoutNode);
         Layout linkedLayout=newLayoutsMap.get(linkToLayoutId);
         typeSettingsProperties.setProperty("privateLayout",String.valueOf(linkedLayout.getPrivateLayout()));
         typeSettingsProperties.setProperty("linkToLayoutId",String.valueOf(linkedLayout.getLayoutId()));
@@ -164,6 +164,22 @@
   newLayouts.add(importedLayout);
   if (importPermissions) {
     _permissionImporter.importLayoutPermissions(layoutCache,portletDataContext.getCompanyId(),groupId,user.getUserId(),importedLayout,layoutElement,rootElement,importUserPermissions);
+  }
+  if (addPublicLayoutPermission) {
+    String resourceName=Layout.class.getName();
+    String resourcePrimKey=String.valueOf(importedLayout.getPlid());
+    Role guestRole=RoleLocalServiceUtil.getRole(importedLayout.getCompanyId(),RoleConstants.GUEST);
+    if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 5) {
+      Resource resource=layoutCache.getResource(importedLayout.getCompanyId(),groupId,resourceName,ResourceConstants.SCOPE_INDIVIDUAL,resourcePrimKey,false);
+      PermissionLocalServiceUtil.setRolePermissions(guestRole.getRoleId(),new String[]{ActionKeys.VIEW},resource.getResourceId());
+    }
+ else     if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 6) {
+      ResourcePermissionLocalServiceUtil.setResourcePermissions(importedLayout.getCompanyId(),resourceName,ResourceConstants.SCOPE_INDIVIDUAL,resourcePrimKey,guestRole.getRoleId(),new String[]{ActionKeys.VIEW});
+    }
+ else {
+      Resource resource=layoutCache.getResource(importedLayout.getCompanyId(),groupId,resourceName,ResourceConstants.SCOPE_INDIVIDUAL,resourcePrimKey,false);
+      PermissionLocalServiceUtil.setGroupPermissions(groupId,new String[]{ActionKeys.VIEW},resource.getResourceId());
+    }
   }
   _portletImporter.importPortletData(portletDataContext,PortletKeys.LAYOUT_CONFIGURATION,null,layoutElement);
 }
