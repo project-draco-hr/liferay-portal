@@ -1,0 +1,19 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  DDLRecord record=ddlRecordPersistence.findByPrimaryKey(recordId);
+  DDLRecordVersion recordVersion=record.getLatestRecordVersion();
+  String version=null;
+  if (recordVersion.isApproved()) {
+    DDLRecordSet recordSet=record.getRecordSet();
+    long classPK=StorageEngineUtil.create(recordSet.getCompanyId(),recordSet.getDDMStructureId(),fields,serviceContext);
+    version=getNextVersion(record,majorVersion,serviceContext.getWorkflowAction());
+    addRecordVersion(user,record,serviceContext.getModifiedDate(null),record.getRecordSetId(),record.getClassNameId(),classPK,displayIndex,version,WorkflowConstants.STATUS_DRAFT,serviceContext);
+  }
+ else {
+    StorageEngineUtil.update(recordVersion.getClassPK(),fields,mergeFields,serviceContext);
+    version=recordVersion.getVersion();
+    updateRecordVersion(user,recordVersion,displayIndex,fields,mergeFields,version,recordVersion.getStatus(),serviceContext.getModifiedDate(null),serviceContext);
+  }
+  WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),record.getGroupId(),userId,DDLRecord.class.getName(),record.getRecordId(),record,serviceContext);
+  return record;
+}
