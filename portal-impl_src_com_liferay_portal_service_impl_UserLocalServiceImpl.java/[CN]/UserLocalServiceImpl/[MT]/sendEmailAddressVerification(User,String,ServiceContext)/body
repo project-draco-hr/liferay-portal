@@ -1,0 +1,31 @@
+{
+  long companyId=serviceContext.getCompanyId();
+  Company company=companyLocalService.getCompanyById(companyId);
+  Ticket ticket=ticketLocalService.addTicket(companyId,User.class.getName(),user.getUserId(),null,emailAddress,UserConstants.TICKET_TYPE_EMAIL_ADDRESS,serviceContext);
+  String verifyEmailAddressURL=serviceContext.getPortalURL() + serviceContext.getPathMain() + "/portal/verify_email_address?ticket="+ ticket.getKey();
+  Layout layout=layoutLocalService.getLayout(serviceContext.getPlid());
+  if (!layout.isPrivateLayout() && !layout.getGroup().isUser()) {
+    verifyEmailAddressURL+="&p_l_id=" + serviceContext.getPlid();
+  }
+  String remoteAddr=serviceContext.getRemoteAddr();
+  String remoteHost=serviceContext.getRemoteHost();
+  Map<String,String> headerMap=serviceContext.getHeaders();
+  String userAgent=headerMap.get("user-agent");
+  String fromName=PrefsPropsUtil.getString(companyId,PropsKeys.ADMIN_EMAIL_FROM_NAME);
+  String fromAddress=PrefsPropsUtil.getString(companyId,PropsKeys.ADMIN_EMAIL_FROM_ADDRESS);
+  String toName=user.getFullName();
+  String toAddress=emailAddress;
+  String subject=PrefsPropsUtil.getContent(companyId,PropsKeys.ADMIN_EMAIL_VERIFICATION_SUBJECT);
+  String body=PrefsPropsUtil.getContent(companyId,PropsKeys.ADMIN_EMAIL_VERIFICATION_BODY);
+  subject=StringUtil.replace(subject,new String[]{"[$EMAIL_VERIFICATION_URL$]","[$EMAIL_VERIFICATION_CODE$]","[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PORTAL_URL$]","[$TO_ADDRESS$]","[$TO_NAME$]","[$USER_AGENT$]","[$USER_ID$]","[$USER_SCREENNAME$]","[$REMOTE_ADDRESS$]","[$REMOTE_HOST$]"},new String[]{verifyEmailAddressURL,ticket.getKey(),fromAddress,fromName,company.getVirtualHostname(),toAddress,toName,userAgent,String.valueOf(user.getUserId()),user.getScreenName(),remoteAddr,remoteHost});
+  body=StringUtil.replace(body,new String[]{"[$EMAIL_VERIFICATION_URL$]","[$EMAIL_VERIFICATION_CODE$]","[$FROM_ADDRESS$]","[$FROM_NAME$]","[$PORTAL_URL$]","[$TO_ADDRESS$]","[$TO_NAME$]","[$USER_AGENT$]","[$USER_ID$]","[$USER_SCREENNAME$]","[$REMOTE_ADDRESS$]","[$REMOTE_HOST$]"},new String[]{verifyEmailAddressURL,ticket.getKey(),fromAddress,fromName,company.getVirtualHostname(),toAddress,toName,userAgent,String.valueOf(user.getUserId()),user.getScreenName(),remoteAddr,remoteHost});
+  try {
+    InternetAddress from=new InternetAddress(fromAddress,fromName);
+    InternetAddress to=new InternetAddress(toAddress,toName);
+    MailMessage message=new MailMessage(from,to,subject,body,true);
+    mailService.sendEmail(message);
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+}
