@@ -17,8 +17,9 @@
   String contentType=uploadRequest.getContentType("file");
   ServiceContext serviceContext=ServiceContextFactory.getInstance(DLFileEntry.class.getName(),actionRequest);
   serviceContext.setAttribute("documentTypeId",documentTypeId);
-  HashMap<Long,Fields> fieldsMap=getFieldsMap(uploadRequest,documentTypeId);
+  HashMap<String,Fields> fieldsMap=getFieldsMap(uploadRequest,documentTypeId);
   serviceContext.setAttribute("fieldsMap",fieldsMap);
+  FileEntry fileEntry=null;
   if (cmd.equals(Constants.ADD)) {
     if (Validator.isNull(title)) {
       title=sourceFileName;
@@ -26,7 +27,7 @@
     serviceContext.setAttribute("contentType",contentType);
     String extension=FileUtil.getExtension(sourceFileName);
     serviceContext.setAttribute("extension",extension);
-    FileEntry fileEntry=DLAppServiceUtil.addFileEntry(repositoryId,folderId,title,description,changeLog,file,serviceContext);
+    fileEntry=DLAppServiceUtil.addFileEntry(repositoryId,folderId,title,description,changeLog,file,serviceContext);
     AssetPublisherUtil.addAndStoreSelection(actionRequest,DLFileEntry.class.getName(),fileEntry.getFileEntryId(),-1);
   }
  else {
@@ -35,7 +36,10 @@
       String extension=FileUtil.getExtension(sourceFileName);
       serviceContext.setAttribute("extension",extension);
     }
-    DLAppServiceUtil.updateFileEntry(fileEntryId,sourceFileName,title,description,changeLog,majorVersion,file,serviceContext);
+    fileEntry=DLAppServiceUtil.updateFileEntry(fileEntryId,sourceFileName,title,description,changeLog,majorVersion,file,serviceContext);
   }
   AssetPublisherUtil.addRecentFolderId(actionRequest,DLFileEntry.class.getName(),folderId);
+  if (fileEntry instanceof LiferayFileEntry) {
+    MessageBusUtil.sendMessage(DestinationNames.DOCUMENT_LIBRARY_RAW_METADATA_PROCESSOR,fileEntry.getModel());
+  }
 }
