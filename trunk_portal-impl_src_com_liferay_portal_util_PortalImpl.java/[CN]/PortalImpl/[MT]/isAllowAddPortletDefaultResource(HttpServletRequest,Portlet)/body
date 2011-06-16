@@ -1,0 +1,91 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+  Layout layout=themeDisplay.getLayout();
+  LayoutTypePortlet layoutTypePortlet=themeDisplay.getLayoutTypePortlet();
+  String portletId=portlet.getPortletId();
+  Boolean renderPortletResource=(Boolean)request.getAttribute(WebKeys.RENDER_PORTLET_RESOURCE);
+  if (renderPortletResource != null) {
+    boolean runtimePortlet=renderPortletResource.booleanValue();
+    if (runtimePortlet) {
+      return true;
+    }
+  }
+  if (layout.isTypePanel()) {
+    return true;
+  }
+  if (layout.isTypeControlPanel() && isControlPanelPortlet(portletId,themeDisplay)) {
+    return true;
+  }
+  if (layout.isTypePortlet()) {
+    String checkPortletId=portletId;
+    String outerPortletId=getOuterPortletId(request);
+    if (outerPortletId != null) {
+      checkPortletId=outerPortletId;
+    }
+    if (layoutTypePortlet.hasPortletId(checkPortletId)) {
+      return true;
+    }
+  }
+  if (themeDisplay.isSignedIn() && (portletId.equals(PortletKeys.LAYOUT_CONFIGURATION) || portletId.equals(PortletKeys.LAYOUTS_ADMIN))) {
+    PermissionChecker permissionChecker=themeDisplay.getPermissionChecker();
+    Group group=layout.getGroup();
+    if (group.isSite()) {
+      long scopeGroupId=themeDisplay.getScopeGroupId();
+      if (GroupPermissionUtil.contains(permissionChecker,scopeGroupId,ActionKeys.MANAGE_LAYOUTS) || GroupPermissionUtil.contains(permissionChecker,scopeGroupId,ActionKeys.PUBLISH_STAGING) || LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.UPDATE)) {
+        return true;
+      }
+    }
+    if (group.isCompany()) {
+      if (permissionChecker.isCompanyAdmin()) {
+        return true;
+      }
+    }
+ else     if (group.isLayoutPrototype()) {
+      long layoutPrototypeId=group.getClassPK();
+      if (LayoutPrototypePermissionUtil.contains(permissionChecker,layoutPrototypeId,ActionKeys.UPDATE)) {
+        return true;
+      }
+    }
+ else     if (group.isLayoutSetPrototype()) {
+      long layoutSetPrototypeId=group.getClassPK();
+      if (LayoutSetPrototypePermissionUtil.contains(permissionChecker,layoutSetPrototypeId,ActionKeys.UPDATE)) {
+        return true;
+      }
+    }
+ else     if (group.isOrganization()) {
+      long organizationId=group.getOrganizationId();
+      if (OrganizationPermissionUtil.contains(permissionChecker,organizationId,ActionKeys.MANAGE_LAYOUTS)) {
+        return true;
+      }
+    }
+ else     if (group.isUserGroup()) {
+      long scopeGroupId=themeDisplay.getScopeGroupId();
+      if (GroupPermissionUtil.contains(permissionChecker,scopeGroupId,ActionKeys.MANAGE_LAYOUTS) || GroupPermissionUtil.contains(permissionChecker,scopeGroupId,ActionKeys.PUBLISH_STAGING) || LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.UPDATE)) {
+        return true;
+      }
+    }
+ else     if (group.isUser()) {
+      return true;
+    }
+  }
+  if (portlet.isAddDefaultResource()) {
+    if (!PropsValues.PORTLET_ADD_DEFAULT_RESOURCE_CHECK_ENABLED) {
+      return true;
+    }
+    if (_portletAddDefaultResourceCheckWhitelist.contains(portletId)) {
+      return true;
+    }
+    String strutsAction=ParamUtil.getString(request,"struts_action");
+    if (_portletAddDefaultResourceCheckWhitelistActions.contains(strutsAction)) {
+      return true;
+    }
+    String requestPortletAuthenticationToken=ParamUtil.getString(request,"p_p_auth");
+    if (Validator.isNotNull(requestPortletAuthenticationToken)) {
+      String actualPortletAuthenticationToken=AuthTokenUtil.getToken(request,layout.getPlid(),portletId);
+      if (requestPortletAuthenticationToken.equals(actualPortletAuthenticationToken)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}

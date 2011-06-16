@@ -1,0 +1,87 @@
+{
+  WebDAVStorage storage=webDavRequest.getWebDAVStorage();
+  if (!storage.isSupportsClassTwo()) {
+    return HttpServletResponse.SC_METHOD_NOT_ALLOWED;
+  }
+  HttpServletRequest request=webDavRequest.getHttpServletRequest();
+  HttpServletResponse response=webDavRequest.getHttpServletResponse();
+  Lock lock=null;
+  Status status=null;
+  String lockUuid=webDavRequest.getLockUuid();
+  long timeout=WebDAVUtil.getTimeout(request);
+  if (Validator.isNull(lockUuid)) {
+    String owner=null;
+    String xml=new String(FileUtil.getBytes(request.getInputStream()));
+    if (Validator.isNotNull(xml)) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Request XML\n" + XMLFormatter.toString(xml));
+      }
+      SAXReader reader=new SAXReader();
+      Document doc=reader.read(new UnsyncStringReader(xml));
+      Element root=doc.getRootElement();
+      boolean exclusive=false;
+      List<Element> lockscopeEls=root.element("lockscope").elements();
+      for (      Element scopeEl : lockscopeEls) {
+        String name=GetterUtil.getString(scopeEl.getName());
+        if (name.equals("exclusive")) {
+          exclusive=true;
+        }
+      }
+      if (!exclusive) {
+        return HttpServletResponse.SC_BAD_REQUEST;
+      }
+      Element ownerEl=root.element("owner");
+      owner=ownerEl.getTextTrim();
+      if (Validator.isNull(owner)) {
+        List<Element> childEls=ownerEl.elements("href");
+        for (        Element childEl : childEls) {
+          owner="<D:href>" + childEl.getTextTrim() + "</D:href>";
+        }
+      }
+    }
+ else {
+      _log.error("Empty request XML");
+      return HttpServletResponse.SC_PRECONDITION_FAILED;
+    }
+    status=storage.lockResource(webDavRequest,owner,timeout);
+    lock=(Lock)status.getObject();
+  }
+ else {
+    try {
+      lock=storage.refreshResourceLock(webDavRequest,lockUuid,timeout);
+      status=new Status(HttpServletResponse.SC_OK);
+    }
+ catch (    WebDAVException wde) {
+      if (wde.getCause() instanceof NoSuchLockException) {
+        return HttpServletResponse.SC_PRECONDITION_FAILED;
+      }
+ else {
+        throw wde;
+      }
+    }
+  }
+  if (lock == null) {
+    return status.getCode();
+  }
+  long depth=WebDAVUtil.getDepth(request);
+  String xml=getResponseXML(lock,depth);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Response XML\n" + xml);
+  }
+  String lockToken="<" + WebDAVUtil.TOKEN_PREFIX + lock.getUuid()+ ">";
+  response.setContentType(ContentTypes.TEXT_XML_UTF8);
+  response.setHeader("Lock-Token",lockToken);
+  response.setStatus(status.getCode());
+  if (_log.isDebugEnabled()) {
+    _log.debug("Returning lock token " + lockToken);
+  }
+  try {
+    ServletResponseUtil.write(response,xml);
+  }
+ catch (  Exception e) {
+    if (_log.isWarnEnabled()) {
+      _log.warn(e);
+    }
+  }
+  return status.getCode();
+}

@@ -1,0 +1,58 @@
+{
+  try {
+    String[] destinationArray=WebDAVUtil.getPathArray(destination,true);
+    FileEntry fileEntry=(FileEntry)resource.getModel();
+    if (isLocked(fileEntry,webDavRequest.getLockUuid())) {
+      return WebDAVUtil.SC_LOCKED;
+    }
+    long companyId=webDavRequest.getCompanyId();
+    long groupId=WebDAVUtil.getGroupId(companyId,destinationArray);
+    long newParentFolderId=getParentFolderId(companyId,destinationArray);
+    String sourceFileName=WebDAVUtil.getResourceName(destinationArray);
+    String title=WebDAVUtil.getResourceName(destinationArray);
+    String description=fileEntry.getDescription();
+    String changeLog=StringPool.BLANK;
+    byte[] bytes=null;
+    String[] assetTagNames=AssetTagLocalServiceUtil.getTagNames(FileEntry.class.getName(),fileEntry.getFileEntryId());
+    ServiceContext serviceContext=new ServiceContext();
+    serviceContext.setAssetTagNames(assetTagNames);
+    int status=HttpServletResponse.SC_CREATED;
+    if (overwrite) {
+      if (deleteResource(groupId,newParentFolderId,title,webDavRequest.getLockUuid())) {
+        status=HttpServletResponse.SC_NO_CONTENT;
+      }
+    }
+    if (webDavRequest.isMac()) {
+      try {
+        FileEntry destFileEntry=DLAppServiceUtil.getFileEntry(groupId,newParentFolderId,title);
+        InputStream is=fileEntry.getContentStream();
+        bytes=FileUtil.getBytes(is);
+        DLAppServiceUtil.updateFileEntry(destFileEntry.getFileEntryId(),destFileEntry.getTitle(),destFileEntry.getMimeType(),destFileEntry.getTitle(),destFileEntry.getDescription(),changeLog,false,bytes,serviceContext);
+        DLAppServiceUtil.deleteFileEntry(fileEntry.getFileEntryId());
+        return status;
+      }
+ catch (      NoSuchFileEntryException nsfee) {
+      }
+    }
+    DLAppServiceUtil.updateFileEntry(fileEntry.getFileEntryId(),sourceFileName,fileEntry.getMimeType(),title,description,changeLog,false,bytes,serviceContext);
+    if (fileEntry.getFolderId() != newParentFolderId) {
+      fileEntry=DLAppServiceUtil.moveFileEntry(fileEntry.getFileEntryId(),newParentFolderId,serviceContext);
+    }
+    return status;
+  }
+ catch (  PrincipalException pe) {
+    return HttpServletResponse.SC_FORBIDDEN;
+  }
+catch (  DuplicateFileException dfe) {
+    return HttpServletResponse.SC_PRECONDITION_FAILED;
+  }
+catch (  DuplicateFolderNameException dfne) {
+    return HttpServletResponse.SC_PRECONDITION_FAILED;
+  }
+catch (  LockException le) {
+    return WebDAVUtil.SC_LOCKED;
+  }
+catch (  Exception e) {
+    throw new WebDAVException(e);
+  }
+}

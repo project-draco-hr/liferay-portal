@@ -1,0 +1,33 @@
+{
+  Signature signature=proceedingJoinPoint.getSignature();
+  String methodName=signature.getName();
+  Object[] arguments=proceedingJoinPoint.getArgs();
+  if (methodName.equals(_START_WORKFLOW_INSTANCE_METHOD_NAME)) {
+    String workflowDefinitionName=(String)arguments[3];
+    Integer workflowDefinitionVersion=(Integer)arguments[4];
+    String className=WorkflowDefinition.class.getName();
+    String key=_encodeKey(workflowDefinitionName,workflowDefinitionVersion);
+    if (LockLocalServiceUtil.isLocked(className,key)) {
+      throw new WorkflowException("Workflow definition name " + workflowDefinitionName + " and version "+ workflowDefinitionVersion+ " is being undeployed");
+    }
+    return proceedingJoinPoint.proceed();
+  }
+ else   if (!methodName.equals(_UNDEPLOY_WORKFLOW_DEFINITION_METHOD_NAME)) {
+    return proceedingJoinPoint.proceed();
+  }
+  long userId=(Long)arguments[1];
+  String name=(String)arguments[2];
+  Integer version=(Integer)arguments[3];
+  String className=WorkflowDefinition.class.getName();
+  String key=_encodeKey(name,version);
+  if (LockLocalServiceUtil.isLocked(className,key)) {
+    throw new WorkflowException("Workflow definition name " + name + " and version "+ version+ " is being undeployed");
+  }
+  try {
+    LockLocalServiceUtil.lock(userId,className,key,String.valueOf(userId),false,Time.HOUR);
+    return proceedingJoinPoint.proceed();
+  }
+  finally {
+    LockLocalServiceUtil.unlock(className,key);
+  }
+}

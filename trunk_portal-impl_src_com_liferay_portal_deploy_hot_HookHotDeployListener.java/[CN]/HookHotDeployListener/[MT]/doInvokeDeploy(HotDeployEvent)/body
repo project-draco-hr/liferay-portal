@@ -1,0 +1,242 @@
+{
+  ServletContext servletContext=event.getServletContext();
+  String servletContextName=servletContext.getServletContextName();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Invoking deploy for " + servletContextName);
+  }
+  String xml=HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/liferay-hook.xml"));
+  if (xml == null) {
+    return;
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Registering hook for " + servletContextName);
+  }
+  _servletContextNames.add(servletContextName);
+  ClassLoader portletClassLoader=event.getContextClassLoader();
+  initLogger(portletClassLoader);
+  Document document=SAXReaderUtil.read(xml,true);
+  Element rootElement=document.getRootElement();
+  String portalPropertiesLocation=rootElement.elementText("portal-properties");
+  if (Validator.isNotNull(portalPropertiesLocation)) {
+    Configuration portalPropertiesConfiguration=null;
+    try {
+      String name=portalPropertiesLocation;
+      int pos=name.lastIndexOf(".properties");
+      if (pos != -1) {
+        name=name.substring(0,pos);
+      }
+      portalPropertiesConfiguration=ConfigurationFactoryUtil.getConfiguration(portletClassLoader,name);
+    }
+ catch (    Exception e) {
+      _log.error("Unable to read " + portalPropertiesLocation,e);
+    }
+    if (portalPropertiesConfiguration != null) {
+      Properties portalProperties=portalPropertiesConfiguration.getProperties();
+      if (portalProperties.size() > 0) {
+        _portalPropertiesMap.put(servletContextName,portalProperties);
+        initPortalProperties(servletContextName,portletClassLoader,portalProperties);
+        initAuthFailures(servletContextName,portletClassLoader,portalProperties);
+        initAutoDeployListeners(servletContextName,portletClassLoader,portalProperties);
+        initAutoLogins(servletContextName,portletClassLoader,portalProperties);
+        initAuthenticators(servletContextName,portletClassLoader,portalProperties);
+        initHotDeployListeners(servletContextName,portletClassLoader,portalProperties);
+        initModelListeners(servletContextName,portletClassLoader,portalProperties);
+        initEvents(servletContextName,portletClassLoader,portalProperties);
+      }
+    }
+  }
+  LanguagesContainer languagesContainer=new LanguagesContainer();
+  _languagesContainerMap.put(servletContextName,languagesContainer);
+  List<Element> languagePropertiesElements=rootElement.elements("language-properties");
+  Map<String,String> baseLanguageMap=null;
+  for (  Element languagePropertiesElement : languagePropertiesElements) {
+    String languagePropertiesLocation=languagePropertiesElement.getText();
+    try {
+      URL url=portletClassLoader.getResource(languagePropertiesLocation);
+      if (url == null) {
+        continue;
+      }
+      InputStream is=url.openStream();
+      Properties properties=PropertiesUtil.load(is,StringPool.UTF8);
+      is.close();
+      Map<String,String> languageMap=new HashMap<String,String>();
+      if (baseLanguageMap != null) {
+        languageMap.putAll(baseLanguageMap);
+      }
+      for (      Map.Entry<Object,Object> entry : properties.entrySet()) {
+        String key=(String)entry.getKey();
+        String value=(String)entry.getValue();
+        value=LanguageResources.fixValue(value);
+        languageMap.put(key,value);
+      }
+      Locale locale=getLocale(languagePropertiesLocation);
+      if (locale != null) {
+        languagesContainer.addLanguage(locale,languageMap);
+      }
+ else       if (!languageMap.isEmpty()) {
+        baseLanguageMap=languageMap;
+      }
+    }
+ catch (    Exception e) {
+      _log.error("Unable to read " + languagePropertiesLocation,e);
+    }
+  }
+  if (baseLanguageMap != null) {
+    languagesContainer.addLanguage(new Locale(StringPool.BLANK),baseLanguageMap);
+  }
+  String customJspDir=rootElement.elementText("custom-jsp-dir");
+  if (Validator.isNotNull(customJspDir)) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Custom JSP directory: " + customJspDir);
+    }
+    boolean customJspGlobal=GetterUtil.getBoolean(rootElement.elementText("custom-jsp-global"),true);
+    List<String> customJsps=new ArrayList<String>();
+    String webDir=servletContext.getRealPath(StringPool.SLASH);
+    getCustomJsps(servletContext,webDir,customJspDir,customJsps);
+    if (customJsps.size() > 0) {
+      CustomJspBag customJspBag=new CustomJspBag(customJspDir,customJspGlobal,customJsps);
+      if (_log.isDebugEnabled()) {
+        StringBundler sb=new StringBundler(customJsps.size() * 2);
+        sb.append("Custom JSP files:\n");
+        Iterator<String> itr=customJsps.iterator();
+        while (itr.hasNext()) {
+          String customJsp=itr.next();
+          sb.append(customJsp);
+          if (itr.hasNext()) {
+            sb.append(StringPool.NEW_LINE);
+          }
+        }
+        _log.debug(sb.toString());
+      }
+      _customJspBagsMap.put(servletContextName,customJspBag);
+      PluginPackage pluginPackage=event.getPluginPackage();
+      initCustomJspBag(servletContextName,pluginPackage.getName(),customJspBag);
+    }
+  }
+  IndexerPostProcessorContainer indexerPostProcessorContainer=_indexerPostProcessorContainerMap.get(servletContextName);
+  if (indexerPostProcessorContainer == null) {
+    indexerPostProcessorContainer=new IndexerPostProcessorContainer();
+    _indexerPostProcessorContainerMap.put(servletContextName,indexerPostProcessorContainer);
+  }
+  List<Element> indexerPostProcessorElements=rootElement.elements("indexer-post-processor");
+  for (  Element indexerPostProcessorElement : indexerPostProcessorElements) {
+    String indexerClassName=indexerPostProcessorElement.elementText("indexer-class-name");
+    String indexerPostProcessorImpl=indexerPostProcessorElement.elementText("indexer-post-processor-impl");
+    Indexer indexer=IndexerRegistryUtil.getIndexer(indexerClassName);
+    if (indexer == null) {
+      _log.error("No indexer for " + indexerClassName + " was found");
+      continue;
+    }
+    IndexerPostProcessor indexerPostProcessor=(IndexerPostProcessor)InstanceFactory.newInstance(portletClassLoader,indexerPostProcessorImpl);
+    indexer.registerIndexerPostProcessor(indexerPostProcessor);
+    indexerPostProcessorContainer.registerIndexerPostProcessor(indexerClassName,indexerPostProcessor);
+  }
+  List<Element> serviceElements=rootElement.elements("service");
+  for (  Element serviceElement : serviceElements) {
+    String serviceType=serviceElement.elementText("service-type");
+    String serviceImpl=serviceElement.elementText("service-impl");
+    Class<?> serviceTypeClass=portletClassLoader.loadClass(serviceType);
+    Class<?> serviceImplClass=portletClassLoader.loadClass(serviceImpl);
+    Constructor<?> serviceImplConstructor=serviceImplClass.getConstructor(new Class<?>[]{serviceTypeClass});
+    Object serviceProxy=PortalBeanLocatorUtil.locate(serviceType);
+    if (Proxy.isProxyClass(serviceProxy.getClass())) {
+      initServices(servletContextName,portletClassLoader,serviceType,serviceTypeClass,serviceImplConstructor,serviceProxy);
+    }
+ else {
+      _log.error("Service hooks require Spring to be configured to use " + "JdkDynamicProxy and will not work with CGLIB");
+    }
+  }
+  ServletFiltersContainer servletFiltersContainer=_servletFiltersContainerMap.get(servletContextName);
+  if (servletFiltersContainer == null) {
+    servletFiltersContainer=new ServletFiltersContainer();
+    _servletFiltersContainerMap.put(servletContextName,servletFiltersContainer);
+  }
+  List<Element> servletFilterElements=rootElement.elements("servlet-filter");
+  for (  Element servletFilterElement : servletFilterElements) {
+    String servletFilterName=servletFilterElement.elementText("servlet-filter-name");
+    String servletFilterImpl=servletFilterElement.elementText("servlet-filter-impl");
+    List<Element> initParamElements=servletFilterElement.elements("init-param");
+    Map<String,String> initParameterMap=new HashMap<String,String>();
+    for (    Element initParamElement : initParamElements) {
+      String paramName=initParamElement.elementText("param-name");
+      String paramValue=initParamElement.elementText("param-value");
+      initParameterMap.put(paramName,paramValue);
+    }
+    Filter filter=initServletFilter(servletFilterImpl,portletClassLoader);
+    FilterConfig filterConfig=new InvokerFilterConfig(servletContext,servletFilterName,initParameterMap);
+    filter.init(filterConfig);
+    servletFiltersContainer.registerFilter(servletFilterName,filter,filterConfig);
+  }
+  List<Element> servletFilterMappingElements=rootElement.elements("servlet-filter-mapping");
+  for (  Element servletFilterMappingElement : servletFilterMappingElements) {
+    String servletFilterName=servletFilterMappingElement.elementText("servlet-filter-name");
+    String afterFilter=servletFilterMappingElement.elementText("after-filter");
+    String beforeFilter=servletFilterMappingElement.elementText("before-filter");
+    String positionFilterName=beforeFilter;
+    boolean after=false;
+    if (Validator.isNotNull(afterFilter)) {
+      positionFilterName=afterFilter;
+      after=true;
+    }
+    List<Element> urlPatternElements=servletFilterMappingElement.elements("url-pattern");
+    List<String> urlPatterns=new ArrayList<String>();
+    for (    Element urlPatternElement : urlPatternElements) {
+      String urlPattern=urlPatternElement.getTextTrim();
+      urlPatterns.add(urlPattern);
+    }
+    List<Element> dispatcherElements=servletFilterMappingElement.elements("dispatcher");
+    List<String> dispatchers=new ArrayList<String>();
+    for (    Element dispatcherElement : dispatcherElements) {
+      String dispatcher=dispatcherElement.getTextTrim();
+      dispatcher=dispatcher.toUpperCase();
+      dispatchers.add(dispatcher);
+    }
+    servletFiltersContainer.registerFilterMapping(servletFilterName,urlPatterns,dispatchers,positionFilterName,after);
+  }
+  StrutsActionsContainer strutsActionContainer=_strutsActionsContainerMap.get(servletContextName);
+  if (strutsActionContainer == null) {
+    strutsActionContainer=new StrutsActionsContainer();
+    _strutsActionsContainerMap.put(servletContextName,strutsActionContainer);
+  }
+  List<Element> strutsActionElements=rootElement.elements("struts-action");
+  for (  Element strutsActionElement : strutsActionElements) {
+    String strutsActionPath=strutsActionElement.elementText("struts-action-path");
+    String strutsActionImpl=strutsActionElement.elementText("struts-action-impl");
+    Object strutsAction=initStrutsAction(strutsActionPath,strutsActionImpl,portletClassLoader);
+    strutsActionContainer.registerStrutsAction(strutsActionPath,strutsAction);
+  }
+  ModelListenersContainer modelListenersContainer=_modelListenersContainerMap.get(servletContextName);
+  if (modelListenersContainer == null) {
+    modelListenersContainer=new ModelListenersContainer();
+    _modelListenersContainerMap.put(servletContextName,modelListenersContainer);
+  }
+  List<Element> modelListenerElements=rootElement.elements("model-listener");
+  for (  Element modelListenerElement : modelListenerElements) {
+    String modelName=modelListenerElement.elementText("model-name");
+    String modelListenerClassName=modelListenerElement.elementText("model-listener-class");
+    ModelListener<BaseModel<?>> modelListener=initModelListener(modelName,modelListenerClassName,portletClassLoader);
+    if (modelListener != null) {
+      modelListenersContainer.registerModelListener(modelName,modelListener);
+    }
+  }
+  EventsContainer eventsContainer=_eventsContainerMap.get(servletContextName);
+  if (eventsContainer == null) {
+    eventsContainer=new EventsContainer();
+    _eventsContainerMap.put(servletContextName,eventsContainer);
+  }
+  List<Element> eventElements=rootElement.elements("event");
+  for (  Element eventElement : eventElements) {
+    String eventName=eventElement.elementText("event-type");
+    String eventClassName=eventElement.elementText("event-class");
+    Object obj=initEvent(eventName,eventClassName,portletClassLoader);
+    if (obj != null) {
+      eventsContainer.registerEvent(eventName,obj);
+    }
+  }
+  registerClpMessageListeners(servletContext,portletClassLoader);
+  DirectServletRegistry.clearServlets();
+  FileAvailabilityUtil.reset();
+  if (_log.isInfoEnabled()) {
+    _log.info("Hook for " + servletContextName + " is available for use");
+  }
+}

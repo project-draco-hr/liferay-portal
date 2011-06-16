@@ -1,0 +1,72 @@
+{
+  PortletPreferences preferences=actionRequest.getPreferences();
+  ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  long messageId=ParamUtil.getLong(actionRequest,"messageId");
+  long groupId=themeDisplay.getScopeGroupId();
+  long categoryId=ParamUtil.getLong(actionRequest,"mbCategoryId");
+  long threadId=ParamUtil.getLong(actionRequest,"threadId");
+  long parentMessageId=ParamUtil.getLong(actionRequest,"parentMessageId");
+  String subject=ParamUtil.getString(actionRequest,"subject");
+  String body=ParamUtil.getString(actionRequest,"body");
+  String format=GetterUtil.getString(preferences.getValue("messageFormat",null),MBMessageConstants.DEFAULT_FORMAT);
+  boolean attachments=ParamUtil.getBoolean(actionRequest,"attachments");
+  List<ObjectValuePair<String,byte[]>> files=new ArrayList<ObjectValuePair<String,byte[]>>();
+  if (attachments) {
+    UploadPortletRequest uploadRequest=PortalUtil.getUploadPortletRequest(actionRequest);
+    for (int i=1; i <= 5; i++) {
+      File file=uploadRequest.getFile("msgFile" + i);
+      String fileName=uploadRequest.getFileName("msgFile" + i);
+      byte[] bytes=FileUtil.getBytes(file);
+      if ((bytes != null) && (bytes.length > 0)) {
+        ObjectValuePair<String,byte[]> ovp=new ObjectValuePair<String,byte[]>(fileName,bytes);
+        files.add(ovp);
+      }
+    }
+  }
+  boolean question=ParamUtil.getBoolean(actionRequest,"question");
+  boolean anonymous=ParamUtil.getBoolean(actionRequest,"anonymous");
+  double priority=ParamUtil.getDouble(actionRequest,"priority");
+  boolean allowPingbacks=ParamUtil.getBoolean(actionRequest,"allowPingbacks");
+  ServiceContext serviceContext=ServiceContextFactory.getInstance(MBMessage.class.getName(),actionRequest);
+  boolean preview=ParamUtil.getBoolean(actionRequest,"preview");
+  serviceContext.setAttribute("preview",preview);
+  MBMessage message=null;
+  if (messageId <= 0) {
+    if (PropsValues.CAPTCHA_CHECK_PORTLET_MESSAGE_BOARDS_EDIT_MESSAGE) {
+      CaptchaUtil.check(actionRequest);
+    }
+    if (threadId <= 0) {
+      message=MBMessageServiceUtil.addMessage(groupId,categoryId,subject,body,format,files,anonymous,priority,allowPingbacks,serviceContext);
+      if (question) {
+        MBMessageFlagLocalServiceUtil.addQuestionFlag(message.getMessageId());
+      }
+    }
+ else {
+      message=MBMessageServiceUtil.addMessage(groupId,categoryId,threadId,parentMessageId,subject,body,format,files,anonymous,priority,allowPingbacks,serviceContext);
+    }
+  }
+ else {
+    List<String> existingFiles=new ArrayList<String>();
+    for (int i=1; i <= 5; i++) {
+      String path=ParamUtil.getString(actionRequest,"existingPath" + i);
+      if (Validator.isNotNull(path)) {
+        existingFiles.add(path);
+      }
+    }
+    message=MBMessageServiceUtil.updateMessage(messageId,subject,body,files,existingFiles,priority,allowPingbacks,serviceContext);
+    if (message.isRoot()) {
+      if (question) {
+        MBMessageFlagLocalServiceUtil.addQuestionFlag(messageId);
+      }
+ else {
+        MBMessageFlagLocalServiceUtil.deleteQuestionAndAnswerFlags(message.getThreadId());
+      }
+    }
+  }
+  PermissionChecker permissionChecker=themeDisplay.getPermissionChecker();
+  boolean subscribe=ParamUtil.getBoolean(actionRequest,"subscribe");
+  if (subscribe && MBMessagePermission.contains(permissionChecker,message,ActionKeys.SUBSCRIBE)) {
+    MBMessageServiceUtil.subscribeMessage(message.getMessageId());
+  }
+  return message;
+}

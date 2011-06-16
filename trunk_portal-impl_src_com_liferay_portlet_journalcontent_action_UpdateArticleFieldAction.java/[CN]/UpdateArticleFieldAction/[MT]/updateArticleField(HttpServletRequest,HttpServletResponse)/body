@@ -1,0 +1,40 @@
+{
+  long groupId=ParamUtil.getLong(request,"groupId");
+  String articleId=ParamUtil.getString(request,"articleId");
+  double version=ParamUtil.getDouble(request,"version");
+  String containerId=ParamUtil.getString(request,"containerId");
+  if (Validator.isNotNull(containerId)) {
+    int x=containerId.indexOf("_");
+    int y=containerId.lastIndexOf("_");
+    if ((x != -1) && (y != -1)) {
+      groupId=GetterUtil.getLong(containerId.substring(0,x));
+      articleId=containerId.substring(x + 1,y);
+      version=GetterUtil.getDouble(containerId.substring(y,containerId.length()));
+    }
+  }
+  String languageId=LanguageUtil.getLanguageId(request);
+  String fieldName=ParamUtil.getString(request,"fieldName");
+  String fieldData=ParamUtil.getString(request,"fieldData");
+  if (fieldName.startsWith("journal-content-field-name-")) {
+    fieldName=fieldName.substring(27,fieldName.length());
+  }
+  JournalArticle article=JournalArticleLocalServiceUtil.getArticle(groupId,articleId,version);
+  String content=article.getContent();
+  Document doc=SAXReaderUtil.read(content);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Before\n" + content);
+  }
+  String path="/root/dynamic-element[@name='" + fieldName + "']/dynamic-content[@language-id='"+ languageId+ "']";
+  Node node=doc.selectSingleNode(path);
+  if (node == null) {
+    path="/root/dynamic-element[@name='" + fieldName + "']/dynamic-content";
+    node=doc.selectSingleNode(path);
+  }
+  node.setText(fieldData);
+  content=DDMXMLUtil.formatXML(doc);
+  if (_log.isDebugEnabled()) {
+    _log.debug("After\n" + content);
+  }
+  JournalArticleServiceUtil.updateContent(groupId,articleId,version,content);
+  ServletResponseUtil.write(response,fieldData);
+}

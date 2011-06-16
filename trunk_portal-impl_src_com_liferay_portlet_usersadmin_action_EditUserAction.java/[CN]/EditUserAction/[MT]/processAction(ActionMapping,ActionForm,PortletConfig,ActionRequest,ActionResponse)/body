@@ -1,0 +1,86 @@
+{
+  String cmd=ParamUtil.getString(actionRequest,Constants.CMD);
+  try {
+    User user=null;
+    String oldScreenName=StringPool.BLANK;
+    String oldLanguageId=StringPool.BLANK;
+    if (cmd.equals(Constants.ADD)) {
+      user=addUser(actionRequest);
+    }
+ else     if (cmd.equals(Constants.DEACTIVATE) || cmd.equals(Constants.DELETE) || cmd.equals(Constants.RESTORE)) {
+      deleteUsers(actionRequest);
+    }
+ else     if (cmd.equals("deleteRole")) {
+      deleteRole(actionRequest);
+    }
+ else     if (cmd.equals(Constants.UPDATE)) {
+      Object[] returnValue=updateUser(actionRequest,actionResponse);
+      user=(User)returnValue[0];
+      oldScreenName=((String)returnValue[1]);
+      oldLanguageId=((String)returnValue[2]);
+    }
+ else     if (cmd.equals("unlock")) {
+      user=updateLockout(actionRequest);
+    }
+    ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+    String redirect=ParamUtil.getString(actionRequest,"redirect");
+    if (user != null) {
+      if (Validator.isNotNull(oldScreenName)) {
+        Group group=user.getGroup();
+        if (group.getGroupId() == themeDisplay.getScopeGroupId()) {
+          Layout layout=themeDisplay.getLayout();
+          String friendlyURLPath=group.getPathFriendlyURL(layout.isPrivateLayout(),themeDisplay);
+          String oldPath=friendlyURLPath + StringPool.SLASH + oldScreenName;
+          String newPath=friendlyURLPath + StringPool.SLASH + user.getScreenName();
+          redirect=StringUtil.replace(redirect,oldPath,newPath);
+          redirect=StringUtil.replace(redirect,HttpUtil.encodeURL(oldPath),HttpUtil.encodeURL(newPath));
+        }
+      }
+      if (Validator.isNotNull(oldLanguageId) && themeDisplay.isI18n()) {
+        String i18nLanguageId=user.getLanguageId();
+        int pos=i18nLanguageId.indexOf(CharPool.UNDERLINE);
+        if (pos != -1) {
+          i18nLanguageId=i18nLanguageId.substring(0,pos);
+        }
+        String i18nPath=StringPool.SLASH + i18nLanguageId;
+        redirect=StringUtil.replace(redirect,themeDisplay.getI18nPath(),i18nPath);
+      }
+      redirect=HttpUtil.setParameter(redirect,actionResponse.getNamespace() + "p_u_i_d",user.getUserId());
+    }
+    Group scopeGroup=themeDisplay.getScopeGroup();
+    if (scopeGroup.isUser()) {
+      try {
+        UserLocalServiceUtil.getUserById(scopeGroup.getClassPK());
+      }
+ catch (      NoSuchUserException nsue) {
+        redirect=HttpUtil.setParameter(redirect,"doAsGroupId",0);
+        redirect=HttpUtil.setParameter(redirect,"refererPlid",0);
+      }
+    }
+    sendRedirect(actionRequest,actionResponse,redirect);
+  }
+ catch (  Exception e) {
+    if (e instanceof NoSuchUserException || e instanceof PrincipalException) {
+      SessionErrors.add(actionRequest,e.getClass().getName());
+      setForward(actionRequest,"portlet.users_admin.error");
+    }
+ else     if (e instanceof AddressCityException || e instanceof AddressStreetException || e instanceof AddressZipException|| e instanceof CompanyMaxUsersException|| e instanceof ContactBirthdayException|| e instanceof ContactFirstNameException|| e instanceof ContactFullNameException|| e instanceof ContactLastNameException|| e instanceof DuplicateUserEmailAddressException|| e instanceof DuplicateUserScreenNameException|| e instanceof EmailAddressException|| e instanceof GroupFriendlyURLException|| e instanceof NoSuchCountryException|| e instanceof NoSuchListTypeException|| e instanceof NoSuchRegionException|| e instanceof PhoneNumberException|| e instanceof RequiredUserException|| e instanceof ReservedUserEmailAddressException|| e instanceof ReservedUserScreenNameException|| e instanceof UserEmailAddressException|| e instanceof UserIdException|| e instanceof UserPasswordException|| e instanceof UserReminderQueryException|| e instanceof UserScreenNameException|| e instanceof UserSmsException|| e instanceof WebsiteURLException) {
+      if (e instanceof NoSuchListTypeException) {
+        NoSuchListTypeException nslte=(NoSuchListTypeException)e;
+        SessionErrors.add(actionRequest,e.getClass().getName() + nslte.getType());
+      }
+ else {
+        SessionErrors.add(actionRequest,e.getClass().getName(),e);
+      }
+      if (e instanceof RequiredUserException) {
+        String redirect=PortalUtil.escapeRedirect(ParamUtil.getString(actionRequest,"redirect"));
+        if (Validator.isNotNull(redirect)) {
+          actionResponse.sendRedirect(redirect);
+        }
+      }
+    }
+ else {
+      throw e;
+    }
+  }
+}

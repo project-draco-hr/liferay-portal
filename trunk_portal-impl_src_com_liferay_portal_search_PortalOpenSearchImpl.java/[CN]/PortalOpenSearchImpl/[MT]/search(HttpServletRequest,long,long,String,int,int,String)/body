@@ -1,0 +1,51 @@
+{
+  try {
+    ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+    int start=(startPage * itemsPerPage) - itemsPerPage;
+    int end=startPage * itemsPerPage;
+    Hits results=CompanyLocalServiceUtil.search(themeDisplay.getCompanyId(),userId,keywords,start,end);
+    String[] queryTerms=results.getQueryTerms();
+    int total=results.getLength();
+    Object[] values=addSearchResults(queryTerms,keywords,startPage,itemsPerPage,total,start,"Liferay Portal Search: " + keywords,SEARCH_PATH,format,themeDisplay);
+    com.liferay.portal.kernel.xml.Document doc=(com.liferay.portal.kernel.xml.Document)values[0];
+    Element root=(Element)values[1];
+    for (int i=0; i < results.getDocs().length; i++) {
+      Document result=results.doc(i);
+      String portletId=result.get(Field.PORTLET_ID);
+      Portlet portlet=PortletLocalServiceUtil.getPortletById(themeDisplay.getCompanyId(),portletId);
+      if (portlet == null) {
+        continue;
+      }
+      String portletTitle=PortalUtil.getPortletTitle(portletId,themeDisplay.getUser());
+      long resultGroupId=GetterUtil.getLong(result.get(Field.GROUP_ID));
+      long resultScopeGroupId=GetterUtil.getLong(result.get(Field.SCOPE_GROUP_ID));
+      String entryClassName=GetterUtil.getString(result.get(Field.ENTRY_CLASS_NAME));
+      long entryClassPK=GetterUtil.getLong(result.get(Field.ENTRY_CLASS_PK));
+      String title=StringPool.BLANK;
+      PortletURL portletURL=getPortletURL(request,portletId,resultGroupId);
+      String url=portletURL.toString();
+      Date modifiedDate=result.getDate(Field.MODIFIED_DATE);
+      String content=StringPool.BLANK;
+      Indexer indexer=IndexerRegistryUtil.getIndexer(entryClassName);
+      if (indexer != null) {
+        String snippet=results.snippet(i);
+        Summary summary=indexer.getSummary(result,themeDisplay.getLocale(),snippet,portletURL);
+        title=summary.getTitle();
+        url=portletURL.toString();
+        content=summary.getContent();
+        if (portlet.getPortletId().equals(PortletKeys.JOURNAL)) {
+          url=getJournalURL(themeDisplay,resultGroupId,result);
+        }
+      }
+      double score=results.score(i);
+      addSearchResult(root,resultGroupId,resultScopeGroupId,entryClassName,entryClassPK,portletTitle + " " + CharPool.RAQUO+ " "+ title,url,modifiedDate,content,score,format);
+    }
+    if (_log.isDebugEnabled()) {
+      _log.debug("Return\n" + doc.asXML());
+    }
+    return doc.asXML();
+  }
+ catch (  Exception e) {
+    throw new SearchException(e);
+  }
+}

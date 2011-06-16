@@ -1,0 +1,52 @@
+{
+  try {
+    Portlet portlet=PortletLocalServiceUtil.getPortletById(getCompanyId(),portletId);
+    if (portlet == null) {
+      _log.error("Portlet " + portletId + " cannot be removed because it is not registered");
+      return;
+    }
+    if (!portlet.hasAddPortletPermission(userId) && !isPersonalizable()) {
+      return;
+    }
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+  List<String> columns=getColumns();
+  for (int i=0; i < columns.size(); i++) {
+    String columnId=columns.get(i);
+    if (isPersonalizable() && isColumnDisabled(columnId)) {
+      continue;
+    }
+    String columnValue=StringPool.BLANK;
+    if (hasUserPreferenes()) {
+      columnValue=getUserPreference(columnId);
+    }
+ else {
+      columnValue=getTypeSettingsProperties().getProperty(columnId);
+    }
+    columnValue=StringUtil.remove(columnValue,portletId);
+    if (hasUserPreferenes()) {
+      setUserPreference(columnId,columnValue);
+      try {
+        String rootPortletId=PortletConstants.getRootPortletId(portletId);
+        ResourceLocalServiceUtil.deleteResource(getCompanyId(),rootPortletId,ResourceConstants.SCOPE_INDIVIDUAL,PortletPermissionUtil.getPrimaryKey(getPlid(),portletId));
+      }
+ catch (      Exception e) {
+      }
+    }
+ else {
+      getTypeSettingsProperties().setProperty(columnId,columnValue);
+    }
+  }
+  if (cleanUp) {
+    removeStatesPortletId(portletId);
+    removeModesPortletId(portletId);
+    try {
+      onRemoveFromLayout(portletId);
+    }
+ catch (    Exception e) {
+      _log.error("Unable to fire portlet layout listener event",e);
+    }
+  }
+}

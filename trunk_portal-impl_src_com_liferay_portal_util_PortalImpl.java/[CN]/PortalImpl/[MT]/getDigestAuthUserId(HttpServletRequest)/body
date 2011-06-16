@@ -1,0 +1,28 @@
+{
+  long userId=0;
+  String authorizationHeader=request.getHeader(HttpHeaders.AUTHORIZATION);
+  if (Validator.isNull(authorizationHeader) || !authorizationHeader.startsWith("Digest ")) {
+    return userId;
+  }
+  authorizationHeader=authorizationHeader.substring("Digest ".length());
+  authorizationHeader=StringUtil.replace(authorizationHeader,CharPool.COMMA,CharPool.NEW_LINE);
+  UnicodeProperties authorizationProperties=new UnicodeProperties();
+  authorizationProperties.fastLoad(authorizationHeader);
+  String username=StringUtil.unquote(authorizationProperties.getProperty("username"));
+  String realm=StringUtil.unquote(authorizationProperties.getProperty("realm"));
+  String nonce=StringUtil.unquote(authorizationProperties.getProperty("nonce"));
+  String uri=StringUtil.unquote(authorizationProperties.getProperty("uri"));
+  String response=StringUtil.unquote(authorizationProperties.getProperty("response"));
+  if (Validator.isNull(username) || Validator.isNull(realm) || Validator.isNull(nonce)|| Validator.isNull(uri)|| Validator.isNull(response)) {
+    return userId;
+  }
+  if (!realm.equals(PORTAL_REALM) || !uri.equals(request.getRequestURI())) {
+    return userId;
+  }
+  if (!NonceUtil.verify(nonce)) {
+    return userId;
+  }
+  long companyId=PortalInstances.getCompanyId(request);
+  userId=UserLocalServiceUtil.authenticateForDigest(companyId,username,realm,nonce,request.getMethod(),uri,response);
+  return userId;
+}

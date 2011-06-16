@@ -1,0 +1,41 @@
+{
+  Pattern pattern=Pattern.compile("(^[ \t]*import\\s+.*;\n+)+",Pattern.MULTILINE);
+  Matcher matcher=pattern.matcher(content);
+  if (!matcher.find()) {
+    return content;
+  }
+  String imports=_formatImports(matcher.group());
+  content=content.substring(0,matcher.start()) + imports + content.substring(matcher.end());
+  Set<String> classes=ClassUtil.getClasses(new UnsyncStringReader(content),className);
+  matcher=pattern.matcher(content);
+  matcher.find();
+  imports=matcher.group();
+  StringBuilder sb=new StringBuilder();
+  UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new UnsyncStringReader(imports));
+  String line=null;
+  while ((line=unsyncBufferedReader.readLine()) != null) {
+    if (line.indexOf("import ") != -1) {
+      int importX=line.indexOf(" ");
+      int importY=line.lastIndexOf(".");
+      String importPackage=line.substring(importX + 1,importY);
+      String importClass=line.substring(importY + 1,line.length() - 1);
+      if (!packageDir.equals(importPackage)) {
+        if (!importClass.equals("*")) {
+          if (classes.contains(importClass)) {
+            sb.append(line);
+            sb.append("\n");
+          }
+        }
+ else {
+          sb.append(line);
+          sb.append("\n");
+        }
+      }
+    }
+  }
+  imports=_formatImports(sb.toString());
+  content=content.substring(0,matcher.start()) + imports + content.substring(matcher.end());
+  content=content.replaceFirst("(?m)^[ \t]*(package .*;)\\s*^[ \t]*import","$1\n\nimport");
+  content=content.replaceFirst("(?m)^[ \t]*((?:package|import) .*;)\\s*^[ \t]*/\\*\\*","$1\n\n/**");
+  return content;
+}

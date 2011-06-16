@@ -1,0 +1,43 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)renderRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  long nodeId=ParamUtil.getLong(renderRequest,"nodeId");
+  String title=ParamUtil.getString(renderRequest,"title");
+  double sourceVersion=ParamUtil.getDouble(renderRequest,"sourceVersion");
+  double targetVersion=ParamUtil.getDouble(renderRequest,"targetVersion");
+  String type=ParamUtil.getString(renderRequest,"type","escape");
+  WikiPage sourcePage=WikiPageServiceUtil.getPage(nodeId,title,sourceVersion);
+  WikiPage targetPage=WikiPageServiceUtil.getPage(nodeId,title,targetVersion);
+  if (type.equals("html")) {
+    WikiNode sourceNode=sourcePage.getNode();
+    PortletURL viewPageURL=renderResponse.createRenderURL();
+    viewPageURL.setParameter("struts_action","/wiki/view");
+    viewPageURL.setParameter("nodeName",sourceNode.getName());
+    PortletURL editPageURL=renderResponse.createRenderURL();
+    editPageURL.setParameter("struts_action","/wiki/edit_page");
+    editPageURL.setParameter("nodeId",String.valueOf(nodeId));
+    editPageURL.setParameter("title",title);
+    String attachmentURLPrefix=themeDisplay.getPathMain() + "/wiki/get_page_attachment?" + "p_l_id="+ themeDisplay.getPlid()+ "&nodeId="+ nodeId+ "&title="+ HttpUtil.encodeURL(title)+ "&fileName=";
+    String htmlDiffResult=WikiUtil.diffHtml(sourcePage,targetPage,viewPageURL,editPageURL,attachmentURLPrefix);
+    renderRequest.setAttribute(WebKeys.DIFF_HTML_RESULTS,htmlDiffResult);
+  }
+ else {
+    String sourceContent=sourcePage.getContent();
+    String targetContent=targetPage.getContent();
+    sourceContent=WikiUtil.processContent(sourceContent);
+    targetContent=WikiUtil.processContent(targetContent);
+    if (type.equals("escape")) {
+      sourceContent=HtmlUtil.escape(sourceContent);
+      targetContent=HtmlUtil.escape(targetContent);
+    }
+ else     if (type.equals("strip")) {
+      sourceContent=HtmlUtil.extractText(sourceContent);
+      targetContent=HtmlUtil.extractText(targetContent);
+    }
+    List<DiffResult>[] diffResults=DiffUtil.diff(new UnsyncStringReader(sourceContent),new UnsyncStringReader(targetContent));
+    renderRequest.setAttribute(WebKeys.DIFF_RESULTS,diffResults);
+  }
+  renderRequest.setAttribute(WebKeys.WIKI_NODE_ID,nodeId);
+  renderRequest.setAttribute(WebKeys.TITLE,title);
+  renderRequest.setAttribute(WebKeys.SOURCE_VERSION,sourceVersion);
+  renderRequest.setAttribute(WebKeys.TARGET_VERSION,targetVersion);
+}

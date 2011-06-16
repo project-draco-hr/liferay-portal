@@ -1,0 +1,23 @@
+{
+  NtlmPasswordAuthentication ntlmPasswordAuthentication=new NtlmPasswordAuthentication(null,ntlmServiceAccount.getAccount(),ntlmServiceAccount.getPassword());
+  String endpoint="ncacn_np:" + domainController + "[\\PIPE\\NETLOGON]";
+  DcerpcHandle dcerpcHandle=DcerpcHandle.getHandle(endpoint,ntlmPasswordAuthentication);
+  setDcerpcHandle(dcerpcHandle);
+  dcerpcHandle.bind();
+  byte[] clientChallenge=new byte[8];
+  secureRandom.nextBytes(clientChallenge);
+  NetrServerReqChallenge netrServerReqChallenge=new NetrServerReqChallenge(domainControllerName,ntlmServiceAccount.getComputerName(),clientChallenge,new byte[8]);
+  dcerpcHandle.sendrecv(netrServerReqChallenge);
+  MD4 md4=new MD4();
+  md4.update(ntlmServiceAccount.getPassword().getBytes("UTF-16LE"));
+  byte[] sessionKey=computeSessionKey(md4.digest(),clientChallenge,netrServerReqChallenge.getServerChallenge());
+  byte[] clientCredential=computeNetlogonCredential(clientChallenge,sessionKey);
+  NetrServerAuthenticate3 netrServerAuthenticate3=new NetrServerAuthenticate3(domainControllerName,ntlmServiceAccount.getAccountName(),2,ntlmServiceAccount.getComputerName(),clientCredential,new byte[8],0x600FFFFF);
+  dcerpcHandle.sendrecv(netrServerAuthenticate3);
+  byte[] serverCredential=computeNetlogonCredential(netrServerReqChallenge.getServerChallenge(),sessionKey);
+  if (!Arrays.equals(serverCredential,netrServerAuthenticate3.getServerCredential())) {
+    throw new NtlmLogonException("Session key negotiation failed");
+  }
+  _clientCredential=clientCredential;
+  _sessionKey=sessionKey;
+}

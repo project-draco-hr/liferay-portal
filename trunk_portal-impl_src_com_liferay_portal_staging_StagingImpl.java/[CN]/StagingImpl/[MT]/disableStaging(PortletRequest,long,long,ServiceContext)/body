@@ -1,0 +1,40 @@
+{
+  Group liveGroup=GroupLocalServiceUtil.getGroup(liveGroupId);
+  UnicodeProperties typeSettingsProperties=liveGroup.getTypeSettingsProperties();
+  typeSettingsProperties.remove("branchingPrivate");
+  typeSettingsProperties.remove("branchingPublic");
+  typeSettingsProperties.remove("remoteAddress");
+  typeSettingsProperties.remove("remoteGroupId");
+  typeSettingsProperties.remove("remotePort");
+  typeSettingsProperties.remove("secureConnection");
+  typeSettingsProperties.remove("staged");
+  typeSettingsProperties.remove("stagedRemotely");
+  Set<String> keys=new HashSet<String>();
+  for (  String key : typeSettingsProperties.keySet()) {
+    if (key.startsWith(StagingConstants.STAGED_PORTLET)) {
+      keys.add(key);
+    }
+  }
+  for (  String key : keys) {
+    typeSettingsProperties.remove(key);
+  }
+  deleteLastImportSettings(liveGroup,true);
+  deleteLastImportSettings(liveGroup,false);
+  if (liveGroup.hasStagingGroup()) {
+    if ((portletRequest != null) && (scopeGroupId != liveGroup.getGroupId())) {
+      String redirect=ParamUtil.getString(portletRequest,"pagesRedirect");
+      redirect=HttpUtil.removeParameter(redirect,"refererPlid");
+      redirect=StringUtil.replace(redirect,String.valueOf(scopeGroupId),String.valueOf(liveGroup.getGroupId()));
+      portletRequest.setAttribute(WebKeys.REDIRECT,redirect);
+    }
+    Group stagingGroup=liveGroup.getStagingGroup();
+    LayoutSetBranchLocalServiceUtil.deleteLayoutSetBranches(stagingGroup.getGroupId(),true,true);
+    LayoutSetBranchLocalServiceUtil.deleteLayoutSetBranches(stagingGroup.getGroupId(),false,true);
+    GroupLocalServiceUtil.deleteGroup(stagingGroup.getGroupId());
+  }
+ else {
+    LayoutSetBranchLocalServiceUtil.deleteLayoutSetBranches(liveGroup.getGroupId(),true,true);
+    LayoutSetBranchLocalServiceUtil.deleteLayoutSetBranches(liveGroup.getGroupId(),false,true);
+  }
+  GroupLocalServiceUtil.updateGroup(liveGroup.getGroupId(),typeSettingsProperties.toString());
+}

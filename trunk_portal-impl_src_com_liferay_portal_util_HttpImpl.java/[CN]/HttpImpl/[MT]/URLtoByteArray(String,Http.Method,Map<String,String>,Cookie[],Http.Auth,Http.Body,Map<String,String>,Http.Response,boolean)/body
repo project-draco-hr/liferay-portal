@@ -1,0 +1,123 @@
+{
+  byte[] bytes=null;
+  HttpMethod httpMethod=null;
+  HttpState httpState=null;
+  try {
+    _cookies.set(null);
+    if (location == null) {
+      return null;
+    }
+ else     if (!location.startsWith(Http.HTTP_WITH_SLASH) && !location.startsWith(Http.HTTPS_WITH_SLASH)) {
+      location=Http.HTTP_WITH_SLASH + location;
+    }
+    HostConfiguration hostConfiguration=getHostConfiguration(location);
+    HttpClient httpClient=getClient(hostConfiguration);
+    if (method.equals(Http.Method.POST) || method.equals(Http.Method.PUT)) {
+      if (method.equals(Http.Method.POST)) {
+        httpMethod=new PostMethod(location);
+      }
+ else {
+        httpMethod=new PutMethod(location);
+      }
+      if (body != null) {
+        RequestEntity requestEntity=new StringRequestEntity(body.getContent(),body.getContentType(),body.getCharset());
+        EntityEnclosingMethod entityEnclosingMethod=(EntityEnclosingMethod)httpMethod;
+        entityEnclosingMethod.setRequestEntity(requestEntity);
+      }
+ else       if ((parts != null) && (parts.size() > 0) && method.equals(Http.Method.POST)) {
+        List<NameValuePair> nvpList=new ArrayList<NameValuePair>();
+        for (        Map.Entry<String,String> entry : parts.entrySet()) {
+          String key=entry.getKey();
+          String value=entry.getValue();
+          if (value != null) {
+            nvpList.add(new NameValuePair(key,value));
+          }
+        }
+        NameValuePair[] nvpArray=nvpList.toArray(new NameValuePair[nvpList.size()]);
+        PostMethod postMethod=(PostMethod)httpMethod;
+        postMethod.setRequestBody(nvpArray);
+        postMethod.addRequestHeader(HttpHeaders.CONTENT_TYPE,ContentTypes.APPLICATION_X_WWW_FORM_URLENCODED_UTF8);
+      }
+    }
+ else     if (method.equals(Http.Method.DELETE)) {
+      httpMethod=new DeleteMethod(location);
+    }
+ else     if (method.equals(Http.Method.HEAD)) {
+      httpMethod=new HeadMethod(location);
+    }
+ else {
+      httpMethod=new GetMethod(location);
+    }
+    if (headers != null) {
+      for (      Map.Entry<String,String> header : headers.entrySet()) {
+        httpMethod.addRequestHeader(header.getKey(),header.getValue());
+      }
+    }
+    if ((method.equals(Http.Method.POST) || method.equals(Http.Method.PUT)) && (body != null)) {
+    }
+ else     if (!hasRequestHeader(httpMethod,HttpHeaders.CONTENT_TYPE)) {
+      httpMethod.addRequestHeader(HttpHeaders.CONTENT_TYPE,ContentTypes.APPLICATION_X_WWW_FORM_URLENCODED);
+    }
+    if (!hasRequestHeader(httpMethod,HttpHeaders.USER_AGENT)) {
+      httpMethod.addRequestHeader(HttpHeaders.USER_AGENT,_DEFAULT_USER_AGENT);
+    }
+    httpState=new HttpState();
+    if ((cookies != null) && (cookies.length > 0)) {
+      org.apache.commons.httpclient.Cookie[] commonsCookies=toCommonsCookies(cookies);
+      httpState.addCookies(commonsCookies);
+      HttpMethodParams httpMethodParams=httpMethod.getParams();
+      httpMethodParams.setCookiePolicy(CookiePolicy.BROWSER_COMPATIBILITY);
+    }
+    if (auth != null) {
+      httpMethod.setDoAuthentication(true);
+      httpState.setCredentials(new AuthScope(auth.getHost(),auth.getPort(),auth.getRealm()),new UsernamePasswordCredentials(auth.getUsername(),auth.getPassword()));
+    }
+    proxifyState(httpState,hostConfiguration);
+    httpClient.executeMethod(hostConfiguration,httpMethod,httpState);
+    Header locationHeader=httpMethod.getResponseHeader("location");
+    if ((locationHeader != null) && !locationHeader.equals(location)) {
+      String redirect=locationHeader.getValue();
+      if (followRedirects) {
+        return URLtoByteArray(redirect,Http.Method.GET,headers,cookies,auth,body,parts,response,followRedirects);
+      }
+ else {
+        response.setRedirect(redirect);
+      }
+    }
+    InputStream inputStream=httpMethod.getResponseBodyAsStream();
+    if (inputStream != null) {
+      Header contentLength=httpMethod.getResponseHeader(HttpHeaders.CONTENT_LENGTH);
+      if (contentLength != null) {
+        response.setContentLength(GetterUtil.getInteger(contentLength.getValue()));
+      }
+      Header contentType=httpMethod.getResponseHeader(HttpHeaders.CONTENT_TYPE);
+      if (contentType != null) {
+        response.setContentType(contentType.getValue());
+      }
+      bytes=FileUtil.getBytes(inputStream);
+      inputStream.close();
+    }
+    for (    Header header : httpMethod.getResponseHeaders()) {
+      response.addHeader(header.getName(),header.getValue());
+    }
+    return bytes;
+  }
+  finally {
+    try {
+      if (httpState != null) {
+        _cookies.set(toServletCookies(httpState.getCookies()));
+      }
+    }
+ catch (    Exception e) {
+      _log.error(e,e);
+    }
+    try {
+      if (httpMethod != null) {
+        httpMethod.releaseConnection();
+      }
+    }
+ catch (    Exception e) {
+      _log.error(e,e);
+    }
+  }
+}

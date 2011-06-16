@@ -1,0 +1,55 @@
+{
+  String basedir="./";
+  String copyright=_getCopyright();
+  String oldCopyright=_getOldCopyright();
+  List<String> list=new ArrayList<String>();
+  DirectoryScanner directoryScanner=new DirectoryScanner();
+  directoryScanner.setBasedir(basedir);
+  String[] excludes={"**\\portal\\aui\\**","**\\bin\\**","**\\null.jsp","**\\tmp\\**","**\\tools\\**"};
+  excludes=ArrayUtil.append(excludes,_excludes);
+  directoryScanner.setExcludes(excludes);
+  directoryScanner.setIncludes(new String[]{"**\\*.jsp","**\\*.jspf","**\\*.vm"});
+  list.addAll(_sourceFormatterHelper.scanForFiles(directoryScanner));
+  String[] files=list.toArray(new String[list.size()]);
+  for (int i=0; i < files.length; i++) {
+    File file=new File(basedir + files[i]);
+    String content=_fileUtil.read(file);
+    String newContent=_formatJSPContent(files[i],content);
+    newContent=StringUtil.replace(newContent,new String[]{"<br/>","\"/>","\" >","@page import","\"%>",")%>","javascript: "},new String[]{"<br />","\" />","\">","@ page import","\" %>",") %>","javascript:"});
+    newContent=StringUtil.replace(newContent,new String[]{"* Copyright (c) 2000-2010 Liferay, Inc."},new String[]{"* Copyright (c) 2000-2011 Liferay, Inc."});
+    if (files[i].endsWith(".jsp") || files[i].endsWith(".jspf")) {
+      if ((oldCopyright != null) && newContent.contains(oldCopyright)) {
+        newContent=StringUtil.replace(newContent,oldCopyright,copyright);
+        _sourceFormatterHelper.printError(files[i],"old (c): " + files[i]);
+      }
+      if (newContent.indexOf(copyright) == -1) {
+        _sourceFormatterHelper.printError(files[i],"(c): " + files[i]);
+      }
+ else {
+        newContent=StringUtil.replace(newContent,"<%\n" + copyright + "\n%>","<%--\n" + copyright + "\n--%>");
+      }
+    }
+    if (newContent.indexOf("alert('<%= LanguageUtil.") != -1) {
+      newContent=StringUtil.replace(newContent,"alert('<%= LanguageUtil.","alert('<%= UnicodeLanguageUtil.");
+    }
+    if (newContent.indexOf("alert(\"<%= LanguageUtil.") != -1) {
+      newContent=StringUtil.replace(newContent,"alert(\"<%= LanguageUtil.","alert(\"<%= UnicodeLanguageUtil.");
+    }
+    if (newContent.indexOf("confirm('<%= LanguageUtil.") != -1) {
+      newContent=StringUtil.replace(newContent,"confirm('<%= LanguageUtil.","confirm('<%= UnicodeLanguageUtil.");
+    }
+    if (newContent.indexOf("confirm(\"<%= LanguageUtil.") != -1) {
+      newContent=StringUtil.replace(newContent,"confirm(\"<%= LanguageUtil.","confirm(\"<%= UnicodeLanguageUtil.");
+    }
+    if (newContent.indexOf("    ") != -1) {
+      if (!files[i].endsWith("template.vm")) {
+        _sourceFormatterHelper.printError(files[i],"tab: " + files[i]);
+      }
+    }
+    _checkXSS(files[i],content);
+    if ((newContent != null) && !content.equals(newContent)) {
+      _fileUtil.write(file,newContent);
+      _sourceFormatterHelper.printError(files[i],file);
+    }
+  }
+}

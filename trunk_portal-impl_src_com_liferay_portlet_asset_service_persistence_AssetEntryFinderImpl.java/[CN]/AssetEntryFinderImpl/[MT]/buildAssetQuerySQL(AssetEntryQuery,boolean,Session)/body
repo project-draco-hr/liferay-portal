@@ -1,0 +1,167 @@
+{
+  StringBundler sb=new StringBundler();
+  if (count) {
+    sb.append("SELECT COUNT(AssetEntry.entryId) AS COUNT_VALUE ");
+  }
+ else {
+    sb.append("SELECT DISTINCT {AssetEntry.*} ");
+  }
+  sb.append("FROM AssetEntry ");
+  if (entryQuery.getAnyTagIds().length > 0) {
+    sb.append("INNER JOIN ");
+    sb.append("AssetEntries_AssetTags ON ");
+    sb.append("(AssetEntries_AssetTags.entryId = ");
+    sb.append("AssetEntry.entryId) ");
+    sb.append("INNER JOIN ");
+    sb.append("AssetTag ON ");
+    sb.append("(AssetTag.tagId = AssetEntries_AssetTags.tagId) ");
+  }
+  if (entryQuery.getAnyCategoryIds().length > 0) {
+    sb.append("INNER JOIN ");
+    sb.append("AssetEntries_AssetCategories ON ");
+    sb.append("(AssetEntries_AssetCategories.entryId = ");
+    sb.append("AssetEntry.entryId) ");
+    sb.append("INNER JOIN ");
+    sb.append("AssetCategory ON ");
+    sb.append("(AssetCategory.categoryId = ");
+    sb.append("AssetEntries_AssetCategories.categoryId) ");
+  }
+  if (entryQuery.getOrderByCol1().equals("ratings") || entryQuery.getOrderByCol2().equals("ratings")) {
+    sb.append(" LEFT JOIN ");
+    sb.append("RatingsEntry ON ");
+    sb.append("(RatingsEntry.classNameId = ");
+    sb.append("AssetEntry.classNameId) AND ");
+    sb.append("(RatingsEntry.classPK = AssetEntry.classPK)");
+  }
+  sb.append("WHERE ");
+  int whereIndex=sb.index();
+  if (entryQuery.isVisible() != null) {
+    sb.append(" AND (visible = ?)");
+  }
+  if (entryQuery.isExcludeZeroViewCount()) {
+    sb.append(" AND (AssetEntry.viewCount > 0)");
+  }
+  Layout layout=entryQuery.getLayout();
+  if (layout != null) {
+    sb.append(" AND (AssetEntry.layoutUuid = ?)");
+  }
+  if (entryQuery.getAllCategoryIds().length > 0) {
+    if (PropsValues.ASSET_CATEGORIES_SEARCH_HIERARCHICAL) {
+      buildAllCategoriesSQL(FIND_BY_AND_CATEGORY_IDS_TREE,entryQuery.getAllCategoryIds(),sb);
+    }
+ else {
+      buildAllCategoriesSQL(FIND_BY_AND_CATEGORY_IDS,entryQuery.getAllCategoryIds(),sb);
+    }
+  }
+  if (entryQuery.getAnyCategoryIds().length > 0) {
+    if (PropsValues.ASSET_CATEGORIES_SEARCH_HIERARCHICAL) {
+      sb.append(getCategoryIds(FIND_BY_AND_CATEGORY_IDS_TREE,entryQuery.getAnyCategoryIds()));
+    }
+ else {
+      sb.append(getCategoryIds(FIND_BY_AND_CATEGORY_IDS,entryQuery.getAnyCategoryIds()));
+    }
+  }
+  if (entryQuery.getNotAllCategoryIds().length > 0) {
+    if (PropsValues.ASSET_CATEGORIES_SEARCH_HIERARCHICAL) {
+      buildNotAnyCategoriesSQL(FIND_BY_AND_CATEGORY_IDS_TREE,entryQuery.getNotAllCategoryIds(),sb);
+    }
+ else {
+      buildNotAnyCategoriesSQL(FIND_BY_AND_CATEGORY_IDS,entryQuery.getNotAllCategoryIds(),sb);
+    }
+  }
+  if (entryQuery.getNotAnyCategoryIds().length > 0) {
+    sb.append(" AND (");
+    if (PropsValues.ASSET_CATEGORIES_SEARCH_HIERARCHICAL) {
+      sb.append(getNotCategoryIds(FIND_BY_AND_CATEGORY_IDS_TREE,entryQuery.getNotAnyCategoryIds()));
+    }
+ else {
+      sb.append(getNotCategoryIds(FIND_BY_AND_CATEGORY_IDS,entryQuery.getNotAnyCategoryIds()));
+    }
+    sb.append(") ");
+  }
+  if (entryQuery.getAllTagIds().length > 0) {
+    buildAllTagsSQL(entryQuery.getAllTagIds(),sb);
+  }
+  if (entryQuery.getAnyTagIds().length > 0) {
+    sb.append(" AND (");
+    sb.append(getTagIds(entryQuery.getAnyTagIds(),StringPool.EQUAL));
+    sb.append(") ");
+  }
+  if (entryQuery.getNotAllTagIds().length > 0) {
+    buildNotAnyTagsSQL(entryQuery.getNotAllTagIds(),sb);
+  }
+  if (entryQuery.getNotAnyTagIds().length > 0) {
+    sb.append(" AND (");
+    sb.append(getNotTagIds(entryQuery.getNotAnyTagIds()));
+    sb.append(") ");
+  }
+  int datesIndex=sb.index();
+  sb.append("[$DATES$]");
+  sb.append(getGroupIds(entryQuery.getGroupIds()));
+  sb.append(getClassNameIds(entryQuery.getClassNameIds()));
+  if (!count) {
+    sb.append(" ORDER BY ");
+    if (entryQuery.getOrderByCol1().equals("ratings")) {
+      sb.append("RatingsEntry.score");
+    }
+ else {
+      sb.append("AssetEntry.");
+      sb.append(entryQuery.getOrderByCol1());
+    }
+    sb.append(StringPool.SPACE);
+    sb.append(entryQuery.getOrderByType1());
+    if (Validator.isNotNull(entryQuery.getOrderByCol2()) && !entryQuery.getOrderByCol1().equals(entryQuery.getOrderByCol2())) {
+      if (entryQuery.getOrderByCol2().equals("ratings")) {
+        sb.append(", RatingsEntry.score");
+      }
+ else {
+        sb.append(", AssetEntry.");
+        sb.append(entryQuery.getOrderByCol2());
+      }
+      sb.append(StringPool.SPACE);
+      sb.append(entryQuery.getOrderByType2());
+    }
+  }
+  sb.setStringAt(getDates(entryQuery.getPublishDate(),entryQuery.getExpirationDate()),datesIndex);
+  if (sb.index() > whereIndex) {
+    String where=sb.stringAt(whereIndex);
+    if (where.startsWith(" AND")) {
+      sb.setStringAt(where.substring(4),whereIndex);
+    }
+  }
+  String sql=sb.toString();
+  SQLQuery q=session.createSQLQuery(sql);
+  if (count) {
+    q.addScalar(COUNT_COLUMN_NAME,Type.LONG);
+  }
+ else {
+    q.addEntity("AssetEntry",AssetEntryImpl.class);
+  }
+  QueryPos qPos=QueryPos.getInstance(q);
+  if (entryQuery.isVisible() != null) {
+    qPos.add(entryQuery.isVisible());
+  }
+  if (layout != null) {
+    qPos.add(layout.getUuid());
+  }
+  if (PropsValues.ASSET_CATEGORIES_SEARCH_HIERARCHICAL) {
+    qPos.add(entryQuery.getAllLeftAndRightCategoryIds());
+    qPos.add(entryQuery.getAnyLeftAndRightCategoryIds());
+    qPos.add(entryQuery.getNotAllLeftAndRightCategoryIds());
+    qPos.add(entryQuery.getNotAnyLeftAndRightCategoryIds());
+  }
+ else {
+    qPos.add(entryQuery.getAllCategoryIds());
+    qPos.add(entryQuery.getAnyCategoryIds());
+    qPos.add(entryQuery.getNotAllCategoryIds());
+    qPos.add(entryQuery.getNotAnyCategoryIds());
+  }
+  qPos.add(entryQuery.getAllTagIds());
+  qPos.add(entryQuery.getAnyTagIds());
+  qPos.add(entryQuery.getNotAllTagIds());
+  qPos.add(entryQuery.getNotAnyTagIds());
+  setDates(qPos,entryQuery.getPublishDate(),entryQuery.getExpirationDate());
+  qPos.add(entryQuery.getGroupIds());
+  qPos.add(entryQuery.getClassNameIds());
+  return q;
+}

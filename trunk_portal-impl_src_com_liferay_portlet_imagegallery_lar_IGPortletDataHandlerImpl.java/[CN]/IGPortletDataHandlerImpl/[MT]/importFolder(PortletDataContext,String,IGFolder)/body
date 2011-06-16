@@ -1,0 +1,30 @@
+{
+  long userId=portletDataContext.getUserId(folder.getUserUuid());
+  Map<Long,Long> folderPKs=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(IGFolder.class);
+  long parentFolderId=MapUtil.getLong(folderPKs,folder.getParentFolderId(),folder.getParentFolderId());
+  ServiceContext serviceContext=portletDataContext.createServiceContext(folderPath,folder,_NAMESPACE);
+  if ((parentFolderId != IGFolderConstants.DEFAULT_PARENT_FOLDER_ID) && (parentFolderId == folder.getParentFolderId())) {
+    String path=getImportFolderPath(portletDataContext,parentFolderId);
+    IGFolder parentFolder=(IGFolder)portletDataContext.getZipEntryAsObject(path);
+    importFolder(portletDataContext,path,parentFolder);
+    parentFolderId=MapUtil.getLong(folderPKs,folder.getParentFolderId(),folder.getParentFolderId());
+  }
+  IGFolder importedFolder=null;
+  if (portletDataContext.isDataStrategyMirror()) {
+    IGFolder existingFolder=IGFolderUtil.fetchByUUID_G(folder.getUuid(),portletDataContext.getScopeGroupId());
+    if (existingFolder == null) {
+      String name=getFolderName(null,portletDataContext.getCompanyId(),portletDataContext.getScopeGroupId(),parentFolderId,folder.getName(),2);
+      serviceContext.setUuid(folder.getUuid());
+      importedFolder=IGFolderLocalServiceUtil.addFolder(userId,parentFolderId,name,folder.getDescription(),serviceContext);
+    }
+ else {
+      String name=getFolderName(folder.getUuid(),portletDataContext.getCompanyId(),portletDataContext.getScopeGroupId(),parentFolderId,folder.getName(),2);
+      importedFolder=IGFolderLocalServiceUtil.updateFolder(existingFolder.getFolderId(),parentFolderId,name,folder.getDescription(),false,serviceContext);
+    }
+  }
+ else {
+    String name=getFolderName(null,portletDataContext.getCompanyId(),portletDataContext.getScopeGroupId(),parentFolderId,folder.getName(),2);
+    importedFolder=IGFolderLocalServiceUtil.addFolder(userId,parentFolderId,name,folder.getDescription(),serviceContext);
+  }
+  portletDataContext.importClassedModel(folder,importedFolder,_NAMESPACE);
+}

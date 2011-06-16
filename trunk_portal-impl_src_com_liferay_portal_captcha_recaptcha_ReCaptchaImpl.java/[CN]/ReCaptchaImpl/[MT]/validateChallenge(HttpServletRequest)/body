@@ -1,0 +1,34 @@
+{
+  String reCaptchaChallenge=ParamUtil.getString(request,"recaptcha_challenge_field");
+  String reCaptchaResponse=ParamUtil.getString(request,"recaptcha_response_field");
+  Http.Options options=new Http.Options();
+  options.addPart("challenge",reCaptchaChallenge);
+  try {
+    options.addPart("privatekey",PrefsPropsUtil.getString(PropsKeys.CAPTCHA_ENGINE_RECAPTCHA_KEY_PRIVATE,PropsValues.CAPTCHA_ENGINE_RECAPTCHA_KEY_PRIVATE));
+  }
+ catch (  SystemException se) {
+    _log.error(se,se);
+  }
+  options.addPart("remoteip",request.getRemoteAddr());
+  options.addPart("response",reCaptchaResponse);
+  options.setLocation(PropsValues.CAPTCHA_ENGINE_RECAPTCHA_URL_VERIFY);
+  options.setPost(true);
+  String content=null;
+  try {
+    content=HttpUtil.URLtoString(options);
+  }
+ catch (  IOException ioe) {
+    _log.error(ioe,ioe);
+    throw new CaptchaTextException();
+  }
+  if (content == null) {
+    _log.error("reCAPTCHA did not return a result");
+    throw new CaptchaTextException();
+  }
+  String[] messages=content.split("\r?\n");
+  if (messages.length < 1) {
+    _log.error("reCAPTCHA did not return a valid result: " + content);
+    throw new CaptchaTextException();
+  }
+  return GetterUtil.getBoolean(messages[0]);
+}

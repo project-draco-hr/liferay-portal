@@ -1,0 +1,45 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  long groupId=serviceContext.getScopeGroupId();
+  if (tagProperties == null) {
+    tagProperties=new String[0];
+  }
+  Date now=new Date();
+  long tagId=counterLocalService.increment();
+  AssetTag tag=assetTagPersistence.create(tagId);
+  tag.setGroupId(groupId);
+  tag.setCompanyId(user.getCompanyId());
+  tag.setUserId(user.getUserId());
+  tag.setUserName(user.getFullName());
+  tag.setCreateDate(now);
+  tag.setModifiedDate(now);
+  name=name.trim();
+  name=name.toLowerCase();
+  if (hasTag(groupId,name)) {
+    throw new DuplicateTagException("A tag with the name " + name + " already exists");
+  }
+  validate(name);
+  tag.setName(name);
+  assetTagPersistence.update(tag,false);
+  if (serviceContext.getAddGroupPermissions() || serviceContext.getAddGuestPermissions()) {
+    addTagResources(tag,serviceContext.getAddGroupPermissions(),serviceContext.getAddGuestPermissions());
+  }
+ else {
+    addTagResources(tag,serviceContext.getGroupPermissions(),serviceContext.getGuestPermissions());
+  }
+  for (int i=0; i < tagProperties.length; i++) {
+    String[] tagProperty=StringUtil.split(tagProperties[i],StringPool.COLON);
+    String key=StringPool.BLANK;
+    if (tagProperty.length > 0) {
+      key=GetterUtil.getString(tagProperty[0]);
+    }
+    String value=StringPool.BLANK;
+    if (tagProperty.length > 1) {
+      value=GetterUtil.getString(tagProperty[1]);
+    }
+    if (Validator.isNotNull(key)) {
+      assetTagPropertyLocalService.addTagProperty(userId,tagId,key,value);
+    }
+  }
+  return tag;
+}

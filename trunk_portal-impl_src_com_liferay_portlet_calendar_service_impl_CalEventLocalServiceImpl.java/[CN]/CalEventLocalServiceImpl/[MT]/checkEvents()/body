@@ -1,0 +1,40 @@
+{
+  List<CalEvent> events=calEventFinder.findByFutureReminders();
+  for (  CalEvent event : events) {
+    User user=userPersistence.fetchByPrimaryKey(event.getUserId());
+    if (user == null) {
+      deleteEvent(event);
+      continue;
+    }
+    Calendar now=CalendarFactoryUtil.getCalendar(user.getTimeZone(),user.getLocale());
+    if (!event.isTimeZoneSensitive()) {
+      Calendar temp=CalendarFactoryUtil.getCalendar();
+      temp.setTime(Time.getDate(now));
+      now=temp;
+    }
+    Calendar startDate=null;
+    if (event.isTimeZoneSensitive()) {
+      startDate=CalendarFactoryUtil.getCalendar(user.getTimeZone(),user.getLocale());
+    }
+ else {
+      startDate=CalendarFactoryUtil.getCalendar();
+    }
+    if (event.isRepeating()) {
+      double daysToCheck=Math.ceil(CalEventConstants.REMINDERS[CalEventConstants.REMINDERS.length - 1] / Time.DAY);
+      Calendar cal=(Calendar)now.clone();
+      for (int i=0; i <= daysToCheck; i++) {
+        Recurrence recurrence=event.getRecurrenceObj();
+        Calendar tzICal=CalendarFactoryUtil.getCalendar(cal.get(Calendar.YEAR),cal.get(Calendar.MONTH),cal.get(Calendar.DATE));
+        Calendar recurrenceCal=getRecurrenceCal(cal,tzICal,event);
+        if (recurrence.isInRecurrence(recurrenceCal)) {
+          remindUser(event,user,recurrenceCal,now);
+        }
+        cal.add(Calendar.DAY_OF_YEAR,1);
+      }
+    }
+ else {
+      startDate.setTime(event.getStartDate());
+      remindUser(event,user,startDate,now);
+    }
+  }
+}

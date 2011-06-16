@@ -1,0 +1,57 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  List<Object[]> arrays=new ArrayList<Object[]>();
+  try {
+    con=DataAccess.getConnection();
+    ps=con.prepareStatement("select JOB_NAME, JOB_GROUP, JOB_DATA from QUARTZ_JOB_DETAILS");
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      String jobName=rs.getString("JOB_NAME");
+      String jobGroup=rs.getString("JOB_GROUP");
+      byte[] jobData=rs.getBytes("JOB_DATA");
+      Object[] array=new Object[3];
+      if (jobData == null) {
+        array[0]=jobName;
+        array[1]=jobGroup;
+        array[2]=null;
+        arrays.add(array);
+        continue;
+      }
+      ObjectInputStream objectInputStream=new ObjectInputStream(new UnsyncByteArrayInputStream(jobData));
+      Map<Object,Object> jobDataMap=(Map<Object,Object>)objectInputStream.readObject();
+      objectInputStream.close();
+      String destinationName=(String)jobDataMap.get(SchedulerEngine.DESTINATION_NAME);
+      if (!destinationName.equals(DestinationNames.LAYOUTS_LOCAL_PUBLISHER) && !destinationName.equals(DestinationNames.LAYOUTS_REMOTE_PUBLISHER)) {
+        array[0]=jobName;
+        array[1]=jobGroup;
+        array[2]=null;
+        arrays.add(array);
+        continue;
+      }
+      JobState jobState=(JobState)jobDataMap.get(SchedulerEngine.JOB_STATE);
+      if (jobState == null) {
+        jobDataMap.put(SchedulerEngine.STORAGE_TYPE,StorageType.PERSISTED.toString());
+        String messageJSON=(String)jobDataMap.get(SchedulerEngine.MESSAGE);
+        Message message=(Message)JSONFactoryUtil.deserialize(messageJSON);
+        int exceptionsMaxSize=message.getInteger(SchedulerEngine.EXCEPTIONS_MAX_SIZE);
+        jobState=new JobState(TriggerState.NORMAL,exceptionsMaxSize);
+        jobDataMap.put(SchedulerEngine.JOB_STATE,jobState);
+      }
+      UnsyncByteArrayOutputStream newJobDataOutputStream=new UnsyncByteArrayOutputStream();
+      ObjectOutputStream objectOutputStream=new ObjectOutputStream(newJobDataOutputStream);
+      objectOutputStream.writeObject(jobDataMap);
+      objectOutputStream.close();
+      jobData=newJobDataOutputStream.toByteArray();
+      array[0]=jobName;
+      array[1]=jobGroup;
+      array[2]=jobData;
+      arrays.add(array);
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+  return arrays;
+}

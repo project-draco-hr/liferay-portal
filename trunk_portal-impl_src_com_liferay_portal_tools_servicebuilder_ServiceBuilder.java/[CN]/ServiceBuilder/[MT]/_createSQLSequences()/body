@@ -1,0 +1,53 @@
+{
+  if (!FileUtil.exists(_sqlDir)) {
+    return;
+  }
+  File sqlFile=new File(_sqlDir + "/" + _sqlSequencesFileName);
+  if (!sqlFile.exists()) {
+    FileUtil.write(sqlFile,"");
+  }
+  Set<String> sequenceSQLs=new TreeSet<String>();
+  UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new FileReader(sqlFile));
+  while (true) {
+    String sequenceSQL=unsyncBufferedReader.readLine();
+    if (sequenceSQL == null) {
+      break;
+    }
+    if (Validator.isNotNull(sequenceSQL)) {
+      sequenceSQLs.add(sequenceSQL);
+    }
+  }
+  unsyncBufferedReader.close();
+  for (int i=0; i < _ejbList.size(); i++) {
+    Entity entity=_ejbList.get(i);
+    if (!entity.isDefaultDataSource()) {
+      continue;
+    }
+    List<EntityColumn> columnList=entity.getColumnList();
+    for (int j=0; j < columnList.size(); j++) {
+      EntityColumn column=columnList.get(j);
+      if ("sequence".equals(column.getIdType())) {
+        StringBundler sb=new StringBundler();
+        String sequenceName=column.getIdParam();
+        if (sequenceName.length() > 30) {
+          sequenceName=sequenceName.substring(0,30);
+        }
+        sb.append("create sequence " + sequenceName + ";");
+        String sequenceSQL=sb.toString();
+        if (!sequenceSQLs.contains(sequenceSQL)) {
+          sequenceSQLs.add(sequenceSQL);
+        }
+      }
+    }
+  }
+  StringBundler sb=new StringBundler();
+  Iterator<String> itr=sequenceSQLs.iterator();
+  while (itr.hasNext()) {
+    String sequenceSQL=itr.next();
+    sb.append(sequenceSQL);
+    if (itr.hasNext()) {
+      sb.append("\n");
+    }
+  }
+  FileUtil.write(sqlFile,sb.toString(),true);
+}

@@ -1,0 +1,47 @@
+{
+  request=PortalUtil.getOriginalServletRequest(request);
+  HttpSession session=request.getSession();
+  String token=(String)session.getAttribute(WebKeys.FACEBOOK_ACCESS_TOKEN);
+  String url=HttpUtil.addParameter(FacebookConnectUtil.getGraphURL(themeDisplay.getCompanyId()) + "/me","access_token",token);
+  url=HttpUtil.addParameter(url,"fields","email,first_name,last_name,birthday,gender,verified");
+  Http.Options options=new Http.Options();
+  options.setLocation(url);
+  String content=HttpUtil.URLtoString(options);
+  if (Validator.isNull(content)) {
+    return;
+  }
+  JSONObject jsonObject=JSONFactoryUtil.createJSONObject(content);
+  if (!jsonObject.getBoolean("verified")) {
+    return;
+  }
+  long creatorUserId=0;
+  boolean autoPassword=true;
+  String password1=StringPool.BLANK;
+  String password2=StringPool.BLANK;
+  boolean autoScreenName=true;
+  String screenName=StringPool.BLANK;
+  String emailAddress=jsonObject.getString("email");
+  long facebookId=jsonObject.getLong("id");
+  String openId=StringPool.BLANK;
+  Locale locale=LocaleUtil.getDefault();
+  String firstName=jsonObject.getString("first_name");
+  String middleName=StringPool.BLANK;
+  String lastName=jsonObject.getString("last_name");
+  int prefixId=0;
+  int suffixId=0;
+  boolean male=Validator.equals(jsonObject.getString("gender"),"male");
+  int birthdayMonth=Calendar.JANUARY;
+  int birthdayDay=1;
+  int birthdayYear=1970;
+  String jobTitle=StringPool.BLANK;
+  long[] groupIds=null;
+  long[] organizationIds=null;
+  long[] roleIds=null;
+  long[] userGroupIds=null;
+  boolean sendEmail=true;
+  ServiceContext serviceContext=new ServiceContext();
+  User user=UserLocalServiceUtil.addUser(creatorUserId,themeDisplay.getCompanyId(),autoPassword,password1,password2,autoScreenName,screenName,emailAddress,facebookId,openId,locale,firstName,middleName,lastName,prefixId,suffixId,male,birthdayMonth,birthdayDay,birthdayYear,jobTitle,groupIds,organizationIds,roleIds,userGroupIds,sendEmail,serviceContext);
+  UserLocalServiceUtil.updateLastLogin(user.getUserId(),user.getLoginIP());
+  UserLocalServiceUtil.updatePasswordReset(user.getUserId(),false);
+  session.setAttribute(WebKeys.FACEBOOK_USER_EMAIL_ADDRESS,emailAddress);
+}

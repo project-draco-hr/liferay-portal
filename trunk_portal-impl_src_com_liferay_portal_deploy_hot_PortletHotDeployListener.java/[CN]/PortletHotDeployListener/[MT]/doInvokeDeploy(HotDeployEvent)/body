@@ -1,0 +1,100 @@
+{
+  ServletContext servletContext=event.getServletContext();
+  String servletContextName=servletContext.getServletContextName();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Invoking deploy for " + servletContextName);
+  }
+  String configLocation=servletContext.getInitParameter(PortletContextLoader.PORTAL_CONFIG_LOCATION_PARAM);
+  Properties serviceBuilderProperties=(Properties)servletContext.getAttribute(PluginPackageHotDeployListener.SERVICE_BUILDER_PROPERTIES);
+  if (Validator.isNotNull(configLocation) || (serviceBuilderProperties != null)) {
+    String lockKey=PortletContextLoaderListener.getLockKey(servletContext);
+    Lock lock=LockRegistry.allocateLock(lockKey,lockKey);
+    lock.lock();
+  }
+  long[] companyIds=PortalInstances.getCompanyIds();
+  String[] xmls=new String[]{HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/" + Portal.PORTLET_XML_FILE_NAME_STANDARD)),HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/" + Portal.PORTLET_XML_FILE_NAME_CUSTOM)),HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/liferay-portlet.xml")),HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/web.xml"))};
+  if ((xmls[0] == null) && (xmls[1] == null)) {
+    return;
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Registering portlets for " + servletContextName);
+  }
+  List<Portlet> portlets=PortletLocalServiceUtil.initWAR(servletContextName,servletContext,xmls,event.getPluginPackage());
+  ClassLoader portletClassLoader=event.getContextClassLoader();
+  servletContext.setAttribute(PortletServlet.PORTLET_CLASS_LOADER,portletClassLoader);
+  initLogger(portletClassLoader);
+  _portletAppInitialized=false;
+  _strutsBridges=false;
+  PortletBagFactory portletBagFactory=new PortletBagFactory();
+  portletBagFactory.setClassLoader(portletClassLoader);
+  portletBagFactory.setServletContext(servletContext);
+  portletBagFactory.setWARFile(true);
+  Iterator<Portlet> itr=portlets.iterator();
+  while (itr.hasNext()) {
+    Portlet portlet=itr.next();
+    PortletBag portletBag=initPortlet(portlet,portletBagFactory);
+    if (portletBag == null) {
+      itr.remove();
+    }
+ else {
+      if (!_portletAppInitialized) {
+        initPortletApp(portlet,servletContextName,servletContext,portletClassLoader);
+        _portletAppInitialized=true;
+      }
+    }
+  }
+  if (!_strutsBridges) {
+    _strutsBridges=GetterUtil.getBoolean(servletContext.getInitParameter("struts-bridges-context-provider"));
+  }
+  if (_strutsBridges) {
+    servletContext.setAttribute(ServletContextProvider.STRUTS_BRIDGES_CONTEXT_PROVIDER,new LiferayServletContextProvider());
+  }
+  String xml=HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/liferay-display.xml"));
+  PortletCategory newPortletCategory=PortletLocalServiceUtil.getWARDisplay(servletContextName,xml);
+  for (  long companyId : companyIds) {
+    PortletCategory portletCategory=(PortletCategory)WebAppPool.get(String.valueOf(companyId),WebKeys.PORTLET_CATEGORY);
+    if (portletCategory != null) {
+      portletCategory.merge(newPortletCategory);
+    }
+ else {
+      _log.error("Unable to register portlet for company " + companyId + " because it does not exist");
+    }
+  }
+  processPortletProperties(servletContextName,portletClassLoader);
+  itr=portlets.iterator();
+  while (itr.hasNext()) {
+    Portlet portlet=itr.next();
+    List<String> modelNames=ResourceActionsUtil.getPortletModelResources(portlet.getPortletId());
+    for (    long companyId : companyIds) {
+      ResourceCodeLocalServiceUtil.checkResourceCodes(companyId,portlet.getPortletId());
+      for (      String modelName : modelNames) {
+        ResourceCodeLocalServiceUtil.checkResourceCodes(companyId,modelName);
+      }
+    }
+    List<String> portletActions=ResourceActionsUtil.getPortletResourceActions(portlet.getPortletId());
+    ResourceActionLocalServiceUtil.checkResourceActions(portlet.getPortletId(),portletActions);
+    for (    String modelName : modelNames) {
+      List<String> modelActions=ResourceActionsUtil.getModelResourceActions(modelName);
+      ResourceActionLocalServiceUtil.checkResourceActions(modelName,modelActions);
+    }
+    for (    long companyId : companyIds) {
+      Portlet curPortlet=PortletLocalServiceUtil.getPortletById(companyId,portlet.getPortletId());
+      PortletLocalServiceUtil.checkPortlet(curPortlet);
+    }
+  }
+  for (  Portlet portlet : portlets) {
+    boolean ready=GetterUtil.getBoolean(servletContext.getInitParameter("portlets-ready-by-default"),true);
+    portlet.setReady(ready);
+  }
+  registerClpMessageListeners(servletContext,portletClassLoader);
+  DirectServletRegistry.clearServlets();
+  _vars.put(servletContextName,new ObjectValuePair<long[],List<Portlet>>(companyIds,portlets));
+  if (_log.isInfoEnabled()) {
+    if (portlets.size() == 1) {
+      _log.info("1 portlet for " + servletContextName + " is available for use");
+    }
+ else {
+      _log.info(portlets.size() + " portlets for " + servletContextName+ " are available for use");
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  long userId=portletDataContext.getUserId(message.getUserUuid());
+  String userName=message.getUserName();
+  Map<Long,Long> categoryPKs=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(MBCategory.class);
+  long categoryId=MapUtil.getLong(categoryPKs,message.getCategoryId(),message.getCategoryId());
+  Map<Long,Long> threadPKs=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(MBThread.class);
+  long threadId=MapUtil.getLong(threadPKs,message.getThreadId(),message.getThreadId());
+  Map<Long,Long> messagePKs=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(MBMessage.class);
+  long parentMessageId=MapUtil.getLong(messagePKs,message.getParentMessageId(),message.getParentMessageId());
+  List<ObjectValuePair<String,byte[]>> files=new ArrayList<ObjectValuePair<String,byte[]>>();
+  List<String> existingFiles=new ArrayList<String>();
+  if (portletDataContext.getBooleanParameter(_NAMESPACE,"attachments") && message.isAttachments()) {
+    List<Element> attachmentElements=messageElement.elements("attachment");
+    for (    Element attachmentElement : attachmentElements) {
+      String name=attachmentElement.attributeValue("name");
+      String binPath=attachmentElement.attributeValue("bin-path");
+      byte[] bytes=portletDataContext.getZipEntryAsByteArray(binPath);
+      files.add(new ObjectValuePair<String,byte[]>(name,bytes));
+    }
+    if (files.size() <= 0) {
+      _log.error("Could not find attachments for message " + message.getMessageId());
+    }
+  }
+  ServiceContext serviceContext=portletDataContext.createServiceContext(messageElement,message,_NAMESPACE);
+  if (message.getStatus() != WorkflowConstants.STATUS_APPROVED) {
+    serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
+  }
+  if ((categoryId != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) && (categoryId != MBCategoryConstants.DISCUSSION_CATEGORY_ID) && (categoryId == message.getCategoryId())) {
+    String path=getImportCategoryPath(portletDataContext,categoryId);
+    MBCategory category=(MBCategory)portletDataContext.getZipEntryAsObject(path);
+    importCategory(portletDataContext,path,category);
+    categoryId=MapUtil.getLong(categoryPKs,message.getCategoryId(),message.getCategoryId());
+  }
+  MBMessage importedMessage=null;
+  if (portletDataContext.isDataStrategyMirror()) {
+    MBMessage existingMessage=MBMessageUtil.fetchByUUID_G(message.getUuid(),portletDataContext.getScopeGroupId());
+    if (existingMessage == null) {
+      serviceContext.setUuid(message.getUuid());
+      importedMessage=MBMessageLocalServiceUtil.addMessage(userId,userName,portletDataContext.getScopeGroupId(),categoryId,threadId,parentMessageId,message.getSubject(),message.getBody(),message.getFormat(),files,message.getAnonymous(),message.getPriority(),message.getAllowPingbacks(),serviceContext);
+    }
+ else {
+      importedMessage=MBMessageLocalServiceUtil.updateMessage(userId,existingMessage.getMessageId(),message.getSubject(),message.getBody(),files,existingFiles,message.getPriority(),message.getAllowPingbacks(),serviceContext);
+    }
+  }
+ else {
+    importedMessage=MBMessageLocalServiceUtil.addMessage(userId,userName,portletDataContext.getScopeGroupId(),categoryId,threadId,parentMessageId,message.getSubject(),message.getBody(),message.getFormat(),files,message.getAnonymous(),message.getPriority(),message.getAllowPingbacks(),serviceContext);
+  }
+  threadPKs.put(message.getThreadId(),importedMessage.getThreadId());
+  portletDataContext.importClassedModel(message,importedMessage,_NAMESPACE);
+}

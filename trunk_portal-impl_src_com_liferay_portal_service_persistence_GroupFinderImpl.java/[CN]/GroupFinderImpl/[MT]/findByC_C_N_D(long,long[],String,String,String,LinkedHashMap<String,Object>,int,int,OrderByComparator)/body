@@ -1,0 +1,93 @@
+{
+  name=StringUtil.lowerCase(name);
+  description=StringUtil.lowerCase(description);
+  if (params == null) {
+    params=new LinkedHashMap<String,Object>();
+  }
+  Long userId=(Long)params.get("usersGroups");
+  boolean inherit=GetterUtil.getBoolean(String.valueOf(params.get("inherit")),true);
+  LinkedHashMap<String,Object> params1=params;
+  LinkedHashMap<String,Object> params2=new LinkedHashMap<String,Object>(params1);
+  LinkedHashMap<String,Object> params3=new LinkedHashMap<String,Object>(params1);
+  LinkedHashMap<String,Object> params4=new LinkedHashMap<String,Object>(params1);
+  if ((userId != null) && inherit) {
+    params2.remove("usersGroups");
+    params2.put("groupOrg",userId);
+    params3.remove("usersGroups");
+    params3.put("groupsOrgs",userId);
+    params4.remove("usersGroups");
+    params4.put("groupsUserGroups",userId);
+  }
+  String findByCND_SQL=CustomSQLUtil.get(FIND_BY_C_N_D);
+  if (classNameIds == null) {
+    findByCND_SQL=StringUtil.replace(findByCND_SQL,"AND (Group_.classNameId = ?)",StringPool.BLANK);
+  }
+ else {
+    findByCND_SQL=StringUtil.replace(findByCND_SQL,"Group_.classNameId = ?","Group_.classNameId = ".concat(StringUtil.merge(classNameIds," OR Group_.classNameId = ")));
+  }
+  StringBundler sb=new StringBundler();
+  sb.append("(");
+  sb.append(replaceJoinAndWhere(findByCND_SQL,params1));
+  sb.append(")");
+  if (Validator.isNotNull(userId) && inherit) {
+    sb.append(" UNION (");
+    sb.append(replaceJoinAndWhere(findByCND_SQL,params2));
+    sb.append(") UNION (");
+    sb.append(replaceJoinAndWhere(findByCND_SQL,params3));
+    sb.append(") UNION (");
+    sb.append(replaceJoinAndWhere(findByCND_SQL,params4));
+    sb.append(")");
+  }
+  String sql=sb.toString();
+  sql=CustomSQLUtil.replaceOrderBy(sql,obc);
+  Session session=null;
+  try {
+    session=openSession();
+    SQLQuery q=session.createSQLQuery(sql);
+    q.addScalar("groupId",Type.LONG);
+    QueryPos qPos=QueryPos.getInstance(q);
+    setJoin(qPos,params1);
+    qPos.add(companyId);
+    qPos.add(name);
+    qPos.add(realName);
+    qPos.add(name);
+    qPos.add(description);
+    qPos.add(description);
+    if (Validator.isNotNull(userId) && inherit) {
+      setJoin(qPos,params2);
+      qPos.add(companyId);
+      qPos.add(name);
+      qPos.add(realName);
+      qPos.add(name);
+      qPos.add(description);
+      qPos.add(description);
+      setJoin(qPos,params3);
+      qPos.add(companyId);
+      qPos.add(name);
+      qPos.add(realName);
+      qPos.add(name);
+      qPos.add(description);
+      qPos.add(description);
+      setJoin(qPos,params4);
+      qPos.add(companyId);
+      qPos.add(name);
+      qPos.add(realName);
+      qPos.add(name);
+      qPos.add(description);
+      qPos.add(description);
+    }
+    List<Long> groupIds=(List<Long>)QueryUtil.list(q,getDialect(),start,end);
+    List<Group> groups=new ArrayList<Group>(groupIds.size());
+    for (    Long groupId : groupIds) {
+      Group group=GroupUtil.findByPrimaryKey(groupId);
+      groups.add(group);
+    }
+    return groups;
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+}

@@ -1,0 +1,101 @@
+{
+  Element requestElement=new Element("request");
+  requestElement.addElement("container-type","portlet");
+  requestElement.addElement("container-type","portlet");
+  requestElement.addElement("container-namespace",portletRequest.getContextPath());
+  requestElement.addElement("content-type",portletRequest.getResponseContentType());
+  requestElement.addElement("server-name",portletRequest.getServerName());
+  requestElement.addElement("server-port",portletRequest.getServerPort());
+  requestElement.addElement("secure",portletRequest.isSecure());
+  requestElement.addElement("auth-type",portletRequest.getAuthType());
+  requestElement.addElement("remote-user",portletRequest.getRemoteUser());
+  requestElement.addElement("context-path",portletRequest.getContextPath());
+  requestElement.addElement("locale",portletRequest.getLocale());
+  requestElement.addElement("portlet-mode",portletRequest.getPortletMode());
+  requestElement.addElement("portlet-session-id",portletRequest.getRequestedSessionId());
+  requestElement.addElement("scheme",portletRequest.getScheme());
+  requestElement.addElement("window-state",portletRequest.getWindowState());
+  if (portletRequest instanceof ActionRequest) {
+    requestElement.addElement("lifecycle",RenderRequest.ACTION_PHASE);
+  }
+ else   if (portletRequest instanceof RenderRequest) {
+    requestElement.addElement("lifecycle",RenderRequest.RENDER_PHASE);
+  }
+ else   if (portletRequest instanceof ResourceRequest) {
+    requestElement.addElement("lifecycle",RenderRequest.RESOURCE_PHASE);
+  }
+  if (portletResponse instanceof MimeResponse) {
+    _mimeResponseToXML((MimeResponse)portletResponse,requestElement);
+  }
+  ThemeDisplay themeDisplay=(ThemeDisplay)portletRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  if (themeDisplay != null) {
+    Element themeDisplayElement=requestElement.addElement("theme-display");
+    _themeDisplayToXML(themeDisplay,themeDisplayElement);
+  }
+  Element parametersElement=requestElement.addElement("parameters");
+  Enumeration<String> enu=portletRequest.getParameterNames();
+  while (enu.hasMoreElements()) {
+    String name=enu.nextElement();
+    Element parameterElement=parametersElement.addElement("parameter");
+    parameterElement.addElement("name",name);
+    String[] values=portletRequest.getParameterValues(name);
+    for (int i=0; i < values.length; i++) {
+      parameterElement.addElement("value",values[i]);
+    }
+  }
+  Element attributesElement=requestElement.addElement("attributes");
+  enu=portletRequest.getAttributeNames();
+  while (enu.hasMoreElements()) {
+    String name=enu.nextElement();
+    if (!_isValidAttributeName(name)) {
+      continue;
+    }
+    Object value=portletRequest.getAttribute(name);
+    if (!_isValidAttributeValue(value)) {
+      continue;
+    }
+    Element attributeElement=attributesElement.addElement("attribute");
+    attributeElement.addElement("name",name);
+    attributeElement.addElement("value",value);
+  }
+  Element portletSessionElement=requestElement.addElement("portlet-session");
+  attributesElement=portletSessionElement.addElement("portlet-attributes");
+  PortletSession portletSession=portletRequest.getPortletSession();
+  try {
+    enu=portletSession.getAttributeNames(PortletSession.PORTLET_SCOPE);
+    while (enu.hasMoreElements()) {
+      String name=enu.nextElement();
+      if (!_isValidAttributeName(name)) {
+        continue;
+      }
+      Object value=portletSession.getAttribute(name,PortletSession.PORTLET_SCOPE);
+      if (!_isValidAttributeValue(value)) {
+        continue;
+      }
+      Element attributeElement=attributesElement.addElement("attribute");
+      attributeElement.addElement("name",name);
+      attributeElement.addElement("value",value);
+    }
+    attributesElement=portletSessionElement.addElement("application-attributes");
+    enu=portletSession.getAttributeNames(PortletSession.APPLICATION_SCOPE);
+    while (enu.hasMoreElements()) {
+      String name=enu.nextElement();
+      if (!_isValidAttributeName(name)) {
+        continue;
+      }
+      Object value=portletSession.getAttribute(name,PortletSession.APPLICATION_SCOPE);
+      if (!_isValidAttributeValue(value)) {
+        continue;
+      }
+      Element attributeElement=attributesElement.addElement("attribute");
+      attributeElement.addElement("name",name);
+      attributeElement.addElement("value",value);
+    }
+  }
+ catch (  IllegalStateException ise) {
+    if (_log.isWarnEnabled()) {
+      _log.warn(ise.getMessage());
+    }
+  }
+  return requestElement.toXMLString();
+}

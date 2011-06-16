@@ -1,0 +1,41 @@
+{
+  ServletContext servletContext=event.getServletContext();
+  String servletContextName=servletContext.getServletContextName();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Invoking undeploy for " + servletContextName);
+  }
+  ObjectValuePair<long[],List<Portlet>> ovp=_vars.remove(servletContextName);
+  if (ovp == null) {
+    return;
+  }
+  long[] companyIds=ovp.getKey();
+  List<Portlet> portlets=ovp.getValue();
+  Set<String> portletIds=new HashSet<String>();
+  if (portlets != null) {
+    if (_log.isInfoEnabled()) {
+      _log.info("Unregistering portlets for " + servletContextName);
+    }
+    Iterator<Portlet> itr=portlets.iterator();
+    while (itr.hasNext()) {
+      Portlet portlet=itr.next();
+      destroyPortlet(portlet,portletIds);
+    }
+  }
+  ServletContextPool.remove(servletContextName);
+  if (portletIds.size() > 0) {
+    for (    long companyId : companyIds) {
+      PortletCategory portletCategory=(PortletCategory)WebAppPool.get(String.valueOf(companyId),WebKeys.PORTLET_CATEGORY);
+      portletCategory.separate(portletIds);
+    }
+  }
+  PortletResourceBundles.remove(servletContextName);
+  unregisterClpMessageListeners(servletContext);
+  if (_log.isInfoEnabled()) {
+    if (portlets.size() == 1) {
+      _log.info("1 portlet for " + servletContextName + " was unregistered");
+    }
+ else {
+      _log.info(portlets.size() + " portlets for " + servletContextName+ " was unregistered");
+    }
+  }
+}

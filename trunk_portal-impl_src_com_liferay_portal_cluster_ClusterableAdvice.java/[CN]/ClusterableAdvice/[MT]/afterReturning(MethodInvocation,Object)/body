@@ -1,0 +1,22 @@
+{
+  if (!ClusterInvokeThreadLocal.isEnabled()) {
+    return;
+  }
+  MethodTargetClassKey methodTargetClassKey=buildMethodTargetClassKey(methodInvocation);
+  Clusterable clusterable=findAnnotation(methodTargetClassKey);
+  if (clusterable == _nullClusterable) {
+    return;
+  }
+  Object targetBean=methodInvocation.getThis();
+  if (!(targetBean instanceof IdentifiableBean)) {
+    _log.error("Not clustering calls for " + targetBean.getClass().getName() + " because it does not implement "+ IdentifiableBean.class.getName());
+    return;
+  }
+  Method method=methodTargetClassKey.getMethod();
+  MethodHandler methodHandler=new MethodHandler(method,methodInvocation.getArguments());
+  ClusterRequest clusterRequest=ClusterRequest.createMulticastRequest(methodHandler,true);
+  IdentifiableBean identifiableBean=(IdentifiableBean)targetBean;
+  clusterRequest.setBeanIdentifier(identifiableBean.getBeanIdentifier());
+  clusterRequest.setServletContextName(_servletContextName);
+  ClusterExecutorUtil.execute(clusterRequest);
+}

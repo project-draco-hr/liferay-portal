@@ -1,0 +1,53 @@
+{
+  if (!entry.isApproved()) {
+    return;
+  }
+  String layoutFullURL=PortalUtil.getLayoutFullURL(serviceContext.getScopeGroupId(),PortletKeys.BLOGS);
+  if (Validator.isNull(layoutFullURL)) {
+    return;
+  }
+  PortletPreferences preferences=ServiceContextUtil.getPortletPreferences(serviceContext);
+  if (preferences == null) {
+    long ownerId=entry.getGroupId();
+    int ownerType=PortletKeys.PREFS_OWNER_TYPE_GROUP;
+    long plid=PortletKeys.PREFS_PLID_SHARED;
+    String portletId=PortletKeys.BLOGS;
+    String defaultPreferences=null;
+    preferences=portletPreferencesLocalService.getPreferences(entry.getCompanyId(),ownerId,ownerType,plid,portletId,defaultPreferences);
+  }
+  if (serviceContext.isCommandAdd() && BlogsUtil.getEmailEntryAddedEnabled(preferences)) {
+  }
+ else   if (serviceContext.isCommandUpdate() && BlogsUtil.getEmailEntryUpdatedEnabled(preferences)) {
+  }
+ else {
+    return;
+  }
+  String entryURL=layoutFullURL + Portal.FRIENDLY_URL_SEPARATOR + "blogs"+ StringPool.SLASH+ entry.getEntryId();
+  String fromName=BlogsUtil.getEmailFromName(preferences);
+  String fromAddress=BlogsUtil.getEmailFromAddress(preferences);
+  Map<Locale,String> localizedSubjectMap=null;
+  Map<Locale,String> localizedBodyMap=null;
+  if (serviceContext.isCommandUpdate()) {
+    localizedSubjectMap=BlogsUtil.getEmailEntryUpdatedSubjectMap(preferences);
+    localizedBodyMap=BlogsUtil.getEmailEntryUpdatedBodyMap(preferences);
+  }
+ else {
+    localizedSubjectMap=BlogsUtil.getEmailEntryAddedSubjectMap(preferences);
+    localizedBodyMap=BlogsUtil.getEmailEntryAddedBodyMap(preferences);
+  }
+  SubscriptionSender subscriptionSender=new SubscriptionSender();
+  subscriptionSender.setCompanyId(entry.getCompanyId());
+  subscriptionSender.setContextAttributes("[$BLOGS_ENTRY_URL$]",entryURL);
+  subscriptionSender.setContextUserPrefix("BLOGS_ENTRY");
+  subscriptionSender.setFrom(fromAddress,fromName);
+  subscriptionSender.setGroupId(entry.getGroupId());
+  subscriptionSender.setHtmlFormat(true);
+  subscriptionSender.setMailId("blogs_entry",entry.getEntryId());
+  subscriptionSender.setPortletId(PortletKeys.BLOGS);
+  subscriptionSender.setReplyToAddress(fromAddress);
+  subscriptionSender.setLocalizedBodyMap(localizedBodyMap);
+  subscriptionSender.setLocalizedSubjectMap(localizedSubjectMap);
+  subscriptionSender.setUserId(entry.getUserId());
+  subscriptionSender.addPersistedSubscribers(BlogsEntry.class.getName(),entry.getGroupId());
+  subscriptionSender.flushNotificationsAsync();
+}

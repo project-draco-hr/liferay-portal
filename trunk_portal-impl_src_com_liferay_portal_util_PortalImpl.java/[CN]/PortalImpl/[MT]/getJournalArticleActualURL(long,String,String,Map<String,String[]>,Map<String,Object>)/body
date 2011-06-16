@@ -1,0 +1,40 @@
+{
+  String articleUrlTitle=friendlyURL.substring(JournalArticleConstants.CANONICAL_URL_SEPARATOR.length());
+  JournalArticle journalArticle=JournalArticleLocalServiceUtil.getArticleByUrlTitle(groupId,articleUrlTitle);
+  Layout layout=LayoutLocalServiceUtil.getLayoutByUuidAndGroupId(journalArticle.getLayoutUuid(),groupId);
+  String layoutActualURL=getLayoutActualURL(layout,mainPath);
+  InheritableMap<String,String[]> actualParams=new InheritableMap<String,String[]>();
+  if (params != null) {
+    actualParams.setParentMap(params);
+  }
+  UnicodeProperties typeSettingsProperties=layout.getTypeSettingsProperties();
+  String defaultAssetPublisherPortletId=typeSettingsProperties.get(LayoutTypePortletConstants.DEFAULT_ASSET_PUBLISHER_PORTLET_ID);
+  String currentDefaultAssetPublisherPortletId=defaultAssetPublisherPortletId;
+  if (Validator.isNull(defaultAssetPublisherPortletId)) {
+    defaultAssetPublisherPortletId=PortletKeys.ASSET_PUBLISHER + LayoutTypePortletImpl.getFullInstanceSeparator();
+  }
+  if (Validator.isNull(currentDefaultAssetPublisherPortletId)) {
+    HttpServletRequest request=(HttpServletRequest)requestContext.get("request");
+    String actualPortletAuthenticationToken=AuthTokenUtil.getToken(request,layout.getPlid(),defaultAssetPublisherPortletId);
+    actualParams.put("p_p_auth",new String[]{actualPortletAuthenticationToken});
+  }
+  actualParams.put("p_p_id",new String[]{defaultAssetPublisherPortletId});
+  actualParams.put("p_p_lifecycle",new String[]{"0"});
+  if (Validator.isNull(currentDefaultAssetPublisherPortletId)) {
+    actualParams.put("p_p_state",new String[]{WindowState.MAXIMIZED.toString()});
+  }
+  actualParams.put("p_p_mode",new String[]{"view"});
+  actualParams.put("p_j_a_id",new String[]{String.valueOf(journalArticle.getId())});
+  String namespace=getPortletNamespace(defaultAssetPublisherPortletId);
+  actualParams.put(namespace + "struts_action",new String[]{"/asset_publisher/view_content"});
+  actualParams.put(namespace + "type",new String[]{JournalArticleAssetRendererFactory.TYPE});
+  actualParams.put(namespace + "urlTitle",new String[]{journalArticle.getUrlTitle()});
+  String queryString=HttpUtil.parameterMapToString(actualParams,false);
+  if (layoutActualURL.contains(StringPool.QUESTION)) {
+    layoutActualURL=layoutActualURL + StringPool.AMPERSAND + queryString;
+  }
+ else {
+    layoutActualURL=layoutActualURL + StringPool.QUESTION + queryString;
+  }
+  return layoutActualURL;
+}

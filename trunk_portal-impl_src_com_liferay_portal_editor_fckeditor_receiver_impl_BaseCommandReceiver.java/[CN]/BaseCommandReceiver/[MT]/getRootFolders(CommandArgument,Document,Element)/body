@@ -1,0 +1,34 @@
+{
+  LinkedHashMap<String,Object> groupParams=new LinkedHashMap<String,Object>();
+  groupParams.put("usersGroups",new Long(commandArgument.getUserId()));
+  List<Group> groups=GroupLocalServiceUtil.search(commandArgument.getCompanyId(),null,null,groupParams,QueryUtil.ALL_POS,QueryUtil.ALL_POS);
+  List<Organization> userOrgs=OrganizationLocalServiceUtil.getUserOrganizations(commandArgument.getUserId(),true);
+  for (  Organization organization : userOrgs) {
+    groups.add(0,organization.getGroup());
+  }
+  if (PropsValues.LAYOUT_USER_PRIVATE_LAYOUTS_ENABLED || PropsValues.LAYOUT_USER_PUBLIC_LAYOUTS_ENABLED) {
+    Group userGroup=GroupLocalServiceUtil.getUserGroup(commandArgument.getCompanyId(),commandArgument.getUserId());
+    groups.add(0,userGroup);
+  }
+  Group companyGroup=GroupLocalServiceUtil.getCompanyGroup(commandArgument.getCompanyId());
+  groups.add(0,companyGroup);
+  ThemeDisplay themeDisplay=commandArgument.getThemeDisplay();
+  long scopeGroupId=themeDisplay.getScopeGroupId();
+  HttpServletRequest request=commandArgument.getHttpServletRequest();
+  String portletId=ParamUtil.getString(request,"p_p_id");
+  for (  Group group : groups) {
+    Element folderElement=document.createElement("Folder");
+    foldersElement.appendChild(folderElement);
+    boolean setNameAttribute=false;
+    if (group.hasStagingGroup()) {
+      Group stagingGroup=group.getStagingGroup();
+      if ((stagingGroup.getGroupId() == scopeGroupId) && group.isStagedPortlet(portletId) && !group.isStagedRemotely()&& isStagedData(group)) {
+        folderElement.setAttribute("name",stagingGroup.getGroupId() + " - " + HtmlUtil.escape(stagingGroup.getDescriptiveName()));
+        setNameAttribute=true;
+      }
+    }
+    if (!setNameAttribute) {
+      folderElement.setAttribute("name",group.getGroupId() + " - " + HtmlUtil.escape(group.getDescriptiveName()));
+    }
+  }
+}

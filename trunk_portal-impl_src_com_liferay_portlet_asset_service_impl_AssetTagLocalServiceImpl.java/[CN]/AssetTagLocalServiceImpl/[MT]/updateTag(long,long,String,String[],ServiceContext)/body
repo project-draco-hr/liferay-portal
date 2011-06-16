@@ -1,0 +1,49 @@
+{
+  AssetTag tag=assetTagPersistence.findByPrimaryKey(tagId);
+  String oldName=tag.getName();
+  tag.setModifiedDate(new Date());
+  name=name.trim();
+  name=name.toLowerCase();
+  if (tagProperties == null) {
+    tagProperties=new String[0];
+  }
+  if (!tag.getName().equals(name) && hasTag(tag.getGroupId(),name)) {
+    throw new DuplicateTagException("A tag with the name " + name + " already exists");
+  }
+  if (!tag.getName().equals(name)) {
+    try {
+      AssetTag existingAssetTag=getTag(tag.getGroupId(),name);
+      if (existingAssetTag.getTagId() != tagId) {
+        throw new DuplicateTagException("A tag with the name " + name + " already exists");
+      }
+    }
+ catch (    NoSuchTagException nste) {
+    }
+  }
+  validate(name);
+  tag.setName(name);
+  assetTagPersistence.update(tag,false);
+  List<AssetTagProperty> oldTagProperties=assetTagPropertyPersistence.findByTagId(tagId);
+  for (  AssetTagProperty tagProperty : oldTagProperties) {
+    assetTagPropertyLocalService.deleteTagProperty(tagProperty);
+  }
+  for (int i=0; i < tagProperties.length; i++) {
+    String[] tagProperty=StringUtil.split(tagProperties[i],StringPool.COLON);
+    String key=StringPool.BLANK;
+    if (tagProperty.length > 0) {
+      key=GetterUtil.getString(tagProperty[0]);
+    }
+    String value=StringPool.BLANK;
+    if (tagProperty.length > 1) {
+      value=GetterUtil.getString(tagProperty[1]);
+    }
+    if (Validator.isNotNull(key)) {
+      assetTagPropertyLocalService.addTagProperty(userId,tagId,key,value);
+    }
+  }
+  if (!oldName.equals(name)) {
+    List<AssetEntry> entries=assetTagPersistence.getAssetEntries(tag.getTagId());
+    reindex(entries);
+  }
+  return tag;
+}

@@ -1,0 +1,63 @@
+{
+  String isbn=_isbn;
+  AmazonRankings amazonRankings=null;
+  try {
+    StringBundler sb=new StringBundler(7);
+    sb.append("http://ecs.amazonaws.com/onca/xml?Service=");
+    sb.append("AWSECommerceService&AWSAccessKeyId=");
+    sb.append(AmazonRankingsUtil.getAmazonAccessKeyId());
+    sb.append("&Operation=ItemLookup&IdType=ASIN&ItemId=");
+    sb.append(isbn);
+    sb.append("&ResponseGroup=Images,ItemAttributes,Offers,SalesRank&");
+    sb.append("Version=2009-02-01");
+    String xml=HttpUtil.URLtoString(sb.toString());
+    Document doc=SAXReaderUtil.read(xml);
+    Element root=doc.getRootElement();
+    if (root == null) {
+      return null;
+    }
+    Element items=root.element("Items");
+    if (items == null) {
+      return null;
+    }
+    Element item=items.element("Item");
+    if (item == null) {
+      return null;
+    }
+    Element itemAttributes=item.element("ItemAttributes");
+    if (itemAttributes == null) {
+      return null;
+    }
+    String productName=itemAttributes.elementText("Title");
+    String catalog=StringPool.BLANK;
+    String[] authors=getAuthors(itemAttributes);
+    String releaseDateAsString=itemAttributes.elementText("PublicationDate");
+    Date releaseDate=getReleaseDate(releaseDateAsString);
+    String manufacturer=itemAttributes.elementText("Manufacturer");
+    String smallImageURL=getImageURL(item,"SmallImage");
+    String mediumImageURL=getImageURL(item,"MediumImage");
+    String largeImageURL=getImageURL(item,"LargeImage");
+    double listPrice=getPrice(itemAttributes.element("ListPrice"));
+    double ourPrice=0;
+    Element offerListing=getOfferListing(item);
+    if (offerListing != null) {
+      ourPrice=getPrice(offerListing.element("Price"));
+    }
+    double usedPrice=0;
+    double collectiblePrice=0;
+    double thirdPartyNewPrice=0;
+    Element offerSummary=item.element("OfferSummary");
+    if (offerSummary != null) {
+      usedPrice=getPrice(offerSummary.element("LowestUsedPrice"));
+      collectiblePrice=getPrice(offerSummary.element("LowestCollectiblePrice"));
+      thirdPartyNewPrice=getPrice(offerSummary.element("LowestNewPrice"));
+    }
+    int salesRank=GetterUtil.getInteger(item.elementText("SalesRank"));
+    String media=StringPool.BLANK;
+    String availability=getAvailability(offerListing);
+    amazonRankings=new AmazonRankings(isbn,productName,catalog,authors,releaseDate,releaseDateAsString,manufacturer,smallImageURL,mediumImageURL,largeImageURL,listPrice,ourPrice,usedPrice,collectiblePrice,thirdPartyNewPrice,salesRank,media,availability);
+  }
+ catch (  Exception e) {
+  }
+  return amazonRankings;
+}

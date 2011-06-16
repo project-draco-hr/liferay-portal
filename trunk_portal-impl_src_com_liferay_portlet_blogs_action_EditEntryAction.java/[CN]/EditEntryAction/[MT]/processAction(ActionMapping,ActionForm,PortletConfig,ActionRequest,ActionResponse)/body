@@ -1,0 +1,87 @@
+{
+  String cmd=ParamUtil.getString(actionRequest,Constants.CMD);
+  try {
+    BlogsEntry entry=null;
+    String oldUrlTitle=StringPool.BLANK;
+    if (cmd.equals(Constants.ADD) || cmd.equals(Constants.UPDATE)) {
+      Object[] returnValue=updateEntry(actionRequest);
+      entry=(BlogsEntry)returnValue[0];
+      oldUrlTitle=((String)returnValue[1]);
+    }
+ else     if (cmd.equals(Constants.DELETE)) {
+      deleteEntries(actionRequest);
+    }
+ else     if (cmd.equals(Constants.SUBSCRIBE)) {
+      subscribe(actionRequest);
+    }
+ else     if (cmd.equals(Constants.UNSUBSCRIBE)) {
+      unsubscribe(actionRequest);
+    }
+    String redirect=ParamUtil.getString(actionRequest,"redirect");
+    boolean updateRedirect=false;
+    if (redirect.contains("/blogs/" + oldUrlTitle + "/maximized")) {
+      oldUrlTitle+="/maximized";
+    }
+    if ((entry != null) && (Validator.isNotNull(oldUrlTitle)) && (redirect.endsWith("/blogs/" + oldUrlTitle) || redirect.contains("/blogs/" + oldUrlTitle + "?") || redirect.contains("/blog/" + oldUrlTitle + "?"))) {
+      int pos=redirect.indexOf("?");
+      if (pos == -1) {
+        pos=redirect.length();
+      }
+      String newRedirect=redirect.substring(0,pos - oldUrlTitle.length());
+      newRedirect+=entry.getUrlTitle();
+      if (oldUrlTitle.indexOf("/maximized") != -1) {
+        newRedirect+="/maximized";
+      }
+      if (pos < redirect.length()) {
+        newRedirect+="?" + redirect.substring(pos + 1,redirect.length());
+      }
+      redirect=newRedirect;
+      updateRedirect=true;
+    }
+    int workflowAction=ParamUtil.getInteger(actionRequest,"workflowAction",WorkflowConstants.ACTION_SAVE_DRAFT);
+    boolean ajax=ParamUtil.getBoolean(actionRequest,"ajax");
+    if (ajax) {
+      JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+      jsonObject.put("entryId",entry.getEntryId());
+      jsonObject.put("redirect",redirect);
+      jsonObject.put("updateRedirect",updateRedirect);
+      HttpServletRequest request=PortalUtil.getHttpServletRequest(actionRequest);
+      HttpServletResponse response=PortalUtil.getHttpServletResponse(actionResponse);
+      InputStream inputStream=new UnsyncByteArrayInputStream(jsonObject.toString().getBytes());
+      String contentType=ContentTypes.TEXT_JAVASCRIPT;
+      ServletResponseUtil.sendFile(request,response,null,inputStream,contentType);
+      setForward(actionRequest,ActionConstants.COMMON_NULL);
+    }
+ else     if ((entry != null) && (workflowAction == WorkflowConstants.ACTION_SAVE_DRAFT)) {
+      redirect=getSaveAndContinueRedirect(portletConfig,actionRequest,entry,redirect);
+      sendRedirect(actionRequest,actionResponse,redirect);
+    }
+ else {
+      WindowState windowState=actionRequest.getWindowState();
+      if (!windowState.equals(LiferayWindowState.POP_UP)) {
+        sendRedirect(actionRequest,actionResponse,redirect);
+      }
+ else {
+        redirect=PortalUtil.escapeRedirect(redirect);
+        if (Validator.isNotNull(redirect)) {
+          actionResponse.sendRedirect(redirect);
+        }
+      }
+    }
+  }
+ catch (  Exception e) {
+    if (e instanceof NoSuchEntryException || e instanceof PrincipalException) {
+      SessionErrors.add(actionRequest,e.getClass().getName());
+      setForward(actionRequest,"portlet.blogs.error");
+    }
+ else     if (e instanceof EntryContentException || e instanceof EntryDisplayDateException || e instanceof EntrySmallImageNameException|| e instanceof EntrySmallImageSizeException|| e instanceof EntryTitleException) {
+      SessionErrors.add(actionRequest,e.getClass().getName());
+    }
+ else     if (e instanceof AssetCategoryException || e instanceof AssetTagException) {
+      SessionErrors.add(actionRequest,e.getClass().getName(),e);
+    }
+ else {
+      throw e;
+    }
+  }
+}

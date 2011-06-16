@@ -1,0 +1,50 @@
+{
+  if (SearchEngineUtil.isIndexReadOnly()) {
+    return;
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Reindexing Lucene started");
+  }
+  if (delay < 0) {
+    delay=0;
+  }
+  try {
+    if (delay > 0) {
+      Thread.sleep(Time.SECOND * delay);
+    }
+  }
+ catch (  InterruptedException ie) {
+  }
+  StopWatch stopWatch=null;
+  if (_log.isInfoEnabled()) {
+    stopWatch=new StopWatch();
+    stopWatch.start();
+  }
+  try {
+    LuceneHelperUtil.delete(_companyId);
+    List<Portlet> portlets=PortletLocalServiceUtil.getPortlets(_companyId);
+    portlets=ListUtil.sort(portlets,new PortletLuceneComparator());
+    for (    Portlet portlet : portlets) {
+      if (!portlet.isActive()) {
+        continue;
+      }
+      List<Indexer> indexers=portlet.getIndexerInstances();
+      if (indexers == null) {
+        continue;
+      }
+      for (      Indexer indexer : indexers) {
+        reindex(indexer);
+      }
+    }
+    if (_log.isInfoEnabled()) {
+      _log.info("Reindexing Lucene completed in " + (stopWatch.getTime() / Time.SECOND) + " seconds");
+    }
+  }
+ catch (  Exception e) {
+    _log.error("Error encountered while reindexing",e);
+    if (_log.isInfoEnabled()) {
+      _log.info("Reindexing Lucene failed");
+    }
+  }
+  _finished=true;
+}

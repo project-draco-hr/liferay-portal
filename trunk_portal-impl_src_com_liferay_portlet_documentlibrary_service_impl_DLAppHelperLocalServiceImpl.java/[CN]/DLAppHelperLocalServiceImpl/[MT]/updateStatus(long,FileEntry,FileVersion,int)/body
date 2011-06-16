@@ -1,0 +1,33 @@
+{
+  if (status == WorkflowConstants.STATUS_APPROVED) {
+    String latestFileVersionVersion=latestFileVersion.getVersion();
+    if (latestFileVersionVersion.equals(fileEntry.getVersion())) {
+      if (!latestFileVersionVersion.equals(DLFileEntryConstants.DEFAULT_VERSION)) {
+        AssetEntry draftAssetEntry=null;
+        try {
+          draftAssetEntry=assetEntryLocalService.getEntry(DLFileEntryConstants.getClassName(),latestFileVersion.getPrimaryKey());
+          long[] assetCategoryIds=draftAssetEntry.getCategoryIds();
+          String[] assetTagNames=draftAssetEntry.getTagNames();
+          List<AssetLink> assetLinks=assetLinkLocalService.getDirectLinks(draftAssetEntry.getEntryId(),AssetLinkConstants.TYPE_RELATED);
+          long[] assetLinkEntryIds=StringUtil.split(ListUtil.toString(assetLinks,"entryId2"),0L);
+          AssetEntry assetEntry=assetEntryLocalService.updateEntry(userId,fileEntry.getGroupId(),DLFileEntryConstants.getClassName(),fileEntry.getFileEntryId(),fileEntry.getUuid(),assetCategoryIds,assetTagNames,true,null,null,null,null,draftAssetEntry.getMimeType(),fileEntry.getTitle(),fileEntry.getDescription(),null,null,null,0,0,null,false);
+          assetLinkLocalService.updateLinks(userId,assetEntry.getEntryId(),assetLinkEntryIds,AssetLinkConstants.TYPE_RELATED);
+          assetEntryLocalService.deleteEntry(draftAssetEntry.getEntryId());
+        }
+ catch (        NoSuchEntryException nsee) {
+        }
+      }
+      assetEntryLocalService.updateVisible(DLFileEntryConstants.getClassName(),fileEntry.getFileEntryId(),true);
+    }
+    int activityType=DLActivityKeys.UPDATE_FILE_ENTRY;
+    if (latestFileVersionVersion.equals(DLFileEntryConstants.DEFAULT_VERSION)) {
+      activityType=DLActivityKeys.ADD_FILE_ENTRY;
+    }
+    socialActivityLocalService.addUniqueActivity(latestFileVersion.getStatusByUserId(),fileEntry.getGroupId(),latestFileVersion.getCreateDate(),DLFileEntryConstants.getClassName(),fileEntry.getFileEntryId(),activityType,StringPool.BLANK,0);
+  }
+ else {
+    if (Validator.isNull(fileEntry.getVersion())) {
+      assetEntryLocalService.updateVisible(DLFileEntryConstants.getClassName(),fileEntry.getFileEntryId(),false);
+    }
+  }
+}

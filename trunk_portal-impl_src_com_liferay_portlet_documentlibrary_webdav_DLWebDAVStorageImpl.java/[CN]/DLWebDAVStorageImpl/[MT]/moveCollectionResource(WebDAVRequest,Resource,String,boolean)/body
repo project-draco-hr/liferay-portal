@@ -1,0 +1,35 @@
+{
+  try {
+    String[] destinationArray=WebDAVUtil.getPathArray(destination,true);
+    Folder folder=(Folder)resource.getModel();
+    long companyId=webDavRequest.getCompanyId();
+    long groupId=WebDAVUtil.getGroupId(companyId,destinationArray);
+    long folderId=folder.getFolderId();
+    long parentFolderId=getParentFolderId(companyId,destinationArray);
+    String name=WebDAVUtil.getResourceName(destinationArray);
+    String description=folder.getDescription();
+    ServiceContext serviceContext=new ServiceContext();
+    int status=HttpServletResponse.SC_CREATED;
+    if (overwrite) {
+      if (deleteResource(groupId,parentFolderId,name,webDavRequest.getLockUuid())) {
+        status=HttpServletResponse.SC_NO_CONTENT;
+      }
+    }
+    if (parentFolderId != folder.getParentFolderId()) {
+      DLAppServiceUtil.moveFolder(folderId,parentFolderId,serviceContext);
+    }
+    if (!name.equals(folder.getName())) {
+      DLAppServiceUtil.updateFolder(folderId,name,description,serviceContext);
+    }
+    return status;
+  }
+ catch (  PrincipalException pe) {
+    return HttpServletResponse.SC_FORBIDDEN;
+  }
+catch (  DuplicateFolderNameException dfne) {
+    return HttpServletResponse.SC_PRECONDITION_FAILED;
+  }
+catch (  Exception e) {
+    throw new WebDAVException(e);
+  }
+}

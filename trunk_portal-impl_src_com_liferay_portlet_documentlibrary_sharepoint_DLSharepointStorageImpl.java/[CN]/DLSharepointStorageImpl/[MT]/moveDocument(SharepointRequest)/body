@@ -1,0 +1,51 @@
+{
+  String parentFolderPath=sharepointRequest.getRootPath();
+  long groupId=SharepointUtil.getGroupId(parentFolderPath);
+  Folder folder=null;
+  FileEntry fileEntry=null;
+  try {
+    long parentFolderId=getLastFolderId(groupId,parentFolderPath,DLFolderConstants.DEFAULT_PARENT_FOLDER_ID);
+    folder=DLAppServiceUtil.getFolder(parentFolderId);
+  }
+ catch (  Exception e1) {
+    if (e1 instanceof NoSuchFolderException) {
+      try {
+        fileEntry=getFileEntry(sharepointRequest);
+      }
+ catch (      Exception e2) {
+      }
+    }
+  }
+  Tree movedDocsTree=new Tree();
+  Tree movedDirsTree=new Tree();
+  String newPath=sharepointRequest.getParameterValue("newUrl");
+  String newParentFolderPath=getParentFolderPath(newPath);
+  long newGroupId=SharepointUtil.getGroupId(newParentFolderPath);
+  long newParentFolderId=getLastFolderId(newGroupId,newParentFolderPath,DLFolderConstants.DEFAULT_PARENT_FOLDER_ID);
+  String newName=getResourceName(newPath);
+  ServiceContext serviceContext=new ServiceContext();
+  if (fileEntry != null) {
+    long fileEntryId=fileEntry.getFileEntryId();
+    long folderId=fileEntry.getFolderId();
+    String mimeType=fileEntry.getMimeType();
+    String description=fileEntry.getDescription();
+    String changeLog=StringPool.BLANK;
+    InputStream is=fileEntry.getContentStream();
+    byte[] bytes=FileUtil.getBytes(is);
+    String[] assetTagNames=AssetTagLocalServiceUtil.getTagNames(FileEntry.class.getName(),fileEntry.getFileEntryId());
+    serviceContext.setAssetTagNames(assetTagNames);
+    fileEntry=DLAppServiceUtil.updateFileEntry(fileEntryId,newName,mimeType,newName,description,changeLog,false,bytes,serviceContext);
+    if (folderId != newParentFolderId) {
+      fileEntry=DLAppServiceUtil.moveFileEntry(fileEntryId,newParentFolderId,serviceContext);
+    }
+    Tree documentTree=getFileEntryTree(fileEntry,newParentFolderPath);
+    movedDocsTree.addChild(documentTree);
+  }
+ else   if (folder != null) {
+    long folderId=folder.getFolderId();
+    folder=DLAppServiceUtil.moveFolder(folderId,newParentFolderId,serviceContext);
+    Tree folderTree=getFolderTree(folder,newParentFolderPath);
+    movedDirsTree.addChild(folderTree);
+  }
+  return new Tree[]{movedDocsTree,movedDirsTree};
+}

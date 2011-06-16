@@ -1,0 +1,37 @@
+{
+  DirectoryScanner ds=new DirectoryScanner();
+  ds.setBasedir(".");
+  ds.setIncludes(new String[]{"**\\upgrade\\v**\\util\\*Table.java"});
+  ds.scan();
+  String[] fileNames=ds.getIncludedFiles();
+  for (  String fileName : fileNames) {
+    fileName=StringUtil.replace(fileName,"\\","/");
+    int x=fileName.indexOf("upgrade/v");
+    int y=fileName.indexOf("/util",x);
+    String version=StringUtil.replace(fileName.substring(x + 9,y),"_",".");
+    String upgradeFileVersion=version;
+    int z=upgradeFileVersion.indexOf(".to.");
+    if (z != -1) {
+      upgradeFileVersion=upgradeFileVersion.substring(z + 4);
+    }
+    x=fileName.indexOf("/",y + 1);
+    y=fileName.indexOf("Table.java",x);
+    String upgradeFileName=upgradeTableDir + "/" + upgradeFileVersion+ "/"+ fileName.substring(x,y)+ "ModelImpl.java";
+    if (!_fileUtil.exists(upgradeFileName)) {
+      if (!upgradeFileVersion.equals(ReleaseInfo.getVersion())) {
+        continue;
+      }
+      upgradeFileName=_findUpgradeFileName(fileName.substring(x,y));
+      if (upgradeFileName == null) {
+        continue;
+      }
+    }
+    String content=_fileUtil.read(upgradeFileName);
+    String packagePath="com.liferay.portal.upgrade.v" + StringUtil.replace(version,".","_") + ".util";
+    String className=fileName.substring(x + 1,y) + "Table";
+    String author=_getAuthor(fileName);
+    String[] addIndexes=_getAddIndexes(upgradeTableDir + "/" + upgradeFileVersion+ "/indexes.sql",fileName.substring(x + 1,y));
+    content=_getContent(packagePath,className,content,author,addIndexes);
+    _fileUtil.write(fileName,content);
+  }
+}

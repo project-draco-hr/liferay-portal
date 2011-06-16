@@ -1,0 +1,75 @@
+{
+  FileEntry fileEntry=getFileEntry(pathArray);
+  if (fileEntry == null) {
+    throw new NoSuchFileEntryException();
+  }
+  String version=ParamUtil.getString(request,"version");
+  if (Validator.isNull(version)) {
+    if (Validator.isNotNull(fileEntry.getVersion())) {
+      version=fileEntry.getVersion();
+    }
+ else {
+      throw new NoSuchFileEntryException();
+    }
+  }
+  String tempFileId=DLUtil.getTempFileId(fileEntry.getFileEntryId(),version);
+  InputStream inputStream=fileEntry.getContentStream(version);
+  FileVersion fileVersion=fileEntry.getFileVersion(version);
+  String fileName=fileVersion.getTitle();
+  String extension=GetterUtil.getString(FileUtil.getExtension(fileName));
+  if (Validator.isNull(extension) || !extension.equals(fileVersion.getExtension())) {
+    fileName+=StringPool.PERIOD + fileVersion.getExtension();
+  }
+  boolean converted=false;
+  String targetExtension=ParamUtil.getString(request,"targetExtension");
+  boolean documentThumbnail=ParamUtil.getBoolean(request,"documentThumbnail");
+  int previewFileIndex=ParamUtil.getInteger(request,"previewFileIndex");
+  boolean videoPreview=ParamUtil.getBoolean(request,"videoPreview");
+  boolean videoThumbnail=ParamUtil.getBoolean(request,"videoThumbnail");
+  if (Validator.isNotNull(targetExtension)) {
+    File convertedFile=DocumentConversionUtil.convert(tempFileId,inputStream,extension,targetExtension);
+    if (convertedFile != null) {
+      fileName=FileUtil.stripExtension(fileName).concat(StringPool.PERIOD).concat(targetExtension);
+      inputStream=new FileInputStream(convertedFile);
+      converted=true;
+    }
+  }
+ else   if (documentThumbnail) {
+    File thumbnailFile=PDFProcessor.getThumbnailFile(tempFileId);
+    inputStream=new FileInputStream(thumbnailFile);
+    fileName=FileUtil.stripExtension(fileName).concat(StringPool.PERIOD).concat(PDFProcessor.THUMBNAIL_TYPE);
+    converted=true;
+  }
+ else   if (previewFileIndex > 0) {
+    File previewFile=PDFProcessor.getPreviewFile(tempFileId,previewFileIndex);
+    inputStream=new FileInputStream(previewFile);
+    fileName=FileUtil.stripExtension(fileName).concat(StringPool.PERIOD).concat(PDFProcessor.PREVIEW_TYPE);
+    converted=true;
+  }
+ else   if (videoPreview) {
+    File previewFile=VideoProcessor.getPreviewFile(tempFileId);
+    inputStream=new FileInputStream(previewFile);
+    fileName=FileUtil.stripExtension(fileName).concat(StringPool.PERIOD).concat(VideoProcessor.PREVIEW_TYPE);
+    converted=true;
+  }
+ else   if (videoThumbnail) {
+    File thumbnailFile=VideoProcessor.getThumbnailFile(tempFileId);
+    inputStream=new FileInputStream(thumbnailFile);
+    fileName=FileUtil.stripExtension(fileName).concat(StringPool.PERIOD).concat(VideoProcessor.THUMBNAIL_TYPE);
+    converted=true;
+  }
+  String contentType=fileEntry.getMimeType(version);
+  long contentLength=0;
+  if (!converted) {
+    if (DLUtil.compareVersions(version,fileEntry.getVersion()) >= 0) {
+      contentLength=fileEntry.getSize();
+    }
+ else {
+      contentLength=fileVersion.getSize();
+    }
+  }
+ else {
+    contentType=MimeTypesUtil.getContentType(fileName);
+  }
+  ServletResponseUtil.sendFile(request,response,fileName,inputStream,contentLength,contentType);
+}

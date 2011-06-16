@@ -1,0 +1,46 @@
+{
+  calEvent=toUnwrappedModel(calEvent);
+  boolean isNew=calEvent.isNew();
+  CalEventModelImpl calEventModelImpl=(CalEventModelImpl)calEvent;
+  if (Validator.isNull(calEvent.getUuid())) {
+    String uuid=PortalUUIDUtil.generate();
+    calEvent.setUuid(uuid);
+  }
+  long userId=GetterUtil.getLong(PrincipalThreadLocal.getName());
+  if (userId > 0) {
+    long companyId=calEvent.getCompanyId();
+    long groupId=calEvent.getGroupId();
+    long eventId=0;
+    if (!isNew) {
+      eventId=calEvent.getPrimaryKey();
+    }
+    try {
+      calEvent.setTitle(SanitizerUtil.sanitize(companyId,groupId,userId,com.liferay.portlet.calendar.model.CalEvent.class.getName(),eventId,ContentTypes.TEXT_PLAIN,Sanitizer.MODE_ALL,calEvent.getTitle(),null));
+      calEvent.setDescription(SanitizerUtil.sanitize(companyId,groupId,userId,com.liferay.portlet.calendar.model.CalEvent.class.getName(),eventId,ContentTypes.TEXT_HTML,Sanitizer.MODE_ALL,calEvent.getDescription(),null));
+    }
+ catch (    SanitizerException se) {
+      throw new SystemException(se);
+    }
+  }
+  Session session=null;
+  try {
+    session=openSession();
+    BatchSessionUtil.update(session,calEvent,merge);
+    calEvent.setNew(false);
+  }
+ catch (  Exception e) {
+    throw processException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+  FinderCacheUtil.clearCache(FINDER_CLASS_NAME_LIST);
+  EntityCacheUtil.putResult(CalEventModelImpl.ENTITY_CACHE_ENABLED,CalEventImpl.class,calEvent.getPrimaryKey(),calEvent);
+  if (!isNew && (!Validator.equals(calEvent.getUuid(),calEventModelImpl.getOriginalUuid()) || (calEvent.getGroupId() != calEventModelImpl.getOriginalGroupId()))) {
+    FinderCacheUtil.removeResult(FINDER_PATH_FETCH_BY_UUID_G,new Object[]{calEventModelImpl.getOriginalUuid(),Long.valueOf(calEventModelImpl.getOriginalGroupId())});
+  }
+  if (isNew || (!Validator.equals(calEvent.getUuid(),calEventModelImpl.getOriginalUuid()) || (calEvent.getGroupId() != calEventModelImpl.getOriginalGroupId()))) {
+    FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_UUID_G,new Object[]{calEvent.getUuid(),Long.valueOf(calEvent.getGroupId())},calEvent);
+  }
+  return calEvent;
+}

@@ -1,0 +1,48 @@
+{
+  long entryId=ParamUtil.getLong(actionRequest,"entryId");
+  String title=ParamUtil.getString(actionRequest,"title");
+  String description=ParamUtil.getString(actionRequest,"description");
+  String content=ParamUtil.getString(actionRequest,"content");
+  int displayDateMonth=ParamUtil.getInteger(actionRequest,"displayDateMonth");
+  int displayDateDay=ParamUtil.getInteger(actionRequest,"displayDateDay");
+  int displayDateYear=ParamUtil.getInteger(actionRequest,"displayDateYear");
+  int displayDateHour=ParamUtil.getInteger(actionRequest,"displayDateHour");
+  int displayDateMinute=ParamUtil.getInteger(actionRequest,"displayDateMinute");
+  int displayDateAmPm=ParamUtil.getInteger(actionRequest,"displayDateAmPm");
+  if (displayDateAmPm == Calendar.PM) {
+    displayDateHour+=12;
+  }
+  boolean allowPingbacks=ParamUtil.getBoolean(actionRequest,"allowPingbacks");
+  boolean allowTrackbacks=ParamUtil.getBoolean(actionRequest,"allowTrackbacks");
+  String[] trackbacks=StringUtil.split(ParamUtil.getString(actionRequest,"trackbacks"));
+  boolean smallImage=false;
+  String smallImageURL=null;
+  File smallFile=null;
+  boolean ajax=ParamUtil.getBoolean(actionRequest,"ajax");
+  if (!ajax) {
+    boolean attachments=ParamUtil.getBoolean(actionRequest,"attachments",false);
+    if (attachments) {
+      UploadPortletRequest uploadRequest=PortalUtil.getUploadPortletRequest(actionRequest);
+      smallImage=ParamUtil.getBoolean(uploadRequest,"smallImage");
+      smallImageURL=ParamUtil.getString(uploadRequest,"smallImageURL");
+      smallFile=uploadRequest.getFile("smallFile");
+    }
+  }
+  ServiceContext serviceContext=ServiceContextFactory.getInstance(BlogsEntry.class.getName(),actionRequest);
+  BlogsEntry entry=null;
+  String oldUrlTitle=StringPool.BLANK;
+  if (entryId <= 0) {
+    entry=BlogsEntryServiceUtil.addEntry(title,description,content,displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,allowPingbacks,allowTrackbacks,trackbacks,smallImage,smallImageURL,smallFile,serviceContext);
+    AssetPublisherUtil.addAndStoreSelection(actionRequest,BlogsEntry.class.getName(),entry.getEntryId(),-1);
+  }
+ else {
+    entry=BlogsEntryLocalServiceUtil.getEntry(entryId);
+    String tempOldUrlTitle=entry.getUrlTitle();
+    entry=BlogsEntryServiceUtil.updateEntry(entryId,title,description,content,displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,allowPingbacks,allowTrackbacks,trackbacks,smallImage,smallImageURL,smallFile,serviceContext);
+    if (!tempOldUrlTitle.equals(entry.getUrlTitle())) {
+      oldUrlTitle=tempOldUrlTitle;
+    }
+    AssetPublisherUtil.addAndStoreSelection(actionRequest,BlogsEntry.class.getName(),entry.getEntryId(),-1);
+  }
+  return new Object[]{entry,oldUrlTitle};
+}

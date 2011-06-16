@@ -1,0 +1,48 @@
+{
+  if (PropsValues.AUTH_LOGIN_DISABLED) {
+    return 0;
+  }
+  User user=null;
+  try {
+    user=getUserByEmailAddress(companyId,username);
+  }
+ catch (  NoSuchUserException nsue) {
+    try {
+      user=getUserByScreenName(companyId,username);
+    }
+ catch (    NoSuchUserException nsue2) {
+      try {
+        user=getUserById(GetterUtil.getLong(username));
+      }
+ catch (      NoSuchUserException nsue3) {
+        return 0;
+      }
+    }
+  }
+  if (user.isDefaultUser()) {
+    if (_log.isInfoEnabled()) {
+      _log.info("Digest authentication is disabled for the default user");
+    }
+    return 0;
+  }
+ else   if (!user.isActive()) {
+    if (_log.isInfoEnabled()) {
+      _log.info("Digest authentication is disabled for inactive user " + user.getUserId());
+    }
+    return 0;
+  }
+  String digest=user.getDigest();
+  if (Validator.isNull(digest)) {
+    _log.error("User must first login through the portal " + user.getUserId());
+    return 0;
+  }
+  String[] digestArray=StringUtil.split(user.getDigest());
+  for (  String ha1 : digestArray) {
+    String ha2=DigesterUtil.digestHex(Digester.MD5,method,uri);
+    String curResponse=DigesterUtil.digestHex(Digester.MD5,ha1,nonce,ha2);
+    if (response.equals(curResponse)) {
+      return user.getUserId();
+    }
+  }
+  return 0;
+}

@@ -1,0 +1,57 @@
+{
+  String invoice=null;
+  try {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Receiving notification from PayPal");
+    }
+    String query="cmd=_notify-validate";
+    Enumeration<String> enu=request.getParameterNames();
+    while (enu.hasMoreElements()) {
+      String name=enu.nextElement();
+      String value=request.getParameter(name);
+      query=query + "&" + name+ "="+ HttpUtil.encodeURL(value);
+    }
+    if (_log.isDebugEnabled()) {
+      _log.debug("Sending response to PayPal " + query);
+    }
+    URL url=new URL("https://www.paypal.com/cgi-bin/webscr");
+    URLConnection urlc=url.openConnection();
+    urlc.setDoOutput(true);
+    urlc.setRequestProperty("Content-Type","application/x-www-form-urlencoded");
+    PrintWriter pw=new UnsyncPrintWriter(urlc.getOutputStream());
+    pw.println(query);
+    pw.close();
+    UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new InputStreamReader(urlc.getInputStream()));
+    String payPalStatus=unsyncBufferedReader.readLine();
+    unsyncBufferedReader.close();
+    String itemName=ParamUtil.getString(request,"item_name");
+    String itemNumber=ParamUtil.getString(request,"item_number");
+    invoice=ParamUtil.getString(request,"invoice");
+    String txnId=ParamUtil.getString(request,"txn_id");
+    String paymentStatus=ParamUtil.getString(request,"payment_status");
+    double paymentGross=ParamUtil.getDouble(request,"mc_gross");
+    String receiverEmail=ParamUtil.getString(request,"receiver_email");
+    String payerEmail=ParamUtil.getString(request,"payer_email");
+    if (_log.isDebugEnabled()) {
+      _log.debug("Receiving response from PayPal");
+      _log.debug("Item name " + itemName);
+      _log.debug("Item number " + itemNumber);
+      _log.debug("Invoice " + invoice);
+      _log.debug("Transaction ID " + txnId);
+      _log.debug("Payment status " + paymentStatus);
+      _log.debug("Payment gross " + paymentGross);
+      _log.debug("Receiver email " + receiverEmail);
+      _log.debug("Payer email " + payerEmail);
+    }
+    if (payPalStatus.equals("VERIFIED") && validate(request)) {
+      ShoppingOrderLocalServiceUtil.completeOrder(invoice,txnId,paymentStatus,paymentGross,receiverEmail,payerEmail,true);
+    }
+ else     if (payPalStatus.equals("INVALID")) {
+    }
+    return null;
+  }
+ catch (  Exception e) {
+    PortalUtil.sendError(e,request,response);
+    return null;
+  }
+}

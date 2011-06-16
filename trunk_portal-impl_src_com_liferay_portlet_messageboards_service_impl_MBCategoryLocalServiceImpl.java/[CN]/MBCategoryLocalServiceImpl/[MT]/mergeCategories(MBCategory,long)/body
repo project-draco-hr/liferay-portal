@@ -1,0 +1,26 @@
+{
+  if ((toCategoryId == MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) || (toCategoryId == MBCategoryConstants.DISCUSSION_CATEGORY_ID)) {
+    return;
+  }
+  List<MBCategory> categories=mbCategoryPersistence.findByG_P(fromCategory.getGroupId(),fromCategory.getCategoryId());
+  for (  MBCategory category : categories) {
+    mergeCategories(category,toCategoryId);
+  }
+  List<MBThread> threads=mbThreadPersistence.findByG_C(fromCategory.getGroupId(),fromCategory.getCategoryId());
+  for (  MBThread thread : threads) {
+    thread.setCategoryId(toCategoryId);
+    mbThreadPersistence.update(thread,false);
+    List<MBMessage> messages=mbMessagePersistence.findByThreadId(thread.getThreadId());
+    for (    MBMessage message : messages) {
+      message.setCategoryId(toCategoryId);
+      mbMessagePersistence.update(message,false);
+      Indexer indexer=IndexerRegistryUtil.getIndexer(MBMessage.class);
+      indexer.reindex(message);
+    }
+  }
+  MBCategory toCategory=mbCategoryPersistence.findByPrimaryKey(toCategoryId);
+  toCategory.setThreadCount(fromCategory.getThreadCount() + toCategory.getThreadCount());
+  toCategory.setMessageCount(fromCategory.getMessageCount() + toCategory.getMessageCount());
+  mbCategoryPersistence.update(toCategory,false);
+  deleteCategory(fromCategory);
+}

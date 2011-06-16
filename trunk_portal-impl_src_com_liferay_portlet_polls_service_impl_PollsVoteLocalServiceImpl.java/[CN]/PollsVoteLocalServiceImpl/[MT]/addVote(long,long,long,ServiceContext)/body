@@ -1,0 +1,27 @@
+{
+  Date now=new Date();
+  PollsChoice choice=pollsChoicePersistence.findByPrimaryKey(choiceId);
+  if (choice.getQuestionId() != questionId) {
+    throw new NoSuchQuestionException();
+  }
+  PollsQuestion question=pollsQuestionPersistence.findByPrimaryKey(questionId);
+  if (question.isExpired(serviceContext,now)) {
+    throw new QuestionExpiredException();
+  }
+  question.setLastVoteDate(serviceContext.getCreateDate(now));
+  pollsQuestionPersistence.update(question,false);
+  PollsVote vote=pollsVotePersistence.fetchByQ_U(questionId,userId);
+  if (vote != null) {
+    throw new DuplicateVoteException();
+  }
+ else {
+    long voteId=counterLocalService.increment();
+    vote=pollsVotePersistence.create(voteId);
+    vote.setUserId(userId);
+    vote.setQuestionId(questionId);
+    vote.setChoiceId(choiceId);
+    vote.setVoteDate(serviceContext.getCreateDate(now));
+    pollsVotePersistence.update(vote,false);
+  }
+  return vote;
+}

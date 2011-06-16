@@ -1,0 +1,88 @@
+{
+  if (!isEnabled(groupIds)) {
+    return sql;
+  }
+  if (Validator.isNull(className)) {
+    throw new IllegalArgumentException("className is null");
+  }
+  if (Validator.isNull(classPKField)) {
+    throw new IllegalArgumentException("classPKField is null");
+  }
+  if (Validator.isNull(sql)) {
+    return sql;
+  }
+  PermissionChecker permissionChecker=PermissionThreadLocal.getPermissionChecker();
+  long checkGroupId=0;
+  if (groupIds.length == 1) {
+    checkGroupId=groupIds[0];
+  }
+  if (permissionChecker.hasPermission(checkGroupId,className,0,ActionKeys.VIEW)) {
+    return sql;
+  }
+  String permissionJoin=StringPool.BLANK;
+  if (Validator.isNotNull(bridgeJoin)) {
+    permissionJoin=bridgeJoin;
+  }
+  permissionJoin+=CustomSQLUtil.get(JOIN_RESOURCE_PERMISSION);
+  StringBundler ownerSQL=new StringBundler(5);
+  long userId=getUserId();
+  if (permissionChecker.isSignedIn()) {
+    ownerSQL.append(" OR ");
+    if (Validator.isNotNull(userIdField)) {
+      ownerSQL.append("(");
+      ownerSQL.append(userIdField);
+      ownerSQL.append(" = ");
+      ownerSQL.append(userId);
+      ownerSQL.append(")");
+    }
+ else {
+      ownerSQL.append("(ResourcePermission.ownerId = ");
+      ownerSQL.append(userId);
+      ownerSQL.append(")");
+    }
+  }
+  long[] roleIds=getRoleIds(groupIds);
+  StringBundler roleIdsSQL=new StringBundler();
+  if (roleIds.length == 0) {
+    roleIds=_NO_ROLE_IDS;
+  }
+  for (int i=0; i < roleIds.length; i++) {
+    if (i == 0) {
+      roleIdsSQL.append("(");
+    }
+ else     if (i > 0) {
+      roleIdsSQL.append(" OR ");
+    }
+    roleIdsSQL.append("ResourcePermission.roleId = ");
+    roleIdsSQL.append(roleIds[i]);
+    if (i == (roleIds.length - 1)) {
+      roleIdsSQL.append(")");
+    }
+  }
+  StringBundler primKeysSQL=new StringBundler();
+  primKeysSQL.append("(ResourcePermission.primKey = CAST_TEXT(");
+  primKeysSQL.append(classPKField);
+  primKeysSQL.append(")");
+  if (groupIds.length > 1) {
+    for (    long groupId : groupIds) {
+      primKeysSQL.append(" OR ResourcePermission.primKey = '");
+      primKeysSQL.append(groupId);
+      primKeysSQL.append("'");
+    }
+  }
+  primKeysSQL.append(")");
+  permissionJoin=StringUtil.replace(permissionJoin,new String[]{"[$CLASS_NAME$]","[$COMPANY_ID$]","OR [$OWNER_CHECK$]","[$PRIM_KEYS$]","[$ROLE_IDS$]"},new String[]{className,String.valueOf(permissionChecker.getCompanyId()),ownerSQL.toString(),primKeysSQL.toString(),roleIdsSQL.toString()});
+  int pos=sql.indexOf(_WHERE_CLAUSE);
+  if (pos != -1) {
+    return sql.substring(0,pos + 1).concat(permissionJoin).concat(sql.substring(pos + 1));
+  }
+  pos=sql.indexOf(_GROUP_BY_CLAUSE);
+  if (pos != -1) {
+    return sql.substring(0,pos + 1).concat(permissionJoin).concat(sql.substring(pos + 1));
+  }
+  pos=sql.indexOf(_ORDER_BY_CLAUSE);
+  if (pos != -1) {
+    return sql.substring(0,pos + 1).concat(permissionJoin).concat(sql.substring(pos + 1));
+  }
+  return sql.concat(StringPool.SPACE).concat(permissionJoin);
+}

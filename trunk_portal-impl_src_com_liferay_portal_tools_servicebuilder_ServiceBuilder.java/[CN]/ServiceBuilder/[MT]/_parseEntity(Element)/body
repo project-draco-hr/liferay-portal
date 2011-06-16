@@ -1,0 +1,208 @@
+{
+  String ejbName=entityElement.attributeValue("name");
+  String humanName=entityElement.attributeValue("human-name");
+  String table=entityElement.attributeValue("table");
+  if (Validator.isNull(table)) {
+    table=ejbName;
+    if (_badTableNames.contains(ejbName)) {
+      table+=StringPool.UNDERLINE;
+    }
+    if (_autoNamespaceTables) {
+      table=_portletShortName + StringPool.UNDERLINE + ejbName;
+    }
+  }
+  boolean uuid=GetterUtil.getBoolean(entityElement.attributeValue("uuid"));
+  boolean localService=GetterUtil.getBoolean(entityElement.attributeValue("local-service"));
+  boolean remoteService=GetterUtil.getBoolean(entityElement.attributeValue("remote-service"),true);
+  String persistenceClass=GetterUtil.getString(entityElement.attributeValue("persistence-class"),_packagePath + ".service.persistence." + ejbName+ "PersistenceImpl");
+  String finderClass="";
+  if (FileUtil.exists(_outputPath + "/service/persistence/" + ejbName+ "FinderImpl.java")) {
+    finderClass=_packagePath + ".service.persistence." + ejbName+ "FinderImpl";
+  }
+  String dataSource=entityElement.attributeValue("data-source");
+  String sessionFactory=entityElement.attributeValue("session-factory");
+  String txManager=entityElement.attributeValue("tx-manager");
+  boolean cacheEnabled=GetterUtil.getBoolean(entityElement.attributeValue("cache-enabled"),true);
+  boolean jsonEnabled=GetterUtil.getBoolean(entityElement.attributeValue("json-enabled"),remoteService);
+  List<EntityColumn> pkList=new ArrayList<EntityColumn>();
+  List<EntityColumn> regularColList=new ArrayList<EntityColumn>();
+  List<EntityColumn> collectionList=new ArrayList<EntityColumn>();
+  List<EntityColumn> columnList=new ArrayList<EntityColumn>();
+  List<Element> columnElements=entityElement.elements("column");
+  if (uuid) {
+    Element columnElement=SAXReaderUtil.createElement("column");
+    columnElement.addAttribute("name","uuid");
+    columnElement.addAttribute("type","String");
+    columnElements.add(0,columnElement);
+  }
+  for (  Element columnElement : columnElements) {
+    String columnName=columnElement.attributeValue("name");
+    String columnDBName=columnElement.attributeValue("db-name");
+    if (Validator.isNull(columnDBName)) {
+      columnDBName=columnName;
+      if (_badColumnNames.contains(columnName)) {
+        columnDBName+=StringPool.UNDERLINE;
+      }
+    }
+    String columnType=columnElement.attributeValue("type");
+    boolean primary=GetterUtil.getBoolean(columnElement.attributeValue("primary"));
+    boolean filterPrimary=GetterUtil.getBoolean(columnElement.attributeValue("filter-primary"));
+    String collectionEntity=columnElement.attributeValue("entity");
+    String mappingKey=columnElement.attributeValue("mapping-key");
+    String mappingTable=columnElement.attributeValue("mapping-table");
+    if (Validator.isNotNull(mappingTable)) {
+      if (_badTableNames.contains(mappingTable)) {
+        mappingTable+=StringPool.UNDERLINE;
+      }
+      if (_autoNamespaceTables) {
+        mappingTable=_portletShortName + StringPool.UNDERLINE + mappingTable;
+      }
+    }
+    String idType=columnElement.attributeValue("id-type");
+    String idParam=columnElement.attributeValue("id-param");
+    boolean convertNull=GetterUtil.getBoolean(columnElement.attributeValue("convert-null"),true);
+    boolean localized=GetterUtil.getBoolean(columnElement.attributeValue("localized"));
+    boolean colJsonEnabled=GetterUtil.getBoolean(columnElement.attributeValue("json-enabled"),jsonEnabled);
+    EntityColumn col=new EntityColumn(columnName,columnDBName,columnType,primary,filterPrimary,collectionEntity,mappingKey,mappingTable,idType,idParam,convertNull,localized,colJsonEnabled);
+    if (primary) {
+      pkList.add(col);
+    }
+    if (columnType.equals("Collection")) {
+      collectionList.add(col);
+    }
+ else {
+      regularColList.add(col);
+    }
+    columnList.add(col);
+    if (Validator.isNotNull(collectionEntity) && Validator.isNotNull(mappingTable)) {
+      EntityMapping entityMapping=new EntityMapping(mappingTable,ejbName,collectionEntity);
+      int ejbNameWeight=StringUtil.startsWithWeight(mappingTable,ejbName);
+      int collectionEntityWeight=StringUtil.startsWithWeight(mappingTable,collectionEntity);
+      if ((ejbNameWeight > collectionEntityWeight) || ((ejbNameWeight == collectionEntityWeight) && (ejbName.compareTo(collectionEntity) > 0))) {
+        _entityMappings.put(mappingTable,entityMapping);
+      }
+    }
+  }
+  EntityOrder order=null;
+  Element orderElement=entityElement.element("order");
+  if (orderElement != null) {
+    boolean asc=true;
+    if ((orderElement.attribute("by") != null) && (orderElement.attributeValue("by").equals("desc"))) {
+      asc=false;
+    }
+    List<EntityColumn> orderColsList=new ArrayList<EntityColumn>();
+    order=new EntityOrder(asc,orderColsList);
+    List<Element> orderColumnElements=orderElement.elements("order-column");
+    for (    Element orderColElement : orderColumnElements) {
+      String orderColName=orderColElement.attributeValue("name");
+      boolean orderColCaseSensitive=GetterUtil.getBoolean(orderColElement.attributeValue("case-sensitive"),true);
+      boolean orderColByAscending=asc;
+      String orderColBy=GetterUtil.getString(orderColElement.attributeValue("order-by"));
+      if (orderColBy.equals("asc")) {
+        orderColByAscending=true;
+      }
+ else       if (orderColBy.equals("desc")) {
+        orderColByAscending=false;
+      }
+      EntityColumn col=Entity.getColumn(orderColName,columnList);
+      col=(EntityColumn)col.clone();
+      col.setCaseSensitive(orderColCaseSensitive);
+      col.setOrderByAscending(orderColByAscending);
+      orderColsList.add(col);
+    }
+  }
+  List<EntityFinder> finderList=new ArrayList<EntityFinder>();
+  List<Element> finderElements=entityElement.elements("finder");
+  if (uuid) {
+    Element finderElement=SAXReaderUtil.createElement("finder");
+    finderElement.addAttribute("name","Uuid");
+    finderElement.addAttribute("return-type","Collection");
+    Element finderColumnElement=finderElement.addElement("finder-column");
+    finderColumnElement.addAttribute("name","uuid");
+    finderElements.add(0,finderElement);
+    if (columnList.contains(new EntityColumn("groupId"))) {
+      finderElement=SAXReaderUtil.createElement("finder");
+      finderElement.addAttribute("name","UUID_G");
+      finderElement.addAttribute("return-type",ejbName);
+      finderElement.addAttribute("unique","true");
+      finderColumnElement=finderElement.addElement("finder-column");
+      finderColumnElement.addAttribute("name","uuid");
+      finderColumnElement=finderElement.addElement("finder-column");
+      finderColumnElement.addAttribute("name","groupId");
+      finderElements.add(1,finderElement);
+    }
+  }
+  String alias=TextFormatter.format(ejbName,TextFormatter.I);
+  if (_badAliasNames.contains(alias.toLowerCase())) {
+    alias+=StringPool.UNDERLINE;
+  }
+  for (  Element finderElement : finderElements) {
+    String finderName=finderElement.attributeValue("name");
+    String finderReturn=finderElement.attributeValue("return-type");
+    boolean finderUnique=GetterUtil.getBoolean(finderElement.attributeValue("unique"));
+    String finderWhere=finderElement.attributeValue("where");
+    if (Validator.isNotNull(finderWhere)) {
+      for (      EntityColumn column : columnList) {
+        String name=column.getName();
+        if (finderWhere.indexOf(name) != -1) {
+          finderWhere=finderWhere.replaceAll(name,alias + "." + name);
+        }
+      }
+    }
+    boolean finderDBIndex=GetterUtil.getBoolean(finderElement.attributeValue("db-index"),true);
+    List<EntityColumn> finderColsList=new ArrayList<EntityColumn>();
+    List<Element> finderColumnElements=finderElement.elements("finder-column");
+    for (    Element finderColumnElement : finderColumnElements) {
+      String finderColName=finderColumnElement.attributeValue("name");
+      boolean finderColCaseSensitive=GetterUtil.getBoolean(finderColumnElement.attributeValue("case-sensitive"),true);
+      String finderColComparator=GetterUtil.getString(finderColumnElement.attributeValue("comparator"),"=");
+      String finderColArrayableOperator=GetterUtil.getString(finderColumnElement.attributeValue("arrayable-operator"));
+      EntityColumn col=Entity.getColumn(finderColName,columnList);
+      if (!col.isFetchFinderPath() && !finderReturn.equals("Collection")) {
+        col.setFetchFinderPath(true);
+      }
+      col=(EntityColumn)col.clone();
+      col.setCaseSensitive(finderColCaseSensitive);
+      col.setComparator(finderColComparator);
+      col.setArrayableOperator(finderColArrayableOperator);
+      finderColsList.add(col);
+    }
+    finderList.add(new EntityFinder(finderName,finderReturn,finderUnique,finderWhere,finderDBIndex,finderColsList));
+  }
+  List<Entity> referenceList=new ArrayList<Entity>();
+  if (_build) {
+    if (Validator.isNotNull(_pluginName)) {
+      for (      String config : PropsValues.RESOURCE_ACTIONS_CONFIGS) {
+        File file=new File(_implDir + "/" + config);
+        if (file.exists()) {
+          InputStream inputStream=new FileInputStream(file);
+          ResourceActionsUtil.read(_pluginName,inputStream);
+        }
+      }
+    }
+    List<Element> referenceElements=entityElement.elements("reference");
+    Set<String> referenceSet=new TreeSet<String>();
+    for (    Element referenceElement : referenceElements) {
+      String referencePackage=referenceElement.attributeValue("package-path");
+      String referenceEntity=referenceElement.attributeValue("entity");
+      referenceSet.add(referencePackage + "." + referenceEntity);
+    }
+    if (!_packagePath.equals("com.liferay.counter")) {
+      referenceSet.add("com.liferay.counter.Counter");
+    }
+    if (!_packagePath.equals("com.liferay.portal")) {
+      referenceSet.add("com.liferay.portal.Resource");
+      referenceSet.add("com.liferay.portal.User");
+    }
+    for (    String referenceName : referenceSet) {
+      referenceList.add(getEntity(referenceName));
+    }
+  }
+  List<String> txRequiredList=new ArrayList<String>();
+  List<Element> txRequiredElements=entityElement.elements("tx-required");
+  for (  Element txRequiredEl : txRequiredElements) {
+    String txRequired=txRequiredEl.getText();
+    txRequiredList.add(txRequired);
+  }
+  _ejbList.add(new Entity(_packagePath,_portletName,_portletShortName,ejbName,humanName,table,alias,uuid,localService,remoteService,persistenceClass,finderClass,dataSource,sessionFactory,txManager,cacheEnabled,jsonEnabled,pkList,regularColList,collectionList,columnList,order,finderList,referenceList,txRequiredList));
+}

@@ -1,0 +1,43 @@
+{
+  long userId=portletDataContext.getUserId(entry.getUserUuid());
+  Calendar displayDateCal=CalendarFactoryUtil.getCalendar();
+  displayDateCal.setTime(entry.getDisplayDate());
+  int displayDateMonth=displayDateCal.get(Calendar.MONTH);
+  int displayDateDay=displayDateCal.get(Calendar.DATE);
+  int displayDateYear=displayDateCal.get(Calendar.YEAR);
+  int displayDateHour=displayDateCal.get(Calendar.HOUR);
+  int displayDateMinute=displayDateCal.get(Calendar.MINUTE);
+  if (displayDateCal.get(Calendar.AM_PM) == Calendar.PM) {
+    displayDateHour+=12;
+  }
+  boolean allowPingbacks=entry.isAllowPingbacks();
+  boolean allowTrackbacks=entry.isAllowTrackbacks();
+  String[] trackbacks=StringUtil.split(entry.getTrackbacks());
+  int status=entry.getStatus();
+  ServiceContext serviceContext=portletDataContext.createServiceContext(entryElement,entry,_NAMESPACE);
+  if (status != WorkflowConstants.STATUS_APPROVED) {
+    serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
+  }
+  File smallFile=null;
+  String smallImagePath=entryElement.attributeValue("small-image-path");
+  if (entry.isSmallImage() && Validator.isNotNull(smallImagePath)) {
+    byte[] bytes=portletDataContext.getZipEntryAsByteArray(smallImagePath);
+    smallFile=File.createTempFile(String.valueOf(entry.getSmallImageId()),StringPool.PERIOD + entry.getSmallImageType());
+    FileUtil.write(smallFile,bytes);
+  }
+  BlogsEntry importedEntry=null;
+  if (portletDataContext.isDataStrategyMirror()) {
+    BlogsEntry existingEntry=BlogsEntryUtil.fetchByUUID_G(entry.getUuid(),portletDataContext.getScopeGroupId());
+    if (existingEntry == null) {
+      serviceContext.setUuid(entry.getUuid());
+      importedEntry=BlogsEntryLocalServiceUtil.addEntry(userId,entry.getTitle(),entry.getDescription(),entry.getContent(),displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,allowPingbacks,allowTrackbacks,trackbacks,entry.isSmallImage(),entry.getSmallImageURL(),smallFile,serviceContext);
+    }
+ else {
+      importedEntry=BlogsEntryLocalServiceUtil.updateEntry(userId,existingEntry.getEntryId(),entry.getTitle(),entry.getDescription(),entry.getContent(),displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,allowPingbacks,allowTrackbacks,trackbacks,entry.getSmallImage(),entry.getSmallImageURL(),smallFile,serviceContext);
+    }
+  }
+ else {
+    importedEntry=BlogsEntryLocalServiceUtil.addEntry(userId,entry.getTitle(),entry.getDescription(),entry.getContent(),displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,allowPingbacks,allowTrackbacks,trackbacks,entry.getSmallImage(),entry.getSmallImageURL(),smallFile,serviceContext);
+  }
+  portletDataContext.importClassedModel(entry,importedEntry,_NAMESPACE);
+}

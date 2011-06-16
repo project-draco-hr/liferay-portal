@@ -1,0 +1,35 @@
+{
+  List<NotificationEvent> notificationEvents=new ArrayList<NotificationEvent>(_notificationEvents.size() + _unconfirmedNotificationEvents.size());
+  long currentTime=System.currentTimeMillis();
+  for (  NotificationEvent notificationEvent : _notificationEvents) {
+    if (isRemoveNotificationEvent(notificationEvent,currentTime)) {
+      break;
+    }
+ else {
+      notificationEvents.add(notificationEvent);
+    }
+  }
+  if (flush) {
+    _notificationEvents.clear();
+  }
+ else   if (_notificationEvents.size() != notificationEvents.size()) {
+    _notificationEvents.retainAll(notificationEvents);
+  }
+  List<String> invalidNotificationEventUuids=new ArrayList<String>(_unconfirmedNotificationEvents.size());
+  Iterator<Map.Entry<String,NotificationEvent>> itr=_unconfirmedNotificationEvents.entrySet().iterator();
+  while (itr.hasNext()) {
+    Map.Entry<String,NotificationEvent> entry=itr.next();
+    NotificationEvent notificationEvent=entry.getValue();
+    if (isRemoveNotificationEvent(notificationEvent,currentTime)) {
+      invalidNotificationEventUuids.add(notificationEvent.getUuid());
+      itr.remove();
+    }
+ else {
+      notificationEvents.add(entry.getValue());
+    }
+  }
+  if (PropsValues.USER_NOTIFICATION_EVENT_CONFIRMATION_ENABLED && !invalidNotificationEventUuids.isEmpty()) {
+    UserNotificationEventLocalServiceUtil.deleteUserNotificationEvents(invalidNotificationEventUuids);
+  }
+  return notificationEvents;
+}

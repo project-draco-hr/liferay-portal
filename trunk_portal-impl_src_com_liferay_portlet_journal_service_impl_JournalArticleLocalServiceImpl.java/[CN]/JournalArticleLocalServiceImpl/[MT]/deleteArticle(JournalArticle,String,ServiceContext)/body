@@ -1,0 +1,34 @@
+{
+  if (article.isApproved() && isLatestVersion(article.getGroupId(),article.getArticleId(),article.getVersion(),WorkflowConstants.STATUS_APPROVED)) {
+    updatePreviousApprovedArticle(article);
+  }
+  PortletPreferences preferences=ServiceContextUtil.getPortletPreferences(serviceContext);
+  if ((preferences != null) && !article.isApproved() && isLatestVersion(article.getGroupId(),article.getArticleId(),article.getVersion())) {
+    try {
+      sendEmail(article,articleURL,preferences,"denied");
+    }
+ catch (    IOException ioe) {
+      throw new SystemException(ioe);
+    }
+  }
+  journalArticleImageLocalService.deleteImages(article.getGroupId(),article.getArticleId(),article.getVersion());
+  if (!article.isDraft()) {
+    workflowInstanceLinkLocalService.deleteWorkflowInstanceLink(article.getCompanyId(),article.getGroupId(),JournalArticle.class.getName(),article.getResourcePrimKey());
+  }
+  int articlesCount=journalArticlePersistence.countByG_A(article.getGroupId(),article.getArticleId());
+  if (articlesCount == 1) {
+    ratingsStatsLocalService.deleteStats(JournalArticle.class.getName(),article.getResourcePrimKey());
+    mbMessageLocalService.deleteDiscussionMessages(JournalArticle.class.getName(),article.getResourcePrimKey());
+    assetEntryLocalService.deleteEntry(JournalArticle.class.getName(),article.getResourcePrimKey());
+    journalContentSearchLocalService.deleteArticleContentSearches(article.getGroupId(),article.getArticleId());
+    imageLocalService.deleteImage(article.getSmallImageId());
+    expandoValueLocalService.deleteValues(JournalArticle.class.getName(),article.getResourcePrimKey());
+    resourceLocalService.deleteResource(article.getCompanyId(),JournalArticle.class.getName(),ResourceConstants.SCOPE_INDIVIDUAL,article.getResourcePrimKey());
+    try {
+      journalArticleResourceLocalService.deleteArticleResource(article.getGroupId(),article.getArticleId());
+    }
+ catch (    NoSuchArticleResourceException nsare) {
+    }
+  }
+  journalArticlePersistence.remove(article);
+}

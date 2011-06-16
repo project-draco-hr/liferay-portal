@@ -1,0 +1,25 @@
+{
+  long companyId=PortalUtil.getCompanyId(request);
+  PortalRequestDataSample portalRequestDataSample=new PortalRequestDataSample(companyId,request.getRemoteUser(),request.getRequestURI(),request.getRequestURL().toString());
+  try {
+    portalRequestDataSample.prepare();
+    processFilter(MonitoringFilter.class,request,response,filterChain);
+    portalRequestDataSample.capture(RequestStatus.SUCCESS);
+  }
+ catch (  Exception e) {
+    portalRequestDataSample.capture(RequestStatus.ERROR);
+    if (e instanceof IOException) {
+      throw (IOException)e;
+    }
+ else     if (e instanceof ServletException) {
+      throw (ServletException)e;
+    }
+ else {
+      throw new ServletException("Unable to execute request",e);
+    }
+  }
+ finally {
+    MessageBusUtil.sendMessage(DestinationNames.MONITORING,portalRequestDataSample);
+    DataSampleThreadLocal.addDataSample(portalRequestDataSample);
+  }
+}

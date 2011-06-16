@@ -1,0 +1,30 @@
+{
+  HttpServletRequest request=sharepointRequest.getHttpServletRequest();
+  String documentPath=sharepointRequest.getRootPath();
+  String parentFolderPath=getParentFolderPath(documentPath);
+  long groupId=SharepointUtil.getGroupId(parentFolderPath);
+  long parentFolderId=getLastFolderId(groupId,parentFolderPath,DLFolderConstants.DEFAULT_PARENT_FOLDER_ID);
+  String title=getResourceName(documentPath);
+  String description=StringPool.BLANK;
+  String changeLog=StringPool.BLANK;
+  InputStream is=new UnsyncByteArrayInputStream(sharepointRequest.getBytes());
+  long contentLength=sharepointRequest.getBytes().length;
+  ServiceContext serviceContext=new ServiceContext();
+  serviceContext.setAddGroupPermissions(true);
+  serviceContext.setAddGuestPermissions(true);
+  String contentType=GetterUtil.get(request.getHeader(HttpHeaders.CONTENT_TYPE),ContentTypes.APPLICATION_OCTET_STREAM);
+  if (contentType.equals(ContentTypes.APPLICATION_OCTET_STREAM)) {
+    contentType=MimeTypesUtil.getContentType(is,title);
+  }
+  try {
+    FileEntry fileEntry=getFileEntry(sharepointRequest);
+    long fileEntryId=fileEntry.getFileEntryId();
+    description=fileEntry.getDescription();
+    String[] assetTagNames=AssetTagLocalServiceUtil.getTagNames(FileEntry.class.getName(),fileEntry.getFileEntryId());
+    serviceContext.setAssetTagNames(assetTagNames);
+    DLAppServiceUtil.updateFileEntry(fileEntryId,title,contentType,title,description,changeLog,false,is,contentLength,serviceContext);
+  }
+ catch (  NoSuchFileEntryException nsfee) {
+    DLAppServiceUtil.addFileEntry(groupId,parentFolderId,contentType,title,description,changeLog,is,contentLength,serviceContext);
+  }
+}

@@ -1,0 +1,33 @@
+{
+  CounterHolder counterHolder=counterRegister.getCounterHolder();
+  long newValue=counterHolder.addAndGet(size);
+  if (newValue <= counterHolder.getRangeMax()) {
+    return newValue;
+  }
+  CompeteLatch completeLatch=counterRegister.getCompeteLatch();
+  if (!completeLatch.compete()) {
+    try {
+      completeLatch.await();
+    }
+ catch (    InterruptedException ie) {
+      throw processException(ie);
+    }
+    return _competeIncrement(counterRegister,size);
+  }
+  try {
+    counterHolder=counterRegister.getCounterHolder();
+    newValue=counterHolder.addAndGet(size);
+    if (newValue > counterHolder.getRangeMax()) {
+      CounterHolder newCounterHolder=_obtainIncrement(counterRegister.getName(),counterRegister.getRangeSize(),0);
+      newValue=newCounterHolder.addAndGet(size);
+      counterRegister.setCounterHolder(newCounterHolder);
+    }
+  }
+ catch (  Exception e) {
+    throw processException(e);
+  }
+ finally {
+    completeLatch.done();
+  }
+  return newValue;
+}

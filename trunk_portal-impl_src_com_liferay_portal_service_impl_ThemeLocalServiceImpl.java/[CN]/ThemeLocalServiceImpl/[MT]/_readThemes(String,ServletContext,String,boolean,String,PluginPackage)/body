@@ -1,0 +1,146 @@
+{
+  Set<String> themeIds=new HashSet<String>();
+  if (xml == null) {
+    return themeIds;
+  }
+  Document document=SAXReaderUtil.read(xml,true);
+  Element rootElement=document.getRootElement();
+  Version portalVersion=_getVersion(ReleaseInfo.getVersion());
+  boolean compatible=false;
+  Element compatibilityElement=rootElement.element("compatibility");
+  if (compatibilityElement != null) {
+    List<Element> versionElements=compatibilityElement.elements("version");
+    for (    Element versionElement : versionElements) {
+      Version version=_getVersion(versionElement.getTextTrim());
+      if (version.includes(portalVersion)) {
+        compatible=true;
+        break;
+      }
+    }
+  }
+  if (!compatible) {
+    _log.error("Themes in this WAR are not compatible with " + ReleaseInfo.getServerInfo());
+    return themeIds;
+  }
+  ThemeCompanyLimit companyLimit=null;
+  Element companyLimitElement=rootElement.element("company-limit");
+  if (companyLimitElement != null) {
+    companyLimit=new ThemeCompanyLimit();
+    Element companyIncludesElement=companyLimitElement.element("company-includes");
+    if (companyIncludesElement != null) {
+      companyLimit.setIncludes(_getCompanyLimitIncludes(companyIncludesElement));
+    }
+    Element companyExcludesElement=companyLimitElement.element("company-excludes");
+    if (companyExcludesElement != null) {
+      companyLimit.setExcludes(_getCompanyLimitExcludes(companyExcludesElement));
+    }
+  }
+  ThemeGroupLimit groupLimit=null;
+  Element groupLimitElement=rootElement.element("group-limit");
+  if (groupLimitElement != null) {
+    groupLimit=new ThemeGroupLimit();
+    Element groupIncludesElement=groupLimitElement.element("group-includes");
+    if (groupIncludesElement != null) {
+      groupLimit.setIncludes(_getGroupLimitIncludes(groupIncludesElement));
+    }
+    Element groupExcludesElement=groupLimitElement.element("group-excludes");
+    if (groupExcludesElement != null) {
+      groupLimit.setExcludes(_getGroupLimitExcludes(groupExcludesElement));
+    }
+  }
+  long timestamp=ServletContextUtil.getLastModified(servletContext);
+  List<Element> themeElements=rootElement.elements("theme");
+  for (  Element themeElement : themeElements) {
+    ContextReplace themeContextReplace=new ContextReplace();
+    themeContextReplace.addValue("themes-path",themesPath);
+    String themeId=themeElement.attributeValue("id");
+    if (servletContextName != null) {
+      themeId=themeId + PortletConstants.WAR_SEPARATOR + servletContextName;
+    }
+    themeId=PortalUtil.getJsSafePortletId(themeId);
+    themeContextReplace.addValue("theme-id",themeId);
+    themeIds.add(themeId);
+    Theme theme=_themes.get(themeId);
+    if (theme == null) {
+      theme=new ThemeImpl(themeId);
+      _themes.put(themeId,theme);
+    }
+    theme.setTimestamp(timestamp);
+    PluginSetting pluginSetting=pluginSettingLocalService.getDefaultPluginSetting();
+    theme.setPluginPackage(pluginPackage);
+    theme.setDefaultPluginSetting(pluginSetting);
+    theme.setThemeCompanyLimit(companyLimit);
+    theme.setThemeGroupLimit(groupLimit);
+    if (servletContextName != null) {
+      theme.setServletContextName(servletContextName);
+    }
+    theme.setLoadFromServletContext(loadFromServletContext);
+    String name=GetterUtil.getString(themeElement.attributeValue("name"),theme.getName());
+    String rootPath=GetterUtil.getString(themeElement.elementText("root-path"),theme.getRootPath());
+    rootPath=themeContextReplace.replace(rootPath);
+    themeContextReplace.addValue("root-path",rootPath);
+    String templatesPath=GetterUtil.getString(themeElement.elementText("templates-path"),theme.getTemplatesPath());
+    templatesPath=themeContextReplace.replace(templatesPath);
+    templatesPath=StringUtil.safePath(templatesPath);
+    themeContextReplace.addValue("templates-path",templatesPath);
+    String cssPath=GetterUtil.getString(themeElement.elementText("css-path"),theme.getCssPath());
+    cssPath=themeContextReplace.replace(cssPath);
+    cssPath=StringUtil.safePath(cssPath);
+    themeContextReplace.addValue("css-path",cssPath);
+    String imagesPath=GetterUtil.getString(themeElement.elementText("images-path"),theme.getImagesPath());
+    imagesPath=themeContextReplace.replace(imagesPath);
+    imagesPath=StringUtil.safePath(imagesPath);
+    themeContextReplace.addValue("images-path",imagesPath);
+    String javaScriptPath=GetterUtil.getString(themeElement.elementText("javascript-path"),theme.getJavaScriptPath());
+    javaScriptPath=themeContextReplace.replace(javaScriptPath);
+    javaScriptPath=StringUtil.safePath(javaScriptPath);
+    themeContextReplace.addValue("javascript-path",javaScriptPath);
+    String virtualPath=GetterUtil.getString(themeElement.elementText("virtual-path"),theme.getVirtualPath());
+    String templateExtension=GetterUtil.getString(themeElement.elementText("template-extension"),theme.getTemplateExtension());
+    theme.setName(name);
+    theme.setRootPath(rootPath);
+    theme.setTemplatesPath(templatesPath);
+    theme.setCssPath(cssPath);
+    theme.setImagesPath(imagesPath);
+    theme.setJavaScriptPath(javaScriptPath);
+    theme.setVirtualPath(virtualPath);
+    theme.setTemplateExtension(templateExtension);
+    Element settingsElement=themeElement.element("settings");
+    if (settingsElement != null) {
+      List<Element> settingElements=settingsElement.elements("setting");
+      for (      Element settingElement : settingElements) {
+        boolean configurable=GetterUtil.getBoolean(settingElement.attributeValue("configurable"));
+        String key=settingElement.attributeValue("key");
+        String[] options=StringUtil.split(settingElement.attributeValue("options"));
+        String type=settingElement.attributeValue("type");
+        String value=settingElement.attributeValue("value");
+        theme.addSetting(key,value,configurable,type,options);
+      }
+    }
+    theme.setWapTheme(GetterUtil.getBoolean(themeElement.elementText("wap-theme"),theme.isWapTheme()));
+    Element rolesElement=themeElement.element("roles");
+    if (rolesElement != null) {
+      List<Element> roleNameElements=rolesElement.elements("role-name");
+      for (      Element roleNameElement : roleNameElements) {
+        pluginSetting.addRole(roleNameElement.getText());
+      }
+    }
+    _readColorSchemes(themeElement,theme.getColorSchemesMap(),themeContextReplace);
+    _readColorSchemes(themeElement,theme.getColorSchemesMap(),themeContextReplace);
+    Element layoutTemplatesElement=themeElement.element("layout-templates");
+    if (layoutTemplatesElement != null) {
+      Element standardElement=layoutTemplatesElement.element("standard");
+      if (standardElement != null) {
+        layoutTemplateLocalService.readLayoutTemplate(servletContextName,servletContext,null,standardElement,true,themeId,pluginPackage);
+      }
+      Element customElement=layoutTemplatesElement.element("custom");
+      if (customElement != null) {
+        layoutTemplateLocalService.readLayoutTemplate(servletContextName,servletContext,null,customElement,false,themeId,pluginPackage);
+      }
+    }
+    if (!theme.isWapTheme()) {
+      _setSpriteImages(servletContext,theme,imagesPath);
+    }
+  }
+  return themeIds;
+}

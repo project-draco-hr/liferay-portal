@@ -1,0 +1,48 @@
+{
+  if (_log.isInfoEnabled()) {
+    _log.info("Pinging trackback " + trackback);
+  }
+  Http.Options options=new Http.Options();
+  options.addHeader(HttpHeaders.USER_AGENT,ReleaseInfo.getServerInfo());
+  options.setLocation(trackback);
+  options.setParts(parts);
+  options.setPost(true);
+  String xml=HttpUtil.URLtoString(options);
+  if (_log.isDebugEnabled()) {
+    _log.debug(xml);
+  }
+  String error=xml;
+  XMLStreamReader xmlStreamReader=null;
+  try {
+    XMLInputFactory xmlInputFactory=StAXReaderUtil.getXMLInputFactory();
+    xmlStreamReader=xmlInputFactory.createXMLStreamReader(new UnsyncStringReader(xml));
+    xmlStreamReader.nextTag();
+    xmlStreamReader.nextTag();
+    String name=xmlStreamReader.getLocalName();
+    if (name.equals("error")) {
+      int status=GetterUtil.getInteger(xmlStreamReader.getElementText(),1);
+      if (status == 0) {
+        if (_log.isInfoEnabled()) {
+          _log.info("Trackback accepted");
+        }
+        return true;
+      }
+      xmlStreamReader.nextTag();
+      name=xmlStreamReader.getLocalName();
+      if (name.equals("message")) {
+        error=xmlStreamReader.getElementText();
+      }
+    }
+  }
+  finally {
+    if (xmlStreamReader != null) {
+      try {
+        xmlStreamReader.close();
+      }
+ catch (      Exception e) {
+      }
+    }
+  }
+  _log.error("Error while pinging trackback at " + trackback + ": "+ error);
+  return false;
+}

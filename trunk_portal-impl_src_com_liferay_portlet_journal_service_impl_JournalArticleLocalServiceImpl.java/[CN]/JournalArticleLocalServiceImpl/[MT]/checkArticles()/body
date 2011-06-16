@@ -1,0 +1,39 @@
+{
+  Date now=new Date();
+  List<JournalArticle> articles=journalArticleFinder.findByExpirationDate(0,WorkflowConstants.STATUS_APPROVED,now,new Date(now.getTime() - _JOURNAL_ARTICLE_CHECK_INTERVAL));
+  if (_log.isDebugEnabled()) {
+    _log.debug("Expiring " + articles.size() + " articles");
+  }
+  Set<Long> companyIds=new HashSet<Long>();
+  for (  JournalArticle article : articles) {
+    article.setStatus(WorkflowConstants.STATUS_EXPIRED);
+    journalArticlePersistence.update(article,false);
+    if (article.isIndexable()) {
+      Indexer indexer=IndexerRegistryUtil.getIndexer(JournalArticle.class);
+      indexer.delete(article);
+    }
+    JournalContentUtil.clearCache(article.getGroupId(),article.getArticleId(),article.getTemplateId());
+    companyIds.add(article.getCompanyId());
+  }
+  for (  long companyId : companyIds) {
+    CacheUtil.clearCache(companyId);
+  }
+  articles=journalArticleFinder.findByReviewDate(0,now,new Date(now.getTime() - _JOURNAL_ARTICLE_CHECK_INTERVAL));
+  if (_log.isDebugEnabled()) {
+    _log.debug("Sending review notifications for " + articles.size() + " articles");
+  }
+  for (  JournalArticle article : articles) {
+    String articleURL=StringPool.BLANK;
+    long ownerId=article.getGroupId();
+    int ownerType=PortletKeys.PREFS_OWNER_TYPE_GROUP;
+    long plid=PortletKeys.PREFS_PLID_SHARED;
+    String portletId=PortletKeys.JOURNAL;
+    PortletPreferences preferences=portletPreferencesLocalService.getPreferences(article.getCompanyId(),ownerId,ownerType,plid,portletId);
+    try {
+      sendEmail(article,articleURL,preferences,"review");
+    }
+ catch (    IOException ioe) {
+      throw new SystemException(ioe);
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  verifyOracleNewLine();
+  List<JournalStructure> structures=JournalStructureLocalServiceUtil.getStructures();
+  for (  JournalStructure structure : structures) {
+    ResourceLocalServiceUtil.addResources(structure.getCompanyId(),0,0,JournalStructure.class.getName(),structure.getId(),false,true,true);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Permissions verified for structures");
+  }
+  List<JournalTemplate> templates=JournalTemplateLocalServiceUtil.getTemplates();
+  for (  JournalTemplate template : templates) {
+    ResourceLocalServiceUtil.addResources(template.getCompanyId(),0,0,JournalTemplate.class.getName(),template.getId(),false,true,true);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Permissions verified for templates");
+  }
+  List<JournalArticle> articles=JournalArticleLocalServiceUtil.getArticles();
+  for (  JournalArticle article : articles) {
+    long groupId=article.getGroupId();
+    String articleId=article.getArticleId();
+    double version=article.getVersion();
+    String structureId=article.getStructureId();
+    if (article.getResourcePrimKey() <= 0) {
+      article=JournalArticleLocalServiceUtil.checkArticleResourcePrimKey(groupId,articleId,version);
+    }
+    ResourceLocalServiceUtil.addResources(article.getCompanyId(),0,0,JournalArticle.class.getName(),article.getResourcePrimKey(),false,true,true);
+    try {
+      AssetEntryLocalServiceUtil.getEntry(JournalArticle.class.getName(),article.getResourcePrimKey());
+    }
+ catch (    NoSuchEntryException nsee) {
+      try {
+        JournalArticleLocalServiceUtil.updateAsset(article.getUserId(),article,null,null,null);
+      }
+ catch (      Exception e) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Unable to update asset for article " + article.getId() + ": "+ e.getMessage());
+        }
+      }
+    }
+    String content=GetterUtil.getString(article.getContent());
+    String newContent=HtmlUtil.replaceMsWordCharacters(content);
+    if (Validator.isNotNull(structureId)) {
+    }
+    if (!content.equals(newContent)) {
+      JournalArticleLocalServiceUtil.updateContent(groupId,articleId,version,newContent);
+    }
+    JournalArticleLocalServiceUtil.checkStructure(groupId,articleId,version);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Permissions and assets verified for articles");
+  }
+}

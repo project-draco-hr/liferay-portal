@@ -1,0 +1,38 @@
+{
+  List<String> supportedPluginTypes=Arrays.asList(getSupportedTypes());
+  if (_log.isDebugEnabled()) {
+    _log.debug("Loading plugin repository " + repositoryURL + ":\n"+ xml);
+  }
+  RemotePluginPackageRepository pluginPackageRepository=new RemotePluginPackageRepository(repositoryURL);
+  if (xml == null) {
+    return pluginPackageRepository;
+  }
+  Document doc=SAXReaderUtil.read(xml);
+  Element root=doc.getRootElement();
+  Properties settings=_readProperties(root.element("settings"),"setting");
+  pluginPackageRepository.setSettings(settings);
+  Iterator<Element> itr1=root.elements("plugin-package").iterator();
+  while (itr1.hasNext()) {
+    Element pluginPackageElement=itr1.next();
+    PluginPackage pluginPackage=_readPluginPackageXml(pluginPackageElement);
+    if (!_isCurrentVersionSupported(pluginPackage.getLiferayVersions())) {
+      continue;
+    }
+    Iterator<String> itr2=pluginPackage.getTypes().iterator();
+    boolean containsSupportedTypes=false;
+    while (itr2.hasNext()) {
+      String type=itr2.next();
+      if (supportedPluginTypes.contains(type)) {
+        containsSupportedTypes=true;
+        break;
+      }
+    }
+    if (!containsSupportedTypes) {
+      continue;
+    }
+    pluginPackage.setRepository(pluginPackageRepository);
+    pluginPackageRepository.addPluginPackage(pluginPackage);
+    _indexPluginPackage(pluginPackage);
+  }
+  return pluginPackageRepository;
+}

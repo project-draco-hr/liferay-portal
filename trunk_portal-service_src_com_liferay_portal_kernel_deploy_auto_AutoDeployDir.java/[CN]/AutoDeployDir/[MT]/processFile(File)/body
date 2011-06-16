@@ -1,0 +1,55 @@
+{
+  String fileName=file.getName();
+  if (!file.canRead()) {
+    _log.error("Unable to read " + fileName);
+    return;
+  }
+  if (!file.canWrite()) {
+    _log.error("Unable to write " + fileName);
+    return;
+  }
+  if (_blacklistFiles.contains(fileName)) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Skip processing of " + fileName + " because it is "+ "blacklisted. You must restart the server to remove "+ "the file from the blacklist.");
+    }
+    return;
+  }
+  IntegerWrapper attempt=_inProcessFiles.get(fileName);
+  if (attempt == null) {
+    attempt=new IntegerWrapper(1);
+    _inProcessFiles.put(fileName,attempt);
+    if (_log.isInfoEnabled()) {
+      _log.info("Processing " + fileName);
+    }
+  }
+ else {
+    if (_log.isInfoEnabled()) {
+      _log.info("Processing " + fileName + ". This is attempt "+ attempt.getValue()+ ".");
+    }
+  }
+  try {
+    for (    AutoDeployListener autoDeployListener : _autoDeployListeners) {
+      autoDeployListener.deploy(file);
+    }
+    if (file.delete()) {
+      _inProcessFiles.remove(fileName);
+    }
+ else {
+      _log.error("Auto deploy failed to remove " + fileName);
+      if (_log.isInfoEnabled()) {
+        _log.info("Add " + fileName + " to the blacklist");
+      }
+      _blacklistFiles.add(fileName);
+    }
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+    attempt.increment();
+    if (attempt.getValue() >= _blacklistThreshold) {
+      if (_log.isInfoEnabled()) {
+        _log.info("Add " + fileName + " to the blacklist");
+      }
+      _blacklistFiles.add(fileName);
+    }
+  }
+}

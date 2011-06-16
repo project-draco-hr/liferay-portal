@@ -1,0 +1,64 @@
+{
+  HttpSession session=request.getSession();
+  String host=PortalUtil.getHost(request);
+  if (PortalInstances.isAutoLoginIgnoreHost(host)) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Ignore host " + host);
+    }
+    processFilter(AutoLoginFilter.class,request,response,filterChain);
+    return;
+  }
+  String contextPath=PortalUtil.getPathContext();
+  String path=request.getRequestURI().toLowerCase();
+  if ((!contextPath.equals(StringPool.SLASH)) && (path.indexOf(contextPath) != -1)) {
+    path=path.substring(contextPath.length(),path.length());
+  }
+  if (PortalInstances.isAutoLoginIgnorePath(path)) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Ignore path " + path);
+    }
+    processFilter(AutoLoginFilter.class,request,response,filterChain);
+    return;
+  }
+  String remoteUser=request.getRemoteUser();
+  String jUserName=(String)session.getAttribute("j_username");
+  if (!PropsValues.AUTH_LOGIN_DISABLED && (remoteUser == null) && (jUserName == null)) {
+    for (    AutoLogin autoLogin : _autoLogins) {
+      try {
+        String[] credentials=autoLogin.login(request,response);
+        String redirect=(String)request.getAttribute(AutoLogin.AUTO_LOGIN_REDIRECT);
+        if (Validator.isNotNull(redirect)) {
+          response.sendRedirect(redirect);
+          return;
+        }
+        String loginRemoteUser=getLoginRemoteUser(request,response,session,credentials);
+        if (loginRemoteUser != null) {
+          request=new ProtectedServletRequest(request,loginRemoteUser);
+          if (PropsValues.PORTAL_JAAS_ENABLE) {
+            return;
+          }
+          redirect=(String)request.getAttribute(AutoLogin.AUTO_LOGIN_REDIRECT_AND_CONTINUE);
+          if (Validator.isNotNull(redirect)) {
+            response.sendRedirect(redirect);
+            break;
+          }
+        }
+      }
+ catch (      Exception e) {
+        if (_log.isWarnEnabled()) {
+          _log.warn(e,e);
+        }
+        String currentURL=PortalUtil.getCurrentURL(request);
+        if (currentURL.endsWith(_PATH_CHAT_LATEST)) {
+          if (_log.isWarnEnabled()) {
+            _log.warn("Current URL " + currentURL + " generates exception: "+ e.getMessage());
+          }
+        }
+ else {
+          _log.error("Current URL " + currentURL + " generates exception: "+ e.getMessage());
+        }
+      }
+    }
+  }
+  processFilter(AutoLoginFilter.class,request,response,filterChain);
+}

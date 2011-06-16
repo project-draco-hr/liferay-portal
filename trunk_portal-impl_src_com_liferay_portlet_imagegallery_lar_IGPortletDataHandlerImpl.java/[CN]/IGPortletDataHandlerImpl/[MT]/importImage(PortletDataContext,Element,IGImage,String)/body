@@ -1,0 +1,69 @@
+{
+  long userId=portletDataContext.getUserId(image.getUserUuid());
+  Map<Long,Long> folderPKs=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(IGFolder.class);
+  long folderId=MapUtil.getLong(folderPKs,image.getFolderId(),image.getFolderId());
+  byte[] bytes=null;
+  if (Validator.isNull(binPath) && portletDataContext.isPerformDirectBinaryImport()) {
+    Image largeImage=ImageUtil.findByPrimaryKey(image.getLargeImageId());
+    bytes=largeImage.getTextObj();
+  }
+ else {
+    bytes=portletDataContext.getZipEntryAsByteArray(binPath);
+  }
+  if (bytes == null) {
+    _log.error("Could not find image file for image " + image.getImageId());
+    return;
+  }
+  File imageFile=File.createTempFile(String.valueOf(image.getPrimaryKey()),StringPool.PERIOD + image.getImageType());
+  FileUtil.write(imageFile,bytes);
+  ServiceContext serviceContext=portletDataContext.createServiceContext(imageElement,image,_NAMESPACE);
+  if ((folderId != IGFolderConstants.DEFAULT_PARENT_FOLDER_ID) && (folderId == image.getFolderId())) {
+    String path=getImportFolderPath(portletDataContext,folderId);
+    IGFolder folder=(IGFolder)portletDataContext.getZipEntryAsObject(path);
+    importFolder(portletDataContext,path,folder);
+    folderId=MapUtil.getLong(folderPKs,image.getFolderId(),image.getFolderId());
+  }
+  IGImage importedImage=null;
+  if (portletDataContext.isDataStrategyMirror()) {
+    IGImage existingImage=IGImageUtil.fetchByUUID_G(image.getUuid(),portletDataContext.getScopeGroupId());
+    if (existingImage == null) {
+      String imageName=image.getName();
+      IGImage existingNameImage=getImage(portletDataContext.getScopeGroupId(),image.getFolderId(),imageName,image.getImageType());
+      if (existingNameImage != null) {
+        if (portletDataContext.isDataStrategyMirrorWithOverwritting()) {
+          IGImageLocalServiceUtil.deleteIGImage(existingNameImage);
+        }
+ else {
+          String originalName=imageName;
+          for (int i=1; ; i++) {
+            imageName=originalName + StringPool.SPACE + i;
+            existingNameImage=getImage(portletDataContext.getScopeGroupId(),image.getFolderId(),imageName,image.getImageType());
+            if (existingNameImage == null) {
+              break;
+            }
+          }
+        }
+      }
+      serviceContext.setUuid(image.getUuid());
+      importedImage=IGImageLocalServiceUtil.addImage(userId,portletDataContext.getScopeGroupId(),folderId,imageName,image.getDescription(),imageFile,image.getImageType(),serviceContext);
+    }
+ else {
+      importedImage=IGImageLocalServiceUtil.updateImage(userId,existingImage.getImageId(),portletDataContext.getScopeGroupId(),folderId,image.getName(),image.getDescription(),imageFile,image.getImageType(),serviceContext);
+    }
+  }
+ else {
+    String name=image.getName();
+    try {
+      importedImage=IGImageLocalServiceUtil.addImage(userId,portletDataContext.getScopeGroupId(),folderId,name,image.getDescription(),imageFile,image.getImageType(),serviceContext);
+    }
+ catch (    DuplicateImageNameException dine) {
+      String[] nameParts=name.split("\\.",2);
+      name=nameParts[0] + PwdGenerator.getPassword();
+      if (nameParts.length > 1) {
+        name+=StringPool.PERIOD + nameParts[1];
+      }
+      importedImage=IGImageLocalServiceUtil.addImage(userId,portletDataContext.getScopeGroupId(),folderId,name,image.getDescription(),imageFile,image.getImageType(),serviceContext);
+    }
+  }
+  portletDataContext.importClassedModel(image,importedImage,_NAMESPACE);
+}

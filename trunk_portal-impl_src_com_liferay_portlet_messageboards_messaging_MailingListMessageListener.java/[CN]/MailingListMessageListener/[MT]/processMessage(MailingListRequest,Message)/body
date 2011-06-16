@@ -1,0 +1,64 @@
+{
+  if (MBUtil.hasMailIdHeader(mailMessage)) {
+    return;
+  }
+  String from=null;
+  Address[] addresses=mailMessage.getFrom();
+  if ((addresses != null) && (addresses.length > 0)) {
+    Address address=addresses[0];
+    if (address instanceof InternetAddress) {
+      from=((InternetAddress)address).getAddress();
+    }
+ else {
+      from=address.toString();
+    }
+  }
+  long companyId=mailingListRequest.getCompanyId();
+  long groupId=mailingListRequest.getGroupId();
+  long categoryId=mailingListRequest.getCategoryId();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Category id " + categoryId);
+  }
+  boolean anonymous=false;
+  User user=UserLocalServiceUtil.getUserById(companyId,mailingListRequest.getUserId());
+  try {
+    user=UserLocalServiceUtil.getUserByEmailAddress(companyId,from);
+  }
+ catch (  NoSuchUserException nsue) {
+    anonymous=true;
+    if (!mailingListRequest.isAllowAnonymous()) {
+      return;
+    }
+  }
+  long parentMessageId=MBUtil.getParentMessageId(mailMessage);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Parent message id " + parentMessageId);
+  }
+  MBMessage parentMessage=null;
+  try {
+    if (parentMessageId > 0) {
+      parentMessage=MBMessageLocalServiceUtil.getMessage(parentMessageId);
+    }
+  }
+ catch (  NoSuchMessageException nsme) {
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Parent message " + parentMessage);
+  }
+  MBMailMessage collector=new MBMailMessage();
+  MBUtil.collectPartContent(mailMessage,collector);
+  PermissionCheckerUtil.setThreadValues(user);
+  MailingListThreadLocal.setSourceMailingList(true);
+  String subject=MBUtil.getSubjectWithoutMessageId(mailMessage);
+  ServiceContext serviceContext=new ServiceContext();
+  serviceContext.setAddGroupPermissions(true);
+  serviceContext.setAddGuestPermissions(true);
+  serviceContext.setLayoutFullURL(PortalUtil.getLayoutFullURL(groupId,PortletKeys.MESSAGE_BOARDS));
+  serviceContext.setScopeGroupId(groupId);
+  if (parentMessage == null) {
+    MBMessageServiceUtil.addMessage(groupId,categoryId,subject,collector.getBody(),MBMessageConstants.DEFAULT_FORMAT,collector.getFiles(),anonymous,0.0,true,serviceContext);
+  }
+ else {
+    MBMessageServiceUtil.addMessage(groupId,categoryId,parentMessage.getThreadId(),parentMessage.getMessageId(),subject,collector.getBody(),MBMessageConstants.DEFAULT_FORMAT,collector.getFiles(),anonymous,0.0,true,serviceContext);
+  }
+}

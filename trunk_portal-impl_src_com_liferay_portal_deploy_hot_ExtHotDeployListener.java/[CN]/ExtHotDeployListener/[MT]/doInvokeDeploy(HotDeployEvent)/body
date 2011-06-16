@@ -1,0 +1,45 @@
+{
+  ServletContext servletContext=event.getServletContext();
+  String servletContextName=servletContext.getServletContextName();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Invoking deploy for " + servletContextName);
+  }
+  String xml=HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/ext-" + servletContextName + ".xml"));
+  if (xml == null) {
+    return;
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Registering extension environment for " + servletContextName);
+  }
+  if (ExtRegistry.isRegistered(servletContextName)) {
+    if (_log.isInfoEnabled()) {
+      _log.info("Extension environment for " + servletContextName + " has been applied.");
+    }
+    return;
+  }
+  Map<String,Set<String>> conflicts=ExtRegistry.getConflicts(servletContext);
+  if (!conflicts.isEmpty()) {
+    StringBundler sb=new StringBundler();
+    sb.append("Extension environment for " + servletContextName + " cannot be applied because of detected conflicts:");
+    Iterator<Map.Entry<String,Set<String>>> itr=conflicts.entrySet().iterator();
+    while (itr.hasNext()) {
+      Map.Entry<String,Set<String>> entry=itr.next();
+      String conflictServletContextName=entry.getKey();
+      Set<String> conflictFiles=entry.getValue();
+      sb.append("\n\t");
+      sb.append(conflictServletContextName);
+      sb.append(":");
+      for (      String conflictFile : conflictFiles) {
+        sb.append("\n\t\t");
+        sb.append(conflictFile);
+      }
+    }
+    _log.error(sb.toString());
+    return;
+  }
+  installExt(servletContext,event.getContextClassLoader());
+  FileAvailabilityUtil.reset();
+  if (_log.isInfoEnabled()) {
+    _log.info("Extension environment for " + servletContextName + " has been applied. You must reboot the server and "+ "redeploy all other plugins.");
+  }
+}

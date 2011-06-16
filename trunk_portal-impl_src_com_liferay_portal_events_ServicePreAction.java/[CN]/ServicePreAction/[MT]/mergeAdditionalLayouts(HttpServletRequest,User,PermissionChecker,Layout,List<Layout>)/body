@@ -1,0 +1,45 @@
+{
+  if ((layout == null) || layout.isPrivateLayout()) {
+    return layouts;
+  }
+  long layoutGroupId=layout.getGroupId();
+  Group guestGroup=GroupLocalServiceUtil.getGroup(user.getCompanyId(),GroupConstants.GUEST);
+  if (layoutGroupId != guestGroup.getGroupId()) {
+    Group layoutGroup=GroupLocalServiceUtil.getGroup(layoutGroupId);
+    UnicodeProperties typeSettingsProperties=layoutGroup.getTypeSettingsProperties();
+    boolean mergeGuestPublicPages=GetterUtil.getBoolean(typeSettingsProperties.getProperty("mergeGuestPublicPages"));
+    if (!mergeGuestPublicPages) {
+      return layouts;
+    }
+    List<Layout> guestLayouts=LayoutLocalServiceUtil.getLayouts(guestGroup.getGroupId(),false,LayoutConstants.DEFAULT_PARENT_LAYOUT_ID);
+    Object[] viewableLayouts=getViewableLayouts(request,user,permissionChecker,layout,guestLayouts);
+    guestLayouts=(List<Layout>)viewableLayouts[1];
+    layouts.addAll(0,guestLayouts);
+  }
+ else {
+    HttpSession session=request.getSession();
+    Long previousGroupId=(Long)session.getAttribute(WebKeys.VISITED_GROUP_ID_PREVIOUS);
+    if ((previousGroupId != null) && (previousGroupId.longValue() != layoutGroupId)) {
+      Group previousGroup=null;
+      try {
+        previousGroup=GroupLocalServiceUtil.getGroup(previousGroupId.longValue());
+      }
+ catch (      NoSuchGroupException nsge) {
+        if (_log.isWarnEnabled()) {
+          _log.warn(nsge);
+        }
+        return layouts;
+      }
+      UnicodeProperties typeSettingsProperties=previousGroup.getTypeSettingsProperties();
+      boolean mergeGuestPublicPages=GetterUtil.getBoolean(typeSettingsProperties.getProperty("mergeGuestPublicPages"));
+      if (!mergeGuestPublicPages) {
+        return layouts;
+      }
+      List<Layout> previousLayouts=LayoutLocalServiceUtil.getLayouts(previousGroupId.longValue(),false,LayoutConstants.DEFAULT_PARENT_LAYOUT_ID);
+      Object[] viewableLayouts=getViewableLayouts(request,user,permissionChecker,layout,previousLayouts);
+      previousLayouts=(List<Layout>)viewableLayouts[1];
+      layouts.addAll(previousLayouts);
+    }
+  }
+  return layouts;
+}

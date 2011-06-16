@@ -1,0 +1,32 @@
+{
+  try {
+    String[] pathArray=webDavRequest.getPathArray();
+    long companyId=webDavRequest.getCompanyId();
+    long parentFolderId=getParentFolderId(companyId,pathArray);
+    String name=WebDAVUtil.getResourceName(pathArray);
+    if (Validator.isNull(name)) {
+      String path=getRootPath() + webDavRequest.getPath();
+      return new BaseResourceImpl(path,StringPool.BLANK,getToken());
+    }
+    try {
+      IGFolder folder=IGFolderServiceUtil.getFolder(webDavRequest.getGroupId(),parentFolderId,name);
+      if ((folder.getParentFolderId() != parentFolderId) || (webDavRequest.getGroupId() != folder.getGroupId())) {
+        throw new NoSuchFolderException();
+      }
+      return toResource(webDavRequest,folder,false);
+    }
+ catch (    NoSuchFolderException nsfe) {
+      try {
+        long groupId=webDavRequest.getGroupId();
+        IGImage image=IGImageServiceUtil.getImageByFolderIdAndNameWithExtension(groupId,parentFolderId,name);
+        return toResource(webDavRequest,image,false);
+      }
+ catch (      NoSuchImageException nsie) {
+        return null;
+      }
+    }
+  }
+ catch (  Exception e) {
+    throw new WebDAVException(e);
+  }
+}

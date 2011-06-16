@@ -1,0 +1,59 @@
+{
+  try {
+    Set<QName> newProps=new HashSet<QName>();
+    HttpServletRequest request=webDavRequest.getHttpServletRequest();
+    WebDAVProps webDavProps=getStoredProperties(webDavRequest);
+    String xml=new String(FileUtil.getBytes(request.getInputStream()));
+    if (Validator.isNull(xml)) {
+      return newProps;
+    }
+    if (_log.isInfoEnabled()) {
+      _log.info("Request XML: \n" + XMLFormatter.toString(xml,StringPool.FOUR_SPACES));
+    }
+    Document document=SAXReaderUtil.read(xml);
+    Element rootElement=document.getRootElement();
+    Iterator<Element> itr=rootElement.elements().iterator();
+    while (itr.hasNext()) {
+      Element instructionElement=itr.next();
+      List<Element> propElements=instructionElement.elements();
+      if (propElements.size() != 1) {
+        throw new InvalidRequestException("There should only be one <prop /> per set or remove " + "instruction.");
+      }
+      Element propElement=propElements.get(0);
+      if (!propElement.getName().equals("prop") || !propElement.getNamespaceURI().equals(WebDAVUtil.DAV_URI.getURI())) {
+        throw new InvalidRequestException("Invalid <prop /> element " + propElement);
+      }
+      List<Element> customPropElements=propElement.elements();
+      for (      Element customPropElement : customPropElements) {
+        String name=customPropElement.getName();
+        String prefix=customPropElement.getNamespacePrefix();
+        String uri=customPropElement.getNamespaceURI();
+        String text=customPropElement.getText();
+        Namespace namespace=WebDAVUtil.createNamespace(prefix,uri);
+        if (instructionElement.getName().equals("set")) {
+          if (Validator.isNull(text)) {
+            webDavProps.addProp(name,prefix,uri);
+          }
+ else {
+            webDavProps.addProp(name,prefix,uri,text);
+          }
+          newProps.add(SAXReaderUtil.createQName(customPropElement.getName(),namespace));
+        }
+ else         if (instructionElement.getName().equals("remove")) {
+          webDavProps.removeProp(name,prefix,uri);
+        }
+ else {
+          throw new InvalidRequestException("Instead of set/remove instruction, received " + instructionElement);
+        }
+      }
+    }
+    WebDAVPropsLocalServiceUtil.storeWebDAVProps(webDavProps);
+    return newProps;
+  }
+ catch (  LockException le) {
+    throw le;
+  }
+catch (  Exception e) {
+    throw new InvalidRequestException(e);
+  }
+}

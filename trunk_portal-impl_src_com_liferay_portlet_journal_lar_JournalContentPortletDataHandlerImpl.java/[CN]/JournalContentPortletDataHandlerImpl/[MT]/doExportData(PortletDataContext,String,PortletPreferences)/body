@@ -1,0 +1,41 @@
+{
+  portletDataContext.addPermissions("com.liferay.portlet.journal",portletDataContext.getScopeGroupId());
+  String articleId=portletPreferences.getValue("articleId",null);
+  if (articleId == null) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("No article id found in preferences of portlet " + portletId);
+    }
+    return StringPool.BLANK;
+  }
+  long articleGroupId=GetterUtil.getLong(portletPreferences.getValue("groupId",StringPool.BLANK));
+  if (articleGroupId <= 0) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("No group id found in preferences of portlet " + portletId);
+    }
+    return StringPool.BLANK;
+  }
+  JournalArticle article=null;
+  try {
+    article=JournalArticleLocalServiceUtil.getLatestArticle(articleGroupId,articleId,WorkflowConstants.STATUS_APPROVED);
+  }
+ catch (  NoSuchArticleException nsae) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("No approved article found with group id " + articleGroupId + " and article id "+ articleId);
+    }
+  }
+  if (article == null) {
+    return StringPool.BLANK;
+  }
+  Document document=SAXReaderUtil.createDocument();
+  Element rootElement=document.addElement("journal-content-data");
+  String path=JournalPortletDataHandlerImpl.getArticlePath(portletDataContext,article);
+  Element articleElement=rootElement.addElement("article");
+  articleElement.addAttribute("path",path);
+  Element dlFoldersElement=rootElement.addElement("dl-folders");
+  Element dlFilesElement=rootElement.addElement("dl-file-entries");
+  Element dlFileRanksElement=rootElement.addElement("dl-file-ranks");
+  Element igFoldersElement=rootElement.addElement("ig-folders");
+  Element igImagesElement=rootElement.addElement("ig-images");
+  JournalPortletDataHandlerImpl.exportArticle(portletDataContext,rootElement,rootElement,rootElement,dlFoldersElement,dlFilesElement,dlFileRanksElement,igFoldersElement,igImagesElement,article,false);
+  return document.formattedString();
+}

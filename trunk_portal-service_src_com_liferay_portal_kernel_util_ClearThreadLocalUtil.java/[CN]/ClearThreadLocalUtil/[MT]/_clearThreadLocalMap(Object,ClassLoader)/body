@@ -1,0 +1,47 @@
+{
+  if (threadLocalMap == null) {
+    return;
+  }
+  Object[] table=(Object[])_tableField.get(threadLocalMap);
+  if (table == null) {
+    return;
+  }
+  int staleEntriesCount=0;
+  for (  Object tableEntry : table) {
+    if (tableEntry == null) {
+      continue;
+    }
+    Object key=((Reference<?>)tableEntry).get();
+    Object value=_valueField.get(tableEntry);
+    boolean remove=false;
+    if (key != null) {
+      Class<?> keyClass=key.getClass();
+      ClassLoader keyClassLoader=keyClass.getClassLoader();
+      if (keyClassLoader == classLoader) {
+        remove=true;
+      }
+    }
+    if (value != null) {
+      Class<?> valueClass=value.getClass();
+      ClassLoader valueClassLoader=valueClass.getClassLoader();
+      if (valueClassLoader == classLoader) {
+        remove=true;
+      }
+    }
+    if (remove) {
+      if (key != null) {
+        if (_log.isDebugEnabled()) {
+          Class<?> keyClass=key.getClass();
+          _log.debug("Clear a ThreadLocal with key of type " + keyClass.getCanonicalName());
+        }
+        _removeMethod.invoke(threadLocalMap,key);
+      }
+ else {
+        staleEntriesCount++;
+      }
+    }
+  }
+  if (staleEntriesCount > 0) {
+    _expungeStaleEntriesMethod.invoke(threadLocalMap);
+  }
+}

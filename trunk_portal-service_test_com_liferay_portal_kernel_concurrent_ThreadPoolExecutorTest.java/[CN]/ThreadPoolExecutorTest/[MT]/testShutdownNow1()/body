@@ -1,0 +1,32 @@
+{
+  ThreadPoolExecutor threadPoolExecutor=new ThreadPoolExecutor(1,1,TestUtil.KEEPALIVE_TIME,TimeUnit.MILLISECONDS,false,1);
+  MarkerBlockingJob markerBlockingJob1=new MarkerBlockingJob(true);
+  MarkerBlockingJob markerBlockingJob2=new MarkerBlockingJob(true);
+  threadPoolExecutor.execute(markerBlockingJob1);
+  markerBlockingJob1.waitUntilBlock();
+  threadPoolExecutor.execute(markerBlockingJob2);
+  TaskQueue<Runnable> taskQueue=threadPoolExecutor.getTaskQueue();
+  AbstractQueuedSynchronizer headWorkerTask=null;
+  ReentrantLock takeLock=taskQueue.getTakeLock();
+  takeLock.lock();
+  try {
+    markerBlockingJob1.unBlock();
+    while (!takeLock.hasQueuedThreads()) {
+      Thread.sleep(1);
+    }
+    Set<? extends AbstractQueuedSynchronizer> workerTasks=threadPoolExecutor.getWorkerTasks();
+    assertEquals(1,workerTasks.size());
+    headWorkerTask=workerTasks.iterator().next();
+    headWorkerTask.acquire(1);
+  }
+  finally {
+    takeLock.unlock();
+  }
+  while (!headWorkerTask.hasQueuedThreads()) {
+    Thread.sleep(1);
+  }
+  threadPoolExecutor.shutdownNow();
+  headWorkerTask.release(1);
+  assertTrue(threadPoolExecutor.awaitTermination(1,TimeUnit.SECONDS));
+  assertTrue(markerBlockingJob2.isInterrupted());
+}

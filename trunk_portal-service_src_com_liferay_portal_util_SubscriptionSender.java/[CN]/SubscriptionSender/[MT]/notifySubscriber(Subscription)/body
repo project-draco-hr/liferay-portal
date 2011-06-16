@@ -1,0 +1,69 @@
+{
+  User user=null;
+  try {
+    user=UserLocalServiceUtil.getUserById(subscription.getUserId());
+  }
+ catch (  NoSuchUserException nsue) {
+    if (_log.isInfoEnabled()) {
+      _log.info("Subscription " + subscription.getSubscriptionId() + " is stale and will be deleted");
+    }
+    deleteSubscription(subscription);
+    return;
+  }
+  String emailAddress=user.getEmailAddress();
+  if (_sentEmailAddresses.contains(emailAddress)) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Do not send a duplicate email to " + emailAddress);
+    }
+    return;
+  }
+ else {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Add " + emailAddress + " to the list of users who have received an email");
+    }
+    _sentEmailAddresses.add(emailAddress);
+  }
+  if (!user.isActive()) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Skip inactive user " + user.getUserId());
+    }
+    return;
+  }
+  Group group=GroupLocalServiceUtil.getGroup(groupId);
+  int type=group.getType();
+  if (!GroupLocalServiceUtil.hasUserGroup(user.getUserId(),groupId) && (type != GroupConstants.TYPE_SITE_OPEN)) {
+    if (_log.isInfoEnabled()) {
+      _log.info("Subscription " + subscription.getSubscriptionId() + " is stale and will be deleted");
+    }
+    deleteSubscription(subscription);
+    return;
+  }
+  try {
+    if (!hasPermission(subscription,user)) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Skip unauthorized user " + user.getUserId());
+      }
+      return;
+    }
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+    return;
+  }
+  if (bulk) {
+    InternetAddress bulkAddress=new InternetAddress(user.getEmailAddress(),user.getFullName());
+    if (_bulkAddresses == null) {
+      _bulkAddresses=new ArrayList<InternetAddress>();
+    }
+    _bulkAddresses.add(bulkAddress);
+  }
+ else {
+    try {
+      InternetAddress to=new InternetAddress(user.getEmailAddress(),user.getFullName());
+      sendEmail(to,user.getLocale());
+    }
+ catch (    Exception e) {
+      _log.error(e,e);
+    }
+  }
+}

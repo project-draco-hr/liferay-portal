@@ -1,0 +1,36 @@
+{
+  request.setAttribute(SKIP_FILTER,Boolean.TRUE);
+  String key=getCacheKey(request);
+  long companyId=PortalInstances.getCompanyId(request);
+  CacheResponseData cacheResponseData=CacheUtil.getCacheResponseData(companyId,key);
+  if (cacheResponseData == null) {
+    if (!isCacheableData(companyId,request)) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Request is not cacheable " + key);
+      }
+      processFilter(CacheFilter.class,request,response,filterChain);
+      return;
+    }
+    if (_log.isInfoEnabled()) {
+      _log.info("Caching request " + key);
+    }
+    ByteBufferServletResponse byteBufferResponse=new ByteBufferServletResponse(response);
+    processFilter(CacheFilter.class,request,byteBufferResponse,filterChain);
+    cacheResponseData=new CacheResponseData(byteBufferResponse);
+    LastPath lastPath=(LastPath)request.getAttribute(WebKeys.LAST_PATH);
+    if (lastPath != null) {
+      cacheResponseData.setAttribute(WebKeys.LAST_PATH,lastPath);
+    }
+    if (isCacheableRequest(request) && isCacheableResponse(byteBufferResponse)) {
+      CacheUtil.putCacheResponseData(companyId,key,cacheResponseData);
+    }
+  }
+ else {
+    LastPath lastPath=(LastPath)cacheResponseData.getAttribute(WebKeys.LAST_PATH);
+    if (lastPath != null) {
+      HttpSession session=request.getSession();
+      session.setAttribute(WebKeys.LAST_PATH,lastPath);
+    }
+  }
+  CacheResponseUtil.write(response,cacheResponseData);
+}

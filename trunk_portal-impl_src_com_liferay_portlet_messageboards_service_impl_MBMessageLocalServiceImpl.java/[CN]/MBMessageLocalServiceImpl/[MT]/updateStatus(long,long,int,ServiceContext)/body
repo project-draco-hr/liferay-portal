@@ -1,0 +1,105 @@
+{
+  MBMessage message=getMessage(messageId);
+  int oldStatus=message.getStatus();
+  User user=userPersistence.findByPrimaryKey(userId);
+  Date now=new Date();
+  message.setStatus(status);
+  message.setStatusByUserId(userId);
+  message.setStatusByUserName(user.getFullName());
+  message.setStatusDate(serviceContext.getModifiedDate(now));
+  mbMessagePersistence.update(message,false);
+  MBThread thread=mbThreadPersistence.findByPrimaryKey(message.getThreadId());
+  MBCategory category=null;
+  if ((thread.getCategoryId() != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) && (thread.getCategoryId() != MBCategoryConstants.DISCUSSION_CATEGORY_ID)) {
+    category=mbCategoryPersistence.findByPrimaryKey(thread.getCategoryId());
+  }
+  if ((thread.getRootMessageId() == message.getMessageId()) && (oldStatus != status)) {
+    thread.setStatus(status);
+    thread.setStatusByUserId(userId);
+    thread.setStatusByUserName(user.getFullName());
+    thread.setStatusDate(serviceContext.getModifiedDate(now));
+  }
+  Indexer indexer=IndexerRegistryUtil.getIndexer(MBMessage.class);
+  if (status == WorkflowConstants.STATUS_APPROVED) {
+    if (oldStatus != WorkflowConstants.STATUS_APPROVED) {
+      if ((category != null) && (thread.getRootMessageId() == message.getMessageId())) {
+        category.setThreadCount(category.getThreadCount() + 1);
+        mbCategoryPersistence.update(category,false);
+      }
+      thread.setMessageCount(thread.getMessageCount() + 1);
+      if (message.isAnonymous()) {
+        thread.setLastPostByUserId(0);
+      }
+ else {
+        thread.setLastPostByUserId(message.getUserId());
+      }
+      thread.setLastPostDate(serviceContext.getModifiedDate(now));
+      if (category != null) {
+        category.setMessageCount(category.getMessageCount() + 1);
+        category.setLastPostDate(serviceContext.getModifiedDate(now));
+        mbCategoryPersistence.update(category,false);
+      }
+      if ((message.getClassNameId() == 0) || (message.getParentMessageId() != 0)) {
+        assetEntryLocalService.updateVisible(message.getWorkflowClassName(),message.getMessageId(),true);
+      }
+      if (!message.isDiscussion()) {
+        if (!message.isAnonymous() && !user.isDefaultUser()) {
+          int activityType=MBActivityKeys.ADD_MESSAGE;
+          long receiverUserId=0;
+          String actionId=ActionKeys.ADD_MESSAGE;
+          MBMessage parentMessage=mbMessagePersistence.fetchByPrimaryKey(message.getParentMessageId());
+          if (parentMessage != null) {
+            activityType=MBActivityKeys.REPLY_MESSAGE;
+            receiverUserId=parentMessage.getUserId();
+            if (receiverUserId != userId) {
+              actionId=ActionKeys.REPLY_TO_MESSAGE;
+            }
+          }
+          socialActivityLocalService.addActivity(userId,message.getGroupId(),MBMessage.class.getName(),message.getMessageId(),activityType,StringPool.BLANK,receiverUserId);
+          socialEquityLogLocalService.addEquityLogs(userId,MBMessage.class.getName(),messageId,actionId,StringPool.BLANK);
+        }
+      }
+ else {
+        String className=(String)serviceContext.getAttribute("className");
+        long classPK=GetterUtil.getLong((String)serviceContext.getAttribute("classPK"));
+        if (!message.isRoot()) {
+          socialEquityLogLocalService.addEquityLogs(userId,className,classPK,ActionKeys.ADD_DISCUSSION,StringPool.BLANK);
+        }
+        long parentMessageId=message.getParentMessageId();
+        if (className.equals(BlogsEntry.class.getName()) && (parentMessageId != MBMessageConstants.DEFAULT_PARENT_MESSAGE_ID)) {
+          BlogsEntry entry=blogsEntryPersistence.findByPrimaryKey(classPK);
+          JSONObject extraData=JSONFactoryUtil.createJSONObject();
+          extraData.put("messageId",message.getMessageId());
+          socialActivityLocalService.addActivity(userId,entry.getGroupId(),BlogsEntry.class.getName(),classPK,BlogsActivityKeys.ADD_COMMENT,extraData.toString(),entry.getUserId());
+        }
+      }
+      notifySubscribers(message,serviceContext);
+    }
+    if (!message.isDiscussion()) {
+      indexer.reindex(message);
+    }
+    pingPingback(message,serviceContext);
+  }
+ else   if ((oldStatus == WorkflowConstants.STATUS_APPROVED) && (status != WorkflowConstants.STATUS_APPROVED)) {
+    if ((category != null) && (thread.getRootMessageId() == message.getMessageId())) {
+      category.setThreadCount(category.getThreadCount() - 1);
+      mbCategoryPersistence.update(category,false);
+    }
+    thread.setMessageCount(thread.getMessageCount() - 1);
+    if (category != null) {
+      category.setMessageCount(category.getMessageCount() - 1);
+      mbCategoryPersistence.update(category,false);
+    }
+    assetEntryLocalService.updateVisible(message.getWorkflowClassName(),message.getMessageId(),false);
+    if (!message.isDiscussion()) {
+      indexer.delete(message);
+    }
+  }
+  if (status != oldStatus) {
+    mbThreadPersistence.update(thread,false);
+  }
+  if (!message.isDiscussion()) {
+    mbStatsUserLocalService.updateStatsUser(message.getGroupId(),userId,serviceContext.getModifiedDate(now));
+  }
+  return message;
+}

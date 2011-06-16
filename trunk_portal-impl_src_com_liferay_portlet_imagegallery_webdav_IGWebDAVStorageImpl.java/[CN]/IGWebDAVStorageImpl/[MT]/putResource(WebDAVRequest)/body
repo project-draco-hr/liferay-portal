@@ -1,0 +1,47 @@
+{
+  File file=null;
+  try {
+    HttpServletRequest request=webDavRequest.getHttpServletRequest();
+    String[] pathArray=webDavRequest.getPathArray();
+    long companyId=webDavRequest.getCompanyId();
+    long groupId=webDavRequest.getGroupId();
+    long parentFolderId=getParentFolderId(companyId,pathArray);
+    String name=WebDAVUtil.getResourceName(pathArray);
+    String description=StringPool.BLANK;
+    file=FileUtil.createTempFile(FileUtil.getExtension(name));
+    FileUtil.write(file,request.getInputStream());
+    String contentType=MimeTypesUtil.getContentType(name);
+    ServiceContext serviceContext=new ServiceContext();
+    serviceContext.setAddGroupPermissions(isAddGroupPermissions(groupId));
+    serviceContext.setAddGuestPermissions(true);
+    try {
+      IGImage image=IGImageServiceUtil.getImageByFolderIdAndNameWithExtension(groupId,parentFolderId,name);
+      long imageId=image.getImageId();
+      description=image.getDescription();
+      String[] assetTagNames=AssetTagLocalServiceUtil.getTagNames(IGImage.class.getName(),imageId);
+      serviceContext.setAssetTagNames(assetTagNames);
+      IGImageServiceUtil.updateImage(imageId,groupId,parentFolderId,name,description,file,contentType,serviceContext);
+    }
+ catch (    NoSuchImageException nsie) {
+      IGImageServiceUtil.addImage(groupId,parentFolderId,name,description,file,contentType,serviceContext);
+    }
+    return HttpServletResponse.SC_CREATED;
+  }
+ catch (  PrincipalException pe) {
+    return HttpServletResponse.SC_FORBIDDEN;
+  }
+catch (  PortalException pe) {
+    if (_log.isWarnEnabled()) {
+      _log.warn(pe,pe);
+    }
+    return HttpServletResponse.SC_CONFLICT;
+  }
+catch (  Exception e) {
+    throw new WebDAVException(e);
+  }
+ finally {
+    if (file != null) {
+      file.delete();
+    }
+  }
+}

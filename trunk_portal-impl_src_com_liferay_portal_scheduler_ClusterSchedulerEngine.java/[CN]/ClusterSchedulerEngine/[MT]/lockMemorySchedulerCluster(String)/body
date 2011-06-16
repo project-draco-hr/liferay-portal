@@ -1,0 +1,30 @@
+{
+  Lock lock=null;
+  if (owner == null) {
+    lock=LockLocalServiceUtil.lock(_LOCK_CLASS_NAME,_LOCK_CLASS_NAME,_localClusterNodeAddress,PropsValues.MEMORY_CLUSTER_SCHEDULER_LOCK_CACHE_ENABLED);
+  }
+ else {
+    lock=LockLocalServiceUtil.lock(_LOCK_CLASS_NAME,_LOCK_CLASS_NAME,owner,_localClusterNodeAddress,PropsValues.MEMORY_CLUSTER_SCHEDULER_LOCK_CACHE_ENABLED);
+  }
+  if (!lock.isNew()) {
+    return lock;
+  }
+  boolean forceSync=ProxyModeThreadLocal.isForceSync();
+  ProxyModeThreadLocal.setForceSync(true);
+  _writeLock.lock();
+  try {
+    for (    ObjectValuePair<SchedulerResponse,TriggerState> memoryClusteredJob : _memoryClusteredJobs.values()) {
+      SchedulerResponse schedulerResponse=memoryClusteredJob.getKey();
+      _schedulerEngine.schedule(schedulerResponse.getTrigger(),schedulerResponse.getDescription(),schedulerResponse.getDestinationName(),schedulerResponse.getMessage());
+      TriggerState triggerState=memoryClusteredJob.getValue();
+      if (triggerState.equals(TriggerState.PAUSED)) {
+        _schedulerEngine.pause(schedulerResponse.getJobName(),schedulerResponse.getGroupName());
+      }
+    }
+  }
+  finally {
+    ProxyModeThreadLocal.setForceSync(forceSync);
+    _writeLock.unlock();
+  }
+  return lock;
+}

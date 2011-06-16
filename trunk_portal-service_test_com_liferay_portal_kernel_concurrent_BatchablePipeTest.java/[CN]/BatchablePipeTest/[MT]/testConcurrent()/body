@@ -1,0 +1,61 @@
+{
+  final BatchablePipe<String,Integer> batchablePipe=new BatchablePipe<String,Integer>();
+  final BlockingQueue<IncreasableEntry<String,Integer>> resultBlockingQueue=new LinkedBlockingQueue<IncreasableEntry<String,Integer>>();
+  ExecutorService putThreadPool=Executors.newFixedThreadPool(5);
+  ExecutorService takeThreadPool=Executors.newFixedThreadPool(5);
+  Runnable putRunnable=new Runnable(){
+    public void run(){
+      for (int i=0; i < 100; i++) {
+        batchablePipe.put(new IntegerIncreasableEntry(String.valueOf(i % 10),1));
+      }
+    }
+  }
+;
+  Runnable takeRunnable=new Runnable(){
+    public void run(){
+      while (true) {
+        try {
+          IncreasableEntry<String,Integer> increasableEntry=batchablePipe.take();
+          if (increasableEntry != null) {
+            if (increasableEntry.getKey().equals("exit")) {
+              return;
+            }
+            resultBlockingQueue.put(increasableEntry);
+          }
+        }
+ catch (        InterruptedException ie) {
+        }
+      }
+    }
+  }
+;
+  for (int i=0; i < 10; i++) {
+    putThreadPool.submit(putRunnable);
+    takeThreadPool.submit(takeRunnable);
+  }
+  putThreadPool.shutdown();
+  putThreadPool.awaitTermination(240,TimeUnit.SECONDS);
+  IncreasableEntry<String,Integer> poisonIncreasableEntry=new IntegerIncreasableEntry("exit",-1);
+  for (int i=0; i < 10; i++) {
+    batchablePipe.put(poisonIncreasableEntry);
+  }
+  takeThreadPool.shutdown();
+  takeThreadPool.awaitTermination(240,TimeUnit.SECONDS);
+  Map<String,Integer> verifyMap=new HashMap<String,Integer>();
+  for (  IncreasableEntry<String,Integer> increasableEntry : resultBlockingQueue) {
+    String key=increasableEntry.getKey();
+    Integer value=increasableEntry.getValue();
+    Integer sum=verifyMap.get(key);
+    if (sum == null) {
+      verifyMap.put(key,value);
+    }
+ else {
+      verifyMap.put(key,sum + value);
+    }
+  }
+  for (int i=0; i < 10; i++) {
+    Integer sum=verifyMap.get(String.valueOf(i));
+    assertEquals(100,(int)sum);
+  }
+  assertLessThan(1000,resultBlockingQueue.size());
+}

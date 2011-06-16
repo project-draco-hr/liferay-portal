@@ -1,0 +1,33 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getConnection();
+    ps=con.prepareStatement("select plid, typeSettings from Layout where type_ = " + "'link_to_layout'");
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      long plid=rs.getLong("plid");
+      String typeSettings=rs.getString("typeSettings");
+      UnicodeProperties typeSettingsProperties=new UnicodeProperties(true);
+      typeSettingsProperties.load(typeSettings);
+      long linkToPlid=GetterUtil.getLong(typeSettingsProperties.getProperty("linkToPlid"));
+      if (linkToPlid > 0) {
+        Object[] layout=getLayout(linkToPlid);
+        if (layout != null) {
+          long groupId=(Long)layout[0];
+          boolean privateLayout=(Boolean)layout[1];
+          long layoutId=(Long)layout[2];
+          typeSettingsProperties.remove("linkToPlid");
+          typeSettingsProperties.put("groupId",String.valueOf(groupId));
+          typeSettingsProperties.put("privateLayout",String.valueOf(privateLayout));
+          typeSettingsProperties.put("linkToLayoutId",String.valueOf(layoutId));
+        }
+      }
+      updateTypeSettings(plid,typeSettingsProperties.toString());
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}

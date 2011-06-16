@@ -1,0 +1,45 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  long userId=PortalUtil.getUserId(actionRequest);
+  long groupId=ParamUtil.getLong(actionRequest,"groupId");
+  String name=ParamUtil.getString(actionRequest,"name");
+  String description=ParamUtil.getString(actionRequest,"description");
+  int type=ParamUtil.getInteger(actionRequest,"type");
+  String friendlyURL=ParamUtil.getString(actionRequest,"friendlyURL");
+  boolean active=ParamUtil.getBoolean(actionRequest,"active");
+  ServiceContext serviceContext=ServiceContextFactory.getInstance(Group.class.getName(),actionRequest);
+  Group group=null;
+  if (groupId <= 0) {
+    group=GroupServiceUtil.addGroup(name,description,type,friendlyURL,true,active,serviceContext);
+    LiveUsers.joinGroup(themeDisplay.getCompanyId(),group.getGroupId(),userId);
+  }
+ else {
+    group=GroupServiceUtil.updateGroup(groupId,name,description,type,friendlyURL,active,serviceContext);
+    if (type == GroupConstants.TYPE_SITE_OPEN) {
+      List<MembershipRequest> membershipRequests=MembershipRequestLocalServiceUtil.search(groupId,MembershipRequestConstants.STATUS_PENDING,QueryUtil.ALL_POS,QueryUtil.ALL_POS);
+      for (      MembershipRequest membershipRequest : membershipRequests) {
+        MembershipRequestServiceUtil.updateStatus(membershipRequest.getMembershipRequestId(),themeDisplay.translate("your-membership-has-been-approved"),MembershipRequestConstants.STATUS_APPROVED);
+        LiveUsers.joinGroup(themeDisplay.getCompanyId(),membershipRequest.getGroupId(),new long[]{membershipRequest.getUserId()});
+      }
+    }
+  }
+  String customJspServletContextName=ParamUtil.getString(actionRequest,"customJspServletContextName");
+  UnicodeProperties typeSettingsProperties=group.getTypeSettingsProperties();
+  typeSettingsProperties.setProperty("customJspServletContextName",customJspServletContextName);
+  group=GroupServiceUtil.updateGroup(group.getGroupId(),typeSettingsProperties.toString());
+  long publicLayoutSetPrototypeId=ParamUtil.getLong(actionRequest,"publicLayoutSetPrototypeId");
+  long privateLayoutSetPrototypeId=ParamUtil.getLong(actionRequest,"privateLayoutSetPrototypeId");
+  if ((publicLayoutSetPrototypeId == 0) && (privateLayoutSetPrototypeId == 0)) {
+    long layoutSetPrototypeId=ParamUtil.getLong(actionRequest,"layoutSetPrototypeId");
+    boolean privateLayoutSetPrototype=ParamUtil.getBoolean(actionRequest,"privateLayoutSetPrototype");
+    if (privateLayoutSetPrototype) {
+      privateLayoutSetPrototypeId=layoutSetPrototypeId;
+    }
+ else {
+      publicLayoutSetPrototypeId=layoutSetPrototypeId;
+    }
+  }
+  if ((publicLayoutSetPrototypeId > 0) || (privateLayoutSetPrototypeId > 0)) {
+    SitesUtil.applyLayoutSetPrototypes(group,publicLayoutSetPrototypeId,privateLayoutSetPrototypeId,serviceContext);
+  }
+}

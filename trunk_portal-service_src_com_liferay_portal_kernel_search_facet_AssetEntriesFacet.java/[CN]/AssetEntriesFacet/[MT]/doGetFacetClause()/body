@@ -1,0 +1,41 @@
+{
+  SearchContext searchContext=getSearchContext();
+  String[] entryClassNames=searchContext.getEntryClassNames();
+  BooleanQuery facetQuery=BooleanQueryFactoryUtil.create();
+  for (  String entryClassName : entryClassNames) {
+    Indexer indexer=IndexerRegistryUtil.getIndexer(entryClassName);
+    if (indexer == null) {
+      continue;
+    }
+    try {
+      BooleanQuery indexerBooleanQuery=indexer.getFacetQuery(entryClassName,searchContext);
+      if ((indexerBooleanQuery == null) || (indexerBooleanQuery.clauses().isEmpty())) {
+        continue;
+      }
+      BooleanQuery entityQuery=BooleanQueryFactoryUtil.create();
+      entityQuery.add(indexerBooleanQuery,BooleanClauseOccur.MUST);
+      indexer.postProcessContextQuery(entityQuery,searchContext);
+      for (      IndexerPostProcessor indexerPostProcessor : indexer.getIndexerPostProcessors()) {
+        indexerPostProcessor.postProcessContextQuery(entityQuery,searchContext);
+      }
+      if (indexer.isStagingAware()) {
+        if (!searchContext.isIncludeLiveGroups() && searchContext.isIncludeStagingGroups()) {
+          entityQuery.addRequiredTerm(Field.STAGING_GROUP,true);
+        }
+ else         if (searchContext.isIncludeLiveGroups() && !searchContext.isIncludeStagingGroups()) {
+          entityQuery.addRequiredTerm(Field.STAGING_GROUP,false);
+        }
+      }
+      if (!entityQuery.clauses().isEmpty()) {
+        facetQuery.add(entityQuery,BooleanClauseOccur.SHOULD);
+      }
+    }
+ catch (    Exception e) {
+      _log.error(e,e);
+    }
+  }
+  if (facetQuery.clauses().isEmpty()) {
+    return null;
+  }
+  return BooleanClauseFactoryUtil.create(facetQuery,BooleanClauseOccur.MUST.getName());
+}

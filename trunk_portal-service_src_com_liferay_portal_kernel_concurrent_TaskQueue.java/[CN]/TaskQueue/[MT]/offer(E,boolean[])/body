@@ -1,0 +1,42 @@
+{
+  if ((element == null) || (hasWaiterMarker == null)) {
+    throw new NullPointerException();
+  }
+  if (hasWaiterMarker.length == 0) {
+    throw new IllegalArgumentException();
+  }
+  if (_count.get() == _capacity) {
+    return false;
+  }
+  int count=-1;
+  _putLock.lock();
+  try {
+    if (_count.get() < _capacity) {
+      _enqueue(element);
+      count=_count.getAndIncrement();
+      _takeLock.lock();
+      try {
+        hasWaiterMarker[0]=_takeLock.hasWaiters(_notEmptyCondition);
+        if (!hasWaiterMarker[0] && (count >= _count.get())) {
+          hasWaiterMarker[0]=true;
+        }
+      }
+  finally {
+        _takeLock.unlock();
+      }
+    }
+  }
+  finally {
+    _putLock.unlock();
+  }
+  if (count == 0) {
+    _takeLock.lock();
+    try {
+      _notEmptyCondition.signal();
+    }
+  finally {
+      _takeLock.unlock();
+    }
+  }
+  return count >= 0;
+}

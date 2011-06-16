@@ -1,0 +1,31 @@
+{
+  try {
+    Set<QName> props=new HashSet<QName>();
+    HttpServletRequest request=webDavRequest.getHttpServletRequest();
+    String xml=new String(FileUtil.getBytes(request.getInputStream()));
+    if (Validator.isNull(xml)) {
+      return generateProps(props);
+    }
+    if (_log.isDebugEnabled()) {
+      _log.debug("Request XML: \n" + XMLFormatter.toString(xml,StringPool.FOUR_SPACES));
+    }
+    Document doc=SAXReaderUtil.read(xml);
+    Element root=doc.getRootElement();
+    if (root.element(ALLPROP.getName()) != null) {
+      return generateProps(props);
+    }
+    Element prop=root.element("prop");
+    Iterator<Element> itr=prop.elements().iterator();
+    while (itr.hasNext()) {
+      Element el=itr.next();
+      String prefix=el.getNamespacePrefix();
+      String uri=el.getNamespaceURI();
+      Namespace namespace=WebDAVUtil.createNamespace(prefix,uri);
+      props.add(SAXReaderUtil.createQName(el.getName(),namespace));
+    }
+    return props;
+  }
+ catch (  Exception e) {
+    throw new InvalidRequestException(e);
+  }
+}

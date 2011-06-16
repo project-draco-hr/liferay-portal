@@ -1,0 +1,43 @@
+{
+  List<DiffResult> sourceResults=new ArrayList<DiffResult>();
+  List<DiffResult> targetResults=new ArrayList<DiffResult>();
+  List<DiffResult>[] results=new List[]{sourceResults,targetResults};
+  List<String> sourceStringList=FileUtil.toList(source);
+  List<String> targetStringList=FileUtil.toList(target);
+  Diff diff=new Diff(sourceStringList,targetStringList);
+  List<Difference> differences=diff.diff();
+  Iterator<Difference> itr=differences.iterator();
+  while (itr.hasNext()) {
+    Difference difference=itr.next();
+    if (difference.getAddedEnd() == Difference.NONE) {
+      _highlightLines(sourceStringList,deletedMarkerStart,deletedMarkerEnd,difference.getDeletedStart(),difference.getDeletedEnd());
+      margin=_calculateMargin(sourceResults,targetResults,difference.getDeletedStart(),difference.getAddedStart(),margin);
+      List<String> changedLines=_addMargins(sourceResults,sourceStringList,difference.getDeletedStart(),margin);
+      _addResults(sourceResults,sourceStringList,changedLines,difference.getDeletedStart(),difference.getDeletedEnd());
+      changedLines=_addMargins(targetResults,targetStringList,difference.getAddedStart(),margin);
+      int deletedLines=difference.getDeletedEnd() + 1 - difference.getDeletedStart();
+      for (int i=0; i < deletedLines; i++) {
+        changedLines.add(CONTEXT_LINE);
+      }
+      DiffResult diffResult=new DiffResult(difference.getDeletedStart(),changedLines);
+      targetResults.add(diffResult);
+    }
+ else     if (difference.getDeletedEnd() == Difference.NONE) {
+      _highlightLines(targetStringList,addedMarkerStart,addedMarkerEnd,difference.getAddedStart(),difference.getAddedEnd());
+      margin=_calculateMargin(sourceResults,targetResults,difference.getDeletedStart(),difference.getAddedStart(),margin);
+      List<String> changedLines=_addMargins(sourceResults,sourceStringList,difference.getDeletedStart(),margin);
+      int addedLines=difference.getAddedEnd() + 1 - difference.getAddedStart();
+      for (int i=0; i < addedLines; i++) {
+        changedLines.add(CONTEXT_LINE);
+      }
+      DiffResult diffResult=new DiffResult(difference.getAddedStart(),changedLines);
+      sourceResults.add(diffResult);
+      changedLines=_addMargins(targetResults,targetStringList,difference.getAddedStart(),margin);
+      _addResults(targetResults,targetStringList,changedLines,difference.getAddedStart(),difference.getAddedEnd());
+    }
+ else {
+      _checkCharDiffs(sourceResults,targetResults,sourceStringList,targetStringList,addedMarkerStart,addedMarkerEnd,deletedMarkerStart,deletedMarkerEnd,difference,margin);
+    }
+  }
+  return results;
+}

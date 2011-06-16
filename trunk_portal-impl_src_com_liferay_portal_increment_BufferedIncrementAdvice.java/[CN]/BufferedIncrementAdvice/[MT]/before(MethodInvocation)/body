@@ -1,0 +1,26 @@
+{
+  MethodTargetClassKey methodTargetClassKey=buildMethodTargetClassKey(methodInvocation);
+  BufferedIncrement bufferedIncrement=findAnnotation(methodTargetClassKey);
+  if (bufferedIncrement == _nullBufferedIncrement) {
+    return null;
+  }
+  Object[] arguments=methodInvocation.getArguments();
+  Object value=arguments[arguments.length - 1];
+  CacheKeyGenerator cacheKeyGenerator=CacheKeyGeneratorUtil.getCacheKeyGenerator(BufferedIncrementAdvice.class.getName());
+  cacheKeyGenerator.append(methodTargetClassKey.toString());
+  for (int i=0; i < arguments.length - 1; i++) {
+    cacheKeyGenerator.append(StringUtil.toHexString(arguments[i]));
+  }
+  String batchKey=cacheKeyGenerator.finish();
+  Increment<?> increment=IncrementFactory.createIncrement(bufferedIncrement.incrementClass(),value);
+  BufferedIncreasableEntry bufferedIncreasableEntry=new BufferedIncreasableEntry(nextMethodInterceptor,methodInvocation,batchKey,increment);
+  if (_batchablePipe.put(bufferedIncreasableEntry)) {
+    if (bufferedIncrement.parallel()) {
+      MessageBusUtil.sendMessage(DestinationNames.BUFFERED_INCREMENT_PARALLEL,_batchablePipe);
+    }
+ else {
+      MessageBusUtil.sendMessage(DestinationNames.BUFFERED_INCREMENT_SERIAL,_batchablePipe);
+    }
+  }
+  return nullResult;
+}

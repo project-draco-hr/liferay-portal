@@ -1,0 +1,41 @@
+{
+  if (!OpenIdUtil.isEnabled(themeDisplay.getCompanyId())) {
+    return;
+  }
+  HttpServletRequest request=PortalUtil.getHttpServletRequest(actionRequest);
+  HttpServletResponse response=PortalUtil.getHttpServletResponse(actionResponse);
+  HttpSession session=request.getSession();
+  ActionResponseImpl actionResponseImpl=(ActionResponseImpl)actionResponse;
+  String openId=ParamUtil.getString(actionRequest,"openId");
+  PortletURL portletURL=actionResponseImpl.createActionURL();
+  portletURL.setParameter("struts_action","/login/open_id");
+  portletURL.setParameter(Constants.CMD,Constants.READ);
+  portletURL.setParameter("saveLastPath","0");
+  ConsumerManager manager=OpenIdUtil.getConsumerManager();
+  List<DiscoveryInformation> discoveries=manager.discover(openId);
+  DiscoveryInformation discovered=manager.associate(discoveries);
+  session.setAttribute(WebKeys.OPEN_ID_DISCO,discovered);
+  AuthRequest authRequest=manager.authenticate(discovered,portletURL.toString(),themeDisplay.getPortalURL());
+  try {
+    UserLocalServiceUtil.getUserByOpenId(themeDisplay.getCompanyId(),openId);
+  }
+ catch (  NoSuchUserException nsue) {
+    String screenName=OpenIdUtil.getScreenName(openId);
+    try {
+      User user=UserLocalServiceUtil.getUserByScreenName(themeDisplay.getCompanyId(),screenName);
+      UserLocalServiceUtil.updateOpenId(user.getUserId(),openId);
+    }
+ catch (    NoSuchUserException nsue2) {
+      FetchRequest fetch=FetchRequest.createFetchRequest();
+      fetch.addAttribute("email","http://schema.openid.net/contact/email",true);
+      fetch.addAttribute("firstName","http://schema.openid.net/namePerson/first",true);
+      fetch.addAttribute("lastName","http://schema.openid.net/namePerson/last",true);
+      authRequest.addExtension(fetch);
+      SRegRequest sregRequest=SRegRequest.createFetchRequest();
+      sregRequest.addAttribute("fullname",true);
+      sregRequest.addAttribute("email",true);
+      authRequest.addExtension(sregRequest);
+    }
+  }
+  response.sendRedirect(authRequest.getDestinationUrl(true));
+}

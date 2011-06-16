@@ -1,0 +1,33 @@
+{
+  AttributesTransformer attributesTransformer=AttributesTransformerFactory.getInstance();
+  attributes=attributesTransformer.transformGroup(attributes);
+  LDAPGroup ldapGroup=_ldapToPortalConverter.importLDAPGroup(companyId,attributes,groupMappings);
+  UserGroup userGroup=null;
+  try {
+    userGroup=UserGroupLocalServiceUtil.getUserGroup(companyId,ldapGroup.getGroupName());
+    UserGroupLocalServiceUtil.updateUserGroup(companyId,userGroup.getUserGroupId(),ldapGroup.getGroupName(),ldapGroup.getDescription());
+  }
+ catch (  NoSuchUserGroupException nsuge) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Adding user group to portal " + ldapGroup.getGroupName());
+    }
+    long defaultUserId=UserLocalServiceUtil.getDefaultUserId(companyId);
+    LDAPUserGroupTransactionThreadLocal.setOriginatesFromLDAP(true);
+    try {
+      userGroup=UserGroupLocalServiceUtil.addUserGroup(defaultUserId,companyId,ldapGroup.getGroupName(),ldapGroup.getDescription());
+    }
+ catch (    Exception e) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Unable to create user group " + ldapGroup.getGroupName());
+      }
+      if (_log.isDebugEnabled()) {
+        _log.debug(e,e);
+      }
+    }
+ finally {
+      LDAPUserGroupTransactionThreadLocal.setOriginatesFromLDAP(false);
+    }
+  }
+  addRole(companyId,ldapGroup,userGroup);
+  return userGroup;
+}

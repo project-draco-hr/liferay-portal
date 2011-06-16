@@ -1,0 +1,35 @@
+{
+  NetlogonConnection netlogonConnection=new NetlogonConnection();
+  try {
+    netlogonConnection.connect(_domainController,_domainControllerName,_ntlmServiceAccount,_secureRandom);
+    NetlogonAuthenticator netlogonAuthenticator=netlogonConnection.computeNetlogonAuthenticator();
+    NetlogonIdentityInfo netlogonIdentityInfo=new NetlogonIdentityInfo(domain,0x00000820,0,0,userName,workstation);
+    NetlogonNetworkInfo netlogonNetworkInfo=new NetlogonNetworkInfo(netlogonIdentityInfo,serverChallenge,ntResponse,lmResponse);
+    NetrLogonSamLogon netrLogonSamLogon=new NetrLogonSamLogon(_domainControllerName,_ntlmServiceAccount.getComputerName(),netlogonAuthenticator,new NetlogonAuthenticator(),2,netlogonNetworkInfo,2,new NetlogonValidationSamInfo(),0);
+    DcerpcHandle dcerpcHandle=netlogonConnection.getDcerpcHandle();
+    dcerpcHandle.sendrecv(netrLogonSamLogon);
+    if (netrLogonSamLogon.getStatus() == 0) {
+      NetlogonValidationSamInfo netlogonValidationSamInfo=netrLogonSamLogon.getNetlogonValidationSamInfo();
+      UnicodeString name=new UnicodeString(netlogonValidationSamInfo.getEffectiveName(),false);
+      return new NtlmUserAccount(name.toString());
+    }
+ else {
+      SmbException smbe=new SmbException(netrLogonSamLogon.getStatus(),false);
+      throw new NtlmLogonException("Unable to authenticate user: " + smbe.getMessage());
+    }
+  }
+ catch (  NoSuchAlgorithmException e) {
+    throw new NtlmLogonException("Unable to authenticate due to invalid encryption algorithm",e);
+  }
+catch (  IOException e) {
+    throw new NtlmLogonException("Unable to authenticate due to communication failure with " + "server",e);
+  }
+ finally {
+    try {
+      netlogonConnection.disconnect();
+    }
+ catch (    Exception e) {
+      _log.error("Unable to disconnect Netlogon connection",e);
+    }
+  }
+}

@@ -1,0 +1,77 @@
+{
+  User user=getUserByEmailAddress(companyId,emailAddress);
+  if (user.getStatus() != WorkflowConstants.STATUS_INCOMPLETE) {
+    throw new PortalException("Invalid user status");
+  }
+  User defaultUser=getDefaultUser(companyId);
+  if (updateUserInformation) {
+    autoScreenName=false;
+    if (PrefsPropsUtil.getBoolean(companyId,PropsKeys.USERS_SCREEN_NAME_ALWAYS_AUTOGENERATE)) {
+      autoScreenName=true;
+    }
+    validate(companyId,user.getUserId(),autoPassword,password1,password2,autoScreenName,screenName,emailAddress,firstName,middleName,lastName,null);
+    if (!autoPassword) {
+      if (Validator.isNull(password1) || Validator.isNull(password2)) {
+        throw new UserPasswordException(UserPasswordException.PASSWORD_INVALID);
+      }
+    }
+    if (autoScreenName) {
+      ScreenNameGenerator screenNameGenerator=ScreenNameGeneratorFactory.getInstance();
+      try {
+        screenName=screenNameGenerator.generate(companyId,user.getUserId(),emailAddress);
+      }
+ catch (      Exception e) {
+        throw new SystemException(e);
+      }
+    }
+    FullNameGenerator fullNameGenerator=FullNameGeneratorFactory.getInstance();
+    String fullName=fullNameGenerator.getFullName(firstName,middleName,lastName);
+    String greeting=LanguageUtil.format(locale,"welcome-x"," " + fullName,false);
+    if (Validator.isNotNull(password1)) {
+      user.setPassword(PwdEncryptor.encrypt(password1));
+      user.setPasswordUnencrypted(password1);
+    }
+    user.setPasswordEncrypted(true);
+    PasswordPolicy passwordPolicy=defaultUser.getPasswordPolicy();
+    if (passwordPolicy.isChangeable() && passwordPolicy.isChangeRequired()) {
+      user.setPasswordReset(true);
+    }
+ else {
+      user.setPasswordReset(false);
+    }
+    user.setScreenName(screenName);
+    user.setFacebookId(facebookId);
+    user.setOpenId(openId);
+    user.setLanguageId(locale.toString());
+    user.setTimeZoneId(defaultUser.getTimeZoneId());
+    user.setGreeting(greeting);
+    user.setFirstName(firstName);
+    user.setMiddleName(middleName);
+    user.setLastName(lastName);
+    user.setJobTitle(jobTitle);
+    Date birthday=PortalUtil.getDate(birthdayMonth,birthdayDay,birthdayYear,new ContactBirthdayException());
+    Contact contact=user.getContact();
+    contact.setFirstName(firstName);
+    contact.setMiddleName(middleName);
+    contact.setLastName(lastName);
+    contact.setPrefixId(prefixId);
+    contact.setSuffixId(suffixId);
+    contact.setMale(male);
+    contact.setBirthday(birthday);
+    contact.setJobTitle(jobTitle);
+    contactPersistence.update(contact,false,serviceContext);
+    user.setExpandoBridgeAttributes(serviceContext);
+    Indexer indexer=IndexerRegistryUtil.getIndexer(User.class);
+    indexer.reindex(user);
+  }
+  user.setStatus(WorkflowConstants.STATUS_DRAFT);
+  userPersistence.update(user,false,serviceContext);
+  long workflowUserId=creatorUserId;
+  if (workflowUserId == user.getUserId()) {
+    workflowUserId=defaultUser.getUserId();
+  }
+  serviceContext.setAttribute("autoPassword",autoPassword);
+  serviceContext.setAttribute("sendEmail",sendEmail);
+  WorkflowHandlerRegistryUtil.startWorkflowInstance(companyId,workflowUserId,User.class.getName(),user.getUserId(),user,serviceContext);
+  return getUserByEmailAddress(companyId,emailAddress);
+}

@@ -1,0 +1,40 @@
+{
+  ThemeLoader themeLoader=ThemeLoaderFactory.getDefaultThemeLoader();
+  if (themeLoader == null) {
+    _log.error("No theme loaders are deployed");
+    return null;
+  }
+  ZipReader zipReader=ZipReaderFactoryUtil.getZipReader(themeZip);
+  String lookAndFeelXML=zipReader.getEntryAsString("liferay-look-and-feel.xml");
+  String themeId=String.valueOf(layoutSet.getGroupId());
+  if (layoutSet.isPrivateLayout()) {
+    themeId+="-private";
+  }
+ else {
+    themeId+="-public";
+  }
+  if (PropsValues.THEME_LOADER_NEW_THEME_ID_ON_IMPORT) {
+    Date now=new Date();
+    themeId+="-" + Time.getShortTimestamp(now);
+  }
+  String themeName=themeId;
+  lookAndFeelXML=StringUtil.replace(lookAndFeelXML,new String[]{"[$GROUP_ID$]","[$THEME_ID$]","[$THEME_NAME$]"},new String[]{String.valueOf(layoutSet.getGroupId()),themeId,themeName});
+  FileUtil.deltree(themeLoader.getFileStorage() + StringPool.SLASH + themeId);
+  List<String> zipEntries=zipReader.getEntries();
+  for (  String zipEntry : zipEntries) {
+    String key=zipEntry;
+    if (key.equals("liferay-look-and-feel.xml")) {
+      FileUtil.write(themeLoader.getFileStorage() + StringPool.SLASH + themeId+ StringPool.SLASH+ key,lookAndFeelXML.getBytes());
+    }
+ else {
+      InputStream is=zipReader.getEntryAsInputStream(zipEntry);
+      FileUtil.write(themeLoader.getFileStorage() + StringPool.SLASH + themeId+ StringPool.SLASH+ key,is);
+    }
+  }
+  themeLoader.loadThemes();
+  ClusterRequest clusterRequest=ClusterRequest.createMulticastRequest(_loadThemesMethodHandler,true);
+  clusterRequest.setFireAndForget(true);
+  ClusterExecutorUtil.execute(clusterRequest);
+  themeId+=PortletConstants.WAR_SEPARATOR + themeLoader.getServletContextName();
+  return PortalUtil.getJsSafePortletId(themeId);
+}

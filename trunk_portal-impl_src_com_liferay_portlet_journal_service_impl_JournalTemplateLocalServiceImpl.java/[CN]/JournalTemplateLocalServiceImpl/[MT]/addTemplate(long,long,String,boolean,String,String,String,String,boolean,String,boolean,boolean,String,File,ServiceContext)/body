@@ -1,0 +1,58 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  templateId=templateId.trim().toUpperCase();
+  Date now=new Date();
+  try {
+    if (formatXsl) {
+      if (langType.equals(JournalTemplateConstants.LANG_TYPE_VM)) {
+        xsl=JournalUtil.formatVM(xsl);
+      }
+ else {
+        xsl=DDMXMLUtil.formatXML(xsl);
+      }
+    }
+  }
+ catch (  Exception e) {
+    throw new TemplateXslException();
+  }
+  byte[] smallBytes=null;
+  try {
+    smallBytes=FileUtil.getBytes(smallFile);
+  }
+ catch (  IOException ioe) {
+  }
+  validate(groupId,templateId,autoTemplateId,name,xsl,smallImage,smallImageURL,smallFile,smallBytes);
+  if (autoTemplateId) {
+    templateId=String.valueOf(counterLocalService.increment());
+  }
+  long id=counterLocalService.increment();
+  JournalTemplate template=journalTemplatePersistence.create(id);
+  template.setUuid(serviceContext.getUuid());
+  template.setGroupId(groupId);
+  template.setCompanyId(user.getCompanyId());
+  template.setUserId(user.getUserId());
+  template.setUserName(user.getFullName());
+  template.setCreateDate(serviceContext.getCreateDate(now));
+  template.setModifiedDate(serviceContext.getModifiedDate(now));
+  template.setTemplateId(templateId);
+  template.setStructureId(structureId);
+  template.setName(name);
+  template.setDescription(description);
+  template.setXsl(xsl);
+  template.setLangType(langType);
+  template.setCacheable(cacheable);
+  template.setSmallImage(smallImage);
+  template.setSmallImageId(counterLocalService.increment());
+  template.setSmallImageURL(smallImageURL);
+  journalTemplatePersistence.update(template,false);
+  if (serviceContext.getAddGroupPermissions() || serviceContext.getAddGuestPermissions()) {
+    addTemplateResources(template,serviceContext.getAddGroupPermissions(),serviceContext.getAddGuestPermissions());
+  }
+ else {
+    addTemplateResources(template,serviceContext.getGroupPermissions(),serviceContext.getGuestPermissions());
+  }
+  ExpandoBridge expandoBridge=template.getExpandoBridge();
+  expandoBridge.setAttributes(serviceContext);
+  saveImages(smallImage,template.getSmallImageId(),smallFile,smallBytes);
+  return template;
+}

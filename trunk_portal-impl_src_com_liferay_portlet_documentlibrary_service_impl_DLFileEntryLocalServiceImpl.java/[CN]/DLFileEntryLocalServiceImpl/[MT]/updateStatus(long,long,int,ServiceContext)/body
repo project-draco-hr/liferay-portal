@@ -1,0 +1,42 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  DLFileEntry dlFileEntry=dlFileEntryPersistence.findByPrimaryKey(fileEntryId);
+  DLFileVersion latestDLFileVersion=getLatestFileVersion(dlFileEntry.getFileEntryId());
+  latestDLFileVersion.setStatus(status);
+  latestDLFileVersion.setStatusByUserId(user.getUserId());
+  latestDLFileVersion.setStatusByUserName(user.getFullName());
+  latestDLFileVersion.setStatusDate(new Date());
+  dlFileVersionPersistence.update(latestDLFileVersion,false);
+  if (status == WorkflowConstants.STATUS_APPROVED) {
+    if (DLUtil.compareVersions(dlFileEntry.getVersion(),latestDLFileVersion.getVersion()) <= 0) {
+      dlFileEntry.setTitle(latestDLFileVersion.getTitle());
+      dlFileEntry.setDescription(latestDLFileVersion.getDescription());
+      dlFileEntry.setExtraSettings(latestDLFileVersion.getExtraSettings());
+      dlFileEntry.setVersion(latestDLFileVersion.getVersion());
+      dlFileEntry.setVersionUserId(latestDLFileVersion.getUserId());
+      dlFileEntry.setVersionUserName(latestDLFileVersion.getUserName());
+      dlFileEntry.setModifiedDate(latestDLFileVersion.getCreateDate());
+      dlFileEntry.setSize(latestDLFileVersion.getSize());
+      dlFileEntryPersistence.update(dlFileEntry,false);
+    }
+    Indexer indexer=IndexerRegistryUtil.getIndexer(DLFileEntry.class);
+    indexer.reindex(dlFileEntry);
+  }
+ else {
+    if (dlFileEntry.getVersion().equals(latestDLFileVersion.getVersion())) {
+      String newVersion=DLFileEntryConstants.DEFAULT_VERSION;
+      List<DLFileVersion> approvedFileVersions=dlFileVersionPersistence.findByF_S(dlFileEntry.getFileEntryId(),WorkflowConstants.STATUS_APPROVED);
+      if (!approvedFileVersions.isEmpty()) {
+        newVersion=approvedFileVersions.get(0).getVersion();
+      }
+      dlFileEntry.setVersion(newVersion);
+      dlFileEntryPersistence.update(dlFileEntry,false);
+    }
+    if (latestDLFileVersion.getVersion().equals(DLFileEntryConstants.DEFAULT_VERSION)) {
+      Indexer indexer=IndexerRegistryUtil.getIndexer(DLFileEntry.class);
+      indexer.delete(dlFileEntry);
+    }
+  }
+  dlAppHelperLocalService.updateStatus(userId,new LiferayFileEntry(dlFileEntry),new LiferayFileVersion(latestDLFileVersion),status);
+  return dlFileEntry;
+}

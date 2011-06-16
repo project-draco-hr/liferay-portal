@@ -1,0 +1,36 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  DDLRecord record=ddlRecordPersistence.findByPrimaryKey(recordId);
+  DDLRecordVersion latestRecordVersion=getLatestRecordVersion(record.getRecordId());
+  latestRecordVersion.setStatus(status);
+  latestRecordVersion.setStatusByUserId(user.getUserId());
+  latestRecordVersion.setStatusByUserName(user.getFullName());
+  latestRecordVersion.setStatusDate(new Date());
+  ddlRecordVersionPersistence.update(latestRecordVersion,false);
+  if (status == WorkflowConstants.STATUS_APPROVED) {
+    if (DLUtil.compareVersions(record.getVersion(),latestRecordVersion.getVersion()) <= 0) {
+      record.setClassNameId(latestRecordVersion.getClassNameId());
+      record.setClassPK(latestRecordVersion.getClassPK());
+      record.setVersion(latestRecordVersion.getVersion());
+      record.setRecordSetId(latestRecordVersion.getRecordSetId());
+      record.setDisplayIndex(latestRecordVersion.getDisplayIndex());
+      record.setVersion(latestRecordVersion.getVersion());
+      record.setVersionUserId(latestRecordVersion.getUserId());
+      record.setVersionUserName(latestRecordVersion.getUserName());
+      record.setModifiedDate(latestRecordVersion.getCreateDate());
+      ddlRecordPersistence.update(record,false);
+    }
+  }
+ else {
+    if (record.getVersion().equals(latestRecordVersion.getVersion())) {
+      String newVersion=DDLRecordConstants.DEFAULT_VERSION;
+      List<DDLRecordVersion> approvedRecordVersions=ddlRecordVersionPersistence.findByR_S(record.getRecordId(),WorkflowConstants.STATUS_APPROVED);
+      if (!approvedRecordVersions.isEmpty()) {
+        newVersion=approvedRecordVersions.get(0).getVersion();
+      }
+      record.setVersion(newVersion);
+      ddlRecordPersistence.update(record,false);
+    }
+  }
+  return record;
+}

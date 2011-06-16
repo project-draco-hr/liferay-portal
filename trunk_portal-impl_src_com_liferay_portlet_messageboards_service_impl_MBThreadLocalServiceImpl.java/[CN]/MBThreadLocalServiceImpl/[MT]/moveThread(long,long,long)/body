@@ -1,0 +1,34 @@
+{
+  MBThread thread=mbThreadPersistence.findByPrimaryKey(threadId);
+  long oldCategoryId=thread.getCategoryId();
+  MBCategory oldCategory=null;
+  if (oldCategoryId != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) {
+    oldCategory=mbCategoryPersistence.findByPrimaryKey(oldCategoryId);
+  }
+  MBCategory category=null;
+  if (categoryId != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) {
+    category=mbCategoryPersistence.findByPrimaryKey(categoryId);
+  }
+  List<MBMessage> messages=mbMessagePersistence.findByG_C_T(groupId,oldCategoryId,thread.getThreadId());
+  for (  MBMessage message : messages) {
+    message.setCategoryId(categoryId);
+    mbMessagePersistence.update(message,false);
+    if (!message.isDiscussion()) {
+      Indexer indexer=IndexerRegistryUtil.getIndexer(MBMessage.class);
+      indexer.reindex(message);
+    }
+  }
+  thread.setCategoryId(categoryId);
+  mbThreadPersistence.update(thread,false);
+  if ((oldCategory != null) && (categoryId != oldCategoryId)) {
+    oldCategory.setThreadCount(oldCategory.getThreadCount() - 1);
+    oldCategory.setMessageCount(oldCategory.getMessageCount() - messages.size());
+    mbCategoryPersistence.update(oldCategory,false);
+  }
+  if ((category != null) && (categoryId != oldCategoryId)) {
+    category.setThreadCount(category.getThreadCount() + 1);
+    category.setMessageCount(category.getMessageCount() + messages.size());
+    mbCategoryPersistence.update(category,false);
+  }
+  return thread;
+}

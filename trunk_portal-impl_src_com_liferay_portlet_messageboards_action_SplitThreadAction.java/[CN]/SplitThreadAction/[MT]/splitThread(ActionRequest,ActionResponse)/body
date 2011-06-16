@@ -1,0 +1,27 @@
+{
+  PortletPreferences preferences=actionRequest.getPreferences();
+  ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  long messageId=ParamUtil.getLong(actionRequest,"messageId");
+  String splitThreadSubject=ParamUtil.getString(actionRequest,"splitThreadSubject");
+  ServiceContext serviceContext=ServiceContextFactory.getInstance(MBThread.class.getName(),actionRequest);
+  MBMessage message=MBMessageLocalServiceUtil.getMessage(messageId);
+  long oldThreadId=message.getThreadId();
+  long oldParentMessageId=message.getParentMessageId();
+  MBThread newThread=MBThreadServiceUtil.splitThread(messageId,splitThreadSubject,serviceContext);
+  boolean addExplanationPost=ParamUtil.getBoolean(actionRequest,"addExplanationPost");
+  if (addExplanationPost) {
+    String subject=ParamUtil.getString(actionRequest,"subject");
+    String body=ParamUtil.getString(actionRequest,"body");
+    String format=GetterUtil.getString(preferences.getValue("messageFormat",null),MBMessageConstants.DEFAULT_FORMAT);
+    String layoutFullURL=PortalUtil.getLayoutFullURL(themeDisplay);
+    String newThreadURL=layoutFullURL + "/-/message_boards/view_message/" + message.getMessageId();
+    body=StringUtil.replace(body,new String[]{"${newThreadURL}"},new String[]{newThreadURL});
+    serviceContext.setAddGroupPermissions(true);
+    serviceContext.setAddGuestPermissions(true);
+    MBMessageServiceUtil.addMessage(message.getGroupId(),message.getCategoryId(),oldThreadId,oldParentMessageId,subject,body,format,new ArrayList<ObjectValuePair<String,byte[]>>(),false,MBThreadConstants.PRIORITY_NOT_GIVEN,message.getAllowPingbacks(),serviceContext);
+  }
+  PortletURL portletURL=((ActionResponseImpl)actionResponse).createRenderURL();
+  portletURL.setParameter("struts_action","/message_boards/view_message");
+  portletURL.setParameter("messageId",String.valueOf(newThread.getRootMessageId()));
+  actionResponse.sendRedirect(portletURL.toString());
+}

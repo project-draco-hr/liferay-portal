@@ -1,0 +1,58 @@
+{
+  Session session=null;
+  try {
+    session=JCRFactoryUtil.createSession();
+    Workspace workspace=session.getWorkspace();
+    VersionManager versionManager=workspace.getVersionManager();
+    Node rootNode=getRootNode(session,companyId);
+    Node repositoryNode=getFolderNode(rootNode,repositoryId);
+    Node fileNode=repositoryNode.getNode(fileName);
+    Node contentNode=fileNode.getNode(JCRConstants.JCR_CONTENT);
+    Node newFileNode=repositoryNode.addNode(newFileName,JCRConstants.NT_FILE);
+    Node newContentNode=newFileNode.addNode(JCRConstants.JCR_CONTENT,JCRConstants.NT_RESOURCE);
+    VersionHistory versionHistory=versionManager.getVersionHistory(contentNode.getPath());
+    String[] versionLabels=versionHistory.getVersionLabels();
+    for (int i=(versionLabels.length - 1); i >= 0; i--) {
+      Version version=versionHistory.getVersionByLabel(versionLabels[i]);
+      Node frozenContentNode=version.getNode(JCRConstants.JCR_FROZEN_NODE);
+      if (i == (versionLabels.length - 1)) {
+        newContentNode.addMixin(JCRConstants.MIX_VERSIONABLE);
+      }
+ else {
+        versionManager.checkout(newContentNode.getPath());
+      }
+      newContentNode.setProperty(JCRConstants.JCR_MIME_TYPE,"text/plain");
+      copyBinaryProperty(frozenContentNode,newContentNode,JCRConstants.JCR_DATA);
+      newContentNode.setProperty(JCRConstants.JCR_LAST_MODIFIED,Calendar.getInstance());
+      session.save();
+      Version newVersion=versionManager.checkin(newContentNode.getPath());
+      VersionHistory newVersionHistory=versionManager.getVersionHistory(newContentNode.getPath());
+      newVersionHistory.addVersionLabel(newVersion.getName(),versionLabels[i],PropsValues.DL_HOOK_JCR_MOVE_VERSION_LABELS);
+    }
+    fileNode.remove();
+    session.save();
+    if (reindex) {
+      Indexer indexer=IndexerRegistryUtil.getIndexer(FileModel.class);
+      FileModel fileModel=new FileModel();
+      fileModel.setCompanyId(companyId);
+      fileModel.setFileName(fileName);
+      fileModel.setPortletId(portletId);
+      fileModel.setRepositoryId(repositoryId);
+      indexer.delete(fileModel);
+      fileModel.setFileName(newFileName);
+      fileModel.setGroupId(groupId);
+      indexer.reindex(fileModel);
+    }
+  }
+ catch (  PathNotFoundException pnfe) {
+    throw new NoSuchFileException(fileName);
+  }
+catch (  RepositoryException re) {
+    throw new SystemException(re);
+  }
+ finally {
+    if (session != null) {
+      session.logout();
+    }
+  }
+}

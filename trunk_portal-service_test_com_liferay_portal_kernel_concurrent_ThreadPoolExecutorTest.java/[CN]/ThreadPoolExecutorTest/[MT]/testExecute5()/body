@@ -1,0 +1,38 @@
+{
+  RecordRejectedExecutionHandler recordRejectedExecutionHandler=new RecordRejectedExecutionHandler();
+  final ThreadPoolExecutor threadPoolExecutor=new ThreadPoolExecutor(1,2,TestUtil.KEEPALIVE_TIME,TimeUnit.MILLISECONDS,true,3,recordRejectedExecutionHandler,Executors.defaultThreadFactory(),new ThreadPoolHandlerAdapter());
+  final TaskQueue<Runnable> taskQueue=threadPoolExecutor.getTaskQueue();
+  final CountDownLatch executeLatch=new CountDownLatch(1);
+  Thread thread=new Thread(){
+    @Override public void run(){
+      try {
+        ReentrantLock takeLock=taskQueue.getTakeLock();
+        takeLock.lock();
+        executeLatch.countDown();
+        try {
+          while (!takeLock.hasQueuedThreads()) {
+            Thread.sleep(1);
+          }
+          assertNotNull(taskQueue.take());
+          threadPoolExecutor.shutdown();
+        }
+  finally {
+          takeLock.unlock();
+        }
+      }
+ catch (      InterruptedException ie) {
+      }
+    }
+  }
+;
+  thread.start();
+  executeLatch.await();
+  try {
+    MarkerBlockingJob markerBlockingJob=new MarkerBlockingJob();
+    threadPoolExecutor.execute(markerBlockingJob);
+    assertTrue(recordRejectedExecutionHandler.getRejectedList().isEmpty());
+  }
+  finally {
+    TestUtil.closePool(threadPoolExecutor);
+  }
+}

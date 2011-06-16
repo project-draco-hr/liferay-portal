@@ -1,0 +1,77 @@
+{
+  if (uri.contains(StringPool.QUESTION)) {
+    return uri;
+  }
+  if (uri.startsWith(StringPool.DOUBLE_SLASH)) {
+    uri=uri.substring(1);
+  }
+  ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+  Theme theme=themeDisplay.getTheme();
+  ColorScheme colorScheme=themeDisplay.getColorScheme();
+  Map<String,String[]> parameterMap=null;
+  if (Validator.isNotNull(queryString)) {
+    parameterMap=HttpUtil.getParameterMap(queryString);
+  }
+  StringBundler sb=new StringBundler();
+  sb.append(uri);
+  sb.append(StringPool.QUESTION);
+  if ((parameterMap == null) || (!parameterMap.containsKey("browserId"))) {
+    sb.append("&browserId=");
+    sb.append(BrowserSnifferUtil.getBrowserId(request));
+  }
+  if (uri.endsWith(".jsp")) {
+    if ((parameterMap == null) || (!parameterMap.containsKey("themeId"))) {
+      sb.append("&themeId=");
+      sb.append(theme.getThemeId());
+    }
+    if ((parameterMap == null) || (!parameterMap.containsKey("colorSchemeId"))) {
+      sb.append("&colorSchemeId=");
+      sb.append(colorScheme.getColorSchemeId());
+    }
+  }
+  if ((parameterMap == null) || (!parameterMap.containsKey("minifierType"))) {
+    String minifierType=StringPool.BLANK;
+    if (uri.endsWith(".css") || uri.endsWith("css.jsp") || uri.endsWith("css/main.jsp")) {
+      if (themeDisplay.isThemeCssFastLoad()) {
+        minifierType="css";
+      }
+    }
+ else     if (themeDisplay.isThemeJsFastLoad()) {
+      minifierType="js";
+    }
+    if (Validator.isNotNull(minifierType)) {
+      sb.append("&minifierType=");
+      sb.append(minifierType);
+    }
+  }
+  if (Validator.isNotNull(queryString)) {
+    if (!queryString.startsWith(StringPool.AMPERSAND)) {
+      sb.append(StringPool.AMPERSAND);
+    }
+    sb.append(queryString);
+  }
+  sb.append("&languageId=");
+  sb.append(themeDisplay.getLanguageId());
+  sb.append("&b=");
+  sb.append(ReleaseInfo.getBuildNumber());
+  if ((parameterMap == null) || !parameterMap.containsKey("t")) {
+    if ((timestamp == 0) && uri.startsWith(StrutsUtil.TEXT_HTML_DIR)) {
+      ServletContext servletContext=(ServletContext)request.getAttribute(WebKeys.CTX);
+      String uriRealPath=ServletContextUtil.getRealPath(servletContext,uri);
+      if (uriRealPath != null) {
+        File uriFile=new File(uriRealPath);
+        if (uriFile.exists()) {
+          timestamp=uriFile.lastModified();
+        }
+      }
+    }
+    if (timestamp == 0) {
+      timestamp=theme.getTimestamp();
+    }
+    sb.append("&t=");
+    sb.append(timestamp);
+  }
+  String url=sb.toString();
+  url=StringUtil.replace(url,"?&",StringPool.QUESTION);
+  return url;
+}

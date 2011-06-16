@@ -1,0 +1,48 @@
+{
+  long userId=portletDataContext.getUserId(assetCategory.getUserUuid());
+  long assetVocabularyId=MapUtil.getLong(assetVocabularyPKs,assetCategory.getVocabularyId(),assetCategory.getVocabularyId());
+  long parentAssetCategoryId=MapUtil.getLong(assetCategoryPKs,assetCategory.getParentCategoryId(),assetCategory.getParentCategoryId());
+  if ((parentAssetCategoryId != AssetCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) && (parentAssetCategoryId == assetCategory.getParentCategoryId())) {
+    String path=getAssetCategoryPath(portletDataContext,parentAssetCategoryId);
+    AssetCategory parentAssetCategory=(AssetCategory)portletDataContext.getZipEntryAsObject(path);
+    Node parentCategoryNode=assetCategoryElement.getParent().selectSingleNode("./category[@path='" + path + "']");
+    if (parentCategoryNode != null) {
+      importAssetCategory(portletDataContext,assetVocabularyPKs,assetCategoryPKs,assetCategoryUuids,(Element)parentCategoryNode,parentAssetCategory);
+      parentAssetCategoryId=MapUtil.getLong(assetCategoryPKs,assetCategory.getParentCategoryId(),assetCategory.getParentCategoryId());
+    }
+  }
+  ServiceContext serviceContext=new ServiceContext();
+  serviceContext.setAddGroupPermissions(true);
+  serviceContext.setAddGuestPermissions(true);
+  serviceContext.setCreateDate(assetCategory.getCreateDate());
+  serviceContext.setModifiedDate(assetCategory.getModifiedDate());
+  serviceContext.setScopeGroupId(portletDataContext.getScopeGroupId());
+  AssetCategory importedAssetCategory=null;
+  try {
+    if (parentAssetCategoryId != AssetCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) {
+      AssetCategoryUtil.findByPrimaryKey(parentAssetCategoryId);
+    }
+    List<Element> propertyElements=assetCategoryElement.elements("property");
+    String[] properties=new String[propertyElements.size()];
+    for (int i=0; i < propertyElements.size(); i++) {
+      Element propertyElement=propertyElements.get(i);
+      String key=propertyElement.attributeValue("key");
+      String value=propertyElement.attributeValue("value");
+      properties[i]=key.concat(StringPool.COLON).concat(value);
+    }
+    AssetCategory existingAssetCategory=AssetCategoryUtil.fetchByP_N_V(parentAssetCategoryId,assetCategory.getName(),assetVocabularyId);
+    if (existingAssetCategory == null) {
+      serviceContext.setUuid(assetCategory.getUuid());
+      importedAssetCategory=AssetCategoryLocalServiceUtil.addCategory(userId,parentAssetCategoryId,getAssetCategoryTitleMap(assetCategory),assetCategory.getDescriptionMap(),assetVocabularyId,properties,serviceContext);
+    }
+ else {
+      importedAssetCategory=AssetCategoryLocalServiceUtil.updateCategory(userId,existingAssetCategory.getCategoryId(),parentAssetCategoryId,getAssetCategoryTitleMap(assetCategory),assetCategory.getDescriptionMap(),assetVocabularyId,properties,serviceContext);
+    }
+    assetCategoryPKs.put(assetCategory.getCategoryId(),importedAssetCategory.getCategoryId());
+    assetCategoryUuids.put(assetCategory.getUuid(),importedAssetCategory.getUuid());
+    portletDataContext.importPermissions(AssetCategory.class,assetCategory.getCategoryId(),importedAssetCategory.getCategoryId());
+  }
+ catch (  NoSuchCategoryException nsce) {
+    _log.error("Could not find the parent category for category " + assetCategory.getCategoryId());
+  }
+}

@@ -1,0 +1,68 @@
+{
+  boolean longLogFactoryUtil=false;
+  StringBuilder sb=new StringBuilder();
+  UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new UnsyncStringReader(content));
+  int lineCount=0;
+  String line=null;
+  while ((line=unsyncBufferedReader.readLine()) != null) {
+    lineCount++;
+    if (line.trim().length() == 0) {
+      line=StringPool.BLANK;
+    }
+    line=StringUtil.trimTrailing(line);
+    line=StringUtil.replace(line,new String[]{"* Copyright (c) 2000-2010 Liferay, Inc."},new String[]{"* Copyright (c) 2000-2011 Liferay, Inc."});
+    line=_replacePrimitiveWrapperInstantiation(fileName,line,lineCount);
+    sb.append(line);
+    sb.append("\n");
+    if (line.contains("    ") && !line.matches("\\s*\\*.*")) {
+      if (!fileName.endsWith("StringPool.java")) {
+        _sourceFormatterHelper.printError(fileName,"tab: " + fileName + " "+ lineCount);
+      }
+    }
+    StringBuilder lineSB=new StringBuilder();
+    int spacesPerTab=4;
+    for (    char c : line.toCharArray()) {
+      if (c == CharPool.TAB) {
+        for (int i=0; i < spacesPerTab; i++) {
+          lineSB.append(CharPool.SPACE);
+        }
+        spacesPerTab=4;
+      }
+ else {
+        lineSB.append(c);
+        spacesPerTab--;
+        if (spacesPerTab <= 0) {
+          spacesPerTab=4;
+        }
+      }
+    }
+    line=lineSB.toString();
+    if (line.endsWith("private static Log _log =")) {
+      longLogFactoryUtil=true;
+    }
+    String excluded=_exclusionsProperties.getProperty(StringUtil.replace(fileName,"\\","/") + StringPool.AT + lineCount);
+    if (excluded == null) {
+      excluded=_exclusionsProperties.getProperty(StringUtil.replace(fileName,"\\","/"));
+    }
+    if ((excluded == null) && (line.length() > 80) && !line.startsWith("import ")&& !line.startsWith("package ")&& !line.matches("\\s*\\*.*")) {
+      if (fileName.endsWith("Table.java") && line.contains("String TABLE_SQL_CREATE = ")) {
+      }
+ else       if (fileName.endsWith("Table.java") && line.contains("String TABLE_SQL_DROP = ")) {
+      }
+ else       if (fileName.endsWith("Table.java") && line.contains(" index IX_")) {
+      }
+ else {
+        _sourceFormatterHelper.printError(fileName,"> 80: " + fileName + " "+ lineCount);
+      }
+    }
+  }
+  unsyncBufferedReader.close();
+  String newContent=sb.toString();
+  if (newContent.endsWith("\n")) {
+    newContent=newContent.substring(0,newContent.length() - 1);
+  }
+  if (longLogFactoryUtil) {
+    newContent=StringUtil.replace(newContent,"private static Log _log =\n\t\tLogFactoryUtil.getLog(","private static Log _log = LogFactoryUtil.getLog(\n\t\t");
+  }
+  return newContent;
+}
