@@ -1,0 +1,47 @@
+{
+  String versionLabel=versionNumber;
+  Session session=null;
+  try {
+    session=JCRFactoryUtil.createSession();
+    Workspace workspace=session.getWorkspace();
+    VersionManager versionManager=workspace.getVersionManager();
+    Node rootNode=getRootNode(session,companyId);
+    Node repositoryNode=getFolderNode(rootNode,repositoryId);
+    Node fileNode=repositoryNode.getNode(fileName);
+    Node contentNode=fileNode.getNode(JCRConstants.JCR_CONTENT);
+    versionManager.checkout(contentNode.getPath());
+    contentNode.setProperty(JCRConstants.JCR_MIME_TYPE,"text/plain");
+    ValueFactory valueFactory=session.getValueFactory();
+    Binary binary=valueFactory.createBinary(is);
+    contentNode.setProperty(JCRConstants.JCR_DATA,binary);
+    contentNode.setProperty(JCRConstants.JCR_LAST_MODIFIED,Calendar.getInstance());
+    session.save();
+    Version version=versionManager.checkin(contentNode.getPath());
+    VersionHistory versionHistory=versionManager.getVersionHistory(contentNode.getPath());
+    versionHistory.addVersionLabel(version.getName(),versionLabel,PropsValues.DL_HOOK_JCR_MOVE_VERSION_LABELS);
+    Indexer indexer=IndexerRegistryUtil.getIndexer(FileModel.class);
+    FileModel fileModel=new FileModel();
+    fileModel.setAssetCategoryIds(serviceContext.getAssetCategoryIds());
+    fileModel.setAssetTagNames(serviceContext.getAssetTagNames());
+    fileModel.setCompanyId(companyId);
+    fileModel.setFileEntryId(fileEntryId);
+    fileModel.setFileName(fileName);
+    fileModel.setGroupId(groupId);
+    fileModel.setModifiedDate(modifiedDate);
+    fileModel.setPortletId(portletId);
+    fileModel.setProperties(properties);
+    fileModel.setRepositoryId(repositoryId);
+    indexer.reindex(fileModel);
+  }
+ catch (  PathNotFoundException pnfe) {
+    throw new NoSuchFileException("{fileName=" + fileName + ", versionLabel="+ versionLabel+ "}");
+  }
+catch (  RepositoryException re) {
+    throw new SystemException(re);
+  }
+ finally {
+    if (session != null) {
+      session.logout();
+    }
+  }
+}
