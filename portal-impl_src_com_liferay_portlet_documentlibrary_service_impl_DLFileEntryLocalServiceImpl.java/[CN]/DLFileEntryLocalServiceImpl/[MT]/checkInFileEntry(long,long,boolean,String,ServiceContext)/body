@@ -1,7 +1,11 @@
 {
-  boolean hasLock=lockLocalService.hasLock(userId,DLFileEntry.class.getName(),fileEntryId);
-  if (!hasLock) {
+  boolean hasLock=hasFileEntryLock(userId,fileEntryId);
+  boolean isCheckedOut=isFileEntryCheckedOut(fileEntryId);
+  if (!isCheckedOut) {
     return;
+  }
+  if (!hasLock) {
+    lockFileEntry(userId,fileEntryId);
   }
   User user=userPersistence.findByPrimaryKey(userId);
   DLFileEntry dlFileEntry=dlFileEntryPersistence.findByPrimaryKey(fileEntryId);
@@ -10,7 +14,7 @@
   dlFileVersion.setVersion(version);
   dlFileVersion.setChangeLog(changeLog);
   dlFileVersionPersistence.update(dlFileVersion,false);
-  updateAsset(userId,dlFileEntry,dlFileVersion,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames(),serviceContext.getAssetLinkEntryIds());
+  updateAsset(userId,dlFileEntry,dlFileVersion,dlFileVersion.getFileVersionId());
   if (dlFileEntry.getFolderId() != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
     DLFolder dlFolder=dlFolderPersistence.findByPrimaryKey(dlFileEntry.getFolderId());
     dlFolder.setLastPostDate(dlFileEntry.getModifiedDate());
@@ -20,7 +24,7 @@
   InputStream is=null;
   if (file != null) {
     try {
-      dlLocalService.deleteFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION);
+      DLStoreUtil.deleteFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION);
     }
  catch (    NoSuchFileException nsfe) {
     }
@@ -30,10 +34,10 @@
  catch (    IOException ioe) {
       throw new SystemException(ioe);
     }
-    dlLocalService.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,dlFileEntry.getGroupId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),dlFileEntry.getExtension(),false,version,dlFileEntry.getTitle(),dlFileEntry.getFileEntryId(),dlFileEntry.getLuceneProperties(),dlFileEntry.getModifiedDate(),serviceContext,is);
+    DLStoreUtil.updateFile(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,dlFileEntry.getGroupId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),dlFileEntry.getExtension(),false,version,dlFileEntry.getTitle(),dlFileEntry.getFileEntryId(),dlFileEntry.getLuceneProperties(),dlFileEntry.getModifiedDate(),serviceContext,is);
   }
   if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
-    WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),dlFileEntry.getGroupId(),userId,DLFileEntry.class.getName(),dlFileEntry.getFileEntryId(),dlFileEntry,serviceContext);
+    WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),dlFileEntry.getGroupId(),userId,DLFileEntry.class.getName(),dlFileVersion.getFileVersionId(),dlFileVersion,serviceContext);
   }
   lockLocalService.unlock(DLFileEntry.class.getName(),fileEntryId);
 }
