@@ -24,19 +24,22 @@
         EntityEnclosingMethod entityEnclosingMethod=(EntityEnclosingMethod)httpMethod;
         entityEnclosingMethod.setRequestEntity(requestEntity);
       }
- else       if ((parts != null) && (parts.size() > 0) && method.equals(Http.Method.POST)) {
-        List<NameValuePair> nvpList=new ArrayList<NameValuePair>();
-        for (        Map.Entry<String,String> entry : parts.entrySet()) {
-          String key=entry.getKey();
-          String value=entry.getValue();
-          if (value != null) {
-            nvpList.add(new NameValuePair(key,value));
+ else       if (((parts != null && parts.size() > 0) || (fileParts != null && fileParts.size() > 0)) && method.equals(Http.Method.POST)) {
+        PostMethod postMethod=(PostMethod)httpMethod;
+        List<Part> partsList=new ArrayList<Part>();
+        if (parts != null) {
+          for (          Map.Entry<String,String> entry : parts.entrySet()) {
+            String key=entry.getKey();
+            String value=entry.getValue();
+            if (value != null) {
+              postMethod.addParameter(key,value);
+            }
           }
         }
-        NameValuePair[] nvpArray=nvpList.toArray(new NameValuePair[nvpList.size()]);
-        PostMethod postMethod=(PostMethod)httpMethod;
-        postMethod.setRequestBody(nvpArray);
-        postMethod.addRequestHeader(HttpHeaders.CONTENT_TYPE,ContentTypes.APPLICATION_X_WWW_FORM_URLENCODED_UTF8);
+        for (        Http.FilePart filePart : fileParts) {
+          partsList=addFilePart(partsList,filePart.getName(),filePart.getFileName(),filePart.getValue(),filePart.getContentType(),filePart.getCharSet());
+        }
+        postMethod.setRequestEntity(new MultipartRequestEntity(partsList.toArray(new Part[]{}),postMethod.getParams()));
       }
     }
  else     if (method.equals(Http.Method.DELETE)) {
@@ -53,7 +56,7 @@
         httpMethod.addRequestHeader(header.getKey(),header.getValue());
       }
     }
-    if ((method.equals(Http.Method.POST) || method.equals(Http.Method.PUT)) && (body != null)) {
+    if ((method.equals(Http.Method.POST) || method.equals(Http.Method.PUT)) && ((body != null) || ((parts != null) && (parts.size() > 0)) || ((fileParts != null) && (fileParts.size() > 0)))) {
     }
  else     if (!hasRequestHeader(httpMethod,HttpHeaders.CONTENT_TYPE)) {
       httpMethod.addRequestHeader(HttpHeaders.CONTENT_TYPE,ContentTypes.APPLICATION_X_WWW_FORM_URLENCODED);
@@ -78,7 +81,7 @@
     if ((locationHeader != null) && !locationHeader.equals(location)) {
       String redirect=locationHeader.getValue();
       if (followRedirects) {
-        return URLtoByteArray(redirect,Http.Method.GET,headers,cookies,auth,body,parts,response,followRedirects);
+        return URLtoByteArray(redirect,Http.Method.GET,headers,cookies,auth,body,fileParts,parts,response,followRedirects);
       }
  else {
         response.setRedirect(redirect);
