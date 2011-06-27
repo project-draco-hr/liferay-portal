@@ -1,9 +1,14 @@
 {
   User user=userPersistence.findByPrimaryKey(userId);
   DLFileEntry dlFileEntry=dlFileEntryPersistence.findByPrimaryKey(fileEntryId);
-  boolean autoCheckIn=!dlFileEntry.isCheckedOut();
+  boolean checkedOut=dlFileEntry.isCheckedOut();
+  DLFileVersion dlFileVersion=getLatestFileVersion(fileEntryId,!checkedOut);
+  boolean autoCheckIn=!checkedOut && dlFileVersion.isApproved();
   if (autoCheckIn) {
     dlFileEntry=checkOutFileEntry(userId,fileEntryId);
+  }
+ else   if (!checkedOut) {
+    lockFileEntry(userId,fileEntryId);
   }
   try {
     if (Validator.isNull(extension)) {
@@ -24,7 +29,6 @@
     }
     Date now=new Date();
     validateFile(dlFileEntry.getGroupId(),dlFileEntry.getFolderId(),dlFileEntry.getFileEntryId(),extension,title,sourceFileName,is);
-    DLFileVersion dlFileVersion=dlFileEntry.getLatestFileVersion();
     String version=dlFileVersion.getVersion();
     if (size == 0) {
       size=dlFileVersion.getSize();
@@ -55,6 +59,11 @@ catch (  SystemException se) {
       cancelCheckOut(userId,fileEntryId);
     }
     throw se;
+  }
+ finally {
+    if (!autoCheckIn && !checkedOut) {
+      unlockFileEntry(fileEntryId);
+    }
   }
   return dlFileEntry;
 }
