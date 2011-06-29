@@ -2,15 +2,16 @@
   String isbn=_isbn;
   AmazonRankings amazonRankings=null;
   try {
-    StringBundler sb=new StringBundler(7);
-    sb.append("http://ecs.amazonaws.com/onca/xml?Service=");
-    sb.append("AWSECommerceService&AWSAccessKeyId=");
-    sb.append(AmazonRankingsUtil.getAmazonAccessKeyId());
-    sb.append("&Operation=ItemLookup&IdType=ASIN&ItemId=");
-    sb.append(isbn);
-    sb.append("&ResponseGroup=Images,ItemAttributes,Offers,SalesRank&");
-    sb.append("Version=2009-02-01");
-    String xml=HttpUtil.URLtoString(sb.toString());
+    Map<String,String> parameters=new TreeMap<String,String>();
+    parameters.put("Service","AWSECommerceService");
+    parameters.put("Operation","ItemLookup");
+    parameters.put("IdType","ASIN");
+    parameters.put("ItemId",isbn);
+    parameters.put("ResponseGroup","Images,ItemAttributes,Offers,SalesRank");
+    parameters.put("AWSAccessKeyId",AmazonRankingsUtil.getAmazonAccessKeyId());
+    parameters.put("Timestamp",AmazonRankingsUtil.getTimestamp());
+    String urlWithSignature=AmazonSignedRequestsHelper.generateUrlWithSignature(parameters);
+    String xml=HttpUtil.URLtoString(urlWithSignature);
     Document doc=SAXReaderUtil.read(xml);
     Element root=doc.getRootElement();
     if (root == null) {
@@ -19,6 +20,20 @@
     Element items=root.element("Items");
     if (items == null) {
       return null;
+    }
+    Element request=items.element("Request");
+    if (request != null) {
+      Element errors=request.element("Errors");
+      if (errors != null) {
+        Element error=errors.element("Error");
+        if (error != null) {
+          Element message=error.element("Message");
+          if (message != null) {
+            _log.error("Amazon Error: " + message.getText());
+            return null;
+          }
+        }
+      }
     }
     Element item=items.element("Item");
     if (item == null) {
@@ -58,6 +73,7 @@
     amazonRankings=new AmazonRankings(isbn,productName,catalog,authors,releaseDate,releaseDateAsString,manufacturer,smallImageURL,mediumImageURL,largeImageURL,listPrice,ourPrice,usedPrice,collectiblePrice,thirdPartyNewPrice,salesRank,media,availability);
   }
  catch (  Exception e) {
+    e.printStackTrace();
   }
   return amazonRankings;
 }
