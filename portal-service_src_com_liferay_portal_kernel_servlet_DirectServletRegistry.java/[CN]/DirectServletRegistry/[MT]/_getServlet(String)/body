@@ -9,6 +9,38 @@
     if ((lastModified == 0) || (lastModified > servletInfo.getLastModified())) {
       _servletInfos.remove(path);
       servlet=null;
+      if (_log.isDebugEnabled()) {
+        _log.debug("Reload jsp file : " + path);
+      }
+    }
+ else     if (_doDependenceReload) {
+      try {
+        Method method=ReflectionUtil.getDeclaredMethod(servlet.getClass(),"getDependants");
+        List<String> dependants=(List<String>)method.invoke(servlet);
+        if (dependants != null) {
+          for (          String dependant : dependants) {
+            lastModified=_getJspFileLastModified(dependant,servlet);
+            if ((lastModified == 0) || (lastModified > servletInfo.getLastModified())) {
+              _servletInfos.remove(path);
+              _touchJspFile(path,servlet);
+              servlet=null;
+              if (_log.isDebugEnabled()) {
+                _log.debug("Detected dependant file : " + dependant + " updated, force reload "+ "parent jsp file : "+ path);
+              }
+              break;
+            }
+          }
+        }
+      }
+ catch (      NoSuchMethodException nsme) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("You are seeing this warn message " + "because JSP dependence (jspf files) " + "reloading is not supported on non-Jasper "+ "JSP engine. You have to switch to use Japser"+ "(this normally is not possible), or disable " + PropsKeys.DIRECT_SERVLET_CONTEXT_ENABLED + " while doing development. You can still "+ "safely turn on the jsp servlet direct "+ "access feature on production server for "+ "performance.",nsme);
+        }
+        _doDependenceReload=false;
+      }
+catch (      Exception e) {
+        _log.error(e,e);
+      }
     }
   }
   return servlet;
