@@ -1,0 +1,51 @@
+{
+  InputStream deltaInputStream=null;
+  InputStream srcInputStream=null;
+  FileInputStream srcFileInputStream=null;
+  OutputStream checksumsOutputStream=null;
+  ByteChannelWriter checksumsWriter=null;
+  FileEntry fileEntry=dlAppLocalService.getFileEntry(fileEntryId);
+  File checksumsFile=FileUtil.createTempFile();
+  try {
+    File srcTempFile=FileUtil.createTempFile();
+    FileUtil.write(srcTempFile,srcInputStream);
+    srcFileInputStream=new FileInputStream(srcTempFile);
+    checksumsOutputStream=new FileOutputStream(checksumsFile);
+    checksumsWriter=new ByteChannelWriter(Channels.newChannel(checksumsOutputStream));
+    LDiff.checksums(srcFileInputStream.getChannel(),checksumsWriter);
+    checksumsWriter.finish();
+  }
+ catch (  Exception e) {
+    throw new PortalException(e);
+  }
+ finally {
+    StreamUtil.cleanUp(srcInputStream);
+    StreamUtil.cleanUp(srcFileInputStream);
+    StreamUtil.cleanUp(checksumsOutputStream);
+  }
+  InputStream destInputStream=null;
+  InputStream checksumsInputStream=null;
+  ByteChannelReader checksumsReader=null;
+  OutputStream deltaOutputStream=null;
+  ByteChannelWriter deltaWriter=null;
+  try {
+    destInputStream=fileEntry.getContentStream(destVersion);
+    checksumsInputStream=new FileInputStream(checksumsFile);
+    checksumsReader=new ByteChannelReader(Channels.newChannel(checksumsInputStream));
+    File deltaFile=FileUtil.createTempFile();
+    deltaOutputStream=new FileOutputStream(deltaFile);
+    deltaWriter=new ByteChannelWriter(Channels.newChannel(deltaOutputStream));
+    LDiff.delta(Channels.newChannel(destInputStream),checksumsReader,deltaWriter);
+    deltaWriter.finish();
+    deltaInputStream=new FileInputStream(deltaFile);
+  }
+ catch (  Exception e) {
+    throw new PortalException(e);
+  }
+ finally {
+    StreamUtil.cleanUp(destInputStream);
+    StreamUtil.cleanUp(checksumsInputStream);
+    StreamUtil.cleanUp(deltaOutputStream);
+  }
+  return deltaInputStream;
+}

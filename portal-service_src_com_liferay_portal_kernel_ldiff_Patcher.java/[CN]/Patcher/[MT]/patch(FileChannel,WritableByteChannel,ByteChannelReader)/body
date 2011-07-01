@@ -1,0 +1,44 @@
+{
+  delta.resizeBuffer(5);
+  ByteBuffer deltaBuffer=delta.getBuffer();
+  delta.ensureData(5);
+  if (LDiff.PROTOCOL_VERSION != deltaBuffer.get()) {
+    throw new IOException("Unknown protocol version");
+  }
+  int blockLength=deltaBuffer.getInt();
+  delta.resizeBuffer(blockLength * LDiff.BUFFER_FACTOR + 5);
+  deltaBuffer=delta.getBuffer();
+  while (true) {
+    delta.ensureData(1);
+    byte key=deltaBuffer.get();
+    if (key == LDiff.REFERENCE_RANGE_KEY) {
+      delta.ensureData(9);
+      int firstBlockNumber=deltaBuffer.getInt();
+      int lastBlockNumber=deltaBuffer.getInt();
+      long position=firstBlockNumber * (long)blockLength;
+      long length=(lastBlockNumber - firstBlockNumber + 1) * (long)blockLength;
+      transfer(original,patched,position,length);
+    }
+ else     if (key == LDiff.REFERENCE_KEY) {
+      delta.ensureData(4);
+      int blockNumber=deltaBuffer.getInt();
+      long position=blockNumber * (long)blockLength;
+      transfer(original,patched,position,blockLength);
+    }
+ else     if (key == LDiff.DATA_KEY) {
+      delta.ensureData(4);
+      int length=deltaBuffer.getInt();
+      delta.ensureData(length);
+      int oldLimit=deltaBuffer.limit();
+      deltaBuffer.limit(deltaBuffer.position() + length);
+      patched.write(deltaBuffer);
+      deltaBuffer.limit(oldLimit);
+    }
+ else     if (key == LDiff.EOF_KEY) {
+      return;
+    }
+ else {
+      throw new IOException("Invalid key");
+    }
+  }
+}
