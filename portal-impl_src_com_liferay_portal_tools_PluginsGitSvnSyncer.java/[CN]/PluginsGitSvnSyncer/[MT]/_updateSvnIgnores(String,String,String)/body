@@ -1,0 +1,56 @@
+{
+  if (!_fileUtil.exists(destDirName + dirName)) {
+    return;
+  }
+  File gitIgnoreFile=new File(srcDirName + dirName + ".gitignore");
+  File svnDir=new File(destDirName + dirName + ".svn");
+  if (gitIgnoreFile.exists() && !svnDir.exists()) {
+    System.out.println("Invalid SVN directory " + destDirName + dirName);
+    return;
+  }
+  List<String> ignores=null;
+  if (!dirName.contains("/docroot")) {
+    ignores=new ArrayList<String>();
+    ignores.add("bin");
+    ignores.add("classes");
+    ignores.add("tmp");
+  }
+ else {
+    if (gitIgnoreFile.exists()) {
+      ignores=ListUtil.fromFile(gitIgnoreFile);
+    }
+ else {
+      ignores=new ArrayList<String>();
+    }
+    if (dirName.endsWith("/docroot/WEB-INF/")) {
+      if (!ignores.contains("classes")) {
+        ignores.add("classes");
+      }
+    }
+  }
+  Collections.sort(ignores);
+  if (ignores.isEmpty() && !svnDir.exists()) {
+    return;
+  }
+  if (ignores.isEmpty()) {
+    try {
+      _exec(_SVN_DEL_IGNORES + destDirName + dirName);
+    }
+ catch (    Exception e) {
+      String message=e.getMessage();
+      if (!message.contains("svn: Attempting to delete nonexistent property " + "'svn:ignore'")) {
+        throw e;
+      }
+    }
+    return;
+  }
+  File tempFile=File.createTempFile("svn-ignores-",null,null);
+  try {
+    String[] ignoresArray=ignores.toArray(new String[ignores.size()]);
+    _fileUtil.write(tempFile,StringUtil.merge(ignoresArray,"\n"));
+    _exec(_SVN_SET_IGNORES + "-F \"" + tempFile.getCanonicalPath()+ "\" \""+ destDirName+ dirName+ "\"");
+  }
+  finally {
+    _fileUtil.delete(tempFile);
+  }
+}
