@@ -10,16 +10,22 @@
   User user=userPersistence.findByPrimaryKey(userId);
   dlFileEntryPersistence.update(dlFileEntry,false);
   DLFileVersion dlFileVersion=getLatestFileVersion(fileEntryId);
+  long sourceFileVersionId=dlFileVersion.getFileVersionId();
   String version=dlFileVersion.getVersion();
   if (!version.equals(DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION)) {
     ServiceContext serviceContext=new ServiceContext();
+    serviceContext.setUserId(userId);
+    serviceContext.setCompanyId(user.getCompanyId());
     HashMap<Long,Fields> fieldsMap=new HashMap<Long,Fields>();
-    if (dlFileVersion.getFileEntryTypeId() > 0) {
-      fieldsMap=getDocumentMetadataFieldsMap(dlFileVersion.getFileEntryTypeId(),dlFileVersion.getFileVersionId());
-    }
     serviceContext.setAttribute("fieldsMap",fieldsMap);
     dlFileVersion=addFileVersion(user,dlFileEntry,new Date(),dlFileVersion.getExtension(),dlFileVersion.getMimeType(),dlFileVersion.getTitle(),dlFileVersion.getDescription(),dlFileVersion.getChangeLog(),dlFileVersion.getExtraSettings(),dlFileVersion.getFileEntryTypeId(),DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION,dlFileVersion.getSize(),WorkflowConstants.STATUS_DRAFT,serviceContext);
+    try {
+      DLStoreUtil.deleteFile(dlFileEntry.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION);
+    }
+ catch (    NoSuchFileException nsfe) {
+    }
     DLStoreUtil.copyFileVersion(user.getCompanyId(),PortletKeys.DOCUMENT_LIBRARY,dlFileEntry.getGroupId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),version,DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION,dlFileVersion.getTitle(),serviceContext);
+    copyDocumentMetadata(user.getCompanyId(),fileEntryId,dlFileVersion.getFileEntryTypeId(),sourceFileVersionId,dlFileVersion.getFileVersionId(),serviceContext);
     index(dlFileEntry,serviceContext);
     updateAsset(userId,dlFileEntry,dlFileVersion,fileEntryId);
   }
