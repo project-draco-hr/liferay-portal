@@ -1,79 +1,10 @@
 {
-  String isbn=_isbn;
   AmazonRankings amazonRankings=null;
   try {
-    Map<String,String> parameters=new TreeMap<String,String>();
-    parameters.put("Service","AWSECommerceService");
-    parameters.put("Operation","ItemLookup");
-    parameters.put("IdType","ASIN");
-    parameters.put("ItemId",isbn);
-    parameters.put("ResponseGroup","Images,ItemAttributes,Offers,SalesRank");
-    parameters.put("AWSAccessKeyId",AmazonRankingsUtil.getAmazonAccessKeyId());
-    parameters.put("Timestamp",AmazonRankingsUtil.getTimestamp());
-    String urlWithSignature=AmazonSignedRequestsHelper.generateUrlWithSignature(parameters);
-    String xml=HttpUtil.URLtoString(urlWithSignature);
-    Document doc=SAXReaderUtil.read(xml);
-    Element root=doc.getRootElement();
-    if (root == null) {
-      return null;
-    }
-    Element items=root.element("Items");
-    if (items == null) {
-      return null;
-    }
-    Element request=items.element("Request");
-    if (request != null) {
-      Element errors=request.element("Errors");
-      if (errors != null) {
-        Element error=errors.element("Error");
-        if (error != null) {
-          Element message=error.element("Message");
-          if (message != null) {
-            _log.error("Amazon Error: " + message.getText());
-            return null;
-          }
-        }
-      }
-    }
-    Element item=items.element("Item");
-    if (item == null) {
-      return null;
-    }
-    Element itemAttributes=item.element("ItemAttributes");
-    if (itemAttributes == null) {
-      return null;
-    }
-    String productName=itemAttributes.elementText("Title");
-    String catalog=StringPool.BLANK;
-    String[] authors=getAuthors(itemAttributes);
-    String releaseDateAsString=itemAttributes.elementText("PublicationDate");
-    Date releaseDate=getReleaseDate(releaseDateAsString);
-    String manufacturer=itemAttributes.elementText("Manufacturer");
-    String smallImageURL=getImageURL(item,"SmallImage");
-    String mediumImageURL=getImageURL(item,"MediumImage");
-    String largeImageURL=getImageURL(item,"LargeImage");
-    double listPrice=getPrice(itemAttributes.element("ListPrice"));
-    double ourPrice=0;
-    Element offerListing=getOfferListing(item);
-    if (offerListing != null) {
-      ourPrice=getPrice(offerListing.element("Price"));
-    }
-    double usedPrice=0;
-    double collectiblePrice=0;
-    double thirdPartyNewPrice=0;
-    Element offerSummary=item.element("OfferSummary");
-    if (offerSummary != null) {
-      usedPrice=getPrice(offerSummary.element("LowestUsedPrice"));
-      collectiblePrice=getPrice(offerSummary.element("LowestCollectiblePrice"));
-      thirdPartyNewPrice=getPrice(offerSummary.element("LowestNewPrice"));
-    }
-    int salesRank=GetterUtil.getInteger(item.elementText("SalesRank"));
-    String media=StringPool.BLANK;
-    String availability=getAvailability(offerListing);
-    amazonRankings=new AmazonRankings(isbn,productName,catalog,authors,releaseDate,releaseDateAsString,manufacturer,smallImageURL,mediumImageURL,largeImageURL,listPrice,ourPrice,usedPrice,collectiblePrice,thirdPartyNewPrice,salesRank,media,availability);
+    amazonRankings=doConvert(key);
   }
  catch (  Exception e) {
-    e.printStackTrace();
+    _log.error(e,e);
   }
   return amazonRankings;
 }
