@@ -17,7 +17,7 @@
     localCacheKey=_encodeLocalCacheKey(clazz,primaryKey);
     result=localCache.get(localCacheKey);
   }
-  boolean load=false;
+  Object loadResult=null;
   if (result == null) {
     PortalCache portalCache=_getPortalCache(clazz.getName(),true);
     Serializable cacheKey=_encodeCacheKey(primaryKey);
@@ -26,18 +26,17 @@
       if (_log.isDebugEnabled()) {
         _log.debug("Load " + clazz + " "+ primaryKey+ " from session");
       }
-      load=true;
       Session session=null;
       try {
         session=sessionFactory.openSession();
-        result=session.load(clazz,primaryKey);
+        loadResult=session.load(clazz,primaryKey);
       }
   finally {
-        if (result == null) {
+        if (loadResult == null) {
           result=StringPool.BLANK;
         }
  else {
-          result=_objectToResult(result);
+          result=((BaseModel<?>)loadResult).toCacheModel();
         }
         portalCache.put(cacheKey,result);
         sessionFactory.closeSession(session);
@@ -47,13 +46,10 @@
       localCache.put(localCacheKey,result);
     }
   }
-  if (!load) {
-    return _objectToResult(result);
-  }
-  if (result instanceof String) {
-    return null;
+  if (loadResult != null) {
+    return loadResult;
   }
  else {
-    return result;
+    return _toEntityModel(result);
   }
 }
