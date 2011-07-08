@@ -1,0 +1,29 @@
+{
+  String primKey=String.valueOf(group.getGroupId());
+  ResourcePermission resourcePermission=resourcePermissionPersistence.fetchByC_N_S_P_R(group.getCompanyId(),name,ResourceConstants.SCOPE_INDIVIDUAL,primKey,role.getRoleId());
+  if (resourcePermission == null) {
+    long resourcePermissionId=counterLocalService.increment(ResourcePermission.class.getName());
+    resourcePermission=resourcePermissionPersistence.create(resourcePermissionId);
+    resourcePermission.setCompanyId(group.getCompanyId());
+    resourcePermission.setName(name);
+    resourcePermission.setScope(ResourceConstants.SCOPE_INDIVIDUAL);
+    resourcePermission.setPrimKey(primKey);
+    resourcePermission.setRoleId(role.getRoleId());
+    List<String> defaultActionIds=null;
+    String roleName=role.getName();
+    if (roleName.equals(RoleConstants.GUEST)) {
+      defaultActionIds=ResourceActionsUtil.getModelResourceGuestDefaultActions(name);
+    }
+ else     if (roleName.equals(RoleConstants.SITE_MEMBER)) {
+      defaultActionIds=ResourceActionsUtil.getModelResourceGroupDefaultActions(name);
+    }
+    List<ResourceAction> resourceActions=resourceActionLocalService.getResourceActions(name);
+    for (    ResourceAction resourceAction : resourceActions) {
+      if (defaultActionIds.contains(resourceAction.getActionId())) {
+        actionIdsLong|=resourceAction.getBitwiseValue();
+      }
+    }
+  }
+  resourcePermission.setActionIds(actionIdsLong);
+  resourcePermissionPersistence.update(resourcePermission,false);
+}
