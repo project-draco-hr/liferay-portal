@@ -1,0 +1,61 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  long nodeId=ParamUtil.getLong(actionRequest,"nodeId");
+  String title=ParamUtil.getString(actionRequest,"title");
+  String[] selectedFileNames=ParamUtil.getParameterValues(actionRequest,"selectedFileName");
+  List<String> validUpdateFileEntries=new ArrayList<String>();
+  List<KeyValuePair> invalidUpdateFileEntries=new ArrayList<KeyValuePair>();
+  for (  String selectedFileName : selectedFileNames) {
+    File file=TempFileUtil.getTempFile(themeDisplay.getUserId(),selectedFileName,_TEMP_PATHNAME);
+    if (file != null) {
+      byte[] bytes=FileUtil.getBytes(file);
+      if ((bytes != null) && (bytes.length > 0)) {
+        try {
+          WikiPageServiceUtil.addPageAttachment(nodeId,title,selectedFileName,bytes);
+          validUpdateFileEntries.add(selectedFileName);
+        }
+ catch (        Exception e) {
+          String errorMessage="an-unexpected-error-occurred-" + "while-uploading-your-file";
+          if (e instanceof DuplicateFileException) {
+            errorMessage=LanguageUtil.get(themeDisplay.getLocale(),"the-folder-you-selected-already-has-an-entry-" + "with-this-name.-please-select-a-different-" + "folder");
+          }
+ else           if (e instanceof FileExtensionException) {
+            errorMessage=LanguageUtil.format(themeDisplay.getLocale(),"please-enter-a-file-with-a-valid-extension-x",StringUtil.merge(PrefsPropsUtil.getStringArray(PropsKeys.DL_FILE_EXTENSIONS,StringPool.COMMA)));
+          }
+ else           if (e instanceof FileNameException) {
+            errorMessage=LanguageUtil.get(themeDisplay.getLocale(),"please-enter-a-file-with-a-valid-file-name");
+          }
+ else           if (e instanceof FileSizeException) {
+            long maxSizeMB=PrefsPropsUtil.getLong(PropsKeys.DL_FILE_MAX_SIZE) / 1024 / 1024;
+            errorMessage=LanguageUtil.format(themeDisplay.getLocale(),"file-size-is-larger-than-x-megabytes",maxSizeMB);
+          }
+          invalidUpdateFileEntries.add(new KeyValuePair(selectedFileName,errorMessage));
+        }
+ finally {
+          FileUtil.delete(file);
+        }
+      }
+    }
+  }
+  JSONArray jsonArray=JSONFactoryUtil.createJSONArray();
+  for (  String validUpdateFileEntry : validUpdateFileEntries) {
+    JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+    jsonObject.put("fileName",validUpdateFileEntry);
+    jsonObject.put("added",Boolean.TRUE);
+    jsonArray.put(jsonObject);
+  }
+  for (  KeyValuePair invalidUpdateFileEntry : invalidUpdateFileEntries) {
+    String fileName=invalidUpdateFileEntry.getKey();
+    String errorMessage=invalidUpdateFileEntry.getValue();
+    JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+    jsonObject.put("fileName",fileName);
+    jsonObject.put("added",Boolean.FALSE);
+    jsonObject.put("errorMessage",errorMessage);
+    jsonArray.put(jsonObject);
+  }
+  HttpServletRequest request=PortalUtil.getHttpServletRequest(actionRequest);
+  HttpServletResponse response=PortalUtil.getHttpServletResponse(actionResponse);
+  InputStream is=new UnsyncByteArrayInputStream(jsonArray.toString().getBytes());
+  String contentType=ContentTypes.TEXT_JAVASCRIPT;
+  ServletResponseUtil.sendFile(request,response,null,is,contentType);
+}
