@@ -1,0 +1,36 @@
+{
+  _firstBlockNumber=-1;
+  _lastBlockNumber=-1;
+  while (_rollingChecksum.hasNext()) {
+    BlockData blockData=_blockDatas.get(_rollingChecksum.weakChecksum());
+    if ((blockData != null) && MessageDigest.isEqual(blockData.getStrongChecksum(),_rollingChecksum.strongChecksum())) {
+      int blockNumber=blockData.getBlockNumber();
+      if (_firstBlockNumber == -1) {
+        writeDataBlock();
+        _firstBlockNumber=blockNumber;
+        _lastBlockNumber=blockNumber;
+      }
+ else       if (_lastBlockNumber + 1 == blockNumber) {
+        _lastBlockNumber=blockNumber;
+      }
+ else {
+        writeReferenceBlock();
+        _firstBlockNumber=blockNumber;
+        _lastBlockNumber=blockNumber;
+      }
+      _rollingChecksum.nextBlock();
+    }
+ else {
+      writeReferenceBlock();
+      if (!_dataByteBuffer.hasRemaining()) {
+        writeDataBlock();
+      }
+      _dataByteBuffer.put(_rollingChecksum.getFirstByte());
+      _rollingChecksum.nextByte();
+    }
+  }
+  writeReferenceBlock();
+  writeDataBlock();
+  _deltaByteChannelWriter.ensureSpace(1);
+  _deltaByteBuffer.put(DeltaUtil.EOF_KEY);
+}

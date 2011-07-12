@@ -1,24 +1,30 @@
 {
-  FileOutputStream patchedFileOutputStream=null;
-  File originalTempFile=null;
+  File originalFile=null;
   FileInputStream originalFileInputStream=null;
-  ReadableByteChannel deltaChannel=null;
+  FileChannel originalFileChannel=null;
+  FileOutputStream patchedFileOutputStream=null;
+  WritableByteChannel patchedWritableByteChannel=null;
+  ReadableByteChannel deltaReadableByteChannel=null;
   try {
+    originalFile=FileUtil.createTempFile();
+    FileUtil.write(originalFile,originalInputStream);
+    originalFileInputStream=new FileInputStream(originalFile);
+    originalFileChannel=originalFileInputStream.getChannel();
     patchedFileOutputStream=new FileOutputStream(patchedFile);
-    originalTempFile=FileUtil.createTempFile();
-    FileUtil.write(originalTempFile,originalInputStream);
-    originalFileInputStream=new FileInputStream(originalTempFile);
-    deltaChannel=Channels.newChannel(deltaInputStream);
-    ByteChannelReader deltaReader=new ByteChannelReader(deltaChannel);
-    LDiff.patch(originalFileInputStream.getChannel(),Channels.newChannel(patchedFileOutputStream),deltaReader);
+    patchedWritableByteChannel=Channels.newChannel(patchedFileOutputStream);
+    deltaReadableByteChannel=Channels.newChannel(deltaInputStream);
+    ByteChannelReader deltaByteChannelReader=new ByteChannelReader(deltaReadableByteChannel);
+    DeltaUtil.patch(originalFileChannel,patchedWritableByteChannel,deltaByteChannelReader);
   }
  catch (  Exception e) {
     throw new PortalException(e);
   }
  finally {
-    StreamUtil.cleanUp(patchedFileOutputStream);
     StreamUtil.cleanUp(originalFileInputStream);
-    StreamUtil.cleanUp(deltaChannel);
-    FileUtil.delete(originalTempFile);
+    StreamUtil.cleanUp(originalFileChannel);
+    StreamUtil.cleanUp(patchedFileOutputStream);
+    StreamUtil.cleanUp(patchedWritableByteChannel);
+    StreamUtil.cleanUp(deltaReadableByteChannel);
+    FileUtil.delete(originalFile);
   }
 }

@@ -1,0 +1,44 @@
+{
+  deltaByteChannelReader.resizeBuffer(5);
+  ByteBuffer deltaByteBuffer=deltaByteChannelReader.getBuffer();
+  deltaByteChannelReader.ensureData(5);
+  if (DeltaUtil.PROTOCOL_VERSION != deltaByteBuffer.get()) {
+    throw new IOException("Unknown protocol version");
+  }
+  int blockLength=deltaByteBuffer.getInt();
+  deltaByteChannelReader.resizeBuffer(blockLength * DeltaUtil.BUFFER_FACTOR + 5);
+  deltaByteBuffer=deltaByteChannelReader.getBuffer();
+  while (true) {
+    deltaByteChannelReader.ensureData(1);
+    byte key=deltaByteBuffer.get();
+    if (key == DeltaUtil.REFERENCE_RANGE_KEY) {
+      deltaByteChannelReader.ensureData(9);
+      int firstBlockNumber=deltaByteBuffer.getInt();
+      int lastBlockNumber=deltaByteBuffer.getInt();
+      long position=firstBlockNumber * (long)blockLength;
+      long length=(lastBlockNumber - firstBlockNumber + 1) * (long)blockLength;
+      transfer(originalFileChannel,patchedWritableByteChannel,position,length);
+    }
+ else     if (key == DeltaUtil.REFERENCE_KEY) {
+      deltaByteChannelReader.ensureData(4);
+      int blockNumber=deltaByteBuffer.getInt();
+      long position=blockNumber * (long)blockLength;
+      transfer(originalFileChannel,patchedWritableByteChannel,position,blockLength);
+    }
+ else     if (key == DeltaUtil.DATA_KEY) {
+      deltaByteChannelReader.ensureData(4);
+      int length=deltaByteBuffer.getInt();
+      deltaByteChannelReader.ensureData(length);
+      int oldLimit=deltaByteBuffer.limit();
+      deltaByteBuffer.limit(deltaByteBuffer.position() + length);
+      patchedWritableByteChannel.write(deltaByteBuffer);
+      deltaByteBuffer.limit(oldLimit);
+    }
+ else     if (key == DeltaUtil.EOF_KEY) {
+      return;
+    }
+ else {
+      throw new IOException("Invalid key");
+    }
+  }
+}
