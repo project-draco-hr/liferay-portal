@@ -8,13 +8,28 @@
   SortedArrayList<Long> fileEntryTypeIds=getLongList(actionRequest,"fileEntryTypeSearchContainerPrimaryKeys");
   boolean overrideFileEntryTypes=ParamUtil.getBoolean(actionRequest,"overrideFileEntryTypes");
   ServiceContext serviceContext=ServiceContextFactory.getInstance(DLFolder.class.getName(),actionRequest);
+  Folder folder=null;
   if (folderId <= 0) {
-    DLAppServiceUtil.addFolder(repositoryId,parentFolderId,name,description,serviceContext);
+    folder=DLAppServiceUtil.addFolder(repositoryId,parentFolderId,name,description,serviceContext);
   }
  else {
     serviceContext.setAttribute("defaultFileEntryTypeId",defaultFileEntryTypeId);
     serviceContext.setAttribute("fileEntryTypeIds",fileEntryTypeIds);
     serviceContext.setAttribute("overrideFileEntryTypes",overrideFileEntryTypes);
-    DLAppServiceUtil.updateFolder(folderId,name,description,serviceContext);
+    folder=DLAppServiceUtil.updateFolder(folderId,name,description,serviceContext);
+    if (folder.getModel() instanceof DLFolder) {
+      List<ObjectValuePair<Long,String>> workflowDefinitions=new ArrayList<ObjectValuePair<Long,String>>();
+      if (fileEntryTypeIds.isEmpty()) {
+        fileEntryTypeIds.add(new Long(0));
+      }
+ else {
+        workflowDefinitions.add(new ObjectValuePair<Long,String>(new Long(0),StringPool.BLANK));
+      }
+      for (      long fileEntryTypeId : fileEntryTypeIds) {
+        String workflowDefinition=ParamUtil.getString(actionRequest,"workflowDefinition" + fileEntryTypeId);
+        workflowDefinitions.add(new ObjectValuePair<Long,String>(fileEntryTypeId,workflowDefinition));
+      }
+      WorkflowDefinitionLinkLocalServiceUtil.updateWorkflowDefinitionLinks(serviceContext.getUserId(),serviceContext.getCompanyId(),folder.getGroupId(),DLFolder.class.getName(),folder.getFolderId(),workflowDefinitions);
+    }
   }
 }
