@@ -2,24 +2,14 @@
   if (url == null) {
     return;
   }
-  Map<String,String> replacements=new HashMap<String,String>();
-  replacements.put("liferay.home",PropsUtil.get(PropsKeys.LIFERAY_HOME));
-  String urlContent=null;
-  try {
-    InputStream urlStream=url.openStream();
-    byte[] urlBytes=FileUtil.readAsByteArray(urlStream);
-    urlContent=new String(urlBytes,StringPool.UTF8);
-  }
- catch (  Exception e) {
-    e.printStackTrace();
+  String urlContent=_getURLContent(url);
+  if (urlContent == null) {
     return;
-  }
-  for (  Map.Entry<String,String> replacement : replacements.entrySet()) {
-    urlContent=urlContent.replaceAll("@" + replacement.getKey() + "@",replacement.getValue());
   }
   Reader urlReader=new StringReader(urlContent);
   if (!ServerDetector.isJBoss()) {
-    new DOMConfigurator().doConfigure(urlReader,LogManager.getLoggerRepository());
+    DOMConfigurator domConfigurator=new DOMConfigurator();
+    domConfigurator.doConfigure(urlReader,LogManager.getLoggerRepository());
   }
   Set<String> currentLoggerNames=new HashSet<String>();
   Enumeration<Logger> enu=LogManager.getCurrentLoggers();
@@ -28,14 +18,14 @@
     currentLoggerNames.add(logger.getName());
   }
   try {
-    SAXReader reader=new SAXReader();
-    Document doc=reader.read(urlReader,url.toExternalForm());
-    Element root=doc.getRootElement();
-    Iterator<Element> itr=root.elements("category").iterator();
-    while (itr.hasNext()) {
-      Element category=itr.next();
-      String name=category.attributeValue("name");
-      String priority=category.element("priority").attributeValue("value");
+    SAXReader saxReader=new SAXReader();
+    Document document=saxReader.read(urlReader,url.toExternalForm());
+    Element rootElement=document.getRootElement();
+    List<Element> categoryElements=rootElement.elements("category");
+    for (    Element categoryElement : categoryElements) {
+      String name=categoryElement.attributeValue("name");
+      Element priorityElement=categoryElement.element("priority");
+      String priority=priorityElement.attributeValue("value");
       setLevel(name,priority);
     }
   }
