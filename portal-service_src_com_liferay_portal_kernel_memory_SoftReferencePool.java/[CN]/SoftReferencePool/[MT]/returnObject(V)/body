@@ -1,12 +1,17 @@
 {
-  if (_softReferences.size() < _maxIdleSize) {
+  if (getCount() < _maxIdleSize) {
     SoftReference<V> softReference=new SoftReference<V>(value,_referenceQueue);
     _poolAction.onReturn(value);
     _softReferences.offer(softReference);
+    if (_useWeakCounter) {
+      _weakCounter.getAndIncrement();
+    }
   }
  else {
-    while (_softReferences.size() > _maxIdleSize) {
-      _softReferences.poll();
+    while (getCount() > _maxIdleSize) {
+      if ((_softReferences.poll() != null) && _useWeakCounter) {
+        _weakCounter.getAndDecrement();
+      }
     }
   }
   SoftReference<? extends V> softReference=null;
@@ -15,6 +20,8 @@
     if (softReference == null) {
       break;
     }
-    _softReferences.remove(softReference);
+    if (_softReferences.remove(softReference) && _useWeakCounter) {
+      _weakCounter.getAndDecrement();
+    }
   }
 }
