@@ -9,6 +9,7 @@
   String description=StringPool.BLANK;
   String type=LayoutConstants.TYPE_PORTLET;
   boolean hidden=false;
+  boolean locked=ParamUtil.getBoolean(request,"locked");
   String friendlyURL=StringPool.BLANK;
   long layoutPrototypeId=ParamUtil.getLong(request,"layoutPrototypeId");
   ServiceContext serviceContext=ServiceContextFactory.getInstance(request);
@@ -16,13 +17,26 @@
   if (layoutPrototypeId > 0) {
     LayoutPrototype layoutPrototype=LayoutPrototypeServiceUtil.getLayoutPrototype(layoutPrototypeId);
     Layout layoutPrototypeLayout=layoutPrototype.getLayout();
-    layout=LayoutServiceUtil.addLayout(groupId,privateLayout,parentLayoutId,name,title,description,layoutPrototypeLayout.getType(),false,friendlyURL,serviceContext);
+    layout=LayoutServiceUtil.addLayout(groupId,privateLayout,parentLayoutId,name,title,description,layoutPrototypeLayout.getType(),false,locked,friendlyURL,serviceContext);
     LayoutServiceUtil.updateLayout(layout.getGroupId(),layout.isPrivateLayout(),layout.getLayoutId(),layoutPrototypeLayout.getTypeSettings());
     ActionUtil.copyPortletPermissions(request,layout,layoutPrototypeLayout);
     ActionUtil.copyPreferences(request,layout,layoutPrototypeLayout);
   }
  else {
-    layout=LayoutServiceUtil.addLayout(groupId,privateLayout,parentLayoutId,name,title,description,type,hidden,friendlyURL,serviceContext);
+    layout=LayoutServiceUtil.addLayout(groupId,privateLayout,parentLayoutId,name,title,description,type,hidden,false,friendlyURL,serviceContext);
+    Group group=GroupLocalServiceUtil.getGroup(groupId);
+    if (group.isLayoutSetPrototype()) {
+      LayoutSetPrototype layoutSetPrototype=LayoutSetPrototypeLocalServiceUtil.getLayoutSetPrototype(group.getClassPK());
+      List<LayoutSet> heirLayoutSets=LayoutSetLocalServiceUtil.getLayoutSetsByLayoutSetPrototypeUuid(layoutSetPrototype.getUuid());
+      serviceContext.setUuid(layout.getUuid());
+      for (      LayoutSet layoutSet : heirLayoutSets) {
+        Layout addedLayout=LayoutServiceUtil.addLayout(layoutSet.getGroupId(),layoutSet.isPrivateLayout(),parentLayoutId,name,title,description,type,hidden,locked,friendlyURL,serviceContext);
+        addedLayout.setModifiedDate(layout.getModifiedDate());
+        UnicodeProperties typeSettings=addedLayout.getTypeSettingsProperties();
+        typeSettings.put("layoutSetPrototypeLastCopyDate",String.valueOf(layout.getModifiedDate().getTime()));
+        LayoutLocalServiceUtil.updateLayout(addedLayout);
+      }
+    }
   }
   LayoutSettings layoutSettings=LayoutSettings.getInstance(layout);
   EventsProcessorUtil.process(PropsKeys.LAYOUT_CONFIGURATION_ACTION_UPDATE,layoutSettings.getConfigurationActionUpdate(),request,response);
