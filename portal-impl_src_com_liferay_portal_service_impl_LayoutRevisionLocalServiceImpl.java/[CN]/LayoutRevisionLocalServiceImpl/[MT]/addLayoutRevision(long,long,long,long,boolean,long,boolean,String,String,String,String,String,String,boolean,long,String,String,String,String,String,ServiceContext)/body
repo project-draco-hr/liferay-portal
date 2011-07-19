@@ -1,0 +1,52 @@
+{
+  User user=userLocalService.getUserById(userId);
+  LayoutSetBranch layoutSetBranch=layoutSetBranchPersistence.findByPrimaryKey(layoutSetBranchId);
+  parentLayoutRevisionId=getParentLayoutRevisionId(layoutSetBranchId,parentLayoutRevisionId,plid);
+  Date now=new Date();
+  long layoutRevisionId=counterLocalService.increment();
+  LayoutRevision layoutRevision=layoutRevisionPersistence.create(layoutRevisionId);
+  layoutRevision.setGroupId(layoutSetBranch.getGroupId());
+  layoutRevision.setCompanyId(user.getCompanyId());
+  layoutRevision.setUserId(user.getUserId());
+  layoutRevision.setUserName(user.getFullName());
+  layoutRevision.setCreateDate(serviceContext.getCreateDate(now));
+  layoutRevision.setModifiedDate(serviceContext.getModifiedDate(now));
+  layoutRevision.setLayoutSetBranchId(layoutSetBranchId);
+  layoutRevision.setParentLayoutRevisionId(parentLayoutRevisionId);
+  layoutRevision.setHead(head);
+  long mergeLayoutRevisionId=ParamUtil.getLong(serviceContext,"mergeLayoutRevisionId");
+  if (mergeLayoutRevisionId > 0) {
+    layoutRevision.setMajor(true);
+  }
+  layoutRevision.setLayoutBranchId(layoutBranchId);
+  layoutRevision.setPlid(plid);
+  layoutRevision.setPrivateLayout(privateLayout);
+  layoutRevision.setName(name);
+  layoutRevision.setTitle(title);
+  layoutRevision.setDescription(description);
+  layoutRevision.setKeywords(keywords);
+  layoutRevision.setRobots(robots);
+  layoutRevision.setTypeSettings(typeSettings);
+  if (iconImage) {
+    layoutRevision.setIconImage(iconImage);
+    layoutRevision.setIconImageId(iconImageId);
+  }
+  layoutRevision.setThemeId(themeId);
+  layoutRevision.setColorSchemeId(colorSchemeId);
+  layoutRevision.setWapThemeId(wapThemeId);
+  layoutRevision.setWapColorSchemeId(wapColorSchemeId);
+  layoutRevision.setCss(css);
+  layoutRevision.setStatus(WorkflowConstants.STATUS_DRAFT);
+  layoutRevision.setStatusDate(serviceContext.getModifiedDate(now));
+  layoutRevisionPersistence.update(layoutRevision,false);
+  if (parentLayoutRevisionId == LayoutRevisionConstants.DEFAULT_PARENT_LAYOUT_REVISION_ID) {
+    parentLayoutRevisionId=layoutRevision.getPlid();
+  }
+  long sourceParentLayoutRevisionId=parentLayoutRevisionId;
+  if (mergeLayoutRevisionId > 0) {
+    sourceParentLayoutRevisionId=mergeLayoutRevisionId;
+  }
+  copyPortletPreferences(layoutRevision,sourceParentLayoutRevisionId,serviceContext);
+  WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),layoutRevision.getGroupId(),user.getUserId(),LayoutRevision.class.getName(),layoutRevision.getLayoutRevisionId(),layoutRevision,serviceContext);
+  return layoutRevision;
+}
