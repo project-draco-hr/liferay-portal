@@ -1,5 +1,14 @@
 {
-  List<Long> newUserGroupIds=new ArrayList<Long>();
+  long userId=user.getUserId();
+  if (!LDAPSettingsUtil.isExportEnabled(companyId) || !LDAPSettingsUtil.isExportGroupEnabled(companyId)) {
+    List<UserGroup> userGroups=UserGroupLocalServiceUtil.getUserUserGroups(userId);
+    UserGroupLocalServiceUtil.clearUserUserGroups(userId);
+    for (    UserGroup userGroup : userGroups) {
+      if (!userGroup.isAddedByLDAPImport()) {
+        UserGroupLocalServiceUtil.addUserUserGroups(userId,new long[]{userGroup.getUserGroupId()});
+      }
+    }
+  }
   if (PrefsPropsUtil.getBoolean(companyId,PropsKeys.LDAP_IMPORT_GROUP_SEARCH_FILTER_ENABLED)) {
     String postfix=LDAPSettingsUtil.getPropertyPostfix(ldapServerId);
     String baseDN=PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_BASE_DN + postfix);
@@ -22,7 +31,7 @@
       cookie=PortalLDAPUtil.searchLDAP(companyId,ldapContext,cookie,0,baseDN,sb.toString(),new String[]{groupMappingsGroupName},searchResults);
       for (      SearchResult searchResult : searchResults) {
         String fullGroupDN=PortalLDAPUtil.getNameInNamespace(ldapServerId,companyId,searchResult);
-        newUserGroupIds=importGroup(ldapServerId,companyId,ldapContext,fullGroupDN,user,groupMappings,newUserGroupIds);
+        importGroup(ldapServerId,companyId,ldapContext,fullGroupDN,user,groupMappings);
       }
     }
   }
@@ -37,17 +46,7 @@
     }
     for (int i=0; i < userGroupAttribute.size(); i++) {
       String fullGroupDN=(String)userGroupAttribute.get(i);
-      newUserGroupIds=importGroup(ldapServerId,companyId,ldapContext,fullGroupDN,user,groupMappings,newUserGroupIds);
-    }
-  }
-  if (!LDAPSettingsUtil.isExportEnabled(companyId) || !LDAPSettingsUtil.isExportGroupEnabled(companyId)) {
-    addUserGroupsNotAddedByLDAPImport(user.getUserId(),newUserGroupIds);
-    UserGroupLocalServiceUtil.setUserUserGroups(user.getUserId(),ArrayUtil.toArray(newUserGroupIds.toArray(new Long[newUserGroupIds.size()])));
-  }
- else {
-    long[] userIds=new long[]{user.getUserId()};
-    for (    long newUserGroupId : newUserGroupIds) {
-      UserLocalServiceUtil.addUserGroupUsers(newUserGroupId,userIds);
+      importGroup(ldapServerId,companyId,ldapContext,fullGroupDN,user,groupMappings);
     }
   }
 }
