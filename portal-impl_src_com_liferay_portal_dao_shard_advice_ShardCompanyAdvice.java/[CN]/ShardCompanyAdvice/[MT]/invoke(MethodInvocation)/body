@@ -1,0 +1,51 @@
+{
+  Method method=methodInvocation.getMethod();
+  String methodName=method.getName();
+  Object[] arguments=methodInvocation.getArguments();
+  String shardName=PropsValues.SHARD_DEFAULT_NAME;
+  if (methodName.equals("addCompany")) {
+    String webId=(String)arguments[0];
+    String virtualHostname=(String)arguments[1];
+    String mx=(String)arguments[2];
+    shardName=(String)arguments[3];
+    shardName=_shardAdvice.getCompanyShardName(webId,virtualHostname,mx,shardName);
+    arguments[3]=shardName;
+  }
+ else   if (methodName.equals("checkCompany")) {
+    String webId=(String)arguments[0];
+    if (!webId.equals(PropsValues.COMPANY_DEFAULT_WEB_ID)) {
+      if (arguments.length == 3) {
+        String mx=(String)arguments[1];
+        shardName=(String)arguments[2];
+        shardName=_shardAdvice.getCompanyShardName(webId,null,mx,shardName);
+        arguments[2]=shardName;
+      }
+      try {
+        Company company=CompanyLocalServiceUtil.getCompanyByWebId(webId);
+        shardName=company.getShardName();
+      }
+ catch (      NoSuchCompanyException nsce) {
+      }
+    }
+  }
+ else   if (methodName.startsWith("update")) {
+    long companyId=(Long)arguments[0];
+    Shard shard=ShardLocalServiceUtil.getShard(Company.class.getName(),companyId);
+    shardName=shard.getName();
+  }
+ else {
+    return methodInvocation.proceed();
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Setting company service to shard " + shardName + " for "+ methodInvocation.toString());
+  }
+  Object returnValue=null;
+  _shardAdvice.pushCompanyService(shardName);
+  try {
+    returnValue=method.invoke(methodInvocation.getThis(),arguments);
+  }
+  finally {
+    _shardAdvice.popCompanyService();
+  }
+  return returnValue;
+}

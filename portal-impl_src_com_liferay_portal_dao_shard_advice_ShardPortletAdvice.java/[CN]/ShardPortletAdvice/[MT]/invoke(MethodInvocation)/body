@@ -1,0 +1,36 @@
+{
+  Method method=methodInvocation.getMethod();
+  String methodName=method.getName();
+  Object[] arguments=methodInvocation.getArguments();
+  if ((arguments == null) || (arguments.length == 0)) {
+    return methodInvocation.proceed();
+  }
+  Object argument=arguments[0];
+  long companyId=-1;
+  if (argument instanceof Long) {
+    if (methodName.equals("checkPortlets") || methodName.equals("clonePortlet") || methodName.equals("getPortletById")|| methodName.equals("getPortletByStrutsPath")|| methodName.equals("getPortlets")|| methodName.equals("hasPortlet")|| methodName.equals("updatePortlet")) {
+      companyId=(Long)argument;
+    }
+  }
+ else   if (argument instanceof Portlet) {
+    if (methodName.equals("checkPortlet") || methodName.equals("deployRemotePortlet") || methodName.equals("destroyPortlet")|| methodName.equals("destroyRemotePortlet")) {
+      Portlet portlet=(Portlet)argument;
+      companyId=portlet.getCompanyId();
+    }
+  }
+  if (companyId <= 0) {
+    return methodInvocation.proceed();
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Setting company service to shard of companyId " + companyId + " for "+ methodInvocation.toString());
+  }
+  Object returnValue=null;
+  _shardAdvice.pushCompanyService(companyId);
+  try {
+    returnValue=methodInvocation.proceed();
+  }
+  finally {
+    _shardAdvice.popCompanyService();
+  }
+  return returnValue;
+}

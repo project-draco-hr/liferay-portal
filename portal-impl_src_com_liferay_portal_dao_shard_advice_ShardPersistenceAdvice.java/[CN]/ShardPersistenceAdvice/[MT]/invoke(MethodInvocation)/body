@@ -1,0 +1,35 @@
+{
+  ShardDataSourceTargetSource shardDataSourceTargetSource=_shardAdvice.getShardDataSourceTargetSource();
+  ShardSessionFactoryTargetSource shardSessionFactoryTargetSource=_shardAdvice.getShardSessionFactoryTargetSource();
+  if ((shardDataSourceTargetSource == null) || (shardSessionFactoryTargetSource == null)) {
+    return methodInvocation.proceed();
+  }
+  Object target=methodInvocation.getThis();
+  if (target instanceof ClassNamePersistence || target instanceof CompanyPersistence || target instanceof CounterFinder|| target instanceof CounterPersistence|| target instanceof PortalPreferencesPersistence|| target instanceof ReleasePersistence|| target instanceof ResourceActionPersistence|| target instanceof ServiceComponentPersistence|| target instanceof ShardPersistence|| target instanceof VirtualHostPersistence) {
+    shardDataSourceTargetSource.setDataSource(PropsValues.SHARD_DEFAULT_NAME);
+    shardSessionFactoryTargetSource.setSessionFactory(PropsValues.SHARD_DEFAULT_NAME);
+    if (_log.isDebugEnabled()) {
+      _log.debug("Using default shard for " + methodInvocation.toString());
+    }
+    _shardAdvice.pushCompanyService(PropsValues.SHARD_DEFAULT_NAME);
+    try {
+      return methodInvocation.proceed();
+    }
+  finally {
+      _shardAdvice.popCompanyService();
+    }
+  }
+  if (_shardAdvice.getGlobalCall() == null) {
+    _shardAdvice.setShardNameByCompany();
+    String shardName=_shardAdvice.getShardName();
+    shardDataSourceTargetSource.setDataSource(shardName);
+    shardSessionFactoryTargetSource.setSessionFactory(shardName);
+    if (_log.isInfoEnabled()) {
+      _log.info("Using shard name " + shardName + " for "+ methodInvocation.toString());
+    }
+    return methodInvocation.proceed();
+  }
+ else {
+    return methodInvocation.proceed();
+  }
+}
