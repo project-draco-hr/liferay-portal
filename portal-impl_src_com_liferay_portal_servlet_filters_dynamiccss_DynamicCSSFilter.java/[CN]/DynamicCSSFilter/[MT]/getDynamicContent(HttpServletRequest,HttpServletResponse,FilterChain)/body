@@ -34,30 +34,48 @@
     return cacheDataFile;
   }
  else {
+    String content=null;
     String dynamicContent=null;
-    if (realPath.endsWith(_CSS_EXTENSION)) {
-      if (_log.isInfoEnabled()) {
-        _log.info("Parsing SASS on CSS " + file);
+    String cssRealPath=(String)request.getAttribute(WebKeys.CSS_REAL_PATH);
+    try {
+      if (realPath.endsWith(_CSS_EXTENSION)) {
+        if (_log.isInfoEnabled()) {
+          _log.info("Parsing SASS on CSS " + file);
+        }
+        content=FileUtil.read(file);
+        dynamicContent=DynamicCSSUtil.parseSass(cssRealPath,content);
+        response.setContentType(ContentTypes.TEXT_CSS);
+        FileUtil.write(cacheContentTypeFile,ContentTypes.TEXT_CSS);
       }
-      dynamicContent=parseSass(request,FileUtil.read(file));
-      response.setContentType(ContentTypes.TEXT_CSS);
-      FileUtil.write(cacheContentTypeFile,ContentTypes.TEXT_CSS);
+ else       if (realPath.endsWith(_JSP_EXTENSION)) {
+        if (_log.isInfoEnabled()) {
+          _log.info("Parsing SASS on JSP " + file);
+        }
+        StringServletResponse stringResponse=new StringServletResponse(response);
+        processFilter(DynamicCSSFilter.class,request,stringResponse,filterChain);
+        CacheResponseUtil.setHeaders(response,stringResponse.getHeaders());
+        response.setContentType(stringResponse.getContentType());
+        content=stringResponse.getString();
+        dynamicContent=DynamicCSSUtil.parseSass(cssRealPath,content);
+        FileUtil.write(cacheContentTypeFile,stringResponse.getContentType());
+      }
+ else {
+        return null;
+      }
     }
- else     if (realPath.endsWith(_JSP_EXTENSION)) {
-      if (_log.isInfoEnabled()) {
-        _log.info("Parsing SASS on JSP " + file);
+ catch (    Exception e) {
+      _log.error("Error on " + cssRealPath,e);
+      if (_log.isDebugEnabled()) {
+        _log.debug(content);
       }
-      StringServletResponse stringResponse=new StringServletResponse(response);
-      processFilter(DynamicCSSFilter.class,request,stringResponse,filterChain);
-      CacheResponseUtil.setHeaders(response,stringResponse.getHeaders());
-      response.setContentType(stringResponse.getContentType());
-      dynamicContent=parseSass(request,stringResponse.getString());
-      FileUtil.write(cacheContentTypeFile,stringResponse.getContentType());
+      response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    }
+    if (dynamicContent != null) {
+      FileUtil.write(cacheDataFile,dynamicContent);
     }
  else {
-      return null;
+      dynamicContent=content;
     }
-    FileUtil.write(cacheDataFile,dynamicContent);
     return dynamicContent;
   }
 }
