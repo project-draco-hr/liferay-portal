@@ -1,14 +1,21 @@
 {
   try {
-    User user=getUser(actionRequest);
-    if (PropsValues.USERS_REMINDER_QUERIES_ENABLED && (PropsValues.CAPTCHA_CHECK_PORTAL_SEND_PASSWORD || user.hasReminderQuery())) {
-      actionRequest.setAttribute(ForgotPasswordAction.class.getName(),user);
+    if (PropsValues.USERS_REMINDER_QUERIES_ENABLED) {
       int step=ParamUtil.getInteger(actionRequest,"step");
-      if (step == 2) {
-        if (PropsValues.CAPTCHA_CHECK_PORTAL_SEND_PASSWORD) {
-          CaptchaUtil.check(actionRequest);
+      if (PropsValues.CAPTCHA_CHECK_PORTAL_SEND_PASSWORD && (step != 2)) {
+        CaptchaUtil.check(actionRequest);
+      }
+      User user=getUser(actionRequest);
+      if (PropsValues.CAPTCHA_CHECK_PORTAL_SEND_PASSWORD || user.hasReminderQuery()) {
+        actionRequest.setAttribute(ForgotPasswordAction.class.getName(),user);
+        PortletSession portletSession=actionRequest.getPortletSession();
+        int failedAttempts=GetterUtil.getInteger((Integer)portletSession.getAttribute("failed-attempts"),0);
+        if (step == 2) {
+          if (PropsValues.CAPTCHA_CHECK_PORTAL_SEND_PASSWORD && (failedAttempts > 2)) {
+            CaptchaUtil.check(actionRequest);
+          }
+          sendPassword(actionRequest,actionResponse);
         }
-        sendPassword(actionRequest,actionResponse);
       }
     }
  else {
