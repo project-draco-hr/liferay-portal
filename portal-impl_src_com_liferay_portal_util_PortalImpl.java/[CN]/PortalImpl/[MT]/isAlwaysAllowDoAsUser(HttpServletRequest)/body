@@ -1,0 +1,30 @@
+{
+  String token=ParamUtil.getString(request,"ticket");
+  Ticket ticket=TicketLocalServiceUtil.getTicket(token);
+  String className=ticket.getClassName();
+  if (!className.equals(User.class.getName())) {
+    return false;
+  }
+  long doAsUserId=0;
+  try {
+    Company company=getCompany(request);
+    String doAsUserIdString=ParamUtil.getString(request,"doAsUserId");
+    if (Validator.isNotNull(doAsUserIdString)) {
+      doAsUserId=GetterUtil.getLong(Encryptor.decrypt(company.getKeyObj(),doAsUserIdString));
+    }
+  }
+ catch (  Exception e) {
+    return false;
+  }
+  if ((ticket.getClassPK() != doAsUserId) || (ticket.getType() != TicketConstants.TYPE_IMPERSONATE)) {
+    return false;
+  }
+  if (ticket.isExpired()) {
+    TicketLocalServiceUtil.deleteTicket(ticket);
+    return false;
+  }
+  Date expirationDate=new Date(System.currentTimeMillis() + PropsValues.SESSION_TIMEOUT * Time.MINUTE);
+  ticket.setExpirationDate(expirationDate);
+  TicketLocalServiceUtil.updateTicket(ticket,false);
+  return true;
+}
