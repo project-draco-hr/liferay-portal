@@ -1,7 +1,6 @@
 {
   User user=userPersistence.findByPrimaryKey(userId);
   Date now=new Date();
-  validate(nodeId,content,format);
   WikiPage oldPage=null;
   try {
     oldPage=wikiPagePersistence.findByN_T_First(nodeId,title,null);
@@ -9,6 +8,15 @@
  catch (  NoSuchPageException nspe) {
     return addPage(userId,nodeId,title,WikiPageConstants.DEFAULT_VERSION,content,summary,minorEdit,format,true,parentTitle,redirectTitle,serviceContext);
   }
+  long pageId=0;
+  if (oldPage.isApproved()) {
+    pageId=counterLocalService.increment();
+  }
+ else {
+    pageId=oldPage.getPageId();
+  }
+  content=SanitizerUtil.sanitize(user.getCompanyId(),oldPage.getGroupId(),userId,WikiPage.class.getName(),pageId,"text/" + format,content);
+  validate(nodeId,content,format);
   double oldVersion=oldPage.getVersion();
   if ((version > 0) && (version != oldVersion)) {
     throw new PageVersionException();
@@ -19,7 +27,6 @@
   double newVersion=oldVersion;
   if (oldPage.isApproved()) {
     newVersion=MathUtil.format(oldVersion + 0.1,1,1);
-    long pageId=counterLocalService.increment();
     page=wikiPagePersistence.create(pageId);
   }
   page.setResourcePrimKey(resourcePrimKey);
