@@ -1,14 +1,14 @@
 {
   FileModel fileModel=(FileModel)obj;
   long folderId=DLFolderConstants.getFolderId(fileModel.getGroupId(),fileModel.getRepositoryId());
-  DLFileEntry fileEntry=null;
+  DLFileEntry dlFileEntry=null;
   try {
     if (fileModel.getFileEntryId() > 0) {
-      fileEntry=DLFileEntryLocalServiceUtil.getFileEntry(fileModel.getFileEntryId());
+      dlFileEntry=DLFileEntryLocalServiceUtil.getFileEntry(fileModel.getFileEntryId());
     }
  else {
-      fileEntry=DLFileEntryLocalServiceUtil.getFileEntryByName(fileModel.getGroupId(),folderId,fileModel.getFileName());
-      fileModel.setFileEntryId(fileEntry.getFileEntryId());
+      dlFileEntry=DLFileEntryLocalServiceUtil.getFileEntryByName(fileModel.getGroupId(),folderId,fileModel.getFileName());
+      fileModel.setFileEntryId(dlFileEntry.getFileEntryId());
     }
   }
  catch (  NoSuchFileEntryException nsfe) {
@@ -36,7 +36,7 @@
       }
       if (indexContent) {
         String[] ignoreExtensions=PrefsPropsUtil.getStringArray(PropsKeys.DL_FILE_INDEXING_IGNORE_EXTENSIONS,StringPool.COMMA);
-        if (ArrayUtil.contains(ignoreExtensions,StringPool.PERIOD + fileEntry.getExtension())) {
+        if (ArrayUtil.contains(ignoreExtensions,StringPool.PERIOD + dlFileEntry.getExtension())) {
           indexContent=false;
         }
       }
@@ -56,61 +56,64 @@
     document.addUID(fileModel.getPortletId(),fileModel.getRepositoryId(),fileModel.getFileName());
     long[] assetCategoryIds=fileModel.getAssetCategoryIds();
     if (assetCategoryIds == null) {
-      assetCategoryIds=AssetCategoryLocalServiceUtil.getCategoryIds(DLFileEntry.class.getName(),fileEntry.getFileEntryId());
+      assetCategoryIds=AssetCategoryLocalServiceUtil.getCategoryIds(DLFileEntry.class.getName(),dlFileEntry.getFileEntryId());
     }
     document.addKeyword(Field.ASSET_CATEGORY_IDS,assetCategoryIds);
     String[] assetCategoryNames=fileModel.getAssetCategoryNames();
     if (assetCategoryNames == null) {
-      assetCategoryNames=AssetCategoryLocalServiceUtil.getCategoryNames(DLFileEntry.class.getName(),fileEntry.getFileEntryId());
+      assetCategoryNames=AssetCategoryLocalServiceUtil.getCategoryNames(DLFileEntry.class.getName(),dlFileEntry.getFileEntryId());
     }
     document.addKeyword(Field.ASSET_CATEGORY_NAMES,assetCategoryNames);
     String[] assetTagNames=fileModel.getAssetTagNames();
     if (assetTagNames == null) {
-      assetTagNames=AssetTagLocalServiceUtil.getTagNames(DLFileEntry.class.getName(),fileEntry.getFileEntryId());
+      assetTagNames=AssetTagLocalServiceUtil.getTagNames(DLFileEntry.class.getName(),dlFileEntry.getFileEntryId());
     }
     document.addKeyword(Field.ASSET_TAG_NAMES,assetTagNames);
     document.addKeyword(Field.COMPANY_ID,fileModel.getCompanyId());
     if (indexContent) {
       try {
-        document.addFile(Field.CONTENT,is,fileEntry.getTitle());
+        document.addFile(Field.CONTENT,is,dlFileEntry.getTitle());
       }
  catch (      IOException ioe) {
         throw new SearchException("Cannot extract text from file" + fileModel);
       }
     }
-    document.addText(Field.DESCRIPTION,fileEntry.getDescription());
+    document.addText(Field.DESCRIPTION,dlFileEntry.getDescription());
     document.addKeyword(Field.ENTRY_CLASS_NAME,DLFileEntry.class.getName());
-    document.addKeyword(Field.ENTRY_CLASS_PK,fileEntry.getFileEntryId());
+    document.addKeyword(Field.ENTRY_CLASS_PK,dlFileEntry.getFileEntryId());
     document.addKeyword(Field.FOLDER_ID,folderId);
     document.addKeyword(Field.GROUP_ID,getParentGroupId(fileModel.getGroupId()));
     Date modifiedDate=fileModel.getModifiedDate();
     if (modifiedDate == null) {
-      modifiedDate=fileEntry.getModifiedDate();
+      modifiedDate=dlFileEntry.getModifiedDate();
     }
     document.addDate(Field.MODIFIED_DATE,modifiedDate);
     document.addKeyword(Field.PORTLET_ID,fileModel.getPortletId());
     String properties=fileModel.getProperties();
     if (properties == null) {
-      properties=fileEntry.getLuceneProperties();
+      properties=dlFileEntry.getLuceneProperties();
     }
     document.addText(Field.PROPERTIES,properties);
     document.addKeyword(Field.SCOPE_GROUP_ID,fileModel.getGroupId());
-    DLFileVersion fileVersion=fileEntry.getFileVersion();
-    document.addKeyword(Field.STATUS,fileVersion.getStatus());
-    document.addText(Field.TITLE,fileEntry.getTitle());
+    DLFileVersion dlFileVersion=dlFileEntry.getFileVersion();
+    document.addKeyword(Field.STATUS,dlFileVersion.getStatus());
+    document.addText(Field.TITLE,dlFileEntry.getTitle());
     long userId=fileModel.getUserId();
     if (userId == 0) {
-      userId=fileEntry.getUserId();
+      userId=dlFileEntry.getUserId();
     }
     document.addKeyword(Field.USER_ID,userId);
-    String userName=PortalUtil.getUserName(userId,fileEntry.getUserName());
+    String userName=PortalUtil.getUserName(userId,dlFileEntry.getUserName());
     document.addKeyword(Field.USER_NAME,userName,true);
-    document.addKeyword("extension",fileEntry.getExtension());
-    document.addKeyword("fileEntryTypeId",fileEntry.getFileEntryTypeId());
+    document.addKeyword("extension",dlFileEntry.getExtension());
+    document.addKeyword("fileEntryTypeId",dlFileEntry.getFileEntryTypeId());
     document.addKeyword("path",fileModel.getFileName());
     document.addKeyword("repositoryId",fileModel.getRepositoryId());
-    ExpandoBridge expandoBridge=ExpandoBridgeFactoryUtil.getExpandoBridge(fileModel.getCompanyId(),DLFileEntry.class.getName(),fileVersion.getFileVersionId());
+    ExpandoBridge expandoBridge=ExpandoBridgeFactoryUtil.getExpandoBridge(fileModel.getCompanyId(),DLFileEntry.class.getName(),dlFileVersion.getFileVersionId());
     ExpandoBridgeIndexerUtil.addAttributes(document,expandoBridge);
+    if (dlFileEntry.getFileEntryTypeId() > 0) {
+      addFileEntryTypeAttributes(document,dlFileVersion);
+    }
     if (_log.isDebugEnabled()) {
       _log.debug("Document " + fileModel + " indexed successfully");
     }
