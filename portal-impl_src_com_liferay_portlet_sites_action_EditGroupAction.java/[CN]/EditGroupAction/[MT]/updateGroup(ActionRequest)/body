@@ -1,29 +1,29 @@
 {
   ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
   long userId=PortalUtil.getUserId(actionRequest);
-  long groupId=ParamUtil.getLong(actionRequest,"groupId");
+  long liveGroupId=ParamUtil.getLong(actionRequest,"liveGroupId");
   String name=ParamUtil.getString(actionRequest,"name");
   String description=ParamUtil.getString(actionRequest,"description");
   int type=ParamUtil.getInteger(actionRequest,"type");
   String friendlyURL=ParamUtil.getString(actionRequest,"friendlyURL");
   boolean active=ParamUtil.getBoolean(actionRequest,"active");
   ServiceContext serviceContext=ServiceContextFactory.getInstance(Group.class.getName(),actionRequest);
-  Group group=null;
-  if (groupId <= 0) {
-    group=GroupServiceUtil.addGroup(name,description,type,friendlyURL,true,active,serviceContext);
-    LiveUsers.joinGroup(themeDisplay.getCompanyId(),group.getGroupId(),userId);
+  Group liveGroup=null;
+  if (liveGroupId <= 0) {
+    liveGroup=GroupServiceUtil.addGroup(name,description,type,friendlyURL,true,active,serviceContext);
+    LiveUsers.joinGroup(themeDisplay.getCompanyId(),liveGroup.getGroupId(),userId);
   }
  else {
-    group=GroupServiceUtil.updateGroup(groupId,name,description,type,friendlyURL,active,serviceContext);
+    liveGroup=GroupServiceUtil.updateGroup(liveGroupId,name,description,type,friendlyURL,active,serviceContext);
     if (type == GroupConstants.TYPE_SITE_OPEN) {
-      List<MembershipRequest> membershipRequests=MembershipRequestLocalServiceUtil.search(groupId,MembershipRequestConstants.STATUS_PENDING,QueryUtil.ALL_POS,QueryUtil.ALL_POS);
+      List<MembershipRequest> membershipRequests=MembershipRequestLocalServiceUtil.search(liveGroupId,MembershipRequestConstants.STATUS_PENDING,QueryUtil.ALL_POS,QueryUtil.ALL_POS);
       for (      MembershipRequest membershipRequest : membershipRequests) {
         MembershipRequestServiceUtil.updateStatus(membershipRequest.getMembershipRequestId(),themeDisplay.translate("your-membership-has-been-approved"),MembershipRequestConstants.STATUS_APPROVED);
         LiveUsers.joinGroup(themeDisplay.getCompanyId(),membershipRequest.getGroupId(),new long[]{membershipRequest.getUserId()});
       }
     }
   }
-  UnicodeProperties typeSettingsProperties=group.getTypeSettingsProperties();
+  UnicodeProperties typeSettingsProperties=liveGroup.getTypeSettingsProperties();
   String customJspServletContextName=ParamUtil.getString(actionRequest,"customJspServletContextName");
   typeSettingsProperties.setProperty("customJspServletContextName",customJspServletContextName);
   String googleAnalyticsId=ParamUtil.getString(actionRequest,"googleAnalyticsId");
@@ -34,10 +34,10 @@
   typeSettingsProperties.setProperty("true-robots.txt",privateRobots);
   String publicVirtualHost=ParamUtil.getString(actionRequest,"publicVirtualHost");
   String privateVirtualHost=ParamUtil.getString(actionRequest,"privateVirtualHost");
-  LayoutSetServiceUtil.updateVirtualHost(group.getGroupId(),false,publicVirtualHost);
-  LayoutSetServiceUtil.updateVirtualHost(group.getGroupId(),true,privateVirtualHost);
-  if (group.hasStagingGroup()) {
-    Group stagingGroup=group.getStagingGroup();
+  LayoutSetServiceUtil.updateVirtualHost(liveGroup.getGroupId(),false,publicVirtualHost);
+  LayoutSetServiceUtil.updateVirtualHost(liveGroup.getGroupId(),true,privateVirtualHost);
+  if (liveGroup.hasStagingGroup()) {
+    Group stagingGroup=liveGroup.getStagingGroup();
     publicVirtualHost=ParamUtil.getString(actionRequest,"stagingPublicVirtualHost");
     privateVirtualHost=ParamUtil.getString(actionRequest,"stagingPrivateVirtualHost");
     friendlyURL=ParamUtil.getString(actionRequest,"stagingFriendlyURL");
@@ -45,7 +45,7 @@
     LayoutSetServiceUtil.updateVirtualHost(stagingGroup.getGroupId(),true,privateVirtualHost);
     GroupServiceUtil.updateFriendlyURL(stagingGroup.getGroupId(),friendlyURL);
   }
-  group=GroupServiceUtil.updateGroup(group.getGroupId(),typeSettingsProperties.toString());
+  liveGroup=GroupServiceUtil.updateGroup(liveGroup.getGroupId(),typeSettingsProperties.toString());
   long publicLayoutSetPrototypeId=ParamUtil.getLong(actionRequest,"publicLayoutSetPrototypeId");
   long privateLayoutSetPrototypeId=ParamUtil.getLong(actionRequest,"privateLayoutSetPrototypeId");
   if ((publicLayoutSetPrototypeId == 0) && (privateLayoutSetPrototypeId == 0)) {
@@ -59,7 +59,7 @@
     }
   }
   if ((publicLayoutSetPrototypeId > 0) || (privateLayoutSetPrototypeId > 0)) {
-    SitesUtil.applyLayoutSetPrototypes(group,publicLayoutSetPrototypeId,privateLayoutSetPrototypeId,serviceContext);
+    SitesUtil.applyLayoutSetPrototypes(liveGroup,publicLayoutSetPrototypeId,privateLayoutSetPrototypeId,serviceContext);
   }
-  StagingUtil.updateStaging(actionRequest,group);
+  StagingUtil.updateStaging(actionRequest,liveGroup);
 }
