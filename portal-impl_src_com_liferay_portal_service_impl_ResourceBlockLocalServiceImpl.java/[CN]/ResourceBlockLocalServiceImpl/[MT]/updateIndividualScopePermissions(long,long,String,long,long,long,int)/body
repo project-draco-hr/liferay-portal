@@ -1,0 +1,28 @@
+{
+  PermissionedModel model=getPermissionedModel(name,primKey);
+  ResourceBlock resourceBlock=resourceBlockPersistence.fetchByPrimaryKey(model.getResourceBlockId());
+  ResourceBlockPermissionsContainer resourceBlockPermissionsContainer;
+  if (resourceBlock == null) {
+    resourceBlockPermissionsContainer=resourceTypePermissionLocalService.getResourceBlockPermissionsContainer(companyId,groupId,name);
+  }
+ else {
+    resourceBlockPermissionsContainer=resourceBlockPermissionLocalService.getResourceBlockPermissionsContainer(resourceBlock.getPrimaryKey());
+  }
+  long oldActionIdsLong=resourceBlockPermissionsContainer.getActionIds(roleId);
+  if (operator == ResourceBlockConstants.OPERATOR_ADD) {
+    actionIdsLong|=oldActionIdsLong;
+  }
+ else   if (operator == ResourceBlockConstants.OPERATOR_REMOVE) {
+    actionIdsLong=oldActionIdsLong & (~actionIdsLong);
+  }
+  if (resourceBlock != null) {
+    if (oldActionIdsLong == actionIdsLong) {
+      return;
+    }
+    release(resourceBlock);
+  }
+  resourceBlockPermissionsContainer.setPermissions(roleId,actionIdsLong);
+  String permissionsHash=getPermissionsHash(resourceBlockPermissionsContainer);
+  updateResourceBlockId(companyId,groupId,name,model,permissionsHash,resourceBlockPermissionsContainer);
+  PermissionCacheUtil.clearCache();
+}
