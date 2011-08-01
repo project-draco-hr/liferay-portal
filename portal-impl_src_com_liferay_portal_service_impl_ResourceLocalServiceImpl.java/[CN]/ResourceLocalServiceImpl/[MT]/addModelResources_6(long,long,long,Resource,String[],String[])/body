@@ -1,19 +1,32 @@
 {
   Role ownerRole=roleLocalService.getRole(companyId,RoleConstants.OWNER);
-  List<String> actionIds=ResourceActionsUtil.getModelResourceActions(resource.getName());
-  actionIds=ListUtil.copy(actionIds);
-  filterOwnerActions(resource.getName(),actionIds);
-  resourcePermissionLocalService.setOwnerResourcePermissions(resource.getCompanyId(),resource.getName(),resource.getScope(),resource.getPrimKey(),ownerRole.getRoleId(),userId,actionIds.toArray(new String[actionIds.size()]));
+  List<String> ownerActionIds=ResourceActionsUtil.getModelResourceActions(resource.getName());
+  ownerActionIds=ListUtil.copy(ownerActionIds);
+  filterOwnerActions(resource.getName(),ownerActionIds);
+  String[] ownerPermissions=ownerActionIds.toArray(new String[ownerActionIds.size()]);
+  Role defaultGroupRole=null;
   if (groupId > 0) {
-    Role role=roleLocalService.getDefaultGroupRole(groupId);
+    defaultGroupRole=roleLocalService.getDefaultGroupRole(groupId);
     if (groupPermissions == null) {
       groupPermissions=new String[0];
     }
-    resourcePermissionLocalService.setResourcePermissions(resource.getCompanyId(),resource.getName(),resource.getScope(),resource.getPrimKey(),role.getRoleId(),groupPermissions);
   }
   Role guestRole=roleLocalService.getRole(companyId,RoleConstants.GUEST);
   if (guestPermissions == null) {
     guestPermissions=new String[0];
   }
-  resourcePermissionLocalService.setResourcePermissions(resource.getCompanyId(),resource.getName(),resource.getScope(),resource.getPrimKey(),guestRole.getRoleId(),guestPermissions);
+  if (resourceBlockLocalService.isSupported(resource.getName())) {
+    resourceBlockLocalService.setIndividualScopePermissions(resource.getCompanyId(),groupId,resource.getName(),Long.valueOf(resource.getPrimKey()),ownerRole.getRoleId(),ownerActionIds);
+    if (groupId > 0) {
+      resourceBlockLocalService.setIndividualScopePermissions(resource.getCompanyId(),groupId,resource.getName(),Long.valueOf(resource.getPrimKey()),defaultGroupRole.getRoleId(),Arrays.asList(groupPermissions));
+    }
+    resourceBlockLocalService.setIndividualScopePermissions(resource.getCompanyId(),groupId,resource.getName(),Long.valueOf(resource.getPrimKey()),guestRole.getRoleId(),Arrays.asList(guestPermissions));
+  }
+ else {
+    resourcePermissionLocalService.setOwnerResourcePermissions(resource.getCompanyId(),resource.getName(),resource.getScope(),resource.getPrimKey(),ownerRole.getRoleId(),userId,ownerPermissions);
+    if (groupId > 0) {
+      resourcePermissionLocalService.setResourcePermissions(resource.getCompanyId(),resource.getName(),resource.getScope(),resource.getPrimKey(),defaultGroupRole.getRoleId(),groupPermissions);
+    }
+    resourcePermissionLocalService.setResourcePermissions(resource.getCompanyId(),resource.getName(),resource.getScope(),resource.getPrimKey(),guestRole.getRoleId(),guestPermissions);
+  }
 }

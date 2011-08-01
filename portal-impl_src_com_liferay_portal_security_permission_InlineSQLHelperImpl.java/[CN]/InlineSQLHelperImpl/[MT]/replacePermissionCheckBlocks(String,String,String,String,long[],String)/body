@@ -1,0 +1,49 @@
+{
+  PermissionChecker permissionChecker=PermissionThreadLocal.getPermissionChecker();
+  long checkGroupId=0;
+  if (groupIds.length == 1) {
+    checkGroupId=groupIds[0];
+  }
+  long companyId=permissionChecker.getCompanyId();
+  long[] roleIds=permissionChecker.getRoleIds(getUserId(),checkGroupId);
+  try {
+    for (    long roleId : roleIds) {
+      if (ResourceTypePermissionLocalServiceUtil.hasCompanyScopePermission(companyId,className,roleId,ActionKeys.VIEW)) {
+        return sql;
+      }
+    }
+  }
+ catch (  Exception e) {
+  }
+  Set<Long> userResourceBlockIds=getResourceBlockIds(companyId,groupIds,className);
+  String permissionWhere=StringPool.BLANK;
+  if (Validator.isNotNull(bridgeJoin)) {
+    permissionWhere=bridgeJoin;
+  }
+  Set<Long> ownerResourceBlockIds=getOwnerResourceBlockIds(companyId,groupIds,className);
+  ownerResourceBlockIds.removeAll(userResourceBlockIds);
+  if (userResourceBlockIds.size() == 0) {
+    userResourceBlockIds.add(_NO_RESOURCE_BLOCKS_ID);
+  }
+  if (Validator.isNotNull(userIdField) && ownerResourceBlockIds.size() > 0) {
+    permissionWhere+=CustomSQLUtil.get(FILTER_BY_RESOURCE_BLOCK_ID_OWNER);
+    permissionWhere=StringUtil.replace(permissionWhere,new String[]{"[$USER_RESOURCE_BLOCK_IDS$]","[$USER_ID_FIELD$]","[$USER_ID$]","[$OWNER_RESOURCE_BLOCK_IDS$]"},new String[]{StringUtil.merge(userResourceBlockIds),userIdField,String.valueOf(permissionChecker.getUserId()),StringUtil.merge(ownerResourceBlockIds)});
+  }
+ else {
+    permissionWhere+=CustomSQLUtil.get(FILTER_BY_RESOURCE_BLOCK_ID);
+    permissionWhere=StringUtil.replace(permissionWhere,"[$USER_RESOURCE_BLOCK_IDS$]",StringUtil.merge(userResourceBlockIds));
+  }
+  int pos=sql.indexOf(_WHERE_CLAUSE);
+  if (pos != -1) {
+    return sql.substring(0,pos + 1).concat(permissionWhere).concat(" AND ").concat(sql.substring(pos + 6));
+  }
+  pos=sql.indexOf(_GROUP_BY_CLAUSE);
+  if (pos != -1) {
+    return sql.substring(0,pos + 1).concat(permissionWhere).concat(sql.substring(pos + 1));
+  }
+  pos=sql.indexOf(_ORDER_BY_CLAUSE);
+  if (pos != -1) {
+    return sql.substring(0,pos + 1).concat(permissionWhere).concat(sql.substring(pos + 1));
+  }
+  return sql.concat(StringPool.SPACE).concat(permissionWhere);
+}
