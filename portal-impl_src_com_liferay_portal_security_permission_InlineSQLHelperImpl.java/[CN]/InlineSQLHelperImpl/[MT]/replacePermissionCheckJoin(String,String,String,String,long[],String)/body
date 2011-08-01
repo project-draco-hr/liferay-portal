@@ -15,23 +15,6 @@
     permissionJoin=bridgeJoin;
   }
   permissionJoin+=CustomSQLUtil.get(JOIN_RESOURCE_PERMISSION);
-  StringBundler ownerSQL=new StringBundler(5);
-  long userId=getUserId();
-  if (permissionChecker.isSignedIn()) {
-    ownerSQL.append(" OR ");
-    if (Validator.isNotNull(userIdField)) {
-      ownerSQL.append("(");
-      ownerSQL.append(userIdField);
-      ownerSQL.append(" = ");
-      ownerSQL.append(userId);
-      ownerSQL.append(")");
-    }
- else {
-      ownerSQL.append("(ResourcePermission.ownerId = ");
-      ownerSQL.append(userId);
-      ownerSQL.append(")");
-    }
-  }
   StringBundler sb=new StringBundler();
   sb.append("(InlineSQLResourcePermission.scope = ");
   sb.append(ResourceConstants.SCOPE_INDIVIDUAL);
@@ -39,6 +22,7 @@
   sb.append("InlineSQLResourcePermission.primKey = CAST_TEXT(");
   sb.append(classPKField);
   sb.append(") AND (");
+  long userId=getUserId();
   for (int j=0; j < groupIds.length; j++) {
     long groupId=groupIds[j];
     if (!permissionChecker.hasPermission(groupId,className,0,ActionKeys.VIEW)) {
@@ -57,6 +41,21 @@
         sb.append("InlineSQLResourcePermission.roleId = ");
         sb.append(roleIds[i]);
       }
+      if (permissionChecker.isSignedIn()) {
+        sb.append(" OR ");
+        if (Validator.isNotNull(userIdField)) {
+          sb.append("(");
+          sb.append(userIdField);
+          sb.append(" = ");
+          sb.append(userId);
+          sb.append(")");
+        }
+ else {
+          sb.append("(InlineSQLResourcePermission.ownerId = ");
+          sb.append(userId);
+          sb.append(")");
+        }
+      }
       sb.append(") AND ");
     }
     sb.append("(");
@@ -66,7 +65,7 @@
     sb.append(")");
   }
   sb.append("))");
-  permissionJoin=StringUtil.replace(permissionJoin,new String[]{"[$CLASS_NAME$]","[$COMPANY_ID$]","OR [$OWNER_CHECK$]","[$PRIM_KEYS$]"},new String[]{className,String.valueOf(permissionChecker.getCompanyId()),ownerSQL.toString(),sb.toString()});
+  permissionJoin=StringUtil.replace(permissionJoin,new String[]{"[$CLASS_NAME$]","[$COMPANY_ID$]","[$PRIM_KEYS$]"},new String[]{className,String.valueOf(permissionChecker.getCompanyId()),sb.toString()});
   int pos=sql.indexOf(_WHERE_CLAUSE);
   if (pos != -1) {
     return sql.substring(0,pos + 1).concat(permissionJoin).concat(sql.substring(pos + 1));
