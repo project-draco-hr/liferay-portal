@@ -4,11 +4,45 @@
   String name=ParamUtil.getString(actionRequest,"name");
   String description=ParamUtil.getString(actionRequest,"description");
   long[] ddmStructureIds=getLongArray(actionRequest,"structuresSearchContainerPrimaryKeys");
+  long structureId=ParamUtil.getLong(actionRequest,"structureId");
+  long classNameId=PortalUtil.getClassNameId(DLFileEntryMetadata.class);
+  Map<Locale,String> nameMap=new HashMap<Locale,String>();
+  nameMap.put(themeDisplay.getLocale(),name);
+  Map<Locale,String> descriptionMap=new HashMap<Locale,String>();
+  descriptionMap.put(themeDisplay.getLocale(),description);
+  String xsd=ParamUtil.getString(actionRequest,"xsd");
+  String storageType="xml";
   ServiceContext serviceContext=ServiceContextFactory.getInstance(DLFileEntryType.class.getName(),actionRequest);
   if (fileEntryTypeId <= 0) {
-    DLFileEntryTypeServiceUtil.addFileEntryType(themeDisplay.getScopeGroupId(),name,description,ddmStructureIds,serviceContext);
+    DLFileEntryType fileEntryType=DLFileEntryTypeServiceUtil.addFileEntryType(themeDisplay.getScopeGroupId(),name,description,ddmStructureIds,serviceContext);
+    String structureKey="auto_" + fileEntryType.getFileEntryTypeId();
+    DDMStructure structure=null;
+    try {
+      structure=DDMStructureServiceUtil.addStructure(themeDisplay.getScopeGroupId(),classNameId,structureKey,nameMap,descriptionMap,xsd,storageType,serviceContext);
+    }
+ catch (    Exception e) {
+      if (!(e instanceof RequiredStructureException) && !(e instanceof StructureDuplicateElementException) && !(e instanceof StructureNameException)&& !(e instanceof StructureXsdException)) {
+        throw e;
+      }
+    }
+    if (structure != null) {
+      ddmStructureIds=ArrayUtil.append(ddmStructureIds,structure.getStructureId());
+      DLFileEntryTypeServiceUtil.updateFileEntryType(fileEntryType.getFileEntryTypeId(),name,description,ddmStructureIds,serviceContext);
+    }
   }
  else {
+    DDMStructure structure=null;
+    try {
+      structure=DDMStructureServiceUtil.updateStructure(structureId,nameMap,descriptionMap,xsd,serviceContext);
+    }
+ catch (    Exception e) {
+      if (!(e instanceof RequiredStructureException) && !(e instanceof StructureDuplicateElementException) && !(e instanceof StructureNameException)&& !(e instanceof StructureXsdException)) {
+        throw e;
+      }
+    }
+    if (structure != null) {
+      ddmStructureIds=ArrayUtil.append(ddmStructureIds,structure.getStructureId());
+    }
     DLFileEntryTypeServiceUtil.updateFileEntryType(fileEntryTypeId,name,description,ddmStructureIds,serviceContext);
   }
 }
