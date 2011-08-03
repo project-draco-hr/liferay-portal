@@ -14,14 +14,14 @@
       }
     }
   }
-  int count=mbMessagePersistence.countByThreadId(message.getThreadId());
+  int count=mbMessagePersistence.countByT_S(message.getThreadId(),WorkflowConstants.STATUS_APPROVED);
   if (message.isRoot()) {
     mbMessageFlagLocalService.deleteQuestionAndAnswerFlags(message.getThreadId());
   }
  else   if (mbMessageFlagLocalService.hasAnswerFlag(message.getMessageId())) {
     mbMessageFlagService.deleteAnswerFlag(message.getMessageId());
   }
-  if (count == 1) {
+  if ((count == 1) && (message.getStatus() != WorkflowConstants.STATUS_DRAFT)) {
     long companyId=message.getCompanyId();
     long repositoryId=CompanyConstants.SYSTEM;
     String dirName=message.getThreadAttachmentsDir();
@@ -35,14 +35,14 @@
     }
     subscriptionLocalService.deleteSubscriptions(message.getCompanyId(),MBThread.class.getName(),message.getThreadId());
     mbThreadPersistence.remove(message.getThreadId());
-    if ((message.getCategoryId() != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) && (message.getCategoryId() != MBCategoryConstants.DISCUSSION_CATEGORY_ID)) {
+    if ((message.getCategoryId() != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) && (message.getCategoryId() != MBCategoryConstants.DISCUSSION_CATEGORY_ID) && (message.getStatus() != WorkflowConstants.STATUS_DRAFT)) {
       MBCategory category=mbCategoryPersistence.findByPrimaryKey(message.getCategoryId());
       category.setThreadCount(category.getThreadCount() - 1);
       category.setMessageCount(category.getMessageCount() - 1);
       mbCategoryPersistence.update(category,false);
     }
   }
- else   if (count > 1) {
+ else   if ((count > 1) || ((count == 1) && (message.getStatus() != WorkflowConstants.STATUS_DRAFT))) {
     MBThread thread=mbThreadPersistence.findByPrimaryKey(message.getThreadId());
     if (thread.getRootMessageId() == message.getMessageId()) {
       List<MBMessage> childrenMessages=mbMessagePersistence.findByT_P(message.getThreadId(),message.getMessageId());
@@ -79,9 +79,11 @@
         }
       }
     }
-    thread.setMessageCount(count - 1);
+    if (message.getStatus() != WorkflowConstants.STATUS_DRAFT) {
+      thread.setMessageCount(count - 1);
+    }
     mbThreadPersistence.update(thread,false);
-    if ((message.getCategoryId() != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) && (message.getCategoryId() != MBCategoryConstants.DISCUSSION_CATEGORY_ID)) {
+    if ((message.getCategoryId() != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) && (message.getCategoryId() != MBCategoryConstants.DISCUSSION_CATEGORY_ID) && (message.getStatus() != WorkflowConstants.STATUS_DRAFT)) {
       MBCategory category=mbCategoryPersistence.findByPrimaryKey(message.getCategoryId());
       category.setMessageCount(category.getMessageCount() - 1);
       mbCategoryPersistence.update(category,false);
