@@ -1,4 +1,31 @@
 {
   validate(fileName,fileExtension,sourceFileName,validateFileExtension,is);
-  store.updateFile(companyId,repositoryId,fileName,versionNumber,sourceFileName,is);
+  if (!AntiVirusScannerUtil.isActive()) {
+    store.updateFile(companyId,repositoryId,fileName,versionNumber,sourceFileName,is);
+  }
+ else {
+    File tempFile=null;
+    try {
+      if (is.markSupported()) {
+        is.mark(is.available() + 1);
+        AntiVirusScannerUtil.scan(is);
+        is.reset();
+        store.updateFile(companyId,repositoryId,fileName,versionNumber,sourceFileName,is);
+      }
+ else {
+        tempFile=FileUtil.createTempFile();
+        FileUtil.write(tempFile,is);
+        AntiVirusScannerUtil.scan(tempFile);
+        store.updateFile(companyId,repositoryId,fileName,versionNumber,sourceFileName,tempFile);
+      }
+    }
+ catch (    IOException e) {
+      throw new SystemException("Unable to process file: " + fileName,e);
+    }
+ finally {
+      if (tempFile != null) {
+        tempFile.delete();
+      }
+    }
+  }
 }
