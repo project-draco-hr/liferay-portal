@@ -1,4 +1,5 @@
 {
+  File file=null;
   try {
     String[] destinationArray=WebDAVUtil.getPathArray(destination,true);
     FileEntry fileEntry=(FileEntry)resource.getModel();
@@ -12,7 +13,6 @@
     String title=WebDAVUtil.getResourceName(destinationArray);
     String description=fileEntry.getDescription();
     String changeLog=StringPool.BLANK;
-    byte[] bytes=null;
     String[] assetTagNames=AssetTagLocalServiceUtil.getTagNames(FileEntry.class.getName(),fileEntry.getFileEntryId());
     ServiceContext serviceContext=new ServiceContext();
     serviceContext.setAssetTagNames(assetTagNames);
@@ -26,15 +26,15 @@
       try {
         FileEntry destFileEntry=DLAppServiceUtil.getFileEntry(groupId,newParentFolderId,title);
         InputStream is=fileEntry.getContentStream();
-        bytes=FileUtil.getBytes(is);
-        DLAppServiceUtil.updateFileEntry(destFileEntry.getFileEntryId(),destFileEntry.getTitle(),destFileEntry.getMimeType(),destFileEntry.getTitle(),destFileEntry.getDescription(),changeLog,false,bytes,serviceContext);
+        file=FileUtil.createTempFile(is);
+        DLAppServiceUtil.updateFileEntry(destFileEntry.getFileEntryId(),destFileEntry.getTitle(),destFileEntry.getMimeType(),destFileEntry.getTitle(),destFileEntry.getDescription(),changeLog,false,file,serviceContext);
         DLAppServiceUtil.deleteFileEntry(fileEntry.getFileEntryId());
         return status;
       }
  catch (      NoSuchFileEntryException nsfee) {
       }
     }
-    DLAppServiceUtil.updateFileEntry(fileEntry.getFileEntryId(),sourceFileName,fileEntry.getMimeType(),title,description,changeLog,false,bytes,serviceContext);
+    DLAppServiceUtil.updateFileEntry(fileEntry.getFileEntryId(),sourceFileName,fileEntry.getMimeType(),title,description,changeLog,false,file,serviceContext);
     if (fileEntry.getFolderId() != newParentFolderId) {
       fileEntry=DLAppServiceUtil.moveFileEntry(fileEntry.getFileEntryId(),newParentFolderId,serviceContext);
     }
@@ -54,5 +54,8 @@ catch (  LockException le) {
   }
 catch (  Exception e) {
     throw new WebDAVException(e);
+  }
+ finally {
+    FileUtil.delete(file);
   }
 }
