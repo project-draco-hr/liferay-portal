@@ -13,18 +13,27 @@
   serviceContext.setAddGroupPermissions(true);
   serviceContext.setAddGuestPermissions(true);
   String contentType=GetterUtil.get(request.getHeader(HttpHeaders.CONTENT_TYPE),ContentTypes.APPLICATION_OCTET_STREAM);
-  if (contentType.equals(ContentTypes.APPLICATION_OCTET_STREAM)) {
-    contentType=MimeTypesUtil.getContentType(is,title);
-  }
+  String extension=FileUtil.getExtension(title);
+  File file=null;
   try {
-    FileEntry fileEntry=getFileEntry(sharepointRequest);
-    long fileEntryId=fileEntry.getFileEntryId();
-    description=fileEntry.getDescription();
-    String[] assetTagNames=AssetTagLocalServiceUtil.getTagNames(FileEntry.class.getName(),fileEntry.getFileEntryId());
-    serviceContext.setAssetTagNames(assetTagNames);
-    DLAppServiceUtil.updateFileEntry(fileEntryId,title,contentType,title,description,changeLog,false,is,contentLength,serviceContext);
+    file=FileUtil.createTempFile(extension);
+    FileUtil.write(file,request.getInputStream());
+    if (contentType.equals(ContentTypes.APPLICATION_OCTET_STREAM)) {
+      contentType=MimeTypesUtil.getContentType(file,title);
+    }
+    try {
+      FileEntry fileEntry=getFileEntry(sharepointRequest);
+      long fileEntryId=fileEntry.getFileEntryId();
+      description=fileEntry.getDescription();
+      String[] assetTagNames=AssetTagLocalServiceUtil.getTagNames(FileEntry.class.getName(),fileEntry.getFileEntryId());
+      serviceContext.setAssetTagNames(assetTagNames);
+      DLAppServiceUtil.updateFileEntry(fileEntryId,title,contentType,title,description,changeLog,false,file,serviceContext);
+    }
+ catch (    NoSuchFileEntryException nsfee) {
+      DLAppServiceUtil.addFileEntry(groupId,parentFolderId,title,contentType,title,description,changeLog,file,serviceContext);
+    }
   }
- catch (  NoSuchFileEntryException nsfee) {
-    DLAppServiceUtil.addFileEntry(groupId,parentFolderId,title,contentType,title,description,changeLog,is,contentLength,serviceContext);
+  finally {
+    FileUtil.delete(file);
   }
 }
