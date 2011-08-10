@@ -6,6 +6,19 @@
     PrincipalThreadLocal.setPassword(PortalUtil.getUserPassword(request));
     PermissionChecker permissionChecker=PermissionCheckerFactoryUtil.create(user,true);
     PermissionThreadLocal.setPermissionChecker(permissionChecker);
+    if (_lastModified) {
+      long lastModified=getLastModified(request);
+      if (lastModified > 0) {
+        long ifModifiedSince=request.getDateHeader(HttpHeaders.IF_MODIFIED_SINCE);
+        if ((ifModifiedSince > 0) && (ifModifiedSince == lastModified)) {
+          response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
+          return;
+        }
+      }
+      if (lastModified > 0) {
+        response.setDateHeader(HttpHeaders.LAST_MODIFIED,lastModified);
+      }
+    }
     String path=HttpUtil.fixPath(request.getPathInfo());
     String[] pathArray=StringUtil.split(path,CharPool.SLASH);
     if (pathArray.length == 0) {
@@ -16,7 +29,13 @@
         sendFile(request,response,user,pathArray);
       }
  else {
-        sendDocumentLibrary(request,response,user,request.getServletPath() + StringPool.SLASH + path,pathArray);
+        Image image=getImage(request,true);
+        if (image != null) {
+          writeImage(image,request,response);
+        }
+ else {
+          sendDocumentLibrary(request,response,user,request.getServletPath() + StringPool.SLASH + path,pathArray);
+        }
       }
     }
   }
