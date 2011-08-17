@@ -1,0 +1,51 @@
+{
+  if (query == null) {
+    return _emptyWeightedTermArray;
+  }
+  Set<WeightedTerm> weightedTerms=new HashSet<WeightedTerm>();
+  Set<Term> terms=new HashSet<Term>();
+  LinkedList<Query> queryStack=new LinkedList<Query>();
+  Query lastQuery=query;
+  while (lastQuery != null) {
+    if (lastQuery instanceof BooleanQuery) {
+      BooleanQuery booleanQuery=(BooleanQuery)lastQuery;
+      BooleanClause[] booleanQueryClauses=booleanQuery.getClauses();
+      for (      BooleanClause booleanClause : booleanQueryClauses) {
+        if (prohibited || (booleanClause.getOccur() != BooleanClause.Occur.MUST_NOT)) {
+          Query clauseQuery=booleanClause.getQuery();
+          if (clauseQuery != null) {
+            queryStack.addFirst(clauseQuery);
+          }
+        }
+      }
+      lastQuery=queryStack.poll();
+    }
+ else     if (lastQuery instanceof FilteredQuery) {
+      FilteredQuery filteredQuery=(FilteredQuery)lastQuery;
+      lastQuery=filteredQuery.getQuery();
+      if (lastQuery == null) {
+        lastQuery=queryStack.poll();
+      }
+    }
+ else {
+      Class<? extends Query> queryClass=lastQuery.getClass();
+      if (!_queryClassBlackList.contains(queryClass)) {
+        try {
+          lastQuery.extractTerms(terms);
+          for (          Term term : terms) {
+            if ((fieldName == null) || term.field().equals(fieldName)) {
+              WeightedTerm weightedTerm=new WeightedTerm(query.getBoost(),term.text());
+              weightedTerms.add(weightedTerm);
+            }
+          }
+          terms.clear();
+        }
+ catch (        UnsupportedOperationException uoe) {
+          _queryClassBlackList.addIfAbsent(queryClass);
+        }
+      }
+      lastQuery=queryStack.poll();
+    }
+  }
+  return weightedTerms.toArray(new WeightedTerm[weightedTerms.size()]);
+}
