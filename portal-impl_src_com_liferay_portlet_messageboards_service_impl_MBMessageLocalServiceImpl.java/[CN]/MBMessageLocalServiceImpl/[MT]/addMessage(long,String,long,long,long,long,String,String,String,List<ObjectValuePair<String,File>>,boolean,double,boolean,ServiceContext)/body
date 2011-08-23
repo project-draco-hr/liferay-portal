@@ -30,6 +30,9 @@
   message.setStatusByUserId(user.getUserId());
   message.setStatusByUserName(userName);
   message.setStatusDate(serviceContext.getModifiedDate(now));
+  if (priority != MBThreadConstants.PRIORITY_NOT_GIVEN) {
+    message.setPriority(priority);
+  }
   if (parentMessageId != MBMessageConstants.DEFAULT_PARENT_MESSAGE_ID) {
     MBMessage parentMessage=mbMessagePersistence.fetchByPrimaryKey(parentMessageId);
     if (parentMessage == null) {
@@ -41,24 +44,15 @@
     thread=mbThreadPersistence.fetchByPrimaryKey(threadId);
   }
   if ((thread == null) || (parentMessageId == MBMessageConstants.DEFAULT_PARENT_MESSAGE_ID)) {
-    threadId=counterLocalService.increment();
-    thread=mbThreadPersistence.create(threadId);
-    thread.setGroupId(groupId);
-    thread.setCompanyId(user.getCompanyId());
-    thread.setCategoryId(categoryId);
-    thread.setRootMessageId(messageId);
-    thread.setRootMessageUserId(user.getUserId());
-    thread.setStatus(WorkflowConstants.STATUS_DRAFT);
-    thread.setStatusByUserId(user.getUserId());
-    thread.setStatusByUserName(userName);
-    thread.setStatusDate(serviceContext.getModifiedDate(now));
+    thread=mbThreadLocalService.addThread(categoryId,message);
   }
   if ((priority != MBThreadConstants.PRIORITY_NOT_GIVEN) && (thread.getPriority() != priority)) {
     thread.setPriority(priority);
+    mbThreadPersistence.update(thread,false);
     updatePriorities(thread.getThreadId(),priority);
   }
   message.setCategoryId(categoryId);
-  message.setThreadId(threadId);
+  message.setThreadId(thread.getThreadId());
   message.setRootMessageId(thread.getRootMessageId());
   message.setParentMessageId(parentMessageId);
   message.setSubject(subject);
@@ -66,9 +60,6 @@
   message.setFormat(format);
   message.setAttachments(!files.isEmpty());
   message.setAnonymous(anonymous);
-  if (priority != MBThreadConstants.PRIORITY_NOT_GIVEN) {
-    message.setPriority(priority);
-  }
   if (message.isDiscussion()) {
     long classNameId=PortalUtil.getClassNameId((String)serviceContext.getAttribute("className"));
     long classPK=GetterUtil.getLong((String)serviceContext.getAttribute("classPK"));
@@ -102,7 +93,6 @@
       }
     }
   }
-  mbThreadPersistence.update(thread,false);
   mbMessagePersistence.update(message,false);
   if (!message.isDiscussion()) {
     if (user.isDefaultUser()) {
