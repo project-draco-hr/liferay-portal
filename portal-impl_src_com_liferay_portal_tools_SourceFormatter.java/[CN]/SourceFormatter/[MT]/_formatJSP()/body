@@ -11,19 +11,24 @@
   directoryScanner.setIncludes(new String[]{"**\\*.jsp","**\\*.jspf","**\\*.vm"});
   list.addAll(_sourceFormatterHelper.scanForFiles(directoryScanner));
   String[] files=list.toArray(new String[list.size()]);
-  for (int i=0; i < files.length; i++) {
-    File file=new File(basedir + files[i]);
+  for (  String fileName : files) {
+    File file=new File(basedir + fileName);
     String content=_fileUtil.read(file);
-    String newContent=_formatJSPContent(files[i],content);
+    _jspFilesMap.put(fileName,content);
+  }
+  for (  String fileName : files) {
+    File file=new File(basedir + fileName);
+    String content=_fileUtil.read(file);
+    String newContent=_formatJSPContent(fileName,content);
     newContent=StringUtil.replace(newContent,new String[]{"<br/>","\"/>","\" >","@page import","\"%>",")%>","javascript: "},new String[]{"<br />","\" />","\">","@ page import","\" %>",") %>","javascript:"});
     newContent=StringUtil.replace(newContent,new String[]{"* Copyright (c) 2000-2010 Liferay, Inc."},new String[]{"* Copyright (c) 2000-2011 Liferay, Inc."});
-    if (files[i].endsWith(".jsp") || files[i].endsWith(".jspf")) {
+    if (fileName.endsWith(".jsp") || fileName.endsWith(".jspf")) {
       if ((oldCopyright != null) && newContent.contains(oldCopyright)) {
         newContent=StringUtil.replace(newContent,oldCopyright,copyright);
-        _sourceFormatterHelper.printError(files[i],"old (c): " + files[i]);
+        _sourceFormatterHelper.printError(fileName,"old (c): " + fileName);
       }
       if (newContent.indexOf(copyright) == -1) {
-        _sourceFormatterHelper.printError(files[i],"(c): " + files[i]);
+        _sourceFormatterHelper.printError(fileName,"(c): " + fileName);
       }
  else {
         newContent=StringUtil.replace(newContent,"<%\n" + copyright + "\n%>","<%--\n" + copyright + "\n--%>");
@@ -42,14 +47,23 @@
       newContent=StringUtil.replace(newContent,"confirm(\"<%= LanguageUtil.","confirm(\"<%= UnicodeLanguageUtil.");
     }
     if (newContent.indexOf("    ") != -1) {
-      if (!files[i].endsWith("template.vm")) {
-        _sourceFormatterHelper.printError(files[i],"tab: " + files[i]);
+      if (!fileName.endsWith("template.vm")) {
+        _sourceFormatterHelper.printError(fileName,"tab: " + fileName);
       }
     }
-    _checkXSS(files[i],content);
+    _checkXSS(fileName,content);
+    try {
+      List<String> unusedJSPImports=_getJSPUnusedImports(fileName,content);
+      for (      String unusedJSPImport : unusedJSPImports) {
+        newContent=StringUtil.replace(newContent,new String[]{"\n\n<%@ page import=" + StringPool.QUOTE + unusedJSPImport+ StringPool.QUOTE+ " %>\n\n"},new String[]{"\n\n"});
+        newContent=StringUtil.replace(newContent,new String[]{"<%@ page import=" + StringPool.QUOTE + unusedJSPImport+ StringPool.QUOTE+ " %>\n"},new String[]{StringPool.BLANK});
+      }
+    }
+ catch (    Exception e) {
+    }
     if ((newContent != null) && !content.equals(newContent)) {
       _fileUtil.write(file,newContent);
-      _sourceFormatterHelper.printError(files[i],file);
+      _sourceFormatterHelper.printError(fileName,file);
     }
   }
 }
