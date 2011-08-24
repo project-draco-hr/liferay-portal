@@ -10,17 +10,18 @@
   directoryScanner.setExcludes(excludes);
   directoryScanner.setIncludes(new String[]{"**\\*.jsp","**\\*.jspf","**\\*.vm"});
   list.addAll(_sourceFormatterHelper.scanForFiles(directoryScanner));
-  String[] files=list.toArray(new String[list.size()]);
-  for (  String fileName : files) {
+  String[] fileNames=list.toArray(new String[list.size()]);
+  for (  String fileName : fileNames) {
     File file=new File(basedir + fileName);
     String content=_fileUtil.read(file);
-    _jspFilesMap.put(fileName,content);
+    _jspContents.put(fileName,content);
   }
-  for (  String fileName : files) {
+  for (  String fileName : fileNames) {
     File file=new File(basedir + fileName);
     String content=_fileUtil.read(file);
     String newContent=_formatJSPContent(fileName,content);
     newContent=StringUtil.replace(newContent,new String[]{"<br/>","\"/>","\" >","@page import","\"%>",")%>","javascript: "},new String[]{"<br />","\" />","\">","@ page import","\" %>",") %>","javascript:"});
+    newContent=_stripJSPImports(fileName,newContent);
     newContent=StringUtil.replace(newContent,new String[]{"* Copyright (c) 2000-2010 Liferay, Inc."},new String[]{"* Copyright (c) 2000-2011 Liferay, Inc."});
     if (fileName.endsWith(".jsp") || fileName.endsWith(".jspf")) {
       if ((oldCopyright != null) && newContent.contains(oldCopyright)) {
@@ -51,16 +52,7 @@
         _sourceFormatterHelper.printError(fileName,"tab: " + fileName);
       }
     }
-    _checkXSS(fileName,content);
-    try {
-      List<String> unusedJSPImports=_getJSPUnusedImports(fileName,content);
-      for (      String unusedJSPImport : unusedJSPImports) {
-        newContent=StringUtil.replace(newContent,new String[]{"\n\n<%@ page import=" + StringPool.QUOTE + unusedJSPImport+ StringPool.QUOTE+ " %>\n\n"},new String[]{"\n\n"});
-        newContent=StringUtil.replace(newContent,new String[]{"<%@ page import=" + StringPool.QUOTE + unusedJSPImport+ StringPool.QUOTE+ " %>\n"},new String[]{StringPool.BLANK});
-      }
-    }
- catch (    Exception e) {
-    }
+    _checkXSS(fileName,newContent);
     if ((newContent != null) && !content.equals(newContent)) {
       _fileUtil.write(file,newContent);
       _sourceFormatterHelper.printError(fileName,file);
