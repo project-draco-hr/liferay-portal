@@ -1,8 +1,25 @@
 {
   fileName=fileName.replace(CharPool.BACK_SLASH,CharPool.FORWARD_SLASH);
-  List<String> importClassNames=_getJSPUnusedImportClassNames(fileName,content);
-  for (  String importClassName : importClassNames) {
-    content=StringUtil.replace(content,new String[]{"\n\n<%@ page import=\"" + importClassName + "\" %>\n\n","<%@ page import=\"" + importClassName + "\" %>\n"},new String[]{"\n\n",StringPool.BLANK});
+  if (fileName.endsWith("html/common/init.jsp") || fileName.endsWith("html/portal/init.jsp") || !fileName.startsWith("portal-web/docroot")) {
+    return content;
   }
+  Pattern pattern=Pattern.compile("(<.*page.import=\".*>\n*)+",Pattern.MULTILINE);
+  Matcher matcher=pattern.matcher(content);
+  if (!matcher.find()) {
+    return content;
+  }
+  String imports=matcher.group();
+  List<String> importClassNames=_getJSPUnusedImportClassNames(fileName,imports);
+  for (  String importClassName : importClassNames) {
+    imports=StringUtil.replace(imports,new String[]{"<%@ page import=\"" + importClassName + "\" %>\n"},new String[]{StringPool.BLANK});
+  }
+  imports=_formatImports(imports,17);
+  String afterImports=content.substring(matcher.end());
+  if (Validator.isNull(afterImports)) {
+    imports=StringUtil.replaceLast(imports,"\n",StringPool.BLANK);
+    content=content.substring(0,matcher.start()) + imports;
+    return content;
+  }
+  content=content.substring(0,matcher.start()) + imports + "\n"+ afterImports;
   return content;
 }
