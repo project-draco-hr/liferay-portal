@@ -1,29 +1,31 @@
 {
+  String id=DLUtil.getTempFileId(fileVersion.getFileEntryId(),fileVersion.getVersion());
+  File file=_getVideoTempFile(id,fileVersion.getExtension());
+  File previewTempFile=getPreviewTempFile(id);
   try {
     if (!PrefsPropsUtil.getBoolean(PropsKeys.XUGGLER_ENABLED,PropsValues.XUGGLER_ENABLED) || _hasVideo(fileVersion)) {
       return;
     }
-    String id=DLUtil.getTempFileId(fileVersion.getFileEntryId(),fileVersion.getVersion());
-    File previewFile=_getPreviewFile(id);
-    if (_isGeneratePreview(id)) {
-      previewFile.createNewFile();
-      File tmpFile=_getVideoTmpFile(id,fileVersion.getExtension());
+    if (_isGeneratePreview(fileVersion)) {
+      InputStream inputStream=fileVersion.getContentStream(false);
+      FileUtil.write(file,inputStream);
       try {
-        InputStream inputStream=fileVersion.getContentStream(false);
-        FileUtil.write(tmpFile,inputStream);
-        _generateVideoXuggler(fileVersion,tmpFile,previewFile,PropsValues.DL_FILE_ENTRY_PREVIEW_VIDEO_HEIGHT,PropsValues.DL_FILE_ENTRY_PREVIEW_VIDEO_WIDTH);
-        if (_log.isInfoEnabled()) {
-          _log.info("Xuggler generated a preview video for " + id);
-        }
+        _generateVideoXuggler(fileVersion,file,previewTempFile,PropsValues.DL_FILE_ENTRY_PREVIEW_VIDEO_HEIGHT,PropsValues.DL_FILE_ENTRY_PREVIEW_VIDEO_WIDTH);
       }
-  finally {
-        FileUtil.delete(tmpFile);
+ catch (      Exception e) {
+        _log.error(e);
+      }
+      if (_log.isInfoEnabled()) {
+        _log.info("Xuggler generated a preview video for " + id);
       }
     }
-    if (_isGenerateThumbnail(id)) {
-      File fileThumbnail=_getThumbnailFile(id);
-      fileThumbnail.createNewFile();
-      _generateThumbnailXuggler(previewFile,fileThumbnail,PropsValues.DL_FILE_ENTRY_THUMBNAIL_HEIGHT,PropsValues.DL_FILE_ENTRY_THUMBNAIL_WIDTH);
+    if (_isGenerateThumbnail(fileVersion)) {
+      try {
+        _generateThumbnailXuggler(fileVersion,previewTempFile,PropsValues.DL_FILE_ENTRY_THUMBNAIL_HEIGHT,PropsValues.DL_FILE_ENTRY_THUMBNAIL_WIDTH);
+      }
+ catch (      Exception e) {
+        _log.error(e);
+      }
       if (_log.isInfoEnabled()) {
         _log.info("Xuggler generated a thumbnail for " + id);
       }
@@ -36,5 +38,7 @@ catch (  Exception e) {
   }
  finally {
     _fileEntries.remove(fileVersion.getFileVersionId());
+    FileUtil.delete(previewTempFile);
+    FileUtil.delete(file);
   }
 }
