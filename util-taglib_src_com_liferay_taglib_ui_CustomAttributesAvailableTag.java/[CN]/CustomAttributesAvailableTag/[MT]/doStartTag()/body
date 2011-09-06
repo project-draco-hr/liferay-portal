@@ -4,18 +4,51 @@
     if (companyId == 0) {
       companyId=CompanyThreadLocal.getCompanyId();
     }
-    ExpandoBridge expandoBridge=ExpandoBridgeFactoryUtil.getExpandoBridge(companyId,_className);
+    ExpandoBridge expandoBridge=null;
+    if (_classPK == 0) {
+      expandoBridge=ExpandoBridgeFactoryUtil.getExpandoBridge(companyId,_className);
+    }
+ else {
+      expandoBridge=ExpandoBridgeFactoryUtil.getExpandoBridge(companyId,_className,_classPK);
+    }
     List<String> attributeNames=Collections.list(expandoBridge.getAttributeNames());
     if (attributeNames.isEmpty()) {
       return SKIP_BODY;
     }
  else {
-      return EVAL_BODY_INCLUDE;
+      if (_classPK == 0) {
+        return EVAL_BODY_INCLUDE;
+      }
+      HttpServletRequest request=(HttpServletRequest)pageContext.getRequest();
+      ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+      PermissionChecker permissionChecker=themeDisplay.getPermissionChecker();
+      for (      String attributeName : attributeNames) {
+        Serializable value=expandoBridge.getAttribute(attributeName);
+        if (Validator.isNull(value)) {
+          continue;
+        }
+        UnicodeProperties properties=expandoBridge.getAttributeProperties(attributeName);
+        boolean propertyHidden=GetterUtil.getBoolean(properties.get(ExpandoColumnConstants.PROPERTY_HIDDEN));
+        boolean propertyVisibleWithUpdatePermission=GetterUtil.getBoolean(properties.get(ExpandoColumnConstants.PROPERTY_VISIBLE_WITH_UPDATE_PERMISSION));
+        try {
+          if (_editable && propertyVisibleWithUpdatePermission) {
+            propertyHidden=!ExpandoColumnPermission.contains(permissionChecker,companyId,_className,ExpandoTableConstants.DEFAULT_TABLE_NAME,attributeName,ActionKeys.UPDATE);
+          }
+          if (!propertyHidden && ExpandoColumnPermission.contains(permissionChecker,companyId,_className,ExpandoTableConstants.DEFAULT_TABLE_NAME,attributeName,ActionKeys.VIEW)) {
+            return EVAL_BODY_INCLUDE;
+          }
+        }
+ catch (        SystemException e) {
+        }
+      }
+      return SKIP_BODY;
     }
   }
   finally {
     if (!ServerDetector.isResin()) {
       _className=null;
+      _classPK=0;
+      _editable=false;
       _companyId=0;
     }
   }
