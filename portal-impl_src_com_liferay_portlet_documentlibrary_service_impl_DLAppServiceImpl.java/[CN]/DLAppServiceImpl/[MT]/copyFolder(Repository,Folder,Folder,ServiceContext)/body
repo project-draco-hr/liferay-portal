@@ -1,18 +1,41 @@
 {
-  List<FileEntry> srcFileEntries=repository.getFileEntries(srcFolder.getFolderId(),QueryUtil.ALL_POS,QueryUtil.ALL_POS,null);
-  for (  FileEntry srcFileEntry : srcFileEntries) {
-    try {
-      FileEntry fileEntry=repository.copyFileEntry(destFolder.getGroupId(),srcFileEntry.getFileEntryId(),destFolder.getFolderId(),serviceContext);
-      DLProcessorRegistryUtil.trigger(fileEntry);
+  Queue<Folder[]> folderQueue=new LinkedList<Folder[]>();
+  final List<FileEntry> fileEntryList=new ArrayList<FileEntry>();
+  Folder currentSrcFolder=srcFolder;
+  Folder currentDestFolder=destFolder;
+  while (true) {
+    List<FileEntry> srcFileEntries=repository.getFileEntries(currentSrcFolder.getFolderId(),QueryUtil.ALL_POS,QueryUtil.ALL_POS,null);
+    for (    FileEntry srcFileEntry : srcFileEntries) {
+      try {
+        FileEntry fileEntry=repository.copyFileEntry(currentDestFolder.getGroupId(),srcFileEntry.getFileEntryId(),currentDestFolder.getFolderId(),serviceContext);
+        fileEntryList.add(fileEntry);
+      }
+ catch (      Exception e) {
+        _log.error(e,e);
+        continue;
+      }
     }
- catch (    Exception e) {
-      _log.error(e,e);
-      continue;
+    List<Folder> srcSubfolders=repository.getFolders(currentSrcFolder.getFolderId(),false,QueryUtil.ALL_POS,QueryUtil.ALL_POS,null);
+    for (    Folder srcSubfolder : srcSubfolders) {
+      Folder destSubfolder=repository.addFolder(currentDestFolder.getFolderId(),srcSubfolder.getName(),srcSubfolder.getDescription(),serviceContext);
+      folderQueue.offer(new Folder[]{srcSubfolder,destSubfolder});
+    }
+    Folder[] next=folderQueue.poll();
+    if (next == null) {
+      break;
+    }
+ else {
+      currentSrcFolder=next[0];
+      currentDestFolder=next[1];
     }
   }
-  List<Folder> srcSubfolders=repository.getFolders(srcFolder.getFolderId(),false,QueryUtil.ALL_POS,QueryUtil.ALL_POS,null);
-  for (  Folder srcSubfolder : srcSubfolders) {
-    Folder destSubfolder=repository.addFolder(destFolder.getFolderId(),srcSubfolder.getName(),srcSubfolder.getDescription(),serviceContext);
-    copyFolder(repository,srcSubfolder,destSubfolder,serviceContext);
+  TransactionCommitCallbackUtil.registerCallback(new Callable<Void>(){
+    public Void call() throws Exception {
+      for (      FileEntry fileEntry : fileEntryList) {
+        DLProcessorRegistryUtil.trigger(fileEntry);
+      }
+      return null;
+    }
   }
+);
 }
