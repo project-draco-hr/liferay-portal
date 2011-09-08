@@ -1,26 +1,37 @@
 {
   List<byte[]> images=new ArrayList<byte[]>();
   for (  String name : getSortedParameterNames(uploadPortletRequest,imagePrefix)) {
-    int priority=GetterUtil.getInteger(name.substring(imagePrefix.length(),name.length()));
-    File file=uploadPortletRequest.getFile(name);
-    byte[] bytes=FileUtil.getBytes(file);
-    boolean preserveScreenshot=ParamUtil.getBoolean(uploadPortletRequest,"preserveScreenshot" + priority);
-    if (preserveScreenshot) {
-      SCProductScreenshot productScreenshot=getProductScreenshot(uploadPortletRequest,priority);
-      Image image=null;
-      if (imagePrefix.equals("fullImage")) {
-        image=ImageLocalServiceUtil.getImage(productScreenshot.getFullImageId());
+    InputStream inputStream=null;
+    try {
+      int priority=GetterUtil.getInteger(name.substring(imagePrefix.length(),name.length()));
+      boolean preserveScreenshot=ParamUtil.getBoolean(uploadPortletRequest,"preserveScreenshot" + priority);
+      byte[] bytes=null;
+      if (preserveScreenshot) {
+        SCProductScreenshot productScreenshot=getProductScreenshot(uploadPortletRequest,priority);
+        Image image=null;
+        if (imagePrefix.equals("fullImage")) {
+          image=ImageLocalServiceUtil.getImage(productScreenshot.getFullImageId());
+        }
+ else {
+          image=ImageLocalServiceUtil.getImage(productScreenshot.getThumbnailId());
+        }
+        bytes=image.getTextObj();
       }
  else {
-        image=ImageLocalServiceUtil.getImage(productScreenshot.getThumbnailId());
+        inputStream=uploadPortletRequest.getFileAsStream(name);
+        if (inputStream != null) {
+          bytes=FileUtil.getBytes(inputStream);
+        }
       }
-      bytes=image.getTextObj();
-    }
-    if ((bytes != null) && (bytes.length > 0)) {
-      images.add(bytes);
-    }
+      if ((bytes != null) && (bytes.length > 0)) {
+        images.add(bytes);
+      }
  else {
-      throw new ProductEntryScreenshotsException();
+        throw new ProductEntryScreenshotsException();
+      }
+    }
+  finally {
+      StreamUtil.cleanUp(inputStream);
     }
   }
   return images;

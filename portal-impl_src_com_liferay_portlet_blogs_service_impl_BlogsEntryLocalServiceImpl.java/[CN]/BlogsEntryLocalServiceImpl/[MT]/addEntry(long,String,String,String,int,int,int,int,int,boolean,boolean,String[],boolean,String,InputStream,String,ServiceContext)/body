@@ -1,0 +1,55 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  long groupId=serviceContext.getScopeGroupId();
+  Date displayDate=PortalUtil.getDate(displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,user.getTimeZone(),new EntryDisplayDateException());
+  byte[] smallBytes=null;
+  try {
+    smallBytes=FileUtil.getBytes(smallFileInputStream);
+  }
+ catch (  IOException ioe) {
+  }
+  Date now=new Date();
+  validate(title,content,smallImage,smallImageURL,smallFileInputStream,smallFileName,smallBytes);
+  long entryId=counterLocalService.increment();
+  BlogsEntry entry=blogsEntryPersistence.create(entryId);
+  entry.setUuid(serviceContext.getUuid());
+  entry.setGroupId(groupId);
+  entry.setCompanyId(user.getCompanyId());
+  entry.setUserId(user.getUserId());
+  entry.setUserName(user.getFullName());
+  entry.setCreateDate(serviceContext.getCreateDate(now));
+  entry.setModifiedDate(serviceContext.getModifiedDate(now));
+  entry.setTitle(title);
+  entry.setUrlTitle(getUniqueUrlTitle(entryId,groupId,title));
+  entry.setDescription(description);
+  entry.setContent(content);
+  entry.setDisplayDate(displayDate);
+  entry.setAllowPingbacks(allowPingbacks);
+  entry.setAllowTrackbacks(allowTrackbacks);
+  entry.setSmallImage(smallImage);
+  entry.setSmallImageId(counterLocalService.increment());
+  entry.setSmallImageURL(smallImageURL);
+  entry.setStatus(WorkflowConstants.STATUS_DRAFT);
+  entry.setStatusDate(serviceContext.getModifiedDate(now));
+  entry.setExpandoBridgeAttributes(serviceContext);
+  blogsEntryPersistence.update(entry,false);
+  if (serviceContext.getAddGroupPermissions() || serviceContext.getAddGuestPermissions()) {
+    addEntryResources(entry,serviceContext.getAddGroupPermissions(),serviceContext.getAddGuestPermissions());
+  }
+ else {
+    addEntryResources(entry,serviceContext.getGroupPermissions(),serviceContext.getGuestPermissions());
+  }
+  saveImages(smallImage,entry.getSmallImageId(),smallFileInputStream,smallBytes);
+  updateAsset(userId,entry,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames(),serviceContext.getAssetLinkEntryIds());
+  if (PropsValues.BLOGS_ENTRY_COMMENTS_ENABLED) {
+    mbMessageLocalService.addDiscussionMessage(userId,entry.getUserName(),groupId,BlogsEntry.class.getName(),entryId,WorkflowConstants.ACTION_PUBLISH);
+  }
+  if ((trackbacks != null) && (trackbacks.length > 0)) {
+    serviceContext.setAttribute("trackbacks",trackbacks);
+  }
+ else {
+    serviceContext.setAttribute("trackbacks",null);
+  }
+  WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),groupId,userId,BlogsEntry.class.getName(),entry.getEntryId(),entry,serviceContext);
+  return entry;
+}
