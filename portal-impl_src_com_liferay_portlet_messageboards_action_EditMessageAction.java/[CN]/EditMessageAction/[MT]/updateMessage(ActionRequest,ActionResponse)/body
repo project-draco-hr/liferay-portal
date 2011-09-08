@@ -10,57 +10,67 @@
   String body=ParamUtil.getString(actionRequest,"body");
   String format=GetterUtil.getString(preferences.getValue("messageFormat",null),MBMessageConstants.DEFAULT_FORMAT);
   boolean attachments=ParamUtil.getBoolean(actionRequest,"attachments");
-  List<ObjectValuePair<String,File>> files=new ArrayList<ObjectValuePair<String,File>>();
-  if (attachments) {
-    UploadPortletRequest uploadPortletRequest=PortalUtil.getUploadPortletRequest(actionRequest);
-    for (int i=1; i <= 5; i++) {
-      File file=uploadPortletRequest.getFile("msgFile" + i);
-      String fileName=uploadPortletRequest.getFileName("msgFile" + i);
-      if ((file != null) && file.exists()) {
-        ObjectValuePair<String,File> ovp=new ObjectValuePair<String,File>(fileName,file);
-        files.add(ovp);
+  List<ObjectValuePair<String,InputStream>> inputStreamEntries=new ArrayList<ObjectValuePair<String,InputStream>>(5);
+  try {
+    if (attachments) {
+      UploadPortletRequest uploadPortletRequest=PortalUtil.getUploadPortletRequest(actionRequest);
+      for (int i=1; i <= 5; i++) {
+        InputStream inputStream=uploadPortletRequest.getFileAsStream("msgFile" + i);
+        String fileName=uploadPortletRequest.getFileName("msgFile" + i);
+        if (inputStream != null) {
+          ObjectValuePair<String,InputStream> ovp=new ObjectValuePair<String,InputStream>(fileName,inputStream);
+          inputStreamEntries.add(ovp);
+        }
       }
     }
-  }
-  boolean question=ParamUtil.getBoolean(actionRequest,"question");
-  boolean anonymous=ParamUtil.getBoolean(actionRequest,"anonymous");
-  double priority=ParamUtil.getDouble(actionRequest,"priority");
-  boolean allowPingbacks=ParamUtil.getBoolean(actionRequest,"allowPingbacks");
-  ServiceContext serviceContext=ServiceContextFactory.getInstance(MBMessage.class.getName(),actionRequest);
-  boolean preview=ParamUtil.getBoolean(actionRequest,"preview");
-  serviceContext.setAttribute("preview",preview);
-  MBMessage message=null;
-  if (messageId <= 0) {
-    if (PropsValues.CAPTCHA_CHECK_PORTLET_MESSAGE_BOARDS_EDIT_MESSAGE) {
-      CaptchaUtil.check(actionRequest);
-    }
-    if (threadId <= 0) {
-      message=MBMessageServiceUtil.addMessage(groupId,categoryId,subject,body,format,files,anonymous,priority,allowPingbacks,serviceContext);
-      if (question) {
-        MBThreadLocalServiceUtil.updateQuestion(message.getThreadId(),true);
+    boolean question=ParamUtil.getBoolean(actionRequest,"question");
+    boolean anonymous=ParamUtil.getBoolean(actionRequest,"anonymous");
+    double priority=ParamUtil.getDouble(actionRequest,"priority");
+    boolean allowPingbacks=ParamUtil.getBoolean(actionRequest,"allowPingbacks");
+    ServiceContext serviceContext=ServiceContextFactory.getInstance(MBMessage.class.getName(),actionRequest);
+    boolean preview=ParamUtil.getBoolean(actionRequest,"preview");
+    serviceContext.setAttribute("preview",preview);
+    MBMessage message=null;
+    if (messageId <= 0) {
+      if (PropsValues.CAPTCHA_CHECK_PORTLET_MESSAGE_BOARDS_EDIT_MESSAGE) {
+        CaptchaUtil.check(actionRequest);
+      }
+      if (threadId <= 0) {
+        message=MBMessageServiceUtil.addMessage(groupId,categoryId,subject,body,format,inputStreamEntries,anonymous,priority,allowPingbacks,serviceContext);
+        if (question) {
+          MBThreadLocalServiceUtil.updateQuestion(message.getThreadId(),true);
+        }
+      }
+ else {
+        message=MBMessageServiceUtil.addMessage(groupId,categoryId,threadId,parentMessageId,subject,body,format,inputStreamEntries,anonymous,priority,allowPingbacks,serviceContext);
       }
     }
  else {
-      message=MBMessageServiceUtil.addMessage(groupId,categoryId,threadId,parentMessageId,subject,body,format,files,anonymous,priority,allowPingbacks,serviceContext);
-    }
-  }
- else {
-    List<String> existingFiles=new ArrayList<String>();
-    for (int i=1; i <= 5; i++) {
-      String path=ParamUtil.getString(actionRequest,"existingPath" + i);
-      if (Validator.isNotNull(path)) {
-        existingFiles.add(path);
+      List<String> existingFiles=new ArrayList<String>();
+      for (int i=1; i <= 5; i++) {
+        String path=ParamUtil.getString(actionRequest,"existingPath" + i);
+        if (Validator.isNotNull(path)) {
+          existingFiles.add(path);
+        }
+      }
+      message=MBMessageServiceUtil.updateMessage(messageId,subject,body,inputStreamEntries,existingFiles,priority,allowPingbacks,serviceContext);
+      if (message.isRoot()) {
+        MBThreadLocalServiceUtil.updateQuestion(message.getThreadId(),question);
       }
     }
-    message=MBMessageServiceUtil.updateMessage(messageId,subject,body,files,existingFiles,priority,allowPingbacks,serviceContext);
-    if (message.isRoot()) {
-      MBThreadLocalServiceUtil.updateQuestion(message.getThreadId(),question);
+    PermissionChecker permissionChecker=themeDisplay.getPermissionChecker();
+    boolean subscribe=ParamUtil.getBoolean(actionRequest,"subscribe");
+    if (subscribe && MBMessagePermission.contains(permissionChecker,message,ActionKeys.SUBSCRIBE)) {
+      MBMessageServiceUtil.subscribeMessage(message.getMessageId());
+    }
+    return message;
+  }
+  finally {
+    if (attachments) {
+      for (      ObjectValuePair<String,InputStream> inputStreamEntry : inputStreamEntries) {
+        InputStream inputStream=inputStreamEntry.getValue();
+        StreamUtil.cleanUp(inputStream);
+      }
     }
   }
-  PermissionChecker permissionChecker=themeDisplay.getPermissionChecker();
-  boolean subscribe=ParamUtil.getBoolean(actionRequest,"subscribe");
-  if (subscribe && MBMessagePermission.contains(permissionChecker,message,ActionKeys.SUBSCRIBE)) {
-    MBMessageServiceUtil.subscribeMessage(message.getMessageId());
-  }
-  return message;
 }
