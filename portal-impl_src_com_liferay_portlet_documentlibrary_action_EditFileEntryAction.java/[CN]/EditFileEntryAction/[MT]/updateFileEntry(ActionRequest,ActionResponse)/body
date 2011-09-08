@@ -9,25 +9,29 @@
   String description=ParamUtil.getString(uploadPortletRequest,"description");
   String changeLog=ParamUtil.getString(uploadPortletRequest,"changeLog");
   boolean majorVersion=ParamUtil.getBoolean(uploadPortletRequest,"majorVersion");
-  File file=uploadPortletRequest.getFile("file");
-  if (Validator.isNotNull(sourceFileName) && !file.exists()) {
-    file.createNewFile();
-  }
-  String contentType=uploadPortletRequest.getContentType("file");
-  ServiceContext serviceContext=ServiceContextFactory.getInstance(DLFileEntry.class.getName(),actionRequest);
-  FileEntry fileEntry=null;
-  if (cmd.equals(Constants.ADD)) {
-    if (Validator.isNull(title)) {
-      title=sourceFileName;
+  InputStream inputStream=null;
+  try {
+    inputStream=uploadPortletRequest.getFileAsStream("file");
+    String contentType=uploadPortletRequest.getContentType("file");
+    long size=uploadPortletRequest.getSize("file");
+    ServiceContext serviceContext=ServiceContextFactory.getInstance(DLFileEntry.class.getName(),actionRequest);
+    FileEntry fileEntry=null;
+    if (cmd.equals(Constants.ADD)) {
+      if (Validator.isNull(title)) {
+        title=sourceFileName;
+      }
+      fileEntry=DLAppServiceUtil.addFileEntry(repositoryId,folderId,sourceFileName,contentType,title,description,changeLog,inputStream,size,serviceContext);
+      AssetPublisherUtil.addAndStoreSelection(actionRequest,DLFileEntry.class.getName(),fileEntry.getFileEntryId(),-1);
     }
-    fileEntry=DLAppServiceUtil.addFileEntry(repositoryId,folderId,sourceFileName,contentType,title,description,changeLog,file,serviceContext);
-    AssetPublisherUtil.addAndStoreSelection(actionRequest,DLFileEntry.class.getName(),fileEntry.getFileEntryId(),-1);
-  }
- else   if (cmd.equals(Constants.UPDATE_AND_CHECKIN)) {
-    fileEntry=DLAppServiceUtil.updateFileEntryAndCheckIn(fileEntryId,sourceFileName,contentType,title,description,changeLog,majorVersion,file,serviceContext);
-  }
+ else     if (cmd.equals(Constants.UPDATE_AND_CHECKIN)) {
+      fileEntry=DLAppServiceUtil.updateFileEntryAndCheckIn(fileEntryId,sourceFileName,contentType,title,description,changeLog,majorVersion,inputStream,size,serviceContext);
+    }
  else {
-    fileEntry=DLAppServiceUtil.updateFileEntry(fileEntryId,sourceFileName,contentType,title,description,changeLog,majorVersion,file,serviceContext);
+      fileEntry=DLAppServiceUtil.updateFileEntry(fileEntryId,sourceFileName,contentType,title,description,changeLog,majorVersion,inputStream,size,serviceContext);
+    }
+    AssetPublisherUtil.addRecentFolderId(actionRequest,DLFileEntry.class.getName(),folderId);
   }
-  AssetPublisherUtil.addRecentFolderId(actionRequest,DLFileEntry.class.getName(),folderId);
+  finally {
+    StreamUtil.cleanUp(inputStream);
+  }
 }
