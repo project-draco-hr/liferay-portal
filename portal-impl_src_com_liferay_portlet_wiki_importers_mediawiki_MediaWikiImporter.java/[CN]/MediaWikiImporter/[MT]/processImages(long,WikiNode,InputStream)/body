@@ -1,10 +1,10 @@
 {
-  if (imagesFile == null) {
+  if (imagesInputStream == null) {
     return;
   }
   ProgressTracker progressTracker=ProgressTrackerThreadLocal.getProgressTracker();
   int count=0;
-  ZipReader zipReader=ZipReaderFactoryUtil.getZipReader(imagesFile);
+  ZipReader zipReader=ZipReaderFactoryUtil.getZipReader(imagesInputStream);
   List<String> entries=zipReader.getEntries();
   int total=entries.size();
   if (total > 0) {
@@ -18,37 +18,38 @@
       WikiPageLocalServiceUtil.addPage(userId,node.getNodeId(),SHARED_IMAGES_TITLE,SHARED_IMAGES_CONTENT,null,true,serviceContext);
     }
   }
-  List<ObjectValuePair<String,InputStream>> attachments=new ArrayList<ObjectValuePair<String,InputStream>>();
+  List<ObjectValuePair<String,InputStream>> inputStreamOVPs=new ArrayList<ObjectValuePair<String,InputStream>>();
   try {
     int percentage=50;
     for (int i=0; i < entries.size(); i++) {
       String entry=entries.get(i);
       String key=entry;
-      InputStream is=zipReader.getEntryAsInputStream(entry);
+      InputStream inputStream=zipReader.getEntryAsInputStream(entry);
       String[] paths=StringUtil.split(key,CharPool.SLASH);
-      if (!isValidImage(paths,is)) {
+      if (!isValidImage(paths,inputStream)) {
         if (_log.isInfoEnabled()) {
           _log.info("Ignoring " + key);
         }
         continue;
       }
       String fileName=paths[paths.length - 1].toLowerCase();
-      attachments.add(new ObjectValuePair<String,InputStream>(fileName,is));
+      ObjectValuePair<String,InputStream> inputStreamOVP=new ObjectValuePair<String,InputStream>(fileName,inputStream);
+      inputStreamOVPs.add(inputStreamOVP);
       count++;
       if ((i % 5) == 0) {
-        WikiPageLocalServiceUtil.addPageAttachments(userId,node.getNodeId(),SHARED_IMAGES_TITLE,attachments);
-        attachments.clear();
+        WikiPageLocalServiceUtil.addPageAttachments(userId,node.getNodeId(),SHARED_IMAGES_TITLE,inputStreamOVPs);
+        inputStreamOVPs.clear();
         percentage=Math.min(50 + (i * 50) / total,99);
         progressTracker.updateProgress(percentage);
       }
     }
-    if (!attachments.isEmpty()) {
-      WikiPageLocalServiceUtil.addPageAttachments(userId,node.getNodeId(),SHARED_IMAGES_TITLE,attachments);
+    if (!inputStreamOVPs.isEmpty()) {
+      WikiPageLocalServiceUtil.addPageAttachments(userId,node.getNodeId(),SHARED_IMAGES_TITLE,inputStreamOVPs);
     }
   }
   finally {
-    for (    ObjectValuePair<String,InputStream> attachment : attachments) {
-      InputStream inputStream=attachment.getValue();
+    for (    ObjectValuePair<String,InputStream> inputStreamOVP : inputStreamOVPs) {
+      InputStream inputStream=inputStreamOVP.getValue();
       StreamUtil.cleanUp(inputStream);
     }
   }

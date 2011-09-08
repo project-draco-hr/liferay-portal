@@ -10,17 +10,18 @@
   String body=ParamUtil.getString(actionRequest,"body");
   String format=GetterUtil.getString(preferences.getValue("messageFormat",null),MBMessageConstants.DEFAULT_FORMAT);
   boolean attachments=ParamUtil.getBoolean(actionRequest,"attachments");
-  List<ObjectValuePair<String,InputStream>> inputStreamEntries=new ArrayList<ObjectValuePair<String,InputStream>>(5);
+  List<ObjectValuePair<String,InputStream>> inputStreamOVPs=new ArrayList<ObjectValuePair<String,InputStream>>(5);
   try {
     if (attachments) {
       UploadPortletRequest uploadPortletRequest=PortalUtil.getUploadPortletRequest(actionRequest);
       for (int i=1; i <= 5; i++) {
         InputStream inputStream=uploadPortletRequest.getFileAsStream("msgFile" + i);
         String fileName=uploadPortletRequest.getFileName("msgFile" + i);
-        if (inputStream != null) {
-          ObjectValuePair<String,InputStream> ovp=new ObjectValuePair<String,InputStream>(fileName,inputStream);
-          inputStreamEntries.add(ovp);
+        if (inputStream == null) {
+          continue;
         }
+        ObjectValuePair<String,InputStream> inputStreamOVP=new ObjectValuePair<String,InputStream>(fileName,inputStream);
+        inputStreamOVPs.add(inputStreamOVP);
       }
     }
     boolean question=ParamUtil.getBoolean(actionRequest,"question");
@@ -36,13 +37,13 @@
         CaptchaUtil.check(actionRequest);
       }
       if (threadId <= 0) {
-        message=MBMessageServiceUtil.addMessage(groupId,categoryId,subject,body,format,inputStreamEntries,anonymous,priority,allowPingbacks,serviceContext);
+        message=MBMessageServiceUtil.addMessage(groupId,categoryId,subject,body,format,inputStreamOVPs,anonymous,priority,allowPingbacks,serviceContext);
         if (question) {
           MBThreadLocalServiceUtil.updateQuestion(message.getThreadId(),true);
         }
       }
  else {
-        message=MBMessageServiceUtil.addMessage(groupId,categoryId,threadId,parentMessageId,subject,body,format,inputStreamEntries,anonymous,priority,allowPingbacks,serviceContext);
+        message=MBMessageServiceUtil.addMessage(groupId,categoryId,threadId,parentMessageId,subject,body,format,inputStreamOVPs,anonymous,priority,allowPingbacks,serviceContext);
       }
     }
  else {
@@ -53,7 +54,7 @@
           existingFiles.add(path);
         }
       }
-      message=MBMessageServiceUtil.updateMessage(messageId,subject,body,inputStreamEntries,existingFiles,priority,allowPingbacks,serviceContext);
+      message=MBMessageServiceUtil.updateMessage(messageId,subject,body,inputStreamOVPs,existingFiles,priority,allowPingbacks,serviceContext);
       if (message.isRoot()) {
         MBThreadLocalServiceUtil.updateQuestion(message.getThreadId(),question);
       }
@@ -67,8 +68,8 @@
   }
   finally {
     if (attachments) {
-      for (      ObjectValuePair<String,InputStream> inputStreamEntry : inputStreamEntries) {
-        InputStream inputStream=inputStreamEntry.getValue();
+      for (      ObjectValuePair<String,InputStream> inputStreamOVP : inputStreamOVPs) {
+        InputStream inputStream=inputStreamOVP.getValue();
         StreamUtil.cleanUp(inputStream);
       }
     }
