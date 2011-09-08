@@ -2,16 +2,24 @@
   UploadPortletRequest uploadPortletRequest=PortalUtil.getUploadPortletRequest(actionRequest);
   ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
   Map<Locale,String> titleMap=LocalizationUtil.getLocalizationMap(actionRequest,"title");
-  File file=uploadPortletRequest.getFile("file");
-  WorkflowDefinition workflowDefinition=null;
-  if (!file.exists()) {
-    String name=ParamUtil.getString(actionRequest,"name");
-    int version=ParamUtil.getInteger(actionRequest,"version");
-    workflowDefinition=WorkflowDefinitionManagerUtil.getWorkflowDefinition(themeDisplay.getCompanyId(),name,version);
-    WorkflowDefinitionManagerUtil.updateTitle(themeDisplay.getCompanyId(),themeDisplay.getUserId(),name,version,getTitle(titleMap));
-  }
+  InputStream inputStream=null;
+  try {
+    inputStream=uploadPortletRequest.getFileAsStream("file");
+    WorkflowDefinition workflowDefinition=null;
+    if (inputStream != null) {
+      String name=ParamUtil.getString(actionRequest,"name");
+      int version=ParamUtil.getInteger(actionRequest,"version");
+      workflowDefinition=WorkflowDefinitionManagerUtil.getWorkflowDefinition(themeDisplay.getCompanyId(),name,version);
+      WorkflowDefinitionManagerUtil.updateTitle(themeDisplay.getCompanyId(),themeDisplay.getUserId(),name,version,getTitle(titleMap));
+    }
  else {
-    workflowDefinition=WorkflowDefinitionManagerUtil.deployWorkflowDefinition(themeDisplay.getCompanyId(),themeDisplay.getUserId(),getTitle(titleMap),new FileInputStream(file));
+      workflowDefinition=WorkflowDefinitionManagerUtil.deployWorkflowDefinition(themeDisplay.getCompanyId(),themeDisplay.getUserId(),getTitle(titleMap),inputStream);
+    }
+    actionRequest.setAttribute(WebKeys.WORKFLOW_DEFINITION,workflowDefinition);
   }
-  actionRequest.setAttribute(WebKeys.WORKFLOW_DEFINITION,workflowDefinition);
+  finally {
+    if (inputStream != null) {
+      StreamUtil.cleanUp(inputStream);
+    }
+  }
 }
