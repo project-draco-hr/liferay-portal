@@ -3,24 +3,32 @@
   long nodeId=ParamUtil.getLong(actionRequest,"nodeId");
   String title=ParamUtil.getString(actionRequest,"title");
   int numOfFiles=ParamUtil.getInteger(actionRequest,"numOfFiles");
-  List<ObjectValuePair<String,File>> files=new ArrayList<ObjectValuePair<String,File>>();
-  if (numOfFiles == 0) {
-    File file=uploadPortletRequest.getFile("file");
-    String fileName=uploadPortletRequest.getFileName("file");
-    if ((file != null) && file.exists()) {
-      ObjectValuePair<String,File> ovp=new ObjectValuePair<String,File>(fileName,file);
-      files.add(ovp);
-    }
-  }
- else {
-    for (int i=1; i <= numOfFiles; i++) {
-      File file=uploadPortletRequest.getFile("file" + i);
-      String fileName=uploadPortletRequest.getFileName("file" + i);
-      if ((file != null) && file.exists()) {
-        ObjectValuePair<String,File> ovp=new ObjectValuePair<String,File>(fileName,file);
-        files.add(ovp);
+  List<ObjectValuePair<String,InputStream>> inputStreamEntries=new ArrayList<ObjectValuePair<String,InputStream>>();
+  try {
+    if (numOfFiles == 0) {
+      InputStream inputStream=uploadPortletRequest.getFileAsStream("file");
+      String fileName=uploadPortletRequest.getFileName("file");
+      if (inputStream != null) {
+        ObjectValuePair<String,InputStream> ovp=new ObjectValuePair<String,InputStream>(fileName,inputStream);
+        inputStreamEntries.add(ovp);
       }
     }
+ else {
+      for (int i=1; i <= numOfFiles; i++) {
+        InputStream inputStream=uploadPortletRequest.getFileAsStream("file" + i);
+        String fileName=uploadPortletRequest.getFileName("file" + i);
+        if (inputStream != null) {
+          ObjectValuePair<String,InputStream> ovp=new ObjectValuePair<String,InputStream>(fileName,inputStream);
+          inputStreamEntries.add(ovp);
+        }
+      }
+    }
+    WikiPageServiceUtil.addPageAttachments(nodeId,title,inputStreamEntries);
   }
-  WikiPageServiceUtil.addPageAttachments(nodeId,title,files);
+  finally {
+    for (    ObjectValuePair<String,InputStream> inputStreamEntry : inputStreamEntries) {
+      InputStream inputStream=inputStreamEntry.getValue();
+      StreamUtil.cleanUp(inputStream);
+    }
+  }
 }

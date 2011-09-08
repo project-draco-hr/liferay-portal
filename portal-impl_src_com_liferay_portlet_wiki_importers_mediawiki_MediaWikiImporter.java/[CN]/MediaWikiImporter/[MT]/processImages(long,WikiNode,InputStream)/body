@@ -1,0 +1,59 @@
+{
+  if (imagesFile == null) {
+    return;
+  }
+  ProgressTracker progressTracker=ProgressTrackerThreadLocal.getProgressTracker();
+  int count=0;
+  ZipReader zipReader=ZipReaderFactoryUtil.getZipReader(imagesFile);
+  List<String> entries=zipReader.getEntries();
+  int total=entries.size();
+  if (total > 0) {
+    try {
+      WikiPageLocalServiceUtil.getPage(node.getNodeId(),SHARED_IMAGES_TITLE);
+    }
+ catch (    NoSuchPageException nspe) {
+      ServiceContext serviceContext=new ServiceContext();
+      serviceContext.setAddGroupPermissions(true);
+      serviceContext.setAddGuestPermissions(true);
+      WikiPageLocalServiceUtil.addPage(userId,node.getNodeId(),SHARED_IMAGES_TITLE,SHARED_IMAGES_CONTENT,null,true,serviceContext);
+    }
+  }
+  List<ObjectValuePair<String,InputStream>> attachments=new ArrayList<ObjectValuePair<String,InputStream>>();
+  try {
+    int percentage=50;
+    for (int i=0; i < entries.size(); i++) {
+      String entry=entries.get(i);
+      String key=entry;
+      InputStream is=zipReader.getEntryAsInputStream(entry);
+      String[] paths=StringUtil.split(key,CharPool.SLASH);
+      if (!isValidImage(paths,is)) {
+        if (_log.isInfoEnabled()) {
+          _log.info("Ignoring " + key);
+        }
+        continue;
+      }
+      String fileName=paths[paths.length - 1].toLowerCase();
+      attachments.add(new ObjectValuePair<String,InputStream>(fileName,is));
+      count++;
+      if ((i % 5) == 0) {
+        WikiPageLocalServiceUtil.addPageAttachments(userId,node.getNodeId(),SHARED_IMAGES_TITLE,attachments);
+        attachments.clear();
+        percentage=Math.min(50 + (i * 50) / total,99);
+        progressTracker.updateProgress(percentage);
+      }
+    }
+    if (!attachments.isEmpty()) {
+      WikiPageLocalServiceUtil.addPageAttachments(userId,node.getNodeId(),SHARED_IMAGES_TITLE,attachments);
+    }
+  }
+  finally {
+    for (    ObjectValuePair<String,InputStream> attachment : attachments) {
+      InputStream inputStream=attachment.getValue();
+      StreamUtil.cleanUp(inputStream);
+    }
+  }
+  zipReader.close();
+  if (_log.isInfoEnabled()) {
+    _log.info("Imported " + count + " images into "+ node.getName());
+  }
+}

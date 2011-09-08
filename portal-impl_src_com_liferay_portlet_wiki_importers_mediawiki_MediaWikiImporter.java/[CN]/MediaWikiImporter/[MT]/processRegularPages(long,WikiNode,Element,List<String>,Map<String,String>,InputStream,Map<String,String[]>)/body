@@ -1,0 +1,51 @@
+{
+  boolean importLatestVersion=MapUtil.getBoolean(options,WikiImporterKeys.OPTIONS_IMPORT_LATEST_VERSION);
+  ProgressTracker progressTracker=ProgressTrackerThreadLocal.getProgressTracker();
+  int count=0;
+  List<Element> pages=root.elements("page");
+  int total=pages.size();
+  Iterator<Element> itr=root.elements("page").iterator();
+  int percentage=10;
+  int maxPercentage=50;
+  if (imagesFile == null) {
+    maxPercentage=99;
+  }
+  int percentageRange=maxPercentage - percentage;
+  for (int i=0; itr.hasNext(); i++) {
+    Element pageEl=itr.next();
+    String title=pageEl.elementText("title");
+    title=normalizeTitle(title);
+    percentage=Math.min(10 + (i * percentageRange) / total,maxPercentage);
+    progressTracker.updateProgress(percentage);
+    if (isSpecialMediaWikiPage(title,specialNamespaces)) {
+      continue;
+    }
+    List<Element> revisionEls=pageEl.elements("revision");
+    if (importLatestVersion) {
+      Element lastRevisionEl=revisionEls.get(revisionEls.size() - 1);
+      revisionEls=new ArrayList<Element>();
+      revisionEls.add(lastRevisionEl);
+    }
+    for (    Element curRevisionEl : revisionEls) {
+      String author=curRevisionEl.element("contributor").elementText("username");
+      String content=curRevisionEl.elementText("text");
+      String summary=curRevisionEl.elementText("comment");
+      try {
+        importPage(userId,author,node,title,content,summary,usersMap);
+      }
+ catch (      Exception e) {
+        if (_log.isWarnEnabled()) {
+          StringBundler sb=new StringBundler(3);
+          sb.append("Page with title ");
+          sb.append(title);
+          sb.append(" could not be imported");
+          _log.warn(sb.toString(),e);
+        }
+      }
+    }
+    count++;
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Imported " + count + " pages into "+ node.getName());
+  }
+}
