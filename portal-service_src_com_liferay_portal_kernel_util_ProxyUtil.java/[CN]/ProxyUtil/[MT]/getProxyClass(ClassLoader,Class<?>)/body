@@ -1,0 +1,43 @@
+{
+  EqualityWeakReference<ClassLoader> classLoaderReference=new EqualityWeakReference<ClassLoader>(classLoader);
+  ConcurrentMap<LookupKey,Reference<Class<?>>> proxyClassMap=_classLoaderProxyClassCache.get(classLoaderReference);
+  if (proxyClassMap == null) {
+    proxyClassMap=new ConcurrentHashMap<LookupKey,Reference<Class<?>>>();
+    classLoaderReference=new EqualityWeakReference<ClassLoader>(classLoader,_classLoaderReferenceQueue);
+    ConcurrentMap<LookupKey,Reference<Class<?>>> oldProxyClassMap=_classLoaderProxyClassCache.putIfAbsent(classLoaderReference,proxyClassMap);
+    if (oldProxyClassMap != null) {
+      proxyClassMap=oldProxyClassMap;
+      classLoaderReference.enqueue();
+    }
+  }
+  LookupKey lookupKey=new LookupKey(interfaces);
+  Reference<Class<?>> classReference=proxyClassMap.get(lookupKey);
+  Class<?> clazz=null;
+  if ((classReference == null) || ((clazz=classReference.get()) == null)) {
+synchronized (proxyClassMap) {
+      classReference=proxyClassMap.get(lookupKey);
+      if ((classReference == null) || ((clazz=classReference.get()) == null)) {
+        clazz=Proxy.getProxyClass(classLoader,interfaces);
+        proxyClassMap.put(lookupKey,new WeakReference<Class<?>>(clazz));
+      }
+    }
+  }
+  Constructor<?> constructor=null;
+  try {
+    constructor=clazz.getConstructor(_argumentsClazz);
+  }
+ catch (  Exception e) {
+    throw new InternalError(e.toString());
+  }
+  EqualityWeakReference<Class<?>> proxyClassReference=new EqualityWeakReference<Class<?>>(clazz,_proxyClassReferenceQueue);
+  _proxyClassCache.putIfAbsent(proxyClassReference,constructor);
+  EqualityWeakReference<ClassLoader> deadClassLoaderReference=null;
+  while ((deadClassLoaderReference=(EqualityWeakReference<ClassLoader>)_classLoaderReferenceQueue.poll()) != null) {
+    _classLoaderProxyClassCache.remove(deadClassLoaderReference);
+  }
+  EqualityWeakReference<Class<?>> deadProxyClassReference=null;
+  while ((deadProxyClassReference=(EqualityWeakReference<Class<?>>)_proxyClassReferenceQueue.poll()) != null) {
+    _proxyClassCache.remove(deadProxyClassReference);
+  }
+  return clazz;
+}
