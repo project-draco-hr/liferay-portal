@@ -1,0 +1,36 @@
+{
+  BundleContext bundleContext=getBundleContext();
+  if (bundleContext == null) {
+    PortalUtil.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,new IllegalStateException("No framework available"),request,response);
+    return;
+  }
+  String pathInfo=request.getPathInfo();
+  if (Validator.isNull(pathInfo) || pathInfo.equals(StringPool.SLASH)) {
+    PortalUtil.sendError(HttpServletResponse.SC_NOT_FOUND,new IllegalArgumentException("No path was available"),request,response);
+    return;
+  }
+  if (isExtensionMapping(pathInfo)) {
+    request=new ExtensionMappingRequest(request);
+  }
+  if (request.getAttribute(JavaConstants.JAVAX_SERVLET_INCLUDE_REQUEST_URI) != null) {
+    String includePathInfo=(String)request.getAttribute(JavaConstants.JAVAX_SERVLET_INCLUDE_PATH_INFO);
+    if (Validator.isNull(includePathInfo)) {
+      String includeServletPath=(String)request.getAttribute(JavaConstants.JAVAX_SERVLET_INCLUDE_SERVLET_PATH);
+      String servletPath=request.getServletPath();
+      if (includeServletPath.contains(servletPath)) {
+        includeServletPath=includeServletPath.substring(servletPath.length());
+      }
+      if (isExtensionMapping(includeServletPath)) {
+        request=new IncludedExtensionMappingRequest(request,servletPath);
+      }
+    }
+  }
+  _serviceReference=bundleContext.getServiceReference(_HTTP_SERVICE_SERVLET_WRAPPER);
+  if (_serviceReference == null) {
+    PortalUtil.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,new IllegalStateException("No HTTP service available"),request,response);
+    return;
+  }
+  HttpServlet httpServlet=(HttpServlet)bundleContext.getService(_serviceReference);
+  httpServlet.init(getServletConfig());
+  httpServlet.service(request,response);
+}
