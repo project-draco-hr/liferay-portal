@@ -1,0 +1,120 @@
+{
+  File propertiesFile=new File(_langDir + "/" + _langFile+ "_"+ languageId+ ".properties");
+  Properties properties=new Properties();
+  if (propertiesFile.exists()) {
+    properties=PropertiesUtil.load(new FileInputStream(propertiesFile),StringPool.UTF8);
+  }
+  Properties parentProperties=null;
+  if (parentLanguageId != null) {
+    File parentPropertiesFile=new File(_langDir + "/" + _langFile+ "_"+ parentLanguageId+ ".properties");
+    if (parentPropertiesFile.exists()) {
+      parentProperties=new Properties();
+      parentProperties=PropertiesUtil.load(new FileInputStream(parentPropertiesFile),StringPool.UTF8);
+    }
+  }
+  String translationId="en_" + languageId;
+  if (translationId.equals("en_pt_BR")) {
+    translationId="en_pt";
+  }
+ else   if (translationId.equals("en_pt_PT")) {
+    translationId="en_pt";
+  }
+ else   if (translationId.equals("en_zh_CN")) {
+    translationId="en_zh";
+  }
+ else   if (translationId.equals("en_zh_TW")) {
+    translationId="en_zt";
+  }
+ else   if (translationId.equals("en_hi_IN")) {
+    translationId="en_hi";
+  }
+  UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new UnsyncStringReader(content));
+  UnsyncBufferedWriter unsyncBufferedWriter=new UnsyncBufferedWriter(new OutputStreamWriter(new FileOutputStream(propertiesFile),StringPool.UTF8));
+  String line=null;
+  while ((line=unsyncBufferedReader.readLine()) != null) {
+    line=line.trim();
+    int pos=line.indexOf("=");
+    if (pos != -1) {
+      String key=line.substring(0,pos);
+      String value=line.substring(pos + 1,line.length());
+      String translatedText=properties.getProperty(key);
+      if ((translatedText == null) && (parentProperties != null)) {
+        translatedText=parentProperties.getProperty(key);
+      }
+      if ((translatedText == null) && (_renameKeys != null)) {
+        String renameKey=_renameKeys.getProperty(key);
+        if (renameKey != null) {
+          translatedText=properties.getProperty(key);
+          if ((translatedText == null) && (parentProperties != null)) {
+            translatedText=parentProperties.getProperty(key);
+          }
+        }
+      }
+      if ((translatedText != null) && ((translatedText.indexOf("Babel Fish") != -1) || (translatedText.indexOf("Yahoo! - 999") != -1))) {
+        translatedText="";
+      }
+      if ((translatedText == null) || translatedText.equals("")) {
+        if (line.indexOf("{") != -1 || line.indexOf("<") != -1) {
+          translatedText=value + AUTOMATIC_COPY;
+        }
+ else         if (line.indexOf("[") != -1) {
+          pos=line.indexOf("[");
+          String baseKey=line.substring(0,pos);
+          translatedText=properties.getProperty(baseKey) + AUTOMATIC_COPY;
+        }
+ else         if (key.equals("lang.dir")) {
+          translatedText="ltr";
+        }
+ else         if (key.equals("lang.line.begin")) {
+          translatedText="left";
+        }
+ else         if (key.equals("lang.line.end")) {
+          translatedText="right";
+        }
+ else         if (translationId.equals("en_el") && (key.equals("enabled") || key.equals("on") || key.equals("on-date"))) {
+          translatedText="";
+        }
+ else         if (translationId.equals("en_es") && key.equals("am")) {
+          translatedText="";
+        }
+ else         if (translationId.equals("en_it") && key.equals("am")) {
+          translatedText="";
+        }
+ else         if (translationId.equals("en_ja") && (key.equals("any") || key.equals("anytime") || key.equals("down")|| key.equals("on")|| key.equals("on-date")|| key.equals("the"))) {
+          translatedText="";
+        }
+ else         if (translationId.equals("en_ko") && key.equals("the")) {
+          translatedText="";
+        }
+ else {
+          translatedText=_translate(translationId,key,value,0);
+          if (Validator.isNull(translatedText)) {
+            translatedText=value + AUTOMATIC_COPY;
+          }
+ else {
+            translatedText=translatedText + AUTOMATIC_TRANSLATION;
+          }
+        }
+      }
+      if (Validator.isNotNull(translatedText)) {
+        if ((translatedText.indexOf("Babel Fish") != -1) || (translatedText.indexOf("Yahoo! - 999") != -1)) {
+          throw new IOException("IP was blocked because of over usage. Please " + "use another IP.");
+        }
+        if (translatedText.indexOf("&#39;") != -1) {
+          translatedText=StringUtil.replace(translatedText,"&#39;","\'");
+        }
+        translatedText=StringUtil.replace(translatedText.trim(),new String[]{"  ","<b>","</b>","<i>","</i>"},new String[]{" ","<strong>","</strong>","<em>","</em>"});
+        unsyncBufferedWriter.write(key + "=" + translatedText);
+        unsyncBufferedWriter.newLine();
+        unsyncBufferedWriter.flush();
+      }
+    }
+ else {
+      unsyncBufferedWriter.write(line);
+      unsyncBufferedWriter.newLine();
+      unsyncBufferedWriter.flush();
+    }
+  }
+  unsyncBufferedReader.close();
+  unsyncBufferedWriter.close();
+}
