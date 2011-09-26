@@ -1,0 +1,36 @@
+{
+  Folder folder=fromRepository.getFolder(folderId);
+  Folder newFolder=toRepository.addFolder(parentFolderId,folder.getName(),folder.getDescription(),serviceContext);
+  List<Object> foldersAndFileEntriesAndFileShortcuts=getFoldersAndFileEntriesAndFileShortcuts(fromRepository.getRepositoryId(),folderId,WorkflowConstants.STATUS_ANY,true,QueryUtil.ALL_POS,QueryUtil.ALL_POS);
+  try {
+    for (    Object folderAndFileEntryAndFileShortcut : foldersAndFileEntriesAndFileShortcuts) {
+      if (folderAndFileEntryAndFileShortcut instanceof FileEntry) {
+        FileEntry fileEntry=(FileEntry)folderAndFileEntryAndFileShortcut;
+        FileEntry destinationFileEntry=copyFileEntry(toRepository,fileEntry,newFolder.getFolderId(),serviceContext);
+        registerDLProcessorCallback(destinationFileEntry);
+      }
+ else       if (folderAndFileEntryAndFileShortcut instanceof Folder) {
+        Folder currentFolder=(Folder)folderAndFileEntryAndFileShortcut;
+        moveFolders(currentFolder.getFolderId(),newFolder.getFolderId(),fromRepository,toRepository,serviceContext);
+      }
+ else       if (folderAndFileEntryAndFileShortcut instanceof DLFileShortcut) {
+        if (newFolder.isSupportsShortcuts()) {
+          DLFileShortcut dlFileShorcut=(DLFileShortcut)folderAndFileEntryAndFileShortcut;
+          dlFileShortcutService.addFileShortcut(dlFileShorcut.getGroupId(),newFolder.getFolderId(),dlFileShorcut.getToFileEntryId(),serviceContext);
+        }
+      }
+    }
+  }
+ catch (  PortalException pe) {
+    toRepository.deleteFolder(newFolder.getFolderId());
+    throw pe;
+  }
+  try {
+    fromRepository.deleteFolder(folderId);
+  }
+ catch (  PortalException pe) {
+    toRepository.deleteFolder(newFolder.getFolderId());
+    throw pe;
+  }
+  return newFolder;
+}
