@@ -1,30 +1,39 @@
 {
-  _lexer=new BBCodeLexer(text);
-  _tagsStack=new Stack();
-  _itemsList=new ArrayList();
-  BBCodeToken token=null;
-  while ((token=_lexer.getNextToken()) != null) {
-    _handleData(token,text);
-    if (token.getStartTag() != null) {
-      _handleTagStart(token);
-      if (token.getStartTag().equals(STR_TAG_CODE)) {
-        while ((token=_lexer.getNextToken()) != null && !(STR_TAG_CODE.equals(token.getEndTag())))         ;
-        _handleData(token,text);
-        if (token != null) {
-          _handleTagEnd(token);
-        }
- else {
-          break;
-        }
+  List<BBCodeItem> bbCodeItems=new ArrayList<BBCodeItem>();
+  BBCodeLexer bbCodeLexer=new BBCodeLexer(text);
+  Stack<String> tags=new Stack<String>();
+  IntegerWrapper marker=new IntegerWrapper();
+  BBCodeToken bbCodeToken=null;
+  while ((bbCodeToken=bbCodeLexer.getNextBBCodeToken()) != null) {
+    handleData(bbCodeItems,bbCodeLexer,marker,bbCodeToken,text);
+    if (bbCodeToken.getStartTag() == null) {
+      handleTagEnd(bbCodeItems,tags,bbCodeToken);
+      continue;
+    }
+    handleTagStart(bbCodeItems,tags,bbCodeToken);
+    String startTag=bbCodeToken.getStartTag();
+    if (!startTag.equals("code")) {
+      continue;
+    }
+    while (true) {
+      bbCodeToken=bbCodeLexer.getNextBBCodeToken();
+      if (bbCodeToken == null) {
+        break;
+      }
+      String endTag=bbCodeToken.getEndTag();
+      if (!endTag.equals("code")) {
+        break;
       }
     }
+    handleData(bbCodeItems,bbCodeLexer,marker,bbCodeToken,text);
+    if (bbCodeToken != null) {
+      handleTagEnd(bbCodeItems,tags,bbCodeToken);
+    }
  else {
-      _handleTagEnd(token);
+      break;
     }
   }
-  _handleData(null,text);
-  _handleTagEnd(null);
-  List<BBCodeItem> result=new ArrayList(_itemsList);
-  _reset();
-  return result;
+  handleData(bbCodeItems,bbCodeLexer,marker,null,text);
+  handleTagEnd(bbCodeItems,tags,null);
+  return bbCodeItems;
 }
