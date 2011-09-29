@@ -1,0 +1,42 @@
+{
+  if (DLContentLocalServiceUtil.hasContent(companyId,repositoryId,fileName,versionLabel)) {
+    throw new DuplicateFileException(fileName);
+  }
+  long length=-1;
+  if (is instanceof FileInputStream) {
+    FileInputStream fileInputStream=(FileInputStream)is;
+    FileChannel fileChannel=fileInputStream.getChannel();
+    try {
+      length=fileChannel.size();
+    }
+ catch (    IOException ioe) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Failed to detect file size from FileChannel," + "fallback to memory buffer adding.",ioe);
+      }
+    }
+  }
+ else   if (is instanceof UnsyncByteArrayInputStream) {
+    UnsyncByteArrayInputStream unsyncByteArrayInputStream=(UnsyncByteArrayInputStream)is;
+    length=unsyncByteArrayInputStream.available();
+  }
+ else   if (is instanceof ByteArrayInputStream) {
+    ByteArrayInputStream byteArrayInputStream=(ByteArrayInputStream)is;
+    length=byteArrayInputStream.available();
+  }
+  if (length >= 0) {
+    DLContentLocalServiceUtil.addContent(companyId,repositoryId,fileName,versionLabel,is,length);
+  }
+ else {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Unable to detect given InputStream's data length :" + is + ", have to buffer the whole data into "+ "memory before flush to database, this could be "+ "a memory hog when the inputing file is large");
+    }
+    byte[] bytes=null;
+    try {
+      bytes=FileUtil.getBytes(is);
+    }
+ catch (    IOException ioe) {
+      throw new SystemException(ioe);
+    }
+    DLContentLocalServiceUtil.addContent(companyId,repositoryId,fileName,versionLabel,bytes);
+  }
+}
