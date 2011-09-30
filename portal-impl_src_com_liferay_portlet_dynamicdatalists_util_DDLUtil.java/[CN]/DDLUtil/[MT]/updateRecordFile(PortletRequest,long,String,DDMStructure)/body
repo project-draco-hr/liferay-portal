@@ -1,0 +1,44 @@
+{
+  UploadPortletRequest uploadPortletRequest=PortalUtil.getUploadPortletRequest(request);
+  long size=uploadPortletRequest.getSize(fieldName);
+  FileEntry fileEntry=null;
+  long groupId=PortalUtil.getScopeGroupId(uploadPortletRequest);
+  String sourceFileName=uploadPortletRequest.getFileName(fieldName);
+  String contentType=uploadPortletRequest.getContentType(fieldName);
+  InputStream inputStream=uploadPortletRequest.getFileAsStream(fieldName);
+  ServiceContext serviceContext=ServiceContextFactory.getInstance(DLFileEntry.class.getName(),request);
+  try {
+    DDLRecord record=DDLRecordLocalServiceUtil.getRecord(recordId);
+    Field field=record.getField(fieldName);
+    String fieldValue=String.valueOf(field.getValue());
+    if ((Validator.isNotNull(fieldValue)) && (!JSONFactoryUtil.getNullJSON().equals(fieldValue))) {
+      JSONObject prevFileJSONObject=JSONFactoryUtil.createJSONObject(fieldValue);
+      fileEntry=DLAppServiceUtil.getFileEntryByUuidAndGroupId(prevFileJSONObject.getString("uuid"),prevFileJSONObject.getLong("groupId"));
+      if (size <= 0) {
+        return fileEntry;
+      }
+      fileEntry=DLAppServiceUtil.updateFileEntry(fileEntry.getFileEntryId(),sourceFileName,contentType,fileEntry.getTitle(),fileEntry.getDescription(),StringPool.BLANK,false,inputStream,size,serviceContext);
+    }
+ else {
+      throw new NoSuchFileEntryException();
+    }
+  }
+ catch (  Exception e) {
+    if ((e instanceof NoSuchFileEntryException) || (e instanceof NoSuchRecordException)) {
+      JSONObject folderJSONObject=JSONFactoryUtil.createJSONObject(ddmStructure.getFieldProperty(fieldName,"folder"));
+      long folderId=folderJSONObject.getLong("folderId");
+      String fileTitle=fieldName.concat(StringPool.DASH).concat(String.valueOf(new Date().getTime()));
+      if (size <= 0) {
+        return null;
+      }
+      fileEntry=DLAppServiceUtil.addFileEntry(groupId,folderId,sourceFileName,contentType,fileTitle,fileTitle,StringPool.BLANK,inputStream,size,serviceContext);
+    }
+ else {
+      throw e;
+    }
+  }
+ finally {
+    StreamUtil.cleanUp(inputStream);
+  }
+  return fileEntry;
+}
