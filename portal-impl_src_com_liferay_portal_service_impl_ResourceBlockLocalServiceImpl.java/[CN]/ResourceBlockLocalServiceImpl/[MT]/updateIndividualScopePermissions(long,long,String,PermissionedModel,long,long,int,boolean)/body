@@ -1,0 +1,29 @@
+{
+  ResourceBlock resourceBlock=resourceBlockPersistence.fetchByPrimaryKey(permissionedModel.getResourceBlockId());
+  ResourceBlockPermissionsContainer resourceBlockPermissionsContainer=null;
+  if (resourceBlock == null) {
+    resourceBlockPermissionsContainer=resourceTypePermissionLocalService.getResourceBlockPermissionsContainer(companyId,groupId,name);
+  }
+ else {
+    resourceBlockPermissionsContainer=resourceBlockPermissionLocalService.getResourceBlockPermissionsContainer(resourceBlock.getPrimaryKey());
+  }
+  long oldActionIdsLong=resourceBlockPermissionsContainer.getActionIds(roleId);
+  if (operator == ResourceBlockConstants.OPERATOR_ADD) {
+    actionIdsLong|=oldActionIdsLong;
+  }
+ else   if (operator == ResourceBlockConstants.OPERATOR_REMOVE) {
+    actionIdsLong=oldActionIdsLong & (~actionIdsLong);
+  }
+  if (resourceBlock != null) {
+    if (oldActionIdsLong == actionIdsLong) {
+      return;
+    }
+    releaseResourceBlock(resourceBlock);
+  }
+  resourceBlockPermissionsContainer.setPermissions(roleId,actionIdsLong);
+  String permissionsHash=getPermissionsHash(resourceBlockPermissionsContainer);
+  updateResourceBlockId(companyId,groupId,name,permissionedModel,permissionsHash,resourceBlockPermissionsContainer);
+  if (flush) {
+    PermissionCacheUtil.clearCache();
+  }
+}
