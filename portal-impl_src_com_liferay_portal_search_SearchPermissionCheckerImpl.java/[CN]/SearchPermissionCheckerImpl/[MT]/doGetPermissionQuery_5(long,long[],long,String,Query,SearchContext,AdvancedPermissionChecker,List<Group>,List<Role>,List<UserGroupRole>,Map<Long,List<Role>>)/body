@@ -14,33 +14,36 @@
  catch (  NoSuchResourceException nsre) {
   }
   BooleanQuery permissionQuery=BooleanQueryFactoryUtil.create(searchContext);
-  BooleanQuery groupsQuery=BooleanQueryFactoryUtil.create(searchContext);
-  BooleanQuery rolesQuery=BooleanQueryFactoryUtil.create(searchContext);
   if (userId > 0) {
     permissionQuery.addTerm(Field.USER_ID,userId);
   }
+  BooleanQuery groupsQuery=BooleanQueryFactoryUtil.create(searchContext);
+  BooleanQuery rolesQuery=BooleanQueryFactoryUtil.create(searchContext);
   for (  Role role : roles) {
-    if (role.getName().equals(RoleConstants.ADMINISTRATOR)) {
+    String roleName=role.getName();
+    if (roleName.equals(RoleConstants.ADMINISTRATOR)) {
       return query;
     }
-    long roleId=role.getRoleId();
-    if (hasPermission(roleId,companyResourceId)) {
+    if (hasPermission(role.getRoleId(),companyResourceId)) {
       return query;
     }
-    if (hasPermission(roleId,groupTemplateResourceId)) {
+    if (hasPermission(role.getRoleId(),groupTemplateResourceId)) {
       return query;
     }
     for (    Group group : groups) {
       try {
         Resource groupResource=ResourceLocalServiceUtil.getResource(companyId,className,ResourceConstants.SCOPE_GROUP,String.valueOf(group.getGroupId()));
-        if (hasPermission(roleId,groupResource.getResourceId())) {
+        if (hasPermission(role.getRoleId(),groupResource.getResourceId())) {
           groupsQuery.addTerm(Field.GROUP_ID,group.getGroupId());
         }
       }
  catch (      NoSuchResourceException nsre) {
       }
-      if ((role.getType() != RoleConstants.TYPE_REGULAR) && groupIdsToRoles.get(group.getGroupId()).contains(role) && hasPermission(roleId,groupTemplateResourceId)) {
-        groupsQuery.addTerm(Field.GROUP_ID,group.getGroupId());
+      if ((role.getType() != RoleConstants.TYPE_REGULAR) && hasPermission(role.getRoleId(),groupTemplateResourceId)) {
+        List<Role> groupRoles=groupIdsToRoles.get(group.getGroupId());
+        if (groupRoles.contains(role)) {
+          groupsQuery.addTerm(Field.GROUP_ID,group.getGroupId());
+        }
       }
     }
     rolesQuery.addTerm(Field.ROLE_ID,role.getRoleId());
