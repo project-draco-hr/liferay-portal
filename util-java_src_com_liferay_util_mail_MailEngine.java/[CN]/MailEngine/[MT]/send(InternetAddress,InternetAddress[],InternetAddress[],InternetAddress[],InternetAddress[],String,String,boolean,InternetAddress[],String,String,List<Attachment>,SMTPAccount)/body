@@ -14,16 +14,14 @@
     _log.debug("Reply to: " + Arrays.toString(replyTo));
     _log.debug("Message ID: " + messageId);
     _log.debug("In Reply To: " + inReplyTo);
-    if (attachments != null) {
+    if ((attachments != null) && _log.isDebugEnabled()) {
       for (int i=0; i < attachments.size(); i++) {
-        LiferayAttachment liferayAttachment=attachments.get(i);
-        if (liferayAttachment.getAttachment() != null) {
-          String path=liferayAttachment.getAttachment().getAbsolutePath();
-          _log.debug("Attachment # path" + (i + 1) + ": "+ path);
-          if (liferayAttachment.getAttachmentFileName() != null) {
-            _log.debug("Attachment # fileName" + (i + 1) + ": "+ liferayAttachment.getAttachmentFileName());
-          }
+        Attachment attachment=attachments.get(i);
+        File file=attachment.getFile();
+        if (file == null) {
+          continue;
         }
+        _log.debug("Attachment " + i + " file "+ file.getAbsolutePath()+ " and file name "+ attachment.getFileName());
       }
     }
   }
@@ -63,20 +61,22 @@
         messageMultipart.addBodyPart(bodyPart);
       }
       for (int i=0; i < attachments.size(); i++) {
-        LiferayAttachment liferayAttachment=attachments.get(i);
-        if (liferayAttachment.getAttachment() != null) {
-          MimeBodyPart bodyPart=new MimeBodyPart();
-          DataSource source=new FileDataSource(liferayAttachment.getAttachment());
-          bodyPart.setDisposition(Part.ATTACHMENT);
-          bodyPart.setDataHandler(new DataHandler(source));
-          if (liferayAttachment.getAttachmentFileName() != null) {
-            bodyPart.setFileName(liferayAttachment.getAttachmentFileName());
-          }
- else {
-            bodyPart.setFileName(liferayAttachment.getAttachment().getName());
-          }
-          rootMultipart.addBodyPart(bodyPart);
+        Attachment attachment=attachments.get(i);
+        File file=attachment.getFile();
+        if (file == null) {
+          continue;
         }
+        MimeBodyPart mimeBodyPart=new MimeBodyPart();
+        DataSource dataSource=new FileDataSource(file);
+        mimeBodyPart.setDataHandler(new DataHandler(dataSource));
+        mimeBodyPart.setDisposition(Part.ATTACHMENT);
+        if (attachment.getFileName() != null) {
+          mimeBodyPart.setFileName(attachment.getFileName());
+        }
+ else {
+          mimeBodyPart.setFileName(file.getName());
+        }
+        rootMultipart.addBodyPart(mimeBodyPart);
       }
       message.setContent(rootMultipart);
       message.saveChanges();
