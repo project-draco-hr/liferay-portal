@@ -169,7 +169,11 @@
         request.setAttribute(WebKeys.REQUESTED_LAYOUT,layout);
       }
       boolean isViewableGroup=LayoutPermissionUtil.contains(permissionChecker,layout,controlPanelCategory,ActionKeys.VIEW);
-      if (!isViewableGroup && group.isStagingGroup()) {
+      boolean isViewableStaging=GroupPermissionUtil.contains(permissionChecker,group.getGroupId(),ActionKeys.VIEW_STAGING);
+      if (isViewableStaging) {
+        layouts=LayoutLocalServiceUtil.getLayouts(layout.getGroupId(),layout.isPrivateLayout(),LayoutConstants.DEFAULT_PARENT_LAYOUT_ID);
+      }
+ else       if (!isViewableGroup && group.isStagingGroup()) {
         layout=null;
       }
  else       if (!isViewableGroup) {
@@ -223,8 +227,12 @@
   LayoutTypePortlet layoutTypePortlet=null;
   layouts=mergeAdditionalLayouts(request,user,permissionChecker,layout,layouts);
   LayoutSet layoutSet=null;
+  boolean hasCustomizeLayoutPermission=false;
+  boolean hasUpdateLayoutPermission=false;
   boolean customizedView=SessionParamUtil.getBoolean(request,"customized_view",true);
   if (layout != null) {
+    hasCustomizeLayoutPermission=LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.CUSTOMIZE);
+    hasUpdateLayoutPermission=LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.UPDATE);
     layoutSet=layout.getLayoutSet();
     if (company.isSiteLogo()) {
       long logoId=0;
@@ -259,8 +267,8 @@
       customizedView=false;
     }
     layoutTypePortlet.setCustomizedView(customizedView);
-    layoutTypePortlet.setUpdatePermission(LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.UPDATE));
-    if (signedIn && customizable && customizedView&& LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.CUSTOMIZE)) {
+    layoutTypePortlet.setUpdatePermission(hasUpdateLayoutPermission);
+    if (signedIn && customizable && customizedView&& hasCustomizeLayoutPermission) {
       PortalPreferences portalPreferences=PortletPreferencesFactoryUtil.getPortalPreferences(companyId,user.getUserId(),true);
       layoutTypePortlet.setPortalPreferences(portalPreferences);
     }
@@ -451,19 +459,19 @@
     if (layout.isTypePortlet()) {
       boolean freeformLayout=layoutTypePortlet.getLayoutTemplateId().equals("freeform");
       themeDisplay.setFreeformLayout(freeformLayout);
-      boolean hasUpdateLayoutPermission=LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.UPDATE);
       if (hasUpdateLayoutPermission) {
         themeDisplay.setShowAddContentIconPermission(true);
         if (!LiferayWindowState.isMaximized(request)) {
           themeDisplay.setShowAddContentIcon(true);
         }
         themeDisplay.setShowLayoutTemplatesIcon(true);
-        themeDisplay.setShowPageCustomizationIcon(true);
+        if (!group.isUser()) {
+          themeDisplay.setShowPageCustomizationIcon(true);
+        }
         themeDisplay.setURLAddContent("Liferay.LayoutConfiguration.toggle('".concat(PortletKeys.LAYOUT_CONFIGURATION).concat("');"));
         themeDisplay.setURLLayoutTemplates("Liferay.LayoutConfiguration.showTemplates();");
       }
-      boolean hasCustomizePermission=LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.CUSTOMIZE);
-      if (hasCustomizePermission && customizedView) {
+      if (hasCustomizeLayoutPermission && customizedView) {
         themeDisplay.setShowAddContentIconPermission(true);
         if (!LiferayWindowState.isMaximized(request)) {
           themeDisplay.setShowAddContentIcon(true);
@@ -471,16 +479,14 @@
         themeDisplay.setURLAddContent("Liferay.LayoutConfiguration.toggle('".concat(PortletKeys.LAYOUT_CONFIGURATION).concat("');"));
       }
     }
-    boolean hasManageLayoutsPermission=false;
     if (signedIn) {
-      hasManageLayoutsPermission=GroupPermissionUtil.contains(permissionChecker,scopeGroupId,ActionKeys.MANAGE_LAYOUTS);
       if (group.isUser()) {
         if ((layout.isPrivateLayout() && !PropsValues.LAYOUT_USER_PRIVATE_LAYOUTS_MODIFIABLE) || (layout.isPublicLayout() && !PropsValues.LAYOUT_USER_PUBLIC_LAYOUTS_MODIFIABLE)) {
-          hasManageLayoutsPermission=false;
+          hasUpdateLayoutPermission=false;
         }
       }
     }
-    if (hasManageLayoutsPermission) {
+    if (hasUpdateLayoutPermission) {
       themeDisplay.setShowPageSettingsIcon(true);
       PortletURL pageSettingsURL=new PortletURLImpl(request,PortletKeys.LAYOUTS_ADMIN,controlPanelPlid,PortletRequest.RENDER_PHASE);
       pageSettingsURL.setWindowState(LiferayWindowState.POP_UP);
@@ -495,21 +501,28 @@
       pageSettingsURL.setParameter("groupId",String.valueOf(scopeGroupId));
       pageSettingsURL.setParameter("selPlid",String.valueOf(plid));
       themeDisplay.setURLPageSettings(pageSettingsURL);
-      if (group.isSite()) {
+      if (group.isSite() && GroupPermissionUtil.contains(permissionChecker,scopeGroupId,ActionKeys.ASSIGN_MEMBERS)) {
         themeDisplay.setShowManageSiteMembershipsIcon(true);
+        PortletURL manageSiteMembershipsURL=new PortletURLImpl(request,PortletKeys.SITE_MEMBERSHIPS_ADMIN,controlPanelPlid,PortletRequest.RENDER_PHASE);
+        manageSiteMembershipsURL.setWindowState(LiferayWindowState.POP_UP);
+        manageSiteMembershipsURL.setPortletMode(PortletMode.VIEW);
+        manageSiteMembershipsURL.setParameter("struts_action","/sites_admin/edit_site_assignments");
+        manageSiteMembershipsURL.setParameter("groupId",String.valueOf(scopeGroupId));
+        manageSiteMembershipsURL.setParameter("selPlid",String.valueOf(plid));
+        themeDisplay.setURLManageSiteMemberships(manageSiteMembershipsURL);
       }
  else {
         themeDisplay.setShowManageSiteMembershipsIcon(false);
       }
-      PortletURL manageSiteMembershipsURL=new PortletURLImpl(request,PortletKeys.SITE_MEMBERSHIPS_ADMIN,controlPanelPlid,PortletRequest.RENDER_PHASE);
-      manageSiteMembershipsURL.setWindowState(LiferayWindowState.POP_UP);
-      manageSiteMembershipsURL.setPortletMode(PortletMode.VIEW);
-      manageSiteMembershipsURL.setParameter("struts_action","/sites_admin/edit_site_assignments");
-      manageSiteMembershipsURL.setParameter("groupId",String.valueOf(scopeGroupId));
-      manageSiteMembershipsURL.setParameter("selPlid",String.valueOf(plid));
-      themeDisplay.setURLManageSiteMemberships(manageSiteMembershipsURL);
     }
-    if (!group.isControlPanel() && !group.isUser() && !group.isUserGroup()&& (GroupPermissionUtil.contains(permissionChecker,group.getGroupId(),ActionKeys.MANAGE_STAGING) || GroupPermissionUtil.contains(permissionChecker,group.getGroupId(),ActionKeys.UPDATE))) {
+    boolean hasAddLayoutLayoutPermission=LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.ADD_LAYOUT);
+    boolean hasAddLayoutGroupPermission=GroupPermissionUtil.contains(permissionChecker,scopeGroupId,ActionKeys.ADD_LAYOUT);
+    boolean hasManageLayoutsGroupPermission=GroupPermissionUtil.contains(permissionChecker,scopeGroupId,ActionKeys.MANAGE_LAYOUTS);
+    boolean hasManageStagingPermission=GroupPermissionUtil.contains(permissionChecker,scopeGroupId,ActionKeys.MANAGE_STAGING);
+    boolean hasPublishStagingPermission=GroupPermissionUtil.contains(permissionChecker,scopeGroupId,ActionKeys.PUBLISH_STAGING);
+    boolean hasUpdateGroupPermission=GroupPermissionUtil.contains(permissionChecker,scopeGroupId,ActionKeys.UPDATE);
+    boolean hasViewStagingPermission=GroupPermissionUtil.contains(permissionChecker,scopeGroupId,ActionKeys.VIEW_STAGING);
+    if (!group.isControlPanel() && !group.isUser() && !group.isUserGroup()&& hasUpdateGroupPermission) {
       themeDisplay.setShowSiteSettingsIcon(true);
       PortletURL siteSettingsURL=new PortletURLImpl(request,PortletKeys.SITE_SETTINGS,controlPanelPlid,PortletRequest.RENDER_PHASE);
       siteSettingsURL.setWindowState(LiferayWindowState.POP_UP);
@@ -518,7 +531,7 @@
       siteSettingsURL.setParameter("groupId",String.valueOf(scopeGroupId));
       themeDisplay.setURLSiteSettings(siteSettingsURL);
     }
-    if (hasManageLayoutsPermission && !group.isLayoutPrototype()) {
+    if (!group.isLayoutPrototype() && (hasAddLayoutGroupPermission || hasAddLayoutLayoutPermission || hasManageLayoutsGroupPermission|| hasUpdateGroupPermission)) {
       themeDisplay.setShowSiteMapSettingsIcon(true);
       PortletURL siteMapSettingsURL=new PortletURLImpl(request,PortletKeys.LAYOUTS_ADMIN,controlPanelPlid,PortletRequest.RENDER_PHASE);
       siteMapSettingsURL.setWindowState(LiferayWindowState.POP_UP);
@@ -544,8 +557,7 @@
       themeDisplay.setURLPublishToLive(null);
     }
     if (group.isStaged() || group.isStagingGroup()) {
-      boolean hasPublishStagingPermission=GroupPermissionUtil.contains(permissionChecker,scopeGroupId,ActionKeys.PUBLISH_STAGING);
-      if (hasManageLayoutsPermission || hasPublishStagingPermission) {
+      if (hasManageStagingPermission || hasPublishStagingPermission || hasUpdateLayoutPermission|| hasViewStagingPermission) {
         themeDisplay.setShowStagingIcon(true);
       }
       if (hasPublishStagingPermission) {

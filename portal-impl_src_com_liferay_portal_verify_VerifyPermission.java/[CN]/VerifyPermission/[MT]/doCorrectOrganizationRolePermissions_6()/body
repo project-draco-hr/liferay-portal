@@ -1,0 +1,36 @@
+{
+  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(ResourcePermission.class);
+  dynamicQuery.add(RestrictionsFactoryUtil.eq("name",Organization.class.getName()));
+  List<ResourcePermission> resourcePermissions=ResourcePermissionLocalServiceUtil.dynamicQuery(dynamicQuery);
+  for (  ResourcePermission resourcePermission : resourcePermissions) {
+    ResourcePermission groupResourcePermission=null;
+    try {
+      groupResourcePermission=ResourcePermissionLocalServiceUtil.getResourcePermission(resourcePermission.getCompanyId(),Group.class.getName(),resourcePermission.getScope(),resourcePermission.getPrimKey(),resourcePermission.getRoleId());
+    }
+ catch (    Exception e) {
+      ResourcePermissionLocalServiceUtil.setResourcePermissions(resourcePermission.getCompanyId(),Group.class.getName(),resourcePermission.getScope(),resourcePermission.getPrimKey(),resourcePermission.getRoleId(),new String[0]);
+      groupResourcePermission=ResourcePermissionLocalServiceUtil.getResourcePermission(resourcePermission.getCompanyId(),Group.class.getName(),resourcePermission.getScope(),resourcePermission.getPrimKey(),resourcePermission.getRoleId());
+    }
+    long orgActions=resourcePermission.getActionIds();
+    long groupActions=groupResourcePermission.getActionIds();
+    for (    Object[] actionIdToMask : _ORG_ACTION_IDS_TO_MASKS) {
+      long orgActionMask=(Long)actionIdToMask[1];
+      long groupActionMask=(Long)actionIdToMask[2];
+      if ((orgActions & orgActionMask) == orgActionMask) {
+        orgActions=orgActions & (~orgActionMask);
+        groupActions=groupActions | groupActionMask;
+      }
+    }
+    try {
+      resourcePermission.resetOriginalValues();
+      resourcePermission.setActionIds(orgActions);
+      ResourcePermissionLocalServiceUtil.updateResourcePermission(resourcePermission,false);
+      groupResourcePermission.resetOriginalValues();
+      groupResourcePermission.setActionIds(groupActions);
+      ResourcePermissionLocalServiceUtil.updateResourcePermission(groupResourcePermission,false);
+    }
+ catch (    Exception e) {
+      _log.error(e,e);
+    }
+  }
+}

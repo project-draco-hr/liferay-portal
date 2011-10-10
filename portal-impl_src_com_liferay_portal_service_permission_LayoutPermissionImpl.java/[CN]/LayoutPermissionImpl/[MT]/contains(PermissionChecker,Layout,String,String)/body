@@ -11,16 +11,31 @@
       }
     }
   }
-  try {
-    Group group=layout.getGroup();
-    if (!group.isLayoutSetPrototype() && isAttemptToModifyLockedLayout(layout,actionId)) {
-      return false;
-    }
+  Group group=layout.getGroup();
+  if (!group.isLayoutSetPrototype() && isAttemptToModifyLockedLayout(layout,actionId)) {
+    return false;
   }
- catch (  Exception e) {
+  if ((PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 6) && !group.isUser()) {
+    ResourcePermission resourcePermission=ResourcePermissionLocalServiceUtil.getResourcePermission(layout.getCompanyId(),Layout.class.getName(),ResourceConstants.SCOPE_INDIVIDUAL,String.valueOf(layout.getPlid()),permissionChecker.getOwnerRoleId());
+    if (permissionChecker.hasOwnerPermission(layout.getCompanyId(),Layout.class.getName(),String.valueOf(layout.getPlid()),resourcePermission.getOwnerId(),actionId)) {
+      return true;
+    }
   }
   if (GroupPermissionUtil.contains(permissionChecker,layout.getGroupId(),ActionKeys.MANAGE_LAYOUTS)) {
     return true;
+  }
+ else   if (actionId.equals(ActionKeys.ADD_LAYOUT) && GroupPermissionUtil.contains(permissionChecker,layout.getGroupId(),ActionKeys.ADD_LAYOUT)) {
+    return true;
+  }
+  if (PropsValues.PERMISSIONS_VIEW_DYNAMIC_INHERITANCE) {
+    long parentLayoutId=layout.getParentLayoutId();
+    while (parentLayoutId != LayoutConstants.DEFAULT_PARENT_LAYOUT_ID) {
+      Layout parentLayout=LayoutLocalServiceUtil.getLayout(layout.getGroupId(),layout.isPrivateLayout(),layout.getParentLayoutId());
+      if (contains(permissionChecker,parentLayout,controlPanelCategory,actionId)) {
+        return true;
+      }
+      parentLayoutId=parentLayout.getParentLayoutId();
+    }
   }
   try {
     if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 6) {
