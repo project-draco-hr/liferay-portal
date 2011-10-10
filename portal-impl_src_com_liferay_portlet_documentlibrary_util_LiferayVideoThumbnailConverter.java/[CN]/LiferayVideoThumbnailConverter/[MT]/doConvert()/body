@@ -1,0 +1,58 @@
+{
+  _inputIContainer=IContainer.make();
+  openContainer(_inputIContainer,_inputURL,false);
+  int inputStreamsCount=_inputIContainer.getNumStreams();
+  if (inputStreamsCount < 0) {
+    throw new RuntimeException("Input URL does not have any streams");
+  }
+  IVideoPicture[] inputIVideoPictures=new IVideoPicture[inputStreamsCount];
+  IStreamCoder[] inputIStreamCoders=new IStreamCoder[inputStreamsCount];
+  for (int i=0; i < inputStreamsCount; i++) {
+    IStream inputIStream=_inputIContainer.getStream(i);
+    IStreamCoder inputIStreamCoder=inputIStream.getStreamCoder();
+    ICodec.Type inputICodecType=inputIStreamCoder.getCodecType();
+    inputIStreamCoders[i]=inputIStreamCoder;
+    if (inputICodecType == ICodec.Type.CODEC_TYPE_VIDEO) {
+      inputIVideoPictures[i]=IVideoPicture.make(inputIStreamCoder.getPixelType(),inputIStreamCoder.getWidth(),inputIStreamCoder.getHeight());
+    }
+    if ((inputIStreamCoder != null) && (inputIStreamCoder.open() < 0)) {
+      throw new RuntimeException("Unable to open input coder");
+    }
+  }
+  boolean keyPacketFound=false;
+  int nonKeyAfterKeyCount=0;
+  boolean onlyDecodeKeyPackets=false;
+  IPacket inputIPacket=IPacket.make();
+  while (_inputIContainer.readNextPacket(inputIPacket) == 0) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Current packet size " + inputIPacket.getSize());
+    }
+    int streamIndex=inputIPacket.getStreamIndex();
+    IStreamCoder inputIStreamCoder=inputIStreamCoders[streamIndex];
+    if (inputIStreamCoder.getCodecType() != ICodec.Type.CODEC_TYPE_VIDEO) {
+      continue;
+    }
+    keyPacketFound=isKeyPacketFound(inputIPacket,keyPacketFound);
+    nonKeyAfterKeyCount=countNonKeyAfterKey(inputIPacket,keyPacketFound,nonKeyAfterKeyCount);
+    if (isStartDecoding(inputIPacket,inputIStreamCoder,keyPacketFound,nonKeyAfterKeyCount,onlyDecodeKeyPackets)) {
+      IStream iStream=_inputIContainer.getStream(streamIndex);
+      long timeStampOffset=getStreamTimeStampOffset(iStream);
+      int value=decodeVideo(null,inputIVideoPictures[streamIndex],null,inputIPacket,null,inputIStreamCoder,null,null,_outputFile,_extension,_height,_width,timeStampOffset);
+      if (value <= 0) {
+        if (inputIPacket.isKey()) {
+          throw new RuntimeException("Unable to decode video stream " + streamIndex);
+        }
+        onlyDecodeKeyPackets=true;
+        continue;
+      }
+ else       if (value == DECODE_VIDEO_THUMBNAIL) {
+        break;
+      }
+    }
+ else {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Do not decode video stream " + streamIndex);
+      }
+    }
+  }
+}
