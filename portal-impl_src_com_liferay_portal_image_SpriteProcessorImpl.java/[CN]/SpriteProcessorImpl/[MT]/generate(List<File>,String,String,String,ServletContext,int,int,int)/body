@@ -6,8 +6,34 @@
     spritePropertiesRootPath=spritePropertiesRootPath.substring(0,spritePropertiesRootPath.length() - 1);
   }
   Collections.sort(images);
-  File dir=images.get(0).getParentFile();
-  File spritePropertiesFile=new File(dir.toString() + StringPool.SLASH + spritePropertiesFileName);
+  String spriteRootDirName=PropsValues.SPRITE_ROOT_DIR;
+  String imagesDirName=images.get(0).getParentFile().toString();
+  if (Validator.isNotNull(spriteRootDirName)) {
+    if ((!spriteRootDirName.endsWith(StringPool.SLASH)) && (!spriteRootDirName.endsWith(StringPool.BACK_SLASH))) {
+      spriteRootDirName+=StringPool.SLASH;
+    }
+    String portalProxyPath=PropsUtil.get(PropsKeys.PORTAL_PROXY_PATH);
+    if (Validator.isNotNull(portalProxyPath)) {
+      spriteRootDirName+=portalProxyPath + StringPool.SLASH;
+    }
+    String portalContext=PropsUtil.get(PropsKeys.PORTAL_CTX);
+    if ((Validator.isNotNull(portalContext)) && (!StringPool.SLASH.equals(portalContext))) {
+      spriteRootDirName+=portalContext + StringPool.SLASH;
+    }
+    String portletContext=servletContext.getContextPath();
+    if (Validator.isNotNull(portletContext)) {
+      spriteRootDirName+=servletContext.getContextPath() + StringPool.SLASH;
+    }
+    String contextRoot=ServletContextUtil.getRealPath(servletContext,StringPool.SLASH);
+    spriteRootDirName=StringUtil.replace(spriteRootDirName + imagesDirName.substring(contextRoot.length()),CharPool.BACK_SLASH,CharPool.SLASH);
+    if ((spriteRootDirName.endsWith(StringPool.SLASH)) || (spriteRootDirName.endsWith(StringPool.BACK_SLASH))) {
+      spriteRootDirName=spriteRootDirName.substring(0,spriteRootDirName.length() - 1);
+    }
+  }
+ else {
+    spriteRootDirName=imagesDirName;
+  }
+  File spritePropertiesFile=new File(spriteRootDirName + StringPool.SLASH + spritePropertiesFileName);
   boolean build=false;
   long lastModified=0;
   if (spritePropertiesFile.exists()) {
@@ -70,7 +96,8 @@
   }
  else {
     RenderedImage renderedImage=MosaicDescriptor.create(renderedImages.toArray(new RenderedImage[renderedImages.size()]),MosaicDescriptor.MOSAIC_TYPE_OVERLAY,null,null,null,null,null);
-    File spriteFile=new File(dir.toString() + StringPool.SLASH + spriteFileName);
+    File spriteFile=new File(spriteRootDirName + StringPool.SLASH + spriteFileName);
+    spriteFile.mkdirs();
     ImageIO.write(renderedImage,"png",spriteFile);
     if (lastModified > 0) {
       spriteFile.setLastModified(lastModified);
@@ -78,7 +105,7 @@
     ImageWorker imageWorker=new ImageWorker(renderedImage);
     imageWorker.forceIndexColorModelForGIF(true);
     renderedImage=imageWorker.getPlanarImage();
-    spriteFile=new File(dir.toString() + StringPool.SLASH + StringUtil.replace(spriteFileName,".png",".gif"));
+    spriteFile=new File(spriteRootDirName + StringPool.SLASH + StringUtil.replace(spriteFileName,".png",".gif"));
     FileOutputStream fos=new FileOutputStream(spriteFile);
     try {
       ImageProcessorUtil.encodeGIF(renderedImage,fos);
