@@ -1,0 +1,93 @@
+{
+  Element modelRefElement=activityElement.element("model-ref");
+  if (modelRefElement == null) {
+    return;
+  }
+  String modelName=modelRefElement.getTextTrim();
+  Element activityIdElement=activityElement.element("activity-key");
+  if (activityIdElement == null) {
+    return;
+  }
+  String activityKey=activityIdElement.getTextTrim();
+  if (Validator.isNull(activityKey)) {
+    return;
+  }
+  Map<Integer,SocialActivityDefinition> socialActivityDefinitions=_socialActivityDefinitions.get(modelName);
+  if (socialActivityDefinitions == null) {
+    socialActivityDefinitions=new HashMap<Integer,SocialActivityDefinition>();
+    _socialActivityDefinitions.put(modelName,socialActivityDefinitions);
+  }
+  SocialActivityDefinition socialActivityDefinition=socialActivityDefinitions.get(activityKey);
+  if (socialActivityDefinition == null) {
+    String languageKey=activityElement.elementText("language-key");
+    boolean logActivity=GetterUtil.getBoolean(activityElement.elementText("log-activity"));
+    SocialActivityHandler activityHandler=null;
+    String handlerClassName=activityElement.elementText("handler-class");
+    if (handlerClassName != null) {
+      ClassLoader classLoader=null;
+      if (event != null) {
+        classLoader=event.getContextClassLoader();
+      }
+ else {
+        classLoader=PortalClassLoaderUtil.getClassLoader();
+      }
+      if (classLoader != null) {
+        try {
+          activityHandler=(SocialActivityHandler)classLoader.loadClass(handlerClassName).newInstance();
+        }
+ catch (        ClassNotFoundException cnfe) {
+        }
+catch (        Exception e) {
+          _log.error("Cannot instantiate social activity handler " + handlerClassName,e);
+        }
+      }
+ else {
+        _log.error("Cannot find class loader to load activity " + "handler class " + handlerClassName);
+      }
+    }
+    socialActivityDefinition=new SocialActivityDefinition();
+    socialActivityDefinition.setModelName(modelName);
+    socialActivityDefinition.setActivityKey(GetterUtil.getInteger(activityKey));
+    socialActivityDefinition.setActivityHandler(activityHandler);
+    socialActivityDefinition.setLanguageKey(languageKey);
+    socialActivityDefinition.setLogActivity(logActivity);
+    Element contributionValueElement=activityElement.element("contribution-value");
+    Element contributionLimitElement=activityElement.element("contribution-limit");
+    if (contributionValueElement != null) {
+      SocialActivityCounterDefinition contributionCounter=new SocialActivityCounterDefinition(SocialActivityCounterConstants.NAME_CONTRIBUTION,SocialActivityCounterConstants.TYPE_CREATOR);
+      contributionCounter.setIncrement(GetterUtil.getInteger(contributionValueElement.getText()));
+      if (contributionLimitElement != null) {
+        contributionCounter.setLimit(GetterUtil.getInteger(contributionLimitElement.getText()));
+        contributionCounter.setLimitType(decodeLimitPeriod(contributionLimitElement.attributeValue("period")));
+      }
+      SocialActivityCounterDefinition popularityCounter=new SocialActivityCounterDefinition(SocialActivityCounterConstants.NAME_POPULARITY,SocialActivityCounterConstants.TYPE_ASSET);
+      popularityCounter.setIncrement(contributionCounter.getIncrement());
+      popularityCounter.setLimitType(contributionCounter.getLimitType());
+      popularityCounter.setLimit(contributionCounter.getLimit());
+      socialActivityDefinition.addCounter(contributionCounter);
+      socialActivityDefinition.addCounter(popularityCounter);
+    }
+    Element participationValueElement=activityElement.element("participation-value");
+    Element participationLimitElement=activityElement.element("participation-limit");
+    if (participationValueElement != null) {
+      SocialActivityCounterDefinition participationCounter=new SocialActivityCounterDefinition(SocialActivityCounterConstants.NAME_PARTICIPATION,SocialActivityCounterConstants.TYPE_ACTOR);
+      participationCounter.setIncrement(GetterUtil.getInteger(participationValueElement.getText()));
+      if (participationLimitElement != null) {
+        participationCounter.setLimit(GetterUtil.getInteger(participationLimitElement.getText()));
+        participationCounter.setLimitType(decodeLimitPeriod(participationLimitElement.attributeValue("period")));
+      }
+      socialActivityDefinition.addCounter(participationCounter);
+    }
+    socialActivityDefinitions.put(socialActivityDefinition.getActivityKey(),socialActivityDefinition);
+    if (hotDeployRegistry != null) {
+      String path=event.getServletContextName() + StringPool.SLASH + socialActivityDefinition.getModelName()+ StringPool.SLASH+ socialActivityDefinition.getActivityKey()+ _ACTIVITY_+ socialActivityDefinition.getActivityKey();
+      hotDeployRegistry.put(path,socialActivityDefinition);
+    }
+  }
+  for (  Element socialActivityCounterElement : activityElement.elements("counter")) {
+    readCounter(socialActivityCounterElement,socialActivityDefinition,event,hotDeployRegistry);
+  }
+  for (  Element achievementElement : activityElement.elements("achievement")) {
+    readAchievement(achievementElement,socialActivityDefinition,event,hotDeployRegistry);
+  }
+}
