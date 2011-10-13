@@ -1,30 +1,32 @@
 {
-  ServletContext servletContext=event.getServletContext();
+  ServletContext servletContext=hotDeployEvent.getServletContext();
   String servletContextName=servletContext.getServletContextName();
   if (_log.isDebugEnabled()) {
     _log.debug("Invoking undeploy for " + servletContextName);
   }
-  for (Iterator<String> it=_vars.keySet().iterator(); it.hasNext(); ) {
-    String path=it.next();
-    if (path.startsWith(servletContextName)) {
-      String[] pathElements=StringUtil.split(path,"/");
-      SocialActivityDefinition activityDefinition=SocialActivitiesUtil.getSocialActivityDefinition(pathElements[1],GetterUtil.getInteger(pathElements[2]));
-      if (activityDefinition != null) {
-        Object obj=_vars.get(path);
-        if (obj instanceof SocialActivityCounterDefinition) {
-          activityDefinition.getCounters().remove((SocialActivityCounterDefinition)obj);
-        }
- else         if (obj instanceof SocialAchievement) {
-          activityDefinition.getAchievements().remove((SocialAchievement)obj);
-        }
- else         if (obj instanceof SocialActivityDefinition) {
-          SocialActivitiesUtil.removeSocialActivityDefinition(activityDefinition);
-        }
-      }
-      it.remove();
+  List<Object> objects=(List<Object>)_vars.get(servletContextName);
+  if (objects == null) {
+    return;
+  }
+  for (  Object object : objects) {
+    if (object instanceof SocialActivityDefinition) {
+      SocialActivityDefinition activityDefinition=(SocialActivityDefinition)object;
+      SocialConfigurationUtil.removeActivityDefinition(activityDefinition);
+      continue;
+    }
+    Tuple tuple=(Tuple)object;
+    SocialActivityDefinition activityDefinition=(SocialActivityDefinition)tuple.getObject(0);
+    Object tupleObject1=tuple.getObject(1);
+    if (tupleObject1 instanceof SocialAchievement) {
+      List<SocialAchievement> achievements=activityDefinition.getAchievements();
+      achievements.remove(tupleObject1);
+    }
+ else     if (tupleObject1 instanceof SocialActivityCounterDefinition) {
+      Collection<SocialActivityCounterDefinition> activityCounterDefinitions=activityDefinition.getActivityCounterDefinitions();
+      activityCounterDefinitions.remove(tupleObject1);
     }
   }
   if (_log.isInfoEnabled()) {
-    _log.info("Social plugins for " + servletContextName + " was unregistered");
+    _log.info("Social for " + servletContextName + " was unregistered");
   }
 }
