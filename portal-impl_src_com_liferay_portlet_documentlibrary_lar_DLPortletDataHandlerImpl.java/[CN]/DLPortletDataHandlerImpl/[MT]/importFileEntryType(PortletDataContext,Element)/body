@@ -1,0 +1,37 @@
+{
+  String path=fileEntryTypeElement.attributeValue("path");
+  if (!portletDataContext.isPathNotProcessed(path)) {
+    return;
+  }
+  DLFileEntryType fileEntryType=(DLFileEntryType)portletDataContext.getZipEntryAsObject(path);
+  List<Element> structureElements=fileEntryTypeElement.elements("structure");
+  for (  Element structureElement : structureElements) {
+    DDMPortletDataHandlerImpl.importStructure(portletDataContext,structureElement);
+  }
+  String[] ddmStructureUuids=StringUtil.split(fileEntryTypeElement.attributeValue("structureUuids"));
+  long[] ddmStrutureIds=new long[ddmStructureUuids.length];
+  for (int i=0; i < ddmStructureUuids.length; i++) {
+    DDMStructure existingStructure=DDMStructureUtil.fetchByUUID_G(ddmStructureUuids[i],portletDataContext.getScopeGroupId());
+    ddmStrutureIds[i]=existingStructure.getStructureId();
+  }
+  long userId=portletDataContext.getUserId(fileEntryType.getUserUuid());
+  long groupId=portletDataContext.getScopeGroupId();
+  ServiceContext serviceContext=portletDataContext.createServiceContext(path,fileEntryType,_NAMESPACE);
+  String name=getFileEntryTypeName(fileEntryType.getUuid(),portletDataContext.getCompanyId(),portletDataContext.getScopeGroupId(),fileEntryType.getName(),2);
+  DLFileEntryType importedFileEntryType=null;
+  if (portletDataContext.isDataStrategyMirror()) {
+    DLFileEntryType existingFileEntryType=DLFileEntryTypeUtil.fetchByUUID_G(fileEntryType.getUuid(),groupId);
+    if (existingFileEntryType == null) {
+      serviceContext.setUuid(fileEntryType.getUuid());
+      importedFileEntryType=DLFileEntryTypeLocalServiceUtil.addFileEntryType(userId,groupId,name,fileEntryType.getDescription(),ddmStrutureIds,serviceContext);
+    }
+ else {
+      DLFileEntryTypeLocalServiceUtil.updateFileEntryType(userId,existingFileEntryType.getFileEntryTypeId(),name,fileEntryType.getDescription(),ddmStrutureIds,serviceContext);
+      importedFileEntryType=existingFileEntryType;
+    }
+  }
+ else {
+    importedFileEntryType=DLFileEntryTypeLocalServiceUtil.addFileEntryType(userId,groupId,name,fileEntryType.getDescription(),ddmStrutureIds,serviceContext);
+  }
+  portletDataContext.importClassedModel(fileEntryType,importedFileEntryType,_NAMESPACE);
+}

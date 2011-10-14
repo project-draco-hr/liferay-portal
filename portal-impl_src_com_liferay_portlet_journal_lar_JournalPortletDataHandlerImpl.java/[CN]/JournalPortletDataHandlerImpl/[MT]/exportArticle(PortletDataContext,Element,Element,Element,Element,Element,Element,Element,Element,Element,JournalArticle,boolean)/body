@@ -1,0 +1,73 @@
+{
+  if (checkDateRange && !portletDataContext.isWithinDateRange(article.getModifiedDate())) {
+    return;
+  }
+  if ((article.getStatus() != WorkflowConstants.STATUS_APPROVED) && (article.getStatus() != WorkflowConstants.STATUS_EXPIRED)) {
+    return;
+  }
+  String path=getArticlePath(portletDataContext,article);
+  if (!portletDataContext.isPathNotProcessed(path)) {
+    return;
+  }
+  article=(JournalArticle)article.clone();
+  Element articleElement=(Element)articlesElement.selectSingleNode("//article[@path='".concat(path).concat("']"));
+  if (articleElement == null) {
+    articleElement=articlesElement.addElement("article");
+  }
+  articleElement.addAttribute("article-resource-uuid",article.getArticleResourceUuid());
+  Group companyGroup=GroupLocalServiceUtil.getCompanyGroup(article.getCompanyId());
+  if (Validator.isNotNull(article.getStructureId())) {
+    JournalStructure structure=null;
+    try {
+      structure=JournalStructureLocalServiceUtil.getStructure(article.getGroupId(),article.getStructureId());
+    }
+ catch (    NoSuchStructureException nsse) {
+      structure=JournalStructureLocalServiceUtil.getStructure(companyGroup.getGroupId(),article.getStructureId());
+    }
+    articleElement.addAttribute("structure-uuid",structure.getUuid());
+    exportStructure(portletDataContext,structuresElement,structure);
+  }
+  if (Validator.isNotNull(article.getTemplateId())) {
+    JournalTemplate template=null;
+    try {
+      template=JournalTemplateLocalServiceUtil.getTemplate(article.getGroupId(),article.getTemplateId());
+    }
+ catch (    NoSuchTemplateException nste) {
+      template=JournalTemplateLocalServiceUtil.getTemplate(companyGroup.getGroupId(),article.getTemplateId());
+    }
+    articleElement.addAttribute("template-uuid",template.getUuid());
+    exportTemplate(portletDataContext,templatesElement,dlFileEntryTypesElement,dlFoldersElement,dlFileEntriesElement,dlFileRanksElement,igFoldersElement,igImagesElement,template,checkDateRange);
+  }
+  Image smallImage=ImageUtil.fetchByPrimaryKey(article.getSmallImageId());
+  if (article.isSmallImage() && (smallImage != null)) {
+    String smallImagePath=getArticleSmallImagePath(portletDataContext,article);
+    articleElement.addAttribute("small-image-path",smallImagePath);
+    article.setSmallImageType(smallImage.getType());
+    portletDataContext.addZipEntry(smallImagePath,smallImage.getTextObj());
+  }
+  if (portletDataContext.getBooleanParameter(_NAMESPACE,"images")) {
+    String imagePath=getArticleImagePath(portletDataContext,article);
+    articleElement.addAttribute("image-path",imagePath);
+    List<JournalArticleImage> articleImages=JournalArticleImageUtil.findByG_A_V(article.getGroupId(),article.getArticleId(),article.getVersion());
+    for (    JournalArticleImage articleImage : articleImages) {
+      Image image=null;
+      try {
+        image=ImageUtil.findByPrimaryKey(articleImage.getArticleImageId());
+      }
+ catch (      NoSuchImageException nsie) {
+        continue;
+      }
+      String articleImagePath=getArticleImagePath(portletDataContext,article,articleImage,image);
+      if (!portletDataContext.isPathNotProcessed(articleImagePath)) {
+        continue;
+      }
+      portletDataContext.addZipEntry(articleImagePath,image.getTextObj());
+    }
+  }
+  article.setStatusByUserUuid(article.getStatusByUserUuid());
+  if (portletDataContext.getBooleanParameter(_NAMESPACE,"embedded-assets")) {
+    String content=exportReferencedContent(portletDataContext,dlFileEntryTypesElement,dlFoldersElement,dlFileEntriesElement,dlFileRanksElement,igFoldersElement,igImagesElement,articleElement,article.getContent(),checkDateRange);
+    article.setContent(content);
+  }
+  portletDataContext.addClassedModel(articleElement,path,article,_NAMESPACE);
+}

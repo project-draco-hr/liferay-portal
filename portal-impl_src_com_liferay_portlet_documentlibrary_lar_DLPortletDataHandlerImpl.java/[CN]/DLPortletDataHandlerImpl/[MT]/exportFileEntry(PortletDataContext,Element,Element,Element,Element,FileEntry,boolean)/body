@@ -1,0 +1,53 @@
+{
+  if (checkDateRange && !portletDataContext.isWithinDateRange(fileEntry.getModifiedDate())) {
+    return;
+  }
+  FileVersion fileVersion=fileEntry.getFileVersion();
+  if (fileVersion.getStatus() != WorkflowConstants.STATUS_APPROVED) {
+    return;
+  }
+  String path=getFileEntryPath(portletDataContext,fileEntry);
+  if (!portletDataContext.isPathNotProcessed(path)) {
+    return;
+  }
+  Element fileEntryElement=fileEntriesElement.addElement("file-entry");
+  if (foldersElement != null) {
+    exportParentFolder(portletDataContext,fileEntryTypesElement,foldersElement,fileEntry.getFolderId());
+  }
+  if (!portletDataContext.isPerformDirectBinaryImport()) {
+    String binPath=getFileEntryBinPath(portletDataContext,fileEntry);
+    fileEntryElement.addAttribute("bin-path",binPath);
+    InputStream is=null;
+    try {
+      is=FileEntryUtil.getContentStream(fileEntry);
+    }
+ catch (    NoSuchFileException nsfe) {
+    }
+    if (is == null) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("No file found for file entry " + fileEntry.getFileEntryId());
+      }
+      fileEntryElement.detach();
+      return;
+    }
+    try {
+      portletDataContext.addZipEntry(binPath,is);
+    }
+  finally {
+      try {
+        is.close();
+      }
+ catch (      IOException ioe) {
+        _log.error(ioe,ioe);
+      }
+    }
+  }
+  if (portletDataContext.getBooleanParameter(_NAMESPACE,"ranks")) {
+    List<DLFileRank> fileRanks=DLFileRankUtil.findByFileEntryId(fileEntry.getFileEntryId());
+    for (    DLFileRank fileRank : fileRanks) {
+      exportFileRank(portletDataContext,fileRanksElement,fileRank);
+    }
+  }
+  exportMetaData(portletDataContext,fileEntryTypesElement,fileEntryElement,fileEntry);
+  portletDataContext.addClassedModel(fileEntryElement,path,fileEntry,_NAMESPACE);
+}
