@@ -1,9 +1,6 @@
 {
   if (ImportExportThreadLocal.isImportInProcess()) {
-    return null;
-  }
-  if ((type == SocialActivityConstants.TYPE_ADD_VOTE) || (type == SocialActivityConstants.TYPE_SUBSCRIBE) || (type == SocialActivityConstants.TYPE_UNSUBSCRIBE)|| (type == SocialActivityConstants.TYPE_VIEW)) {
-    return null;
+    return;
   }
   User user=userPersistence.findByPrimaryKey(userId);
   long classNameId=PortalUtil.getClassNameId(className);
@@ -14,8 +11,7 @@
       groupId=layout.getGroupId();
     }
   }
-  long activityId=counterLocalService.increment(SocialActivity.class.getName());
-  SocialActivity activity=socialActivityPersistence.create(activityId);
+  SocialActivity activity=socialActivityPersistence.create(0);
   activity.setGroupId(groupId);
   activity.setCompanyId(user.getCompanyId());
   activity.setUserId(user.getUserId());
@@ -26,21 +22,21 @@
   activity.setType(type);
   activity.setExtraData(extraData);
   activity.setReceiverUserId(receiverUserId);
-  socialActivityPersistence.update(activity,false);
+  AssetEntry assetEntry=assetEntryPersistence.fetchByC_C(classNameId,classPK);
+  activity.setAssetEntry(assetEntry);
+  SocialActivity mirrorActivity=null;
   if ((receiverUserId > 0) && (userId != receiverUserId)) {
-    long mirrorActivityId=counterLocalService.increment(SocialActivity.class.getName());
-    SocialActivity mirrorActivity=socialActivityPersistence.create(mirrorActivityId);
+    mirrorActivity=socialActivityPersistence.create(0);
     mirrorActivity.setGroupId(groupId);
     mirrorActivity.setCompanyId(user.getCompanyId());
     mirrorActivity.setUserId(receiverUserId);
     mirrorActivity.setCreateDate(createDate.getTime());
-    mirrorActivity.setMirrorActivityId(activityId);
     mirrorActivity.setClassNameId(classNameId);
     mirrorActivity.setClassPK(classPK);
     mirrorActivity.setType(type);
     mirrorActivity.setExtraData(extraData);
     mirrorActivity.setReceiverUserId(user.getUserId());
-    socialActivityPersistence.update(mirrorActivity,false);
+    mirrorActivity.setAssetEntry(assetEntry);
   }
-  return activity;
+  socialActivityLocalService.addActivity(activity,mirrorActivity);
 }
