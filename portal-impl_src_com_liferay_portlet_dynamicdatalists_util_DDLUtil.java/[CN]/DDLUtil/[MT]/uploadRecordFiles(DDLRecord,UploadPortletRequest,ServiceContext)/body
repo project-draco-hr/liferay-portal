@@ -1,0 +1,35 @@
+{
+  InputStream inputStream=null;
+  DDLRecordSet recordSet=record.getRecordSet();
+  DDMStructure ddmStructure=recordSet.getDDMStructure();
+  Fields fields=new Fields();
+  for (  String fieldName : ddmStructure.getFieldNames()) {
+    String fieldDataType=ddmStructure.getFieldDataType(fieldName);
+    if (fieldDataType.equals(FieldConstants.FILE_UPLOAD)) {
+      String fileName=uploadPortletRequest.getFileName(fieldName);
+      try {
+        inputStream=uploadPortletRequest.getFileAsStream(fieldName,true);
+        Field oldField=record.getField(fieldName);
+        String fieldValue=StringPool.BLANK;
+        if (oldField != null) {
+          fieldValue=String.valueOf(oldField.getValue());
+        }
+        if (inputStream != null) {
+          String filePath=uploadFieldFile(record,fieldName,inputStream);
+          JSONObject recordFileJSONObject=JSONFactoryUtil.createJSONObject();
+          recordFileJSONObject.put("name",fileName);
+          recordFileJSONObject.put("path",filePath);
+          recordFileJSONObject.put("recordId",record.getRecordId());
+          fieldValue=recordFileJSONObject.toString();
+        }
+        Field field=new Field(ddmStructure.getStructureId(),fieldName,fieldValue);
+        fields.put(field);
+      }
+  finally {
+        StreamUtil.cleanUp(inputStream);
+      }
+    }
+  }
+  DDLRecordVersion recordVersion=record.getLatestRecordVersion();
+  StorageEngineUtil.update(recordVersion.getDDMStorageId(),fields,true,serviceContext);
+}
