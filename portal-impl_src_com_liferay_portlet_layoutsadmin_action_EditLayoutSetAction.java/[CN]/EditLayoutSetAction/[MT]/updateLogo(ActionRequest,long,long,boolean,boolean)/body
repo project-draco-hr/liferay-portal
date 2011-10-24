@@ -1,21 +1,28 @@
 {
   UploadPortletRequest uploadPortletRequest=PortalUtil.getUploadPortletRequest(actionRequest);
   boolean useLogo=ParamUtil.getBoolean(actionRequest,"useLogo");
-  InputStream inputStream=uploadPortletRequest.getFileAsStream("logoFileName");
-  if (useLogo && (inputStream == null)) {
-    if (hasLogo) {
-      return;
+  InputStream inputStream=null;
+  try {
+    File file=uploadPortletRequest.getFile("logoFileName");
+    inputStream=new ByteArrayFileInputStream(file,1024);
+    if (useLogo && (inputStream == null)) {
+      if (hasLogo) {
+        return;
+      }
+      throw new UploadException("No logo uploaded for use");
     }
-    throw new UploadException("No logo uploaded for use");
+    if (inputStream != null) {
+      inputStream.mark(0);
+    }
+    LayoutSetServiceUtil.updateLogo(liveGroupId,privateLayout,useLogo,inputStream,false);
+    if (inputStream != null) {
+      inputStream.reset();
+    }
+    if (stagingGroupId > 0) {
+      LayoutSetServiceUtil.updateLogo(stagingGroupId,privateLayout,useLogo,inputStream,false);
+    }
   }
-  if (inputStream != null) {
-    inputStream.mark(0);
-  }
-  LayoutSetServiceUtil.updateLogo(liveGroupId,privateLayout,useLogo,inputStream);
-  if (inputStream != null) {
-    inputStream.reset();
-  }
-  if (stagingGroupId > 0) {
-    LayoutSetServiceUtil.updateLogo(stagingGroupId,privateLayout,useLogo,inputStream);
+  finally {
+    StreamUtil.cleanUp(inputStream);
   }
 }
