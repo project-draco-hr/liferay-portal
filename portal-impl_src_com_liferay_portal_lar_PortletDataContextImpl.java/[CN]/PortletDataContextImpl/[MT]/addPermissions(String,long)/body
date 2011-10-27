@@ -5,46 +5,43 @@
   List<KeyValuePair> permissions=new ArrayList<KeyValuePair>();
   Group group=GroupLocalServiceUtil.getGroup(_groupId);
   List<Role> roles=RoleLocalServiceUtil.getRoles(_companyId);
-  PrimitiveLongList roleIds=new PrimitiveLongList(roles.size());
-  Map<Long,String> roleIdsToName=new HashMap<Long,String>();
+  Map<Long,String> roleIdsToNames=new HashMap<Long,String>();
   for (  Role role : roles) {
-    long roleId=role.getRoleId();
     int type=role.getType();
     if ((type == RoleConstants.TYPE_REGULAR) || ((type == RoleConstants.TYPE_ORGANIZATION) && group.isOrganization()) || ((type == RoleConstants.TYPE_SITE) && (group.isLayoutSetPrototype() || group.isSite()))) {
-      roleIds.add(roleId);
       String name=role.getName();
-      roleIdsToName.put(roleId,name);
+      roleIdsToNames.put(role.getRoleId(),name);
     }
  else     if ((type == RoleConstants.TYPE_PROVIDER) && role.isTeam()) {
       Team team=TeamLocalServiceUtil.getTeam(role.getClassPK());
       if (team.getGroupId() == _groupId) {
-        roleIds.add(roleId);
         String name=PermissionExporter.ROLE_TEAM_PREFIX + team.getName();
-        roleIdsToName.put(roleId,name);
+        roleIdsToNames.put(role.getRoleId(),name);
       }
     }
   }
-  List<String> allActionIds=ResourceActionsUtil.getModelResourceActions(resourceName);
+  List<String> actionIds=ResourceActionsUtil.getModelResourceActions(resourceName);
   if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 5) {
-    for (    Map.Entry<Long,String> roleIdToRoleName : roleIdsToName.entrySet()) {
-      long roleId=roleIdToRoleName.getKey();
-      String name=roleIdToRoleName.getValue();
-      String actionIds=getActionIds_5(_companyId,roleId,resourceName,String.valueOf(resourcePK),allActionIds);
-      KeyValuePair permission=new KeyValuePair(name,actionIds);
+    for (    Map.Entry<Long,String> entry : roleIdsToNames.entrySet()) {
+      long roleId=entry.getKey();
+      String name=entry.getValue();
+      String availableActionIds=getActionIds_5(_companyId,roleId,resourceName,String.valueOf(resourcePK),actionIds);
+      KeyValuePair permission=new KeyValuePair(name,availableActionIds);
       permissions.add(permission);
     }
   }
  else   if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 6) {
-    Map<Long,Set<String>> roleIdsToActionIds=getActionIds_6(_companyId,roleIds.getArray(),resourceName,String.valueOf(resourcePK),allActionIds);
-    for (    Map.Entry<Long,String> roleIdToNameEntry : roleIdsToName.entrySet()) {
-      long roleId=roleIdToNameEntry.getKey();
-      String name=roleIdToNameEntry.getValue();
-      Set<String> actionIdsSet=roleIdsToActionIds.get(roleId);
-      if ((actionIdsSet == null) || actionIdsSet.isEmpty()) {
+    Set<Long> roleIdsSet=roleIdsToNames.keySet();
+    long[] roleIds=ArrayUtil.toArray(roleIdsSet.toArray(new Long[roleIdsSet.size()]));
+    Map<Long,Set<String>> roleIdsToActionIds=getActionIds_6(_companyId,roleIds,resourceName,String.valueOf(resourcePK),actionIds);
+    for (    Map.Entry<Long,String> entry : roleIdsToNames.entrySet()) {
+      long roleId=entry.getKey();
+      String name=entry.getValue();
+      Set<String> availableActionIds=roleIdsToActionIds.get(roleId);
+      if ((availableActionIds == null) || availableActionIds.isEmpty()) {
         continue;
       }
-      String actionIds=StringUtil.merge(actionIdsSet);
-      KeyValuePair permission=new KeyValuePair(name,actionIds);
+      KeyValuePair permission=new KeyValuePair(name,StringUtil.merge(availableActionIds));
       permissions.add(permission);
     }
   }
