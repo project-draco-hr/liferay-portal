@@ -1,6 +1,11 @@
 {
-  FileOutputStream fileOutputStream=new FileOutputStream(_outputDir + "/sample-" + _dbType+ ".sql");
-  FileChannel fileChannel=fileOutputStream.getChannel();
+  File outputFile=new File(_outputDir + "/sample-" + _dbType+ ".sql");
+  FileOutputStream fileOutputStream=null;
+  FileChannel fileChannel=null;
+  if (_outputMerge) {
+    fileOutputStream=new FileOutputStream(outputFile);
+    fileChannel=fileOutputStream.getChannel();
+  }
   Set<Map.Entry<String,StringBundler>> insertSQLs=_insertSQLs.entrySet();
   for (  Map.Entry<String,StringBundler> entry : insertSQLs) {
     String tableName=entry.getKey();
@@ -9,18 +14,30 @@
     Writer insertSQLWriter=_insertSQLWriters.remove(tableName);
     insertSQLWriter.write(";\n");
     insertSQLWriter.close();
-    File insertSQLFile=getInsertSQLFile(tableName);
-    FileInputStream insertSQLFileInputStream=new FileInputStream(insertSQLFile);
-    FileChannel insertSQLFileChannel=insertSQLFileInputStream.getChannel();
-    insertSQLFileChannel.transferTo(0,insertSQLFileChannel.size(),fileChannel);
-    insertSQLFileChannel.close();
-    insertSQLFile.delete();
+    if (_outputMerge) {
+      File insertSQLFile=getInsertSQLFile(tableName);
+      FileInputStream insertSQLFileInputStream=new FileInputStream(insertSQLFile);
+      FileChannel insertSQLFileChannel=insertSQLFileInputStream.getChannel();
+      insertSQLFileChannel.transferTo(0,insertSQLFileChannel.size(),fileChannel);
+      insertSQLFileChannel.close();
+      insertSQLFile.delete();
+    }
   }
-  Writer writer=new OutputStreamWriter(fileOutputStream);
+  Writer writer=null;
+  if (_outputMerge) {
+    writer=new OutputStreamWriter(fileOutputStream);
+  }
+ else {
+    writer=new FileWriter(getInsertSQLFile("others"));
+  }
   for (  String sql : _otherSQLs) {
     sql=_db.buildSQL(sql);
     writer.write(sql);
     writer.write(StringPool.NEW_LINE);
   }
   writer.close();
+  File outputFolder=new File(_outputDir,"output");
+  if ((!_outputMerge) && (!_tempDir.renameTo(outputFolder))) {
+    FileUtil.copyDirectory(_tempDir,outputFolder);
+  }
 }
