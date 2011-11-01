@@ -2,16 +2,14 @@
   if (workspaceName == null) {
     workspaceName=JCRFactory.WORKSPACE_NAME;
   }
-  if (PropsValues.JCR_LIFERAY_SESSION_DELEGATED) {
-    ClosableSessionMap closableSessionMap=_sessions.get();
-    if (closableSessionMap.get(workspaceName) == null) {
-      Session session=getJCRFactory().createSession(workspaceName);
-      Object sessionProxy=ProxyUtil.newProxyInstance(PortalClassLoaderUtil.getClassLoader(),new Class<?>[]{Closeable.class,Map.class,Session.class},new JCRSessionInvocationHandler(session));
-      closableSessionMap.put(workspaceName,(Closeable)sessionProxy);
-    }
-    return (Session)closableSessionMap.get(workspaceName);
-  }
- else {
+  if (!PropsValues.JCR_WRAP_SESSION) {
     return getJCRFactory().createSession(workspaceName);
   }
+  CloseableSessionMap closableSessionMap=_closeableSessionMaps.get();
+  if (!closableSessionMap.containsKey(workspaceName)) {
+    Session session=getJCRFactory().createSession(workspaceName);
+    Object sessionProxy=ProxyUtil.newProxyInstance(PortalClassLoaderUtil.getClassLoader(),new Class<?>[]{Closeable.class,Map.class,Session.class},new JCRSessionInvocationHandler(session));
+    closableSessionMap.put(workspaceName,(Closeable)sessionProxy);
+  }
+  return (Session)closableSessionMap.get(workspaceName);
 }
