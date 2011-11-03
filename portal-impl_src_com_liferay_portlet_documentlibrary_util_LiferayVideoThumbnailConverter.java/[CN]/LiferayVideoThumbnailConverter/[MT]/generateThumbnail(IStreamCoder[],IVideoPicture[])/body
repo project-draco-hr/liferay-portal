@@ -1,0 +1,42 @@
+{
+  boolean sucess=false;
+  boolean keyPacketFound=false;
+  int nonKeyAfterKeyCount=0;
+  boolean onlyDecodeKeyPackets=false;
+  IPacket inputIPacket=IPacket.make();
+  while (_inputIContainer.readNextPacket(inputIPacket) == 0) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Current packet size " + inputIPacket.getSize());
+    }
+    int streamIndex=inputIPacket.getStreamIndex();
+    IStreamCoder inputIStreamCoder=inputIStreamCoders[streamIndex];
+    ICodec.Type codecType=inputIStreamCoder.getCodecType();
+    if (codecType != ICodec.Type.CODEC_TYPE_VIDEO) {
+      continue;
+    }
+    keyPacketFound=isKeyPacketFound(inputIPacket,keyPacketFound);
+    nonKeyAfterKeyCount=countNonKeyAfterKey(inputIPacket,keyPacketFound,nonKeyAfterKeyCount);
+    if (isStartDecoding(inputIPacket,inputIStreamCoder,keyPacketFound,nonKeyAfterKeyCount,onlyDecodeKeyPackets)) {
+      IStream iStream=_inputIContainer.getStream(streamIndex);
+      long timeStampOffset=getStreamTimeStampOffset(iStream);
+      int value=decodeVideo(null,inputIVideoPictures[streamIndex],null,inputIPacket,null,inputIStreamCoder,null,null,_outputFile,_extension,_height,_width,timeStampOffset);
+      if (value <= 0) {
+        if (inputIPacket.isKey()) {
+          throw new RuntimeException("Unable to decode video stream " + streamIndex);
+        }
+        onlyDecodeKeyPackets=true;
+        continue;
+      }
+ else       if (value == DECODE_VIDEO_THUMBNAIL) {
+        sucess=true;
+        break;
+      }
+    }
+ else {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Do not decode video stream " + streamIndex);
+      }
+    }
+  }
+  return sucess;
+}
