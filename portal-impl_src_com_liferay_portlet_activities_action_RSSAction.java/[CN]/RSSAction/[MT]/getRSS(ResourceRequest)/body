@@ -1,0 +1,53 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)resourceRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  Group group=GroupLocalServiceUtil.getGroup(themeDisplay.getScopeGroupId());
+  int start=0;
+  int end=10;
+  List<SocialActivity> activities=null;
+  if (group.isCommunity()) {
+    activities=SocialActivityLocalServiceUtil.getGroupActivities(group.getGroupId(),start,end);
+  }
+ else   if (group.isOrganization()) {
+    activities=SocialActivityLocalServiceUtil.getOrganizationActivities(group.getOrganizationId(),start,end);
+  }
+ else   if (group.isUser()) {
+    activities=SocialActivityLocalServiceUtil.getUserActivities(group.getClassPK(),start,end);
+  }
+  String feedTitle=ParamUtil.getString(resourceRequest,"feedTitle");
+  String feedLink=PortalUtil.getLayoutFullURL(themeDisplay) + Portal.FRIENDLY_URL_SEPARATOR + "activities/rss";
+  if (activities == null) {
+    activities=SocialActivityLocalServiceUtil.getActivities(0,StringPool.BLANK,0,QueryUtil.ALL_POS,QueryUtil.ALL_POS);
+  }
+  SyndFeed syndFeed=new SyndFeedImpl();
+  syndFeed.setFeedType(RSSUtil.FEED_TYPE_DEFAULT);
+  syndFeed.setLink(feedLink);
+  syndFeed.setTitle(feedTitle);
+  syndFeed.setDescription(feedTitle);
+  List<SyndEntry> entries=new ArrayList<SyndEntry>();
+  syndFeed.setEntries(entries);
+  for (  SocialActivity activity : activities) {
+    SocialActivityFeedEntry activityFeedEntry=SocialActivityInterpreterLocalServiceUtil.interpret(activity,themeDisplay);
+    if (activityFeedEntry == null) {
+      continue;
+    }
+    SyndEntry syndEntry=new SyndEntryImpl();
+    syndEntry.setTitle(HtmlUtil.extractText(activityFeedEntry.getTitle()));
+    if (Validator.isNotNull(activityFeedEntry.getLink())) {
+      syndEntry.setLink(activityFeedEntry.getLink());
+    }
+    syndEntry.setPublishedDate(new Date(activity.getCreateDate()));
+    SyndContent syndContent=new SyndContentImpl();
+    syndContent.setType(RSSUtil.FEED_TYPE_DEFAULT);
+    syndContent.setValue(activityFeedEntry.getBody());
+    syndEntry.setDescription(syndContent);
+    entries.add(syndEntry);
+  }
+  String rss=StringPool.BLANK;
+  try {
+    rss=RSSUtil.export(syndFeed);
+  }
+ catch (  FeedException fe) {
+    throw new SystemException(fe);
+  }
+  return rss.getBytes(StringPool.UTF8);
+}
