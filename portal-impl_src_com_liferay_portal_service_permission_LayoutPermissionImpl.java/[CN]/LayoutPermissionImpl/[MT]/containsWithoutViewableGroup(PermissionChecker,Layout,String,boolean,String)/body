@@ -1,0 +1,56 @@
+{
+  if ((layout.isPrivateLayout() && !PropsValues.LAYOUT_USER_PRIVATE_LAYOUTS_MODIFIABLE) || (layout.isPublicLayout() && !PropsValues.LAYOUT_USER_PUBLIC_LAYOUTS_MODIFIABLE)) {
+    if (actionId.equals(ActionKeys.UPDATE)) {
+      Group group=GroupLocalServiceUtil.getGroup(layout.getGroupId());
+      if (group.isUser()) {
+        return false;
+      }
+    }
+  }
+  Group group=layout.getGroup();
+  if (!group.isLayoutSetPrototype() && isAttemptToModifyLockedLayout(layout,actionId)) {
+    return false;
+  }
+  User user=UserLocalServiceUtil.getUserById(permissionChecker.getUserId());
+  if ((PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 6) && !user.isDefaultUser() && !group.isUser()) {
+    ResourcePermission resourcePermission=ResourcePermissionLocalServiceUtil.getResourcePermission(layout.getCompanyId(),Layout.class.getName(),ResourceConstants.SCOPE_INDIVIDUAL,String.valueOf(layout.getPlid()),permissionChecker.getOwnerRoleId());
+    if (permissionChecker.hasOwnerPermission(layout.getCompanyId(),Layout.class.getName(),String.valueOf(layout.getPlid()),resourcePermission.getOwnerId(),actionId)) {
+      return true;
+    }
+  }
+  if (GroupPermissionUtil.contains(permissionChecker,layout.getGroupId(),ActionKeys.MANAGE_LAYOUTS)) {
+    return true;
+  }
+ else   if (actionId.equals(ActionKeys.ADD_LAYOUT) && GroupPermissionUtil.contains(permissionChecker,layout.getGroupId(),ActionKeys.ADD_LAYOUT)) {
+    return true;
+  }
+  if (PropsValues.PERMISSIONS_VIEW_DYNAMIC_INHERITANCE && !actionId.equals(ActionKeys.VIEW)) {
+    long parentLayoutId=layout.getParentLayoutId();
+    while (parentLayoutId != LayoutConstants.DEFAULT_PARENT_LAYOUT_ID) {
+      Layout parentLayout=LayoutLocalServiceUtil.getLayout(layout.getGroupId(),layout.isPrivateLayout(),layout.getParentLayoutId());
+      if (contains(permissionChecker,parentLayout,controlPanelCategory,actionId)) {
+        return true;
+      }
+      parentLayoutId=parentLayout.getParentLayoutId();
+    }
+  }
+  try {
+    if (PropsValues.PERMISSIONS_USER_CHECK_ALGORITHM == 6) {
+      if (ResourcePermissionLocalServiceUtil.getResourcePermissionsCount(layout.getCompanyId(),Layout.class.getName(),ResourceConstants.SCOPE_INDIVIDUAL,String.valueOf(layout.getPlid())) == 0) {
+        throw new NoSuchResourceException();
+      }
+    }
+ else {
+      ResourceLocalServiceUtil.getResource(layout.getCompanyId(),Layout.class.getName(),ResourceConstants.SCOPE_INDIVIDUAL,String.valueOf(layout.getPlid()));
+    }
+  }
+ catch (  NoSuchResourceException nsre) {
+    boolean addGroupPermission=true;
+    boolean addGuestPermission=true;
+    if (layout.isPrivateLayout()) {
+      addGuestPermission=false;
+    }
+    ResourceLocalServiceUtil.addResources(layout.getCompanyId(),layout.getGroupId(),0,Layout.class.getName(),layout.getPlid(),false,addGroupPermission,addGuestPermission);
+  }
+  return permissionChecker.hasPermission(layout.getGroupId(),Layout.class.getName(),layout.getPlid(),actionId);
+}
