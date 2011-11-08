@@ -1,0 +1,37 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getConnection();
+    ps=con.prepareStatement("select groupId, companyId, classNameId, enabled from " + "SocialEquityGroupSetting where type_ = 1");
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      long groupId=rs.getLong("groupId");
+      long companyId=rs.getLong("companyId");
+      long classNameId=rs.getLong("classNameId");
+      boolean enabled=rs.getBoolean("enabled");
+      addActivitySetting(increment(),groupId,companyId,classNameId,0,"enabled",String.valueOf(enabled));
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+  StringBundler sb=new StringBundler(12);
+  sb.append("update SocialActivitySetting set value = TRUE where ");
+  sb.append("classNameId = ");
+  long mbMessageClassNameId=PortalUtil.getClassNameId(MBMessage.class);
+  sb.append(mbMessageClassNameId);
+  sb.append(" and activityType = 0 and name = 'enabled' and exists ");
+  sb.append("(select 1 from SocialActivitySetting sas where ");
+  sb.append("sas.groupId = SocialActivitySetting.groupId and ");
+  sb.append("sas.activityType = 0 and sas.name = 'enabled' and ");
+  sb.append("value = 'true' and sas.classNameId in (");
+  sb.append(mbMessageClassNameId);
+  sb.append(", ");
+  long mbThreadClassNameId=PortalUtil.getClassNameId(MBThread.class);
+  sb.append(mbThreadClassNameId);
+  sb.append("))");
+  runSQL(sb.toString());
+  runSQL("delete from SocialActivitySetting where classNameId = " + mbThreadClassNameId);
+}

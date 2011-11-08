@@ -1,0 +1,43 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getConnection();
+    ps=con.prepareStatement("select groupId, companyId, classNameId, actionId, " + "dailyLimit, type_, value from SocialEquitySetting");
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      long groupId=rs.getLong("groupId");
+      long companyId=rs.getLong("companyId");
+      long classNameId=rs.getLong("classNameId");
+      String actionId=rs.getString("actionId");
+      int dailyLimit=rs.getInt("dailyLimit");
+      int type=rs.getInt("type_");
+      int value=rs.getInt("value");
+      Tuple tuple=_equityToActivityMap.get(encodeEquityToActivityKey(classNameId,actionId));
+      if (tuple == null) {
+        StringBundler sb=new StringBundler();
+        sb.append("Unknown Social Equity setting with action ");
+        sb.append(actionId);
+        sb.append(". Please configure this action using the ");
+        sb.append("Social Activity portlet in the Control Panel.");
+        if (_log.isWarnEnabled()) {
+          _log.warn(sb.toString());
+        }
+        continue;
+      }
+      long activityClassNameId=GetterUtil.getLong(tuple.getObject(0));
+      int activityType=GetterUtil.getInteger(tuple.getObject(1));
+      if (type == 1) {
+        addActivitySetting(groupId,companyId,activityClassNameId,activityType,SocialActivityCounterConstants.NAME_CONTRIBUTION,SocialActivityCounterConstants.TYPE_CREATOR,dailyLimit,value);
+        addActivitySetting(groupId,companyId,activityClassNameId,activityType,SocialActivityCounterConstants.NAME_POPULARITY,SocialActivityCounterConstants.TYPE_ASSET,dailyLimit,value);
+      }
+ else       if (type == 2) {
+        addActivitySetting(groupId,companyId,activityClassNameId,activityType,SocialActivityCounterConstants.NAME_PARTICIPATION,SocialActivityCounterConstants.TYPE_ACTOR,dailyLimit,value);
+      }
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}
