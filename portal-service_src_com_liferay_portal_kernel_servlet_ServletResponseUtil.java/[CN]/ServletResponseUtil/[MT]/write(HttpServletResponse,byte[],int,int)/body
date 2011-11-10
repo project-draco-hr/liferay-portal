@@ -5,7 +5,17 @@
         contentLength=bytes.length;
       }
       response.setContentLength(contentLength);
-      response.flushBuffer();
+      try {
+        response.flushBuffer();
+      }
+ catch (      NullPointerException npe) {
+        if (!ServerDetector.isGlassfish()) {
+          throw npe;
+        }
+        if (_log.isDebugEnabled()) {
+          _log.debug("Ignoring NullPointerException because of " + "GLASSFISH-17150");
+        }
+      }
       if (response instanceof ByteBufferServletResponse) {
         ByteBufferServletResponse byteBufferResponse=(ByteBufferServletResponse)response;
         byteBufferResponse.setByteBuffer(ByteBuffer.wrap(bytes,offset,contentLength));
@@ -21,7 +31,7 @@
     }
   }
  catch (  IOException ioe) {
-    if (ioe instanceof SocketException || ioe.getClass().getName().equals(_CLIENT_ABORT_EXCEPTION)) {
+    if ((ioe instanceof SocketException) || isClientAbortException(ioe)) {
       if (_log.isWarnEnabled()) {
         _log.warn(ioe);
       }
