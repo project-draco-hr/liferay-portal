@@ -1,28 +1,31 @@
 {
-  String url=HttpUtil.addParameter(FacebookConnectUtil.getGraphURL(companyId) + "/me","access_token",token);
-  url=HttpUtil.addParameter(url,"fields","email,id,verified");
-  Http.Options options=new Http.Options();
-  options.setLocation(url);
-  String content=HttpUtil.URLtoString(options);
-  if (Validator.isNull(content)) {
+  JSONObject jsonObject=FacebookConnectUtil.getGraphResources(companyId,"/me",token,"id,email,first_name,last_name,gender");
+  if (jsonObject == null || jsonObject.getJSONObject("error") != null) {
     return;
   }
-  JSONObject jsonObject=JSONFactoryUtil.createJSONObject(content);
-  if (!jsonObject.getBoolean("verified")) {
-    return;
-  }
-  String facebookId=jsonObject.getString("id");
-  if (Validator.isNotNull(facebookId)) {
-    session.setAttribute(WebKeys.FACEBOOK_USER_ID,facebookId);
-  }
-  String emailAddress=jsonObject.getString("email");
-  if (Validator.isNotNull(emailAddress)) {
+  User user=null;
+  long facebookId=jsonObject.getLong("id");
+  if (facebookId > 0) {
+    session.setAttribute(WebKeys.FACEBOOK_USER_ID,jsonObject.getString("id"));
     try {
-      UserLocalServiceUtil.getUserByEmailAddress(companyId,emailAddress);
-      session.setAttribute(WebKeys.FACEBOOK_USER_EMAIL_ADDRESS,emailAddress);
+      user=UserLocalServiceUtil.getUserByFacebookId(companyId,facebookId);
     }
  catch (    NoSuchUserException nsue) {
-      session.removeAttribute(WebKeys.FACEBOOK_USER_EMAIL_ADDRESS);
     }
+  }
+  String emailAddress=jsonObject.getString("email");
+  if (user == null && Validator.isNotNull(emailAddress)) {
+    session.setAttribute(WebKeys.FACEBOOK_USER_EMAIL_ADDRESS,emailAddress);
+    try {
+      user=UserLocalServiceUtil.getUserByEmailAddress(companyId,emailAddress);
+    }
+ catch (    NoSuchUserException nsue) {
+    }
+  }
+  if (user != null) {
+    updateUser(companyId,session,user,jsonObject);
+  }
+ else {
+    addUser(companyId,session,jsonObject);
   }
 }
