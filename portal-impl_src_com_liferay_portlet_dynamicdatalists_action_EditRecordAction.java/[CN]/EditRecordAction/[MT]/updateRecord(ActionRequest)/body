@@ -10,12 +10,11 @@
   for (  String fieldName : ddmStructure.getFieldNames()) {
     String fieldDataType=ddmStructure.getFieldDataType(fieldName);
     String fieldValue=ParamUtil.getString(actionRequest,fieldName);
-    if (fieldDataType.equals(FieldConstants.FILE_UPLOAD)) {
-      continue;
+    if (!fieldDataType.equals(FieldConstants.FILE_UPLOAD)) {
+      Serializable fieldValueSerializable=FieldConstants.getSerializable(fieldDataType,fieldValue);
+      Field field=new Field(ddmStructure.getStructureId(),fieldName,fieldValueSerializable);
+      fields.put(field);
     }
-    Serializable fieldValueSerializable=FieldConstants.getSerializable(fieldDataType,fieldValue);
-    Field field=new Field(ddmStructure.getStructureId(),fieldName,fieldValueSerializable);
-    fields.put(field);
   }
   ServiceContext serviceContext=ServiceContextFactory.getInstance(DDLRecord.class.getName(),actionRequest);
   if (record != null) {
@@ -25,6 +24,18 @@
     record=DDLRecordServiceUtil.addRecord(themeDisplay.getScopeGroupId(),recordSetId,DDLRecordConstants.DISPLAY_INDEX_DEFAULT,fields,serviceContext);
   }
   UploadPortletRequest uploadPortletRequest=PortalUtil.getUploadPortletRequest(actionRequest);
-  DDLUtil.uploadRecordFiles(record,uploadPortletRequest,serviceContext);
+  InputStream inputStream=null;
+  for (  String fieldName : ddmStructure.getFieldNames()) {
+    String fieldDataType=ddmStructure.getFieldDataType(fieldName);
+    if (fieldDataType.equals(FieldConstants.FILE_UPLOAD)) {
+      try {
+        inputStream=uploadPortletRequest.getFileAsStream(fieldName,true);
+        DDLUtil.uploadRecordFieldFile(record,fieldName,inputStream,uploadPortletRequest,serviceContext);
+      }
+  finally {
+        StreamUtil.cleanUp(inputStream);
+      }
+    }
+  }
   return record;
 }
