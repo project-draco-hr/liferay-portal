@@ -16,6 +16,7 @@
   IStream[] outputIStreams=new IStream[inputStreamsCount];
   IStreamCoder[] inputIStreamCoders=new IStreamCoder[inputStreamsCount];
   IStreamCoder[] outputIStreamCoders=new IStreamCoder[inputStreamsCount];
+  String outputFormat=_outputIContainer.getContainerFormat().getOutputFormatShortName();
   for (int i=0; i < inputStreamsCount; i++) {
     IStream inputIStream=_inputIContainer.getStream(i);
     IStreamCoder inputIStreamCoder=inputIStream.getStreamCoder();
@@ -44,11 +45,14 @@
         outputIStreamCoder.setBitRate(inputIStreamCoder.getBitRate());
       }
       ICodec iCodec=ICodec.guessEncodingCodec(null,null,_outputURL,null,inputICodecType);
+      if (outputFormat.equals("mp4")) {
+        iCodec=ICodec.findEncodingCodec(ICodec.ID.CODEC_ID_H264);
+      }
       if (iCodec == null) {
         throw new RuntimeException("Unable to determine " + inputICodecType + " encoder for "+ _outputURL);
       }
       outputIStreamCoder.setCodec(iCodec);
-      if ((inputIStreamCoder.getHeight() <= 0)) {
+      if (inputIStreamCoder.getHeight() <= 0) {
         throw new RuntimeException("Unable to determine height for " + _inputURL);
       }
       outputIStreamCoder.setHeight(_height);
@@ -63,6 +67,9 @@
       iVideoResamplers[i]=createIVideoResampler(inputIStreamCoder,outputIStreamCoder,_height,_width);
       inputIVideoPictures[i]=IVideoPicture.make(inputIStreamCoder.getPixelType(),inputIStreamCoder.getWidth(),inputIStreamCoder.getHeight());
       outputIVideoPictures[i]=IVideoPicture.make(outputIStreamCoder.getPixelType(),outputIStreamCoder.getWidth(),outputIStreamCoder.getHeight());
+      if (iCodec.getID().equals(ICodec.ID.CODEC_ID_H264)) {
+        Configuration.configure(_ffpresetProperties,outputIStreamCoder);
+      }
     }
     openStreamCoder(inputIStreamCoders[i]);
     openStreamCoder(outputIStreamCoders[i]);
@@ -117,4 +124,22 @@
     throw new RuntimeException("Unable to write trailer to output file");
   }
   cleanUp(inputIStreamCoders,outputIStreamCoders);
+  File videoFile=new File(_outputURL);
+  if (outputFormat.equals("mp4") && videoFile.exists()) {
+    File fastStartTmp=FileUtil.createTempFile();
+    try {
+      JQTFastStart.convert(videoFile,fastStartTmp);
+      if (fastStartTmp.exists() && fastStartTmp.length() > 0) {
+        FileUtil.move(fastStartTmp,videoFile);
+      }
+    }
+ catch (    Exception e) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Error while moving MOOV atom to front of MP4 file.");
+      }
+    }
+ finally {
+      FileUtil.delete(fastStartTmp);
+    }
+  }
 }

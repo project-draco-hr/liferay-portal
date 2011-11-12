@@ -1,0 +1,74 @@
+{
+  validate(inputFile,outputFile);
+  RandomAccessFile randomAccessInputFile=null;
+  RandomAccessFile randomAccessOutputFile=null;
+  try {
+    randomAccessInputFile=new RandomAccessFile(inputFile,"r");
+    Atom atom=null;
+    Atom ftypAtom=null;
+    boolean ftypFound=false;
+    boolean mdatFound=false;
+    boolean isFastStart=false;
+    while (randomAccessInputFile.getFilePointer() < randomAccessInputFile.length()) {
+      atom=new Atom(randomAccessInputFile);
+      if (!atom.isTopLevelAtom()) {
+        throw new IOException("Non top level atom was found " + atom.getType());
+      }
+      if (ftypFound && !mdatFound && atom.isMOOV()) {
+        isFastStart=true;
+        break;
+      }
+      if (atom.isFTYP()) {
+        ftypAtom=atom;
+        ftypAtom.fillBuffer(randomAccessInputFile);
+        ftypFound=true;
+      }
+ else       if (atom.isMDAT()) {
+        mdatFound=true;
+        randomAccessInputFile.skipBytes((int)atom.getSize());
+      }
+ else {
+        randomAccessInputFile.skipBytes((int)atom.getSize());
+      }
+    }
+    if (isFastStart) {
+      if (_log.isInfoEnabled()) {
+        _log.info("The movie is already a fast start MP4");
+      }
+      FileUtil.move(inputFile,outputFile);
+      return;
+    }
+    if (!atom.isMOOV()) {
+      throw new IOException("Last atom was not of type MOOV");
+    }
+    randomAccessInputFile.seek(atom.getOffset());
+    Atom moovAtom=atom;
+    moovAtom.fillBuffer(randomAccessInputFile);
+    if (moovAtom.hasCompressedMoovAtom()) {
+      throw new IOException("Compressed MOOV atoms are unsupported");
+    }
+    moovAtom.patchAtom();
+    randomAccessInputFile.seek(ftypAtom.getOffset() + ftypAtom.getSize());
+    randomAccessOutputFile=new RandomAccessFile(outputFile,"rw");
+    randomAccessOutputFile.setLength(0);
+    randomAccessOutputFile.write(ftypAtom.getBuffer());
+    randomAccessOutputFile.write(moovAtom.getBuffer());
+    byte[] buffer=new byte[1024 * 1024];
+    while ((randomAccessInputFile.getFilePointer() + buffer.length) < moovAtom.getOffset()) {
+      int read=randomAccessInputFile.read(buffer);
+      randomAccessOutputFile.write(buffer,0,read);
+    }
+    int bufferSize=(int)(moovAtom.getOffset() - randomAccessInputFile.getFilePointer());
+    buffer=new byte[bufferSize];
+    randomAccessInputFile.readFully(buffer);
+    randomAccessOutputFile.write(buffer);
+  }
+  finally {
+    if (randomAccessInputFile != null) {
+      randomAccessInputFile.close();
+    }
+    if (randomAccessOutputFile != null) {
+      randomAccessOutputFile.close();
+    }
+  }
+}
