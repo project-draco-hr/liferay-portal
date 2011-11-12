@@ -1,13 +1,32 @@
 {
   BundleContext bundleContext=framework.getBundleContext();
-  URI uri=file.toURI();
-  Bundle bundle=bundleContext.getBundle(uri.toString());
+  Attributes attributes=manifest.getMainAttributes();
+  String bundleSymbolicNameAttribute=attributes.getValue(Constants.BUNDLE_SYMBOLICNAME);
+  String bundleVersionAttribute=attributes.getValue(Constants.BUNDLE_VERSION);
+  Version bundleVersion=Version.parseVersion(bundleVersionAttribute);
+  Map<String,Map<String,String>> bundleSymbolicNameMap=OSGiHeader.parseHeader(bundleSymbolicNameAttribute);
+  String bundleSymbolicName=bundleSymbolicNameMap.keySet().iterator().next();
+  Bundle bundle=null;
+  for (  Bundle curBundle : bundleContext.getBundles()) {
+    if (curBundle.getSymbolicName().equals(bundleSymbolicName) && curBundle.getVersion().equals(bundleVersion)) {
+      bundle=curBundle;
+      break;
+    }
+  }
   InputStream inputStream=new FileInputStream(file);
   if (bundle != null) {
     bundle.update(inputStream);
   }
  else {
-    bundle=bundleContext.installBundle(uri.toString(),inputStream);
+    try {
+      URI uri=file.toURI();
+      bundle=bundleContext.installBundle(uri.toString(),inputStream);
+    }
+ catch (    Exception e) {
+      _log.error(e,e);
+    }
   }
-  bundle.start();
+  if (bundle != null) {
+    bundle.start();
+  }
 }
