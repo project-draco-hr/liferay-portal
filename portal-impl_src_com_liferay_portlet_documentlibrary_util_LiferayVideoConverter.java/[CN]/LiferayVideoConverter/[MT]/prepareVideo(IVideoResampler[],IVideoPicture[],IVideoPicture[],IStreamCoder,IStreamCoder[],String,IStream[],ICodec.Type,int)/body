@@ -1,0 +1,40 @@
+{
+  IStream outputIStream=_outputIContainer.addNewStream(index);
+  outputIStreams[index]=outputIStream;
+  IStreamCoder outputIStreamCoder=outputIStream.getStreamCoder();
+  outputIStreamCoders[index]=outputIStreamCoder;
+  int bitRate=inputIStreamCoder.getBitRate();
+  if ((bitRate == 0) || (bitRate > MAX_VIDEO_BIT_RATE)) {
+    bitRate=DEFAULT_VIDEO_BIT_RATE;
+  }
+  outputIStreamCoder.setBitRate(bitRate);
+  ICodec iCodec=ICodec.guessEncodingCodec(null,null,_outputURL,null,inputICodecType);
+  if (outputFormat.equals("mp4")) {
+    iCodec=ICodec.findEncodingCodec(ICodec.ID.CODEC_ID_H264);
+  }
+  if (iCodec == null) {
+    throw new RuntimeException("Unable to determine " + inputICodecType + " encoder for "+ _outputURL);
+  }
+  outputIStreamCoder.setCodec(iCodec);
+  if (inputIStreamCoder.getHeight() <= 0) {
+    throw new RuntimeException("Unable to determine height for " + _inputURL);
+  }
+  outputIStreamCoder.setHeight(_height);
+  IRational frameRate=inputIStreamCoder.getFrameRate();
+  if (outputFormat.equals("mp4")) {
+    frameRate=IRational.make(30,1);
+  }
+  outputIStreamCoder.setFrameRate(frameRate);
+  outputIStreamCoder.setPixelType(Type.YUV420P);
+  outputIStreamCoder.setTimeBase(IRational.make(frameRate.getDenominator(),frameRate.getNumerator()));
+  if (inputIStreamCoder.getWidth() <= 0) {
+    throw new RuntimeException("Unable to determine width for " + _inputURL);
+  }
+  outputIStreamCoder.setWidth(_width);
+  iVideoResamplers[index]=createIVideoResampler(inputIStreamCoder,outputIStreamCoder,_height,_width);
+  inputIVideoPictures[index]=IVideoPicture.make(inputIStreamCoder.getPixelType(),inputIStreamCoder.getWidth(),inputIStreamCoder.getHeight());
+  outputIVideoPictures[index]=IVideoPicture.make(outputIStreamCoder.getPixelType(),outputIStreamCoder.getWidth(),outputIStreamCoder.getHeight());
+  if (iCodec.getID().equals(ICodec.ID.CODEC_ID_H264)) {
+    Configuration.configure(_ffpresetProperties,outputIStreamCoder);
+  }
+}
