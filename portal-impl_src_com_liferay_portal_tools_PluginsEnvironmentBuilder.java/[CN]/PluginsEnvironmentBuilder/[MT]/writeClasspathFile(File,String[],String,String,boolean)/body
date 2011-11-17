@@ -4,14 +4,39 @@
     classpathFile.delete();
     return;
   }
-  List<String> portalJars=ListUtil.toList(dependencyJars);
-  portalJars.add("commons-logging.jar");
-  portalJars.add("log4j.jar");
+  UniqueList<String> globalJars=new UniqueList<String>();
+  UniqueList<String> portalJars=new UniqueList<String>();
+  UniqueList<String> extGlobalJars=new UniqueList<String>();
+  UniqueList<String> extPortalJars=new UniqueList<String>();
   String libDirPath=StringUtil.replace(libDir.getPath(),StringPool.BACK_SLASH,StringPool.SLASH);
   if (libDirPath.contains("/ext/")) {
-    portalJars.add("struts.jar");
+    FilenameFilter filenameFilter=new GlobFilenameFilter("*.jar");
+    for (    String dirName : new String[]{"global","portal"}) {
+      File file=new File(libDirPath + "/../ext-lib/" + dirName);
+      List<String> jars=ListUtil.toList(file.list(filenameFilter));
+      if (dirName.equals("global")) {
+        extGlobalJars.addAll(ListUtil.sort(jars));
+        File dir=new File(PropsValues.LIFERAY_LIB_GLOBAL_DIR);
+        String[] files=dir.list(filenameFilter);
+        globalJars.addAll(ListUtil.sort(ListUtil.toList(files)));
+        globalJars.removeAll(extGlobalJars);
+      }
+ else       if (dirName.equals("portal")) {
+        extPortalJars.addAll(ListUtil.sort(jars));
+        File dir=new File(PropsValues.LIFERAY_LIB_PORTAL_DIR);
+        String[] files=dir.list(filenameFilter);
+        portalJars.addAll(ListUtil.sort(ListUtil.toList(files)));
+        portalJars.removeAll(extPortalJars);
+      }
+    }
   }
-  portalJars=ListUtil.sort(portalJars);
+ else {
+    globalJars.add("portlet.jar");
+    portalJars.addAll(ListUtil.toList(dependencyJars));
+    portalJars.add("commons-logging.jar");
+    portalJars.add("log4j.jar");
+    Collections.sort(portalJars);
+  }
   String[] customJarsArray=libDir.list(new GlobFilenameFilter("*.jar"));
   List<String> customJars=null;
   if (customJarsArray != null) {
@@ -51,22 +76,25 @@
   addClasspathEntry(sb,"/portal/lib/development/jsp-api.jar");
   addClasspathEntry(sb,"/portal/lib/development/mail.jar");
   addClasspathEntry(sb,"/portal/lib/development/servlet-api.jar");
-  addClasspathEntry(sb,"/portal/lib/global/portlet.jar");
+  Map<String,String> attributes=new HashMap<String,String>();
+  if (libDirPath.contains("/ext/")) {
+    attributes.put("optional","true");
+  }
+  for (  String jar : globalJars) {
+    addClasspathEntry(sb,"/portal/lib/global/" + jar,attributes);
+  }
   for (  String jar : portalJars) {
-    addClasspathEntry(sb,"/portal/lib/portal/" + jar);
+    addClasspathEntry(sb,"/portal/lib/portal/" + jar,attributes);
   }
   addClasspathEntry(sb,"/portal/portal-service/portal-service.jar");
   addClasspathEntry(sb,"/portal/util-bridges/util-bridges.jar");
   addClasspathEntry(sb,"/portal/util-java/util-java.jar");
   addClasspathEntry(sb,"/portal/util-taglib/util-taglib.jar");
-  if (libDirPath.contains("/ext/")) {
-    for (    String dirName : new String[]{"global","portal"}) {
-      File file=new File(libDirPath + "/../ext-lib/" + dirName);
-      List<String> jars=ListUtil.toList(file.list(new GlobFilenameFilter("*.jar")));
-      for (      String jar : jars) {
-        addClasspathEntry(sb,"docroot/WEB-INF/ext-lib/" + dirName + "/"+ jar);
-      }
-    }
+  for (  String jar : extGlobalJars) {
+    addClasspathEntry(sb,"docroot/WEB-INF/ext-lib/global/" + jar);
+  }
+  for (  String jar : extPortalJars) {
+    addClasspathEntry(sb,"docroot/WEB-INF/ext-lib/portal/" + jar);
   }
   for (  String jar : customJars) {
     if (libDirPath.contains("/tmp/WEB-INF/lib")) {
