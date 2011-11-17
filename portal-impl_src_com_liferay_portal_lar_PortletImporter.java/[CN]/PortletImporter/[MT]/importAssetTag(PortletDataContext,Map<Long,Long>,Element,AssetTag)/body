@@ -1,0 +1,40 @@
+{
+  long userId=portletDataContext.getUserId(assetTag.getUserUuid());
+  ServiceContext serviceContext=new ServiceContext();
+  serviceContext.setAddGroupPermissions(true);
+  serviceContext.setAddGuestPermissions(true);
+  serviceContext.setCreateDate(assetTag.getCreateDate());
+  serviceContext.setModifiedDate(assetTag.getModifiedDate());
+  serviceContext.setScopeGroupId(portletDataContext.getScopeGroupId());
+  AssetTag importedAssetTag=null;
+  try {
+    List<Element> propertyElements=assetTagElement.elements("property");
+    String[] properties=new String[propertyElements.size()];
+    for (int i=0; i < propertyElements.size(); i++) {
+      Element propertyElement=propertyElements.get(i);
+      String key=propertyElement.attributeValue("key");
+      String value=propertyElement.attributeValue("value");
+      properties[i]=key.concat(StringPool.COLON).concat(value);
+    }
+    AssetTag existingAssetTag=null;
+    try {
+      existingAssetTag=AssetTagUtil.findByG_N(portletDataContext.getScopeGroupId(),assetTag.getName());
+    }
+ catch (    NoSuchTagException nste) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("No existing AssetTag found:" + assetTag.getName() + " for groupId:"+ portletDataContext.getScopeGroupId());
+      }
+    }
+    if (existingAssetTag == null) {
+      importedAssetTag=AssetTagLocalServiceUtil.addTag(userId,assetTag.getName(),properties,serviceContext);
+    }
+ else {
+      importedAssetTag=AssetTagLocalServiceUtil.updateTag(userId,existingAssetTag.getTagId(),assetTag.getName(),properties,serviceContext);
+    }
+    assetTagPKs.put(assetTag.getTagId(),importedAssetTag.getTagId());
+    portletDataContext.importPermissions(AssetTag.class,assetTag.getTagId(),importedAssetTag.getTagId());
+  }
+ catch (  NoSuchTagException nste) {
+    _log.error("Could not find the parent category for category " + assetTag.getTagId());
+  }
+}
