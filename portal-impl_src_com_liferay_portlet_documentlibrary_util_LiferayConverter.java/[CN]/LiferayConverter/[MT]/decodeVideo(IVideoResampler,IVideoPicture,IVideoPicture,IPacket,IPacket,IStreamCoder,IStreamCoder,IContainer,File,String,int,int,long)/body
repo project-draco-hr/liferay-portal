@@ -1,34 +1,50 @@
 {
-  int value=inputIStreamCoder.decodeVideo(inputIVideoPicture,inputIPacket,0);
-  if (value <= 0) {
-    return value;
-  }
-  updateVideoTimeStamp(inputIVideoPicture,timeStampOffset);
-  if (!inputIVideoPicture.isComplete()) {
-    return 1;
-  }
-  if (thumbnailFile != null) {
-    BufferedImage bufferedImage=null;
-    if (_converterFactoryType == null) {
-      _converterFactoryType=ConverterFactory.findRegisteredConverter(ConverterFactory.XUGGLER_BGR_24);
+  int offset=0;
+  boolean stopDecoding=false;
+  while (offset < inputIPacket.getSize()) {
+    int value=inputIStreamCoder.decodeVideo(inputIVideoPicture,inputIPacket,offset);
+    if (value <= 0) {
+      return value;
     }
-    if (_converterFactoryType == null) {
-      throw new UnsupportedOperationException("No converter found for " + ConverterFactory.XUGGLER_BGR_24);
+    updateVideoTimeStamp(inputIVideoPicture,timeStampOffset);
+    offset+=value;
+    ICodec.ID iCodecID=inputIStreamCoder.getCodecID();
+    if (iCodecID.equals(ICodec.ID.CODEC_ID_MJPEG)) {
+      stopDecoding=true;
     }
-    if (_videoIConverter == null) {
-      _videoIConverter=ConverterFactory.createConverter(_converterFactoryType.getDescriptor(),inputIVideoPicture);
+    if (!inputIVideoPicture.isComplete()) {
+      if (stopDecoding) {
+        return 1;
+      }
+ else {
+        continue;
+      }
     }
-    bufferedImage=_videoIConverter.toImage(inputIVideoPicture);
-    thumbnailFile.createNewFile();
-    RenderedImage renderedImage=ImageProcessorUtil.scale(bufferedImage,thumbnailHeight,thumbnailWidth);
-    ImageIO.write(renderedImage,thumbnailExtension,new FileOutputStream(thumbnailFile));
-    return DECODE_VIDEO_THUMBNAIL;
-  }
-  if ((outputIStreamCoder != null) && (outputIContainer != null)) {
-    IVideoPicture outputIVideoPicture=null;
-    outputIVideoPicture=resampleVideo(iVideoResampler,inputIVideoPicture,resampledIVideoPicture);
-    outputIVideoPicture.setQuality(0);
-    encodeVideo(outputIStreamCoder,outputIVideoPicture,outputIPacket,outputIContainer);
+    if (thumbnailFile != null) {
+      BufferedImage bufferedImage=null;
+      if (_converterFactoryType == null) {
+        _converterFactoryType=ConverterFactory.findRegisteredConverter(ConverterFactory.XUGGLER_BGR_24);
+      }
+      if (_converterFactoryType == null) {
+        throw new UnsupportedOperationException("No converter found for " + ConverterFactory.XUGGLER_BGR_24);
+      }
+      if (_videoIConverter == null) {
+        _videoIConverter=ConverterFactory.createConverter(_converterFactoryType.getDescriptor(),inputIVideoPicture);
+      }
+      bufferedImage=_videoIConverter.toImage(inputIVideoPicture);
+      thumbnailFile.createNewFile();
+      RenderedImage renderedImage=ImageProcessorUtil.scale(bufferedImage,thumbnailHeight,thumbnailWidth);
+      ImageIO.write(renderedImage,thumbnailExtension,new FileOutputStream(thumbnailFile));
+      return DECODE_VIDEO_THUMBNAIL;
+    }
+    if ((outputIStreamCoder != null) && (outputIContainer != null)) {
+      IVideoPicture outputIVideoPicture=resampleVideo(iVideoResampler,inputIVideoPicture,resampledIVideoPicture);
+      outputIVideoPicture.setQuality(0);
+      encodeVideo(outputIStreamCoder,outputIVideoPicture,outputIPacket,outputIContainer);
+    }
+    if (stopDecoding) {
+      break;
+    }
   }
   return 1;
 }
