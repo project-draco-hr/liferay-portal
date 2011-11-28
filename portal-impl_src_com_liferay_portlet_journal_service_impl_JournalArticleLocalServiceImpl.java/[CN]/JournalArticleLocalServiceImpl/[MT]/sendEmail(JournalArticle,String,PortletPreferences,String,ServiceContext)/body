@@ -1,0 +1,64 @@
+{
+  if (preferences == null) {
+    return;
+  }
+ else   if (emailType.equals("denied") && JournalUtil.getEmailArticleApprovalDeniedEnabled(preferences)) {
+  }
+ else   if (emailType.equals("granted") && JournalUtil.getEmailArticleApprovalGrantedEnabled(preferences)) {
+  }
+ else   if (emailType.equals("requested") && JournalUtil.getEmailArticleApprovalRequestedEnabled(preferences)) {
+  }
+ else   if (emailType.equals("review") && JournalUtil.getEmailArticleReviewEnabled(preferences)) {
+  }
+ else {
+    return;
+  }
+  Company company=companyPersistence.findByPrimaryKey(article.getCompanyId());
+  User user=userPersistence.findByPrimaryKey(article.getUserId());
+  articleURL+="&groupId=" + article.getGroupId() + "&articleId="+ article.getArticleId()+ "&version="+ article.getVersion();
+  String fromName=JournalUtil.getEmailFromName(preferences,article.getCompanyId());
+  String fromAddress=JournalUtil.getEmailFromAddress(preferences,article.getCompanyId());
+  String toName=user.getFullName();
+  String toAddress=user.getEmailAddress();
+  if (emailType.equals("requested") || emailType.equals("review")) {
+    String tempToName=fromName;
+    String tempToAddress=fromAddress;
+    fromName=toName;
+    fromAddress=toAddress;
+    toName=tempToName;
+    toAddress=tempToAddress;
+  }
+  String subject=null;
+  String body=null;
+  if (emailType.equals("denied")) {
+    subject=JournalUtil.getEmailArticleApprovalDeniedSubject(preferences);
+    body=JournalUtil.getEmailArticleApprovalDeniedBody(preferences);
+  }
+ else   if (emailType.equals("granted")) {
+    subject=JournalUtil.getEmailArticleApprovalGrantedSubject(preferences);
+    body=JournalUtil.getEmailArticleApprovalGrantedBody(preferences);
+  }
+ else   if (emailType.equals("requested")) {
+    subject=JournalUtil.getEmailArticleApprovalRequestedSubject(preferences);
+    body=JournalUtil.getEmailArticleApprovalRequestedBody(preferences);
+  }
+ else   if (emailType.equals("review")) {
+    subject=JournalUtil.getEmailArticleReviewSubject(preferences);
+    body=JournalUtil.getEmailArticleReviewBody(preferences);
+  }
+  SubscriptionSender subscriptionSender=new SubscriptionSender();
+  subscriptionSender.setBody(body);
+  subscriptionSender.setCompanyId(company.getCompanyId());
+  subscriptionSender.setContextAttributes("[$ARTICLE_ID$]",article.getArticleId(),"[$ARTICLE_TITLE$]",article.getTitle(),"[$ARTICLE_URL$]",articleURL,"[$ARTICLE_USER_NAME$]",article.getUserName(),"[$ARTICLE_VERSION$]",article.getVersion());
+  subscriptionSender.setContextUserPrefix("ARTICLE");
+  subscriptionSender.setFrom(fromAddress,fromName);
+  subscriptionSender.setHtmlFormat(true);
+  subscriptionSender.setMailId("journal_article",article.getId());
+  subscriptionSender.setPortletId(PortletKeys.JOURNAL);
+  subscriptionSender.setScopeGroupId(article.getGroupId());
+  subscriptionSender.setServiceContext(serviceContext);
+  subscriptionSender.setSubject(subject);
+  subscriptionSender.setUserId(article.getUserId());
+  subscriptionSender.addRuntimeSubscribers(toAddress,toName);
+  subscriptionSender.flushNotificationsAsync();
+}
