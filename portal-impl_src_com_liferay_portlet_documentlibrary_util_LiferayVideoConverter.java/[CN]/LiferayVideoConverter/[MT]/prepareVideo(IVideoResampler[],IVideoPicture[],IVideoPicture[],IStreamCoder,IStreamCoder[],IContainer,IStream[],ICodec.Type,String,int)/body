@@ -10,10 +10,10 @@
     _log.info("Original video bitrate " + bitRate);
   }
   if (bitRate == 0) {
-    bitRate=GetterUtil.get(VIDEO_BIT_RATE_MAP.get(outputFormat),VIDEO_BIT_RATE_DEFAULT);
+    bitRate=GetterUtil.getInteger(_videoBitRateMap.get(outputFormat),_VIDEO_BIT_RATE_DEFAULT);
   }
- else   if (bitRate > VIDEO_BIT_RATE_MAX) {
-    bitRate=VIDEO_BIT_RATE_MAX;
+ else   if (bitRate > _VIDEO_BIT_RATE_MAX) {
+    bitRate=_VIDEO_BIT_RATE_MAX;
   }
   if (_log.isInfoEnabled()) {
     _log.info("Modified video bitrate " + bitRate);
@@ -27,23 +27,23 @@
     throw new RuntimeException("Unable to determine " + inputICodecType + " encoder for "+ outputURL);
   }
   outputIStreamCoder.setCodec(iCodec);
+  IRational iRational=inputIStreamCoder.getFrameRate();
+  if (_log.isInfoEnabled()) {
+    _log.info("Original frame rate " + iRational.getNumerator() + "/"+ iRational.getDenominator());
+  }
+  if (_videoFrameRateMap.containsKey(outputFormat)) {
+    iRational=_videoFrameRateMap.get(outputFormat);
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Modified frame rate " + iRational.getNumerator() + "/"+ iRational.getDenominator());
+  }
+  outputIStreamCoder.setFrameRate(iRational);
   if (inputIStreamCoder.getHeight() <= 0) {
     throw new RuntimeException("Unable to determine height for " + _inputURL);
   }
   outputIStreamCoder.setHeight(_height);
-  IRational frameRate=inputIStreamCoder.getFrameRate();
-  if (_log.isInfoEnabled()) {
-    _log.info("Original frameRate " + frameRate.getNumerator() + "/"+ frameRate.getDenominator());
-  }
-  if (VIDEO_FRAME_RATE_MAP.containsKey(outputFormat)) {
-    frameRate=VIDEO_FRAME_RATE_MAP.get(outputFormat);
-  }
-  if (_log.isInfoEnabled()) {
-    _log.info("Modified frameRate " + frameRate.getNumerator() + "/"+ frameRate.getDenominator());
-  }
-  outputIStreamCoder.setFrameRate(frameRate);
   outputIStreamCoder.setPixelType(Type.YUV420P);
-  outputIStreamCoder.setTimeBase(IRational.make(frameRate.getDenominator(),frameRate.getNumerator()));
+  outputIStreamCoder.setTimeBase(IRational.make(iRational.getDenominator(),iRational.getNumerator()));
   if (inputIStreamCoder.getWidth() <= 0) {
     throw new RuntimeException("Unable to determine width for " + _inputURL);
   }
@@ -51,7 +51,8 @@
   iVideoResamplers[index]=createIVideoResampler(inputIStreamCoder,outputIStreamCoder,_height,_width);
   inputIVideoPictures[index]=IVideoPicture.make(inputIStreamCoder.getPixelType(),inputIStreamCoder.getWidth(),inputIStreamCoder.getHeight());
   outputIVideoPictures[index]=IVideoPicture.make(outputIStreamCoder.getPixelType(),outputIStreamCoder.getWidth(),outputIStreamCoder.getHeight());
-  if (iCodec.getID().equals(ICodec.ID.CODEC_ID_H264)) {
+  ICodec.ID iCodecID=iCodec.getID();
+  if (iCodecID.equals(ICodec.ID.CODEC_ID_H264)) {
     Configuration.configure(_ffpresetProperties,outputIStreamCoder);
   }
 }
