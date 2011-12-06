@@ -1,0 +1,69 @@
+{
+  BooleanClauseOccur booleanClauseOccur=getBooleanClauseOccur(occur);
+  if (query instanceof org.apache.lucene.search.TermQuery) {
+    Set<Term> terms=new HashSet<Term>();
+    query.extractTerms(terms);
+    for (    Term term : terms) {
+      String termValue=term.text();
+      booleanQuery.addTerm(term.field(),termValue,false,getBooleanClauseOccur(occur));
+    }
+  }
+ else   if (query instanceof org.apache.lucene.search.BooleanQuery) {
+    org.apache.lucene.search.BooleanQuery curBooleanQuery=(org.apache.lucene.search.BooleanQuery)query;
+    BooleanQuery conjunctionQuery=BooleanQueryFactoryUtil.create(searchContext);
+    BooleanQuery disjunctionQuery=BooleanQueryFactoryUtil.create(searchContext);
+    for (    org.apache.lucene.search.BooleanClause booleanClause : curBooleanQuery.getClauses()) {
+      BooleanClauseOccur curOccur=getBooleanClauseOccur(booleanClause.getOccur());
+      BooleanQuery subBooleanQuery=null;
+      if (curOccur == BooleanClauseOccur.SHOULD) {
+        subBooleanQuery=disjunctionQuery;
+      }
+ else {
+        subBooleanQuery=conjunctionQuery;
+      }
+      translateQuery(subBooleanQuery,searchContext,booleanClause.getQuery(),booleanClause.getOccur());
+    }
+    if (!conjunctionQuery.clauses().isEmpty()) {
+      booleanQuery.add(conjunctionQuery,BooleanClauseOccur.MUST);
+    }
+    if (!disjunctionQuery.clauses().isEmpty()) {
+      booleanQuery.add(disjunctionQuery,BooleanClauseOccur.SHOULD);
+    }
+  }
+ else   if (query instanceof org.apache.lucene.search.FuzzyQuery) {
+    org.apache.lucene.search.FuzzyQuery fuzzyQuery=(org.apache.lucene.search.FuzzyQuery)query;
+    Term term=fuzzyQuery.getTerm();
+    String termValue=term.text().concat(StringPool.STAR);
+    booleanQuery.addTerm(term.field(),termValue,true,booleanClauseOccur);
+  }
+ else   if (query instanceof org.apache.lucene.search.PhraseQuery) {
+    org.apache.lucene.search.PhraseQuery phraseQuery=(org.apache.lucene.search.PhraseQuery)query;
+    Term[] terms=phraseQuery.getTerms();
+    StringBundler sb=new StringBundler(terms.length * 2);
+    for (    Term term : terms) {
+      sb.append(term.text());
+      sb.append(StringPool.SPACE);
+    }
+    booleanQuery.addTerm(terms[0].field(),sb.toString().trim(),false,booleanClauseOccur);
+  }
+ else   if (query instanceof org.apache.lucene.search.PrefixQuery) {
+    org.apache.lucene.search.PrefixQuery prefixQuery=(org.apache.lucene.search.PrefixQuery)query;
+    Term prefixTerm=prefixQuery.getPrefix();
+    String termValue=prefixTerm.text().concat(StringPool.STAR);
+    booleanQuery.addTerm(prefixTerm.field(),termValue,true,booleanClauseOccur);
+  }
+ else   if (query instanceof org.apache.lucene.search.TermRangeQuery) {
+    org.apache.lucene.search.TermRangeQuery termRangeQuery=(org.apache.lucene.search.TermRangeQuery)query;
+    booleanQuery.addRangeTerm(termRangeQuery.getField(),termRangeQuery.getLowerTerm(),termRangeQuery.getUpperTerm());
+  }
+ else   if (query instanceof org.apache.lucene.search.WildcardQuery) {
+    org.apache.lucene.search.WildcardQuery wildcardQuery=(org.apache.lucene.search.WildcardQuery)query;
+    Term wildcardTerm=wildcardQuery.getTerm();
+    booleanQuery.addTerm(wildcardTerm.field(),wildcardTerm.text(),true,booleanClauseOccur);
+  }
+ else {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Ignoring unknown query type: " + query.getClass() + " with query: "+ query);
+    }
+  }
+}
