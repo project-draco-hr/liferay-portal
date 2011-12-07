@@ -1,40 +1,50 @@
 {
-  Layout layout=getLayout(groupId,privateLayout,layoutId);
-  DynamicQuery dq0=DynamicQueryFactoryUtil.forClass(Layout.class,LayoutImpl.TABLE_NAME).setProjection(ProjectionFactoryUtil.property("plid")).add(PropertyFactoryUtil.forName("groupId").eq(groupId)).add(PropertyFactoryUtil.forName("privateLayout").eq(privateLayout));
-  DynamicQuery query=DynamicQueryFactoryUtil.forClass(PortletPreferences.class,PortletPreferencesImpl.TABLE_NAME).add(PropertyFactoryUtil.forName("plid").in(dq0));
-  List<Portlet> scopablePortlets=portletLocalService.getScopablePortlets();
+  Layout layout=layoutPersistence.findByG_P_L(groupId,privateLayout,layoutId);
+  DynamicQuery portletPreferencesDynamicQuery=DynamicQueryFactoryUtil.forClass(PortletPreferences.class,PortletPreferencesImpl.TABLE_NAME);
+  Property plidProperty=PropertyFactoryUtil.forName("plid");
+  DynamicQuery layoutDynamicQuery=DynamicQueryFactoryUtil.forClass(Layout.class,LayoutImpl.TABLE_NAME);
+  Projection plidProjection=ProjectionFactoryUtil.property("plid");
+  layoutDynamicQuery.setProjection(plidProjection);
+  Property groupIdProperty=PropertyFactoryUtil.forName("groupId");
+  layoutDynamicQuery.add(groupIdProperty.eq(groupId));
+  Property privateLayoutProperty=PropertyFactoryUtil.forName("privateLayout");
+  layoutDynamicQuery.add(privateLayoutProperty.eq(privateLayout));
+  portletPreferencesDynamicQuery.add(plidProperty.in(layoutDynamicQuery));
   Junction junction=RestrictionsFactoryUtil.disjunction();
+  List<Portlet> scopablePortlets=portletLocalService.getScopablePortlets();
   for (  Portlet scopablePortlet : scopablePortlets) {
     if (scopablePortlet.isInstanceable()) {
-      junction.add(RestrictionsFactoryUtil.like("portletId",scopablePortlet.getPortletId() + PortletConstants.INSTANCE_SEPARATOR + StringPool.PERCENT));
+      Criterion criterion=RestrictionsFactoryUtil.like("portletId",scopablePortlet.getPortletId() + PortletConstants.INSTANCE_SEPARATOR + StringPool.PERCENT);
+      junction.add(criterion);
     }
  else {
-      junction.add(RestrictionsFactoryUtil.eq("portletId",scopablePortlet.getPortletId()));
+      Criterion criterion=RestrictionsFactoryUtil.eq("portletId",scopablePortlet.getPortletId());
+      junction.add(criterion);
     }
   }
-  query.add(junction);
-  List<PortletPreferences> portletPreferencesList=portletPreferencesLocalService.dynamicQuery(query);
+  portletPreferencesDynamicQuery.add(junction);
+  List<PortletPreferences> portletPreferencesList=portletPreferencesLocalService.dynamicQuery(portletPreferencesDynamicQuery);
   for (  PortletPreferences portletPreferences : portletPreferencesList) {
     if ((portletPreferences.getPortletId() == null)) {
       continue;
     }
     Layout curLayout=layoutPersistence.findByPrimaryKey(portletPreferences.getPlid());
-    javax.portlet.PortletPreferences preferences=PortletPreferencesFactoryUtil.getLayoutPortletSetup(curLayout,portletPreferences.getPortletId());
-    String scopeLayoutUuid=GetterUtil.getString(preferences.getValue("lfrScopeLayoutUuid",null));
+    javax.portlet.PortletPreferences jxPreferences=PortletPreferencesFactoryUtil.getLayoutPortletSetup(curLayout,portletPreferences.getPortletId());
+    String scopeLayoutUuid=GetterUtil.getString(jxPreferences.getValue("lfrScopeLayoutUuid",null));
     if (!scopeLayoutUuid.equals(layout.getUuid())) {
       continue;
     }
-    for (    Locale locale : locales) {
+    for (    Locale locale : nameMapModifiedLocales) {
       String languageId=LanguageUtil.getLanguageId(locale);
       String portletTitle=PortalUtil.getPortletTitle(PortletConstants.getRootPortletId(portletPreferences.getPortletId()),languageId);
-      String newPortletTitle=PortalUtil.getNewPortletTitle(portletTitle,curLayout.getName(languageId),newNamesMap.get(locale));
+      String newPortletTitle=PortalUtil.getNewPortletTitle(portletTitle,curLayout.getName(languageId),nameMap.get(locale));
       if (newPortletTitle.equals(portletTitle)) {
         continue;
       }
       try {
-        preferences.setValue("portletSetupTitle_" + languageId,newPortletTitle);
-        preferences.setValue("portletSetupUseCustomTitle",Boolean.TRUE.toString());
-        preferences.store();
+        jxPreferences.setValue("portletSetupTitle_" + languageId,newPortletTitle);
+        jxPreferences.setValue("portletSetupUseCustomTitle",Boolean.TRUE.toString());
+        jxPreferences.store();
       }
  catch (      IOException ioe) {
         throw new SystemException(ioe);
