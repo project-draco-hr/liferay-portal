@@ -1,0 +1,45 @@
+{
+  parentLayoutId=getParentLayoutId(groupId,privateLayout,parentLayoutId);
+  String name=nameMap.get(LocaleUtil.getDefault());
+  friendlyURL=getFriendlyURL(groupId,privateLayout,layoutId,StringPool.BLANK,friendlyURL);
+  validate(groupId,privateLayout,layoutId,parentLayoutId,name,type,hidden,friendlyURL);
+  validateParentLayoutId(groupId,privateLayout,layoutId,parentLayoutId);
+  Layout layout=layoutPersistence.findByG_P_L(groupId,privateLayout,layoutId);
+  LayoutRevision layoutRevision=LayoutStagingUtil.getLayoutRevision(layout);
+  if (layoutRevision == null) {
+    return super.updateLayout(groupId,privateLayout,layoutId,parentLayoutId,nameMap,titleMap,descriptionMap,keywordsMap,robotsMap,type,hidden,friendlyURL,iconImage,iconBytes,serviceContext);
+  }
+  if (parentLayoutId != layout.getParentLayoutId()) {
+    layout.setPriority(getNextPriority(groupId,privateLayout,parentLayoutId));
+  }
+  layout.setParentLayoutId(parentLayoutId);
+  layoutRevision.setNameMap(nameMap);
+  layoutRevision.setTitleMap(titleMap);
+  layoutRevision.setDescriptionMap(descriptionMap);
+  layoutRevision.setKeywordsMap(keywordsMap);
+  layoutRevision.setRobotsMap(robotsMap);
+  layout.setType(type);
+  layout.setHidden(hidden);
+  layout.setFriendlyURL(friendlyURL);
+  if (iconImage != null) {
+    layout.setIconImage(iconImage.booleanValue());
+    if (iconImage.booleanValue()) {
+      long iconImageId=layout.getIconImageId();
+      if (iconImageId <= 0) {
+        iconImageId=counterLocalService.increment();
+        layout.setIconImageId(iconImageId);
+      }
+    }
+  }
+  layoutPersistence.update(layout,false);
+  serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
+  layoutRevisionLocalService.updateLayoutRevision(serviceContext.getUserId(),layoutRevision.getLayoutRevisionId(),layoutRevision.getLayoutBranchId(),layoutRevision.getName(),layoutRevision.getTitle(),layoutRevision.getDescription(),layoutRevision.getKeywords(),layoutRevision.getRobots(),layoutRevision.getTypeSettings(),layoutRevision.getIconImage(),layoutRevision.getIconImageId(),layoutRevision.getThemeId(),layoutRevision.getColorSchemeId(),layoutRevision.getWapThemeId(),layoutRevision.getWapColorSchemeId(),layoutRevision.getCss(),serviceContext);
+  if (iconImage != null) {
+    if ((iconBytes != null) && (iconBytes.length > 0)) {
+      imageLocalService.updateImage(layout.getIconImageId(),iconBytes);
+    }
+  }
+  ExpandoBridge expandoBridge=layout.getExpandoBridge();
+  expandoBridge.setAttributes(serviceContext);
+  return wrapLayout(layout);
+}
