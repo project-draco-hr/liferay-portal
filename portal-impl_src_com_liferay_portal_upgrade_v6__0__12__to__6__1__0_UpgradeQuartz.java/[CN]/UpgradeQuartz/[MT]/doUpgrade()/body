@@ -1,0 +1,37 @@
+{
+  DB db=DBFactoryUtil.getDB();
+  String dbType=db.getType();
+  if (!dbType.equals(DB.TYPE_POSTGRESQL)) {
+    return;
+  }
+  Class<?> clazz=getClass();
+  ClassLoader classLoader=clazz.getClassLoader();
+  String quartzTableSQL=StringUtil.read(classLoader,"dependencies/quartz-tables.sql");
+  String[] createTableSQLs=StringUtil.split(quartzTableSQL,";");
+  for (  String createTableSQL : createTableSQLs) {
+    createTableSQL=createTableSQL.trim();
+    int x=createTableSQL.indexOf("(");
+    String tableName=createTableSQL.substring(13,x - 1);
+    String[] columnSQLs=StringUtil.split(createTableSQL.substring(x + 1,createTableSQL.length() - 1));
+    List<Object[]> columns=new ArrayList<Object[]>();
+    for (    String columnSQL : columnSQLs) {
+      if (columnSQL.contains("primary key")) {
+        break;
+      }
+      columnSQL=StringUtil.replace(columnSQL,"\n","");
+      columnSQL=columnSQL.trim();
+      x=columnSQL.indexOf(" ");
+      int y=columnSQL.indexOf(" ",x + 1);
+      if (y == -1) {
+        y=columnSQL.length();
+      }
+      String columnName=columnSQL.substring(0,x);
+      String columnType=columnSQL.substring(x + 1,y);
+      Object[] column={columnName,getTypes(columnType)};
+      columns.add(column);
+    }
+    UpgradeTable upgradeTable=UpgradeTableFactoryUtil.getUpgradeTable(tableName,columns.toArray(new Object[columns.size()][]));
+    upgradeTable.setCreateSQL(createTableSQL);
+    upgradeTable.updateTable();
+  }
+}
