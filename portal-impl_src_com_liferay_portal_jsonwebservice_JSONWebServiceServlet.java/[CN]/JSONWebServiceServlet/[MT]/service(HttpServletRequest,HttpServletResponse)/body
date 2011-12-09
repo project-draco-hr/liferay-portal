@@ -20,6 +20,32 @@
     return;
   }
   String mainPath=PortalUtil.getPathMain();
-  RequestDispatcher requestDispatcher=request.getRequestDispatcher(mainPath + "/portal/api/jsonws");
-  requestDispatcher.forward(request,response);
+  String apiPath=mainPath + "/portal/api/jsonws";
+  ServletContext servletContext=request.getSession().getServletContext();
+  String portalContextPath=PropsUtil.get(PropsKeys.PORTAL_CTX);
+  if (servletContext.getContext(portalContextPath) != null) {
+    RequestDispatcher requestDispatcher=request.getRequestDispatcher(apiPath);
+    requestDispatcher.forward(request,response);
+  }
+ else {
+    String requestUri=request.getRequestURI();
+    String requestUrl=request.getRequestURL().toString();
+    String queryString=request.getQueryString();
+    String serverUrl=requestUrl.substring(0,requestUrl.length() - requestUri.length());
+    if (Validator.isNull(queryString)) {
+      String servletContextName=servletContext.getServletContextName();
+      queryString="contextName=" + URLDecoder.decode(servletContextName,"UTF-8");
+    }
+    apiPath=serverUrl + apiPath + '?'+ queryString;
+    URL url=new URL(apiPath);
+    InputStream inputStream=null;
+    try {
+      inputStream=url.openStream();
+      OutputStream outputStream=response.getOutputStream();
+      StreamUtil.transfer(inputStream,outputStream);
+    }
+  finally {
+      StreamUtil.cleanUp(inputStream);
+    }
+  }
 }
