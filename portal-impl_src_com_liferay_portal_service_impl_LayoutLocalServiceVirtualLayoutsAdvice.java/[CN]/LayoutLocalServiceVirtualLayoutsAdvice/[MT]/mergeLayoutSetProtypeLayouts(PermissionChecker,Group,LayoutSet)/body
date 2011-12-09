@@ -1,5 +1,5 @@
 {
-  if ((permissionChecker == null) || !permissionChecker.isSignedIn() || !layoutSet.getLayoutSetPrototypeLinkEnabled()|| Validator.isNull(layoutSet.getLayoutSetPrototypeUuid())|| group.isLayoutPrototype()|| group.isLayoutSetPrototype()) {
+  if (!layoutSet.getLayoutSetPrototypeLinkEnabled() || Validator.isNull(layoutSet.getLayoutSetPrototypeUuid()) || group.isLayoutPrototype()|| group.isLayoutSetPrototype()) {
     return;
   }
   LayoutSetPrototype layoutSetPrototype=LayoutSetPrototypeLocalServiceUtil.getLayoutSetPrototypeByUuid(layoutSet.getLayoutSetPrototypeUuid());
@@ -9,14 +9,29 @@
   if (lastMergeTime >= modifiedDate.getTime()) {
     return;
   }
-  Map<String,String[]> parameterMap=null;
-  if (lastMergeTime > 0) {
-    parameterMap=getLayoutTemplatesParameters(false);
+  String owner=PortalUUIDUtil.generate();
+  try {
+    Lock lock=LockLocalServiceUtil.lock(LayoutLocalServiceVirtualLayoutsAdvice.class.getName(),String.valueOf(layoutSet.getLayoutSetId()),owner,false);
+    if (!owner.equals(lock.getOwner())) {
+      return;
+    }
   }
+ catch (  Exception e) {
+    return;
+  }
+  try {
+    Map<String,String[]> parameterMap=null;
+    if (lastMergeTime > 0) {
+      parameterMap=getLayoutTemplatesParameters(false);
+    }
  else {
-    parameterMap=getLayoutTemplatesParameters(true);
+      parameterMap=getLayoutTemplatesParameters(true);
+    }
+    importLayoutSetPrototype(permissionChecker,layoutSetPrototype,layoutSet.getGroupId(),layoutSet.isPrivateLayout(),parameterMap);
+    settingsProperties.setProperty("last-merge-time",String.valueOf(modifiedDate.getTime()));
+    LayoutSetLocalServiceUtil.updateLayoutSet(layoutSet,false);
   }
-  importLayoutSetPrototype(permissionChecker,layoutSetPrototype,layoutSet.getGroupId(),layoutSet.isPrivateLayout(),parameterMap);
-  settingsProperties.setProperty("last-merge-time",String.valueOf(modifiedDate.getTime()));
-  LayoutSetLocalServiceUtil.updateLayoutSet(layoutSet,false);
+  finally {
+    LockLocalServiceUtil.unlock(LayoutLocalServiceVirtualLayoutsAdvice.class.getName(),String.valueOf(layoutSet.getLayoutSetId()),owner,false);
+  }
 }
