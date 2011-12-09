@@ -1,10 +1,28 @@
 {
   SocialActivityCounter activityCounter=null;
-  try {
-    activityCounter=addActivityCounter(groupId,classNameId,classPK,name,ownerType,0,overallValue);
-  }
- catch (  SystemException se) {
-    activityCounter=fetchLatestActivityCounter(groupId,classNameId,classPK,name,ownerType);
+  String lockKey=createLockKey(groupId,classNameId,classPK,name,ownerType);
+  Lock lock=null;
+  while (true) {
+    try {
+      lock=lockLocalService.lock(SocialActivityCounter.class.getName(),lockKey,lockKey,false);
+    }
+ catch (    Exception ex) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Could not acquire activity counter lock" + ", retrying...");
+      }
+      continue;
+    }
+    activityCounter=fetchLatestActivityCounter(groupId,classNameId,classPK,name,ownerType,false);
+    if (activityCounter == null) {
+      if (!lock.isNew()) {
+        continue;
+      }
+      activityCounter=addActivityCounter(groupId,classNameId,classPK,name,ownerType,0,0);
+    }
+    if (lock.isNew()) {
+      lockLocalService.unlock(SocialActivityCounter.class.getName(),lockKey);
+    }
+    break;
   }
   return activityCounter;
 }
