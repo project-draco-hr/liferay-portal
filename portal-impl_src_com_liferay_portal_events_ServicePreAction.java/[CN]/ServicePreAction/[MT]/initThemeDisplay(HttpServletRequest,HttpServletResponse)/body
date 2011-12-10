@@ -165,6 +165,7 @@
     if (!signedIn && PropsValues.AUTH_FORWARD_BY_REDIRECT) {
       request.setAttribute(WebKeys.REQUESTED_LAYOUT,layout);
     }
+    boolean isLoginRequest=request.getRequestURI().startsWith(Portal.PATH_MAIN.concat("/portal/login"));
     boolean isViewableGroup=LayoutPermissionUtil.contains(permissionChecker,layout,controlPanelCategory,true,ActionKeys.VIEW);
     boolean isViewableStaging=GroupPermissionUtil.contains(permissionChecker,group.getGroupId(),ActionKeys.VIEW_STAGING);
     if (isViewableStaging) {
@@ -173,18 +174,23 @@
  else     if (!isViewableGroup && group.isStagingGroup()) {
       layout=null;
     }
- else     if (!isViewableGroup || (!redirectToDefaultLayout && !LayoutPermissionUtil.contains(permissionChecker,layout,false,ActionKeys.VIEW))) {
-      sb=new StringBundler(6);
-      sb.append("User ");
-      sb.append(user.getUserId());
-      sb.append(" is not allowed to access the ");
-      sb.append(layout.isPrivateLayout() ? "private" : "public");
-      sb.append(" pages of group ");
-      sb.append(layout.getGroupId());
-      if (_log.isWarnEnabled()) {
-        _log.warn(sb.toString());
+ else     if (!isLoginRequest && (!isViewableGroup || (!redirectToDefaultLayout && !LayoutPermissionUtil.contains(permissionChecker,layout,false,ActionKeys.VIEW)))) {
+      if (user.isDefaultUser()) {
+        throw new PrincipalException("User not authenticated.");
       }
-      throw new NoSuchLayoutException(sb.toString());
+ else {
+        sb=new StringBundler(6);
+        sb.append("User ");
+        sb.append(user.getUserId());
+        sb.append(" is not allowed to access the ");
+        sb.append(layout.isPrivateLayout() ? "private" : "public");
+        sb.append(" pages of group ");
+        sb.append(layout.getGroupId());
+        if (_log.isWarnEnabled()) {
+          _log.warn(sb.toString());
+        }
+        throw new NoSuchLayoutException(sb.toString());
+      }
     }
  else     if (group.isLayoutPrototype()) {
       layouts=new ArrayList<Layout>();
