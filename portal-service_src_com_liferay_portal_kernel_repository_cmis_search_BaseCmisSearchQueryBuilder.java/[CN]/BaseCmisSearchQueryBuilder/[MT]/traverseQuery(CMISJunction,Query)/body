@@ -1,0 +1,64 @@
+{
+  if (query instanceof BooleanQuery) {
+    BooleanQuery booleanQuery=(BooleanQuery)query;
+    List<BooleanClause> booleanClauses=booleanQuery.clauses();
+    CMISConjunction anyCMISConjunction=new CMISConjunction();
+    CMISConjunction notCMISConjunction=new CMISConjunction();
+    CMISDisjunction cmisDisjunction=new CMISDisjunction();
+    for (    BooleanClause booleanClause : booleanClauses) {
+      CMISJunction cmisJunction=cmisDisjunction;
+      BooleanClauseOccur booleanClauseOccur=booleanClause.getBooleanClauseOccur();
+      if (booleanClauseOccur.equals(BooleanClauseOccur.MUST)) {
+        cmisJunction=anyCMISConjunction;
+      }
+ else       if (booleanClauseOccur.equals(BooleanClauseOccur.MUST_NOT)) {
+        cmisJunction=notCMISConjunction;
+      }
+      Query booleanClauseQuery=booleanClause.getQuery();
+      traverseQuery(cmisJunction,booleanClauseQuery);
+    }
+    if (!anyCMISConjunction.isEmpty()) {
+      criterion.add(anyCMISConjunction);
+    }
+    if (!cmisDisjunction.isEmpty()) {
+      criterion.add(cmisDisjunction);
+    }
+    if (!notCMISConjunction.isEmpty()) {
+      criterion.add(new CMISNotExpression(notCMISConjunction));
+    }
+  }
+ else   if (query instanceof TermQuery) {
+    TermQuery termQuery=(TermQuery)query;
+    QueryTerm queryTerm=termQuery.getQueryTerm();
+    if (!isSupportedField(queryTerm.getField())) {
+      return;
+    }
+    CMISCriterion cmisExpression=buildFieldExpression(queryTerm.getField(),queryTerm.getValue(),CMISSimpleExpressionOperator.EQ);
+    if (cmisExpression != null) {
+      criterion.add(cmisExpression);
+    }
+  }
+ else   if (query instanceof TermRangeQuery) {
+    TermRangeQuery termRangeQuery=(TermRangeQuery)query;
+    if (!isSupportedField(termRangeQuery.getField())) {
+      return;
+    }
+    String fieldName=termRangeQuery.getField();
+    String cmisField=getCmisField(fieldName);
+    String cmisLowerTerm=CMISParameterValueUtil.formatParameterValue(fieldName,termRangeQuery.getLowerTerm());
+    String cmisUpperTerm=CMISParameterValueUtil.formatParameterValue(fieldName,termRangeQuery.getUpperTerm());
+    CMISCriterion cmisCriterion=new CMISBetweenExpression(cmisField,cmisLowerTerm,cmisUpperTerm,termRangeQuery.includesLower(),termRangeQuery.includesUpper());
+    criterion.add(cmisCriterion);
+  }
+ else   if (query instanceof WildcardQuery) {
+    WildcardQuery wildcardQuery=(WildcardQuery)query;
+    QueryTerm queryTerm=wildcardQuery.getQueryTerm();
+    if (!isSupportedField(queryTerm.getField())) {
+      return;
+    }
+    CMISCriterion cmisCriterion=buildFieldExpression(queryTerm.getField(),queryTerm.getValue(),CMISSimpleExpressionOperator.LIKE);
+    if (cmisCriterion != null) {
+      criterion.add(cmisCriterion);
+    }
+  }
+}

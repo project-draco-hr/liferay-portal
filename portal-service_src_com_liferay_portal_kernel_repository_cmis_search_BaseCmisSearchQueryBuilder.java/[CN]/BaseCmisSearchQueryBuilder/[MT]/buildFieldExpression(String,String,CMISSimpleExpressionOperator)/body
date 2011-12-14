@@ -1,0 +1,41 @@
+{
+  CMISCriterion cmisCriterion=null;
+  boolean wildcard=CMISSimpleExpressionOperator.LIKE == cmisSimpleExpressionOperator;
+  if (field.equals(Field.CONTENT)) {
+    value=CMISParameterValueUtil.formatParameterValue(field,value);
+    cmisCriterion=new CMISContainsExpression(value);
+  }
+ else   if (field.equals(Field.FOLDER_ID)) {
+    long folderId=GetterUtil.getLong(value);
+    try {
+      RepositoryEntry repositoryEntry=RepositoryEntryLocalServiceUtil.fetchRepositoryEntry(folderId);
+      if (repositoryEntry != null) {
+        String objectId=repositoryEntry.getMappedId();
+        objectId=CMISParameterValueUtil.formatParameterValue(field,objectId,wildcard);
+        cmisCriterion=new CMISInFolderExpression(objectId);
+      }
+    }
+ catch (    SystemException se) {
+      throw new SearchException("Unable to determine folder {folderId=" + folderId + "}",se);
+    }
+  }
+ else   if (field.equals(Field.USER_ID)) {
+    try {
+      long userId=GetterUtil.getLong(value);
+      User user=UserLocalServiceUtil.getUserById(userId);
+      String screenName=CMISParameterValueUtil.formatParameterValue(field,user.getScreenName(),wildcard);
+      cmisCriterion=new CMISSimpleExpression(getCmisField(field),screenName,cmisSimpleExpressionOperator);
+    }
+ catch (    Exception e) {
+      if (e instanceof SearchException) {
+        throw (SearchException)e;
+      }
+      throw new SearchException("Unable to determine user {" + field + "="+ value+ "}",e);
+    }
+  }
+ else {
+    value=CMISParameterValueUtil.formatParameterValue(field,value,wildcard);
+    cmisCriterion=new CMISSimpleExpression(getCmisField(field),value,cmisSimpleExpressionOperator);
+  }
+  return cmisCriterion;
+}
