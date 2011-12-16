@@ -1,0 +1,52 @@
+{
+  if (!layout.getLayoutPrototypeLinkEnabled() || Validator.isNull(layout.getLayoutPrototypeUuid()) || group.isLayoutPrototype()|| group.isLayoutSetPrototype()) {
+    return;
+  }
+  UnicodeProperties typeSettingsProperties=layout.getTypeSettingsProperties();
+  long lastMergeTime=GetterUtil.getLong(typeSettingsProperties.getProperty("last-merge-time"));
+  LayoutPrototype layoutPrototype=LayoutPrototypeLocalServiceUtil.getLayoutPrototypeByUuid(layout.getLayoutPrototypeUuid());
+  Layout layoutPrototypeLayout=layoutPrototype.getLayout();
+  Date modifiedDate=layoutPrototypeLayout.getModifiedDate();
+  if (lastMergeTime >= modifiedDate.getTime()) {
+    return;
+  }
+  UnicodeProperties prototypeTypeSettingsProperties=layoutPrototypeLayout.getTypeSettingsProperties();
+  int mergeFailCount=GetterUtil.getInteger(prototypeTypeSettingsProperties.getProperty("merge-fail-count"));
+  if (mergeFailCount > PropsValues.LAYOUT_PROTOTYPE_MERGE_FAIL_THRESHOLD) {
+    return;
+  }
+  String owner=PortalUUIDUtil.generate();
+  try {
+    Lock lock=LockLocalServiceUtil.lock(LayoutLocalServiceVirtualLayoutsAdvice.class.getName(),String.valueOf(layout.getPlid()),owner,false);
+    if (!owner.equals(lock.getOwner())) {
+      Date createDate=lock.getCreateDate();
+      if (((System.currentTimeMillis() - createDate.getTime()) >= PropsValues.LAYOUT_PROTOTYPE_MERGE_LOCK_MAX_TIME)) {
+        lock=LockLocalServiceUtil.lock(LayoutLocalServiceVirtualLayoutsAdvice.class.getName(),String.valueOf(layout.getPlid()),lock.getOwner(),owner,false);
+        if (!owner.equals(lock.getOwner())) {
+          return;
+        }
+      }
+ else {
+        return;
+      }
+    }
+  }
+ catch (  Exception e) {
+    return;
+  }
+  try {
+    SitesUtil.applyLayoutPrototype(layoutPrototype,layout,true);
+    layout=LayoutLocalServiceUtil.getLayout(layout.getPlid());
+    typeSettingsProperties=layout.getTypeSettingsProperties();
+    typeSettingsProperties.setProperty("last-merge-time",String.valueOf(modifiedDate.getTime()));
+    LayoutLocalServiceUtil.updateLayout(layout,false);
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+    prototypeTypeSettingsProperties.setProperty("merge-fail-count",String.valueOf(++mergeFailCount));
+    LayoutUtil.updateImpl(layoutPrototypeLayout,false);
+  }
+ finally {
+    LockLocalServiceUtil.unlock(LayoutLocalServiceVirtualLayoutsAdvice.class.getName(),String.valueOf(layout.getPlid()),owner,false);
+  }
+}
