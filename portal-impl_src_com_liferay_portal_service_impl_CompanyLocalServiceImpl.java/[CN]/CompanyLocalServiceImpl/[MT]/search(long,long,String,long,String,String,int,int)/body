@@ -2,25 +2,26 @@
   try {
     SearchContext searchContext=new SearchContext();
     searchContext.setSearchEngineId(SearchEngineUtil.SYSTEM_ENGINE_ID);
-    BooleanQuery contextQuery=BooleanQueryFactoryUtil.create(searchContext);
-    contextQuery.addRequiredTerm(Field.COMPANY_ID,companyId);
-    if (Validator.isNotNull(portletId)) {
-      contextQuery.addRequiredTerm(Field.PORTLET_ID,portletId);
-    }
+    searchContext.setCompanyId(companyId);
+    searchContext.setStart(start);
+    searchContext.setEnd(end);
     if (groupId > 0) {
-      contextQuery.addRequiredTerm(Field.GROUP_ID,groupId);
+      searchContext.setGroupIds(new long[]{groupId});
     }
-    if (Validator.isNotNull(type)) {
-      contextQuery.addRequiredTerm(Field.TYPE,type);
+    searchContext.setEntryClassNames(SearchEngineUtil.getEntryClassNames());
+    searchContext.setKeywords(keywords);
+    if (Validator.isNotNull(portletId)) {
+      searchContext.setPortletIds(new String[]{portletId});
     }
-    BooleanQuery searchQuery=BooleanQueryFactoryUtil.create(searchContext);
-    searchQuery.addTerms(_KEYWORDS_FIELDS,keywords);
-    BooleanQuery fullQuery=BooleanQueryFactoryUtil.create(searchContext);
-    fullQuery.add(contextQuery,BooleanClauseOccur.MUST);
-    if (searchQuery.clauses().size() > 0) {
-      fullQuery.add(searchQuery,BooleanClauseOccur.MUST);
-    }
-    return SearchEngineUtil.search(companyId,new long[]{groupId},userId,null,fullQuery,start,end);
+    searchContext.setUserId(userId);
+    Facet assetEntriesFacet=new AssetEntriesFacet(searchContext);
+    assetEntriesFacet.setStatic(true);
+    searchContext.addFacet(assetEntriesFacet);
+    Facet scopeFacet=new ScopeFacet(searchContext);
+    scopeFacet.setStatic(true);
+    searchContext.addFacet(scopeFacet);
+    Indexer indexer=FacetedSearcher.getInstance();
+    return indexer.search(searchContext);
   }
  catch (  Exception e) {
     throw new SystemException(e);
