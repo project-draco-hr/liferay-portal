@@ -2,21 +2,31 @@
   try {
     ProcessBuilder processBuilder=new ProcessBuilder("java","-cp",classPath,ProcessExecutor.class.getName());
     Process process=processBuilder.start();
-    _writeObject(process.getOutputStream(),processCallable,true);
+    _writeObject(process.getOutputStream(),processCallable);
+    ExecutorService executorService=_getExecutorService();
+    SubProcessReactor subProcessReactor=new SubProcessReactor(process.getInputStream());
+    Future<ProcessCallable<?>> futureResponseProcessCallable=executorService.submit(subProcessReactor);
     int exitCode=process.waitFor();
     if (exitCode != 0) {
       throw new ProcessException("Subprocess terminated with exit code " + exitCode);
     }
-    InputStream errorInputStream=process.getErrorStream();
-    if (errorInputStream.available() > 0) {
-      ProcessException processException=(ProcessException)_readObject(errorInputStream,System.err,true);
-      if (processException != null) {
-        throw processException;
-      }
+    ProcessCallable<?> responseProcessCallable=futureResponseProcessCallable.get();
+    if (responseProcessCallable instanceof ReturnProcessCallable<?>) {
+      return (T)responseProcessCallable.call();
     }
-    return (T)_readObject(process.getInputStream(),System.out,true);
+    if (responseProcessCallable instanceof ExceptionProcessCallable) {
+      ExceptionProcessCallable exceptionProcessCallable=(ExceptionProcessCallable)responseProcessCallable;
+      throw exceptionProcessCallable.call();
+    }
+    if (_log.isWarnEnabled()) {
+      _log.warn("SubProcessReactor quited without a valid return " + "ProcessCallable, this means sub-process terminated " + "exceptionally.");
+    }
+    return null;
   }
- catch (  Exception e) {
+ catch (  ProcessException pe) {
+    throw pe;
+  }
+catch (  Exception e) {
     throw new ProcessException(e);
   }
 }

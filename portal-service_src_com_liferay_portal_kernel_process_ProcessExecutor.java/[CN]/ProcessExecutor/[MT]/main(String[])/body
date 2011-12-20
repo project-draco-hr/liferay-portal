@@ -1,10 +1,22 @@
 {
+  PrintStream oldOut=System.out;
+  ObjectOutputStream objectOutputStream=new ObjectOutputStream(oldOut);
+  ProcessOutputStream processOut=new ProcessOutputStream(objectOutputStream,false);
+  PrintStream newOut=new PrintStream(processOut,true);
+  System.setOut(newOut);
+  ProcessOutputStream processErr=new ProcessOutputStream(objectOutputStream,true);
+  PrintStream newErr=new PrintStream(processErr,true);
+  System.setErr(newErr);
   try {
-    ProcessCallable<?> processCallable=(ProcessCallable<?>)_readObject(System.in,null,false);
-    Object result=processCallable.call();
-    _writeObject(System.out,result,false);
+    ProcessCallable<?> processCallable=(ProcessCallable<?>)_readObject(System.in,false);
+    Serializable result=processCallable.call();
+    newOut.flush();
+    processOut.writeProcessCallable(new ReturnProcessCallable<Serializable>(result));
+    processOut.close();
   }
  catch (  ProcessException pe) {
-    _writeObject(System.err,pe,false);
+    newErr.flush();
+    processErr.writeProcessCallable(new ExceptionProcessCallable(pe));
+    processErr.close();
   }
 }

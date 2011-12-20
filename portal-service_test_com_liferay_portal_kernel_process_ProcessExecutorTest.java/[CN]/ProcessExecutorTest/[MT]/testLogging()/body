@@ -1,0 +1,46 @@
+{
+  File signalFile=new File("signal");
+  signalFile.delete();
+  String logMessage="Log Message";
+  PrintStream oldOut=System.out;
+  PrintStream oldErr=System.err;
+  ByteArrayOutputStream outBaos=new ByteArrayOutputStream();
+  ByteArrayOutputStream errBaos=new ByteArrayOutputStream();
+  PrintStream newOut=new PrintStream(outBaos,true);
+  PrintStream newErr=new PrintStream(errBaos,true);
+  System.setOut(newOut);
+  System.setErr(newErr);
+  try {
+    final LoggingProcessCallable loggingProcessCallable=new LoggingProcessCallable(logMessage,signalFile);
+    final AtomicReference<Exception> exceptionReference=new AtomicReference<Exception>();
+    Thread launchThread=new Thread(){
+      public void run(){
+        try {
+          ProcessExecutor.execute(loggingProcessCallable,_classPath);
+        }
+ catch (        ProcessException pe) {
+          exceptionReference.set(pe);
+        }
+      }
+    }
+;
+    launchThread.start();
+    boolean result=signalFile.createNewFile();
+    assertTrue(result);
+    waitForSignalFile(signalFile,false);
+    assertTrue(outBaos.toString().contains(logMessage));
+    assertTrue(errBaos.toString().contains(logMessage));
+    result=signalFile.createNewFile();
+    assertTrue(result);
+    launchThread.join();
+    Exception e=exceptionReference.get();
+    if (e != null) {
+      throw e;
+    }
+  }
+  finally {
+    System.setOut(oldOut);
+    System.setErr(oldErr);
+    signalFile.delete();
+  }
+}
