@@ -1,25 +1,25 @@
 {
+  PrintStream oldOutPrintStream=System.out;
+  ByteArrayOutputStream outByteArrayOutputStream=new ByteArrayOutputStream();
+  PrintStream newOutPrintStream=new PrintStream(outByteArrayOutputStream,true);
+  System.setOut(newOutPrintStream);
+  PrintStream oldErrPrintStream=System.err;
+  ByteArrayOutputStream errByteArrayOutputStream=new ByteArrayOutputStream();
+  PrintStream newErrPrintStream=new PrintStream(errByteArrayOutputStream,true);
+  System.setErr(newErrPrintStream);
   File signalFile=new File("signal");
   signalFile.delete();
-  String logMessage="Log Message";
-  PrintStream oldOut=System.out;
-  PrintStream oldErr=System.err;
-  ByteArrayOutputStream outBaos=new ByteArrayOutputStream();
-  ByteArrayOutputStream errBaos=new ByteArrayOutputStream();
-  PrintStream newOut=new PrintStream(outBaos,true);
-  PrintStream newErr=new PrintStream(errBaos,true);
-  System.setOut(newOut);
-  System.setErr(newErr);
   try {
+    String logMessage="Log Message";
     final LoggingProcessCallable loggingProcessCallable=new LoggingProcessCallable(logMessage,signalFile);
-    final AtomicReference<Exception> exceptionReference=new AtomicReference<Exception>();
+    final AtomicReference<Exception> exceptionAtomicReference=new AtomicReference<Exception>();
     Thread launchThread=new Thread(){
-      public void run(){
+      @Override public void run(){
         try {
           ProcessExecutor.execute(loggingProcessCallable,_classPath);
         }
  catch (        ProcessException pe) {
-          exceptionReference.set(pe);
+          exceptionAtomicReference.set(pe);
         }
       }
     }
@@ -28,19 +28,21 @@
     boolean result=signalFile.createNewFile();
     assertTrue(result);
     waitForSignalFile(signalFile,false);
-    assertTrue(outBaos.toString().contains(logMessage));
-    assertTrue(errBaos.toString().contains(logMessage));
+    String outByteArrayOutputStreamString=outByteArrayOutputStream.toString();
+    assertTrue(outByteArrayOutputStreamString.contains(logMessage));
+    String errByteArrayOutputStreamString=errByteArrayOutputStream.toString();
+    assertTrue(errByteArrayOutputStreamString.contains(logMessage));
     result=signalFile.createNewFile();
     assertTrue(result);
     launchThread.join();
-    Exception e=exceptionReference.get();
+    Exception e=exceptionAtomicReference.get();
     if (e != null) {
       throw e;
     }
   }
   finally {
-    System.setOut(oldOut);
-    System.setErr(oldErr);
+    System.setOut(oldOutPrintStream);
+    System.setErr(oldErrPrintStream);
     signalFile.delete();
   }
 }

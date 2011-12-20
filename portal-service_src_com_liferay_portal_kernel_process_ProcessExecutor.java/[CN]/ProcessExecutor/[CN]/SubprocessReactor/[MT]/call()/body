@@ -1,0 +1,39 @@
+{
+  try {
+    ObjectInputStream objectInputStream=null;
+    UnsyncByteArrayOutputStream unsyncByteArrayOutputStream=new UnsyncByteArrayOutputStream();
+    while (true) {
+      try {
+        _unsyncBufferedInputStream.mark(4);
+        objectInputStream=new PortalClassLoaderObjectInputStream(_unsyncBufferedInputStream);
+        if (unsyncByteArrayOutputStream.size() > 0) {
+          if (_log.isWarnEnabled()) {
+            _log.warn("Found corrupted leading log: " + unsyncByteArrayOutputStream.toString());
+          }
+        }
+        unsyncByteArrayOutputStream=null;
+        break;
+      }
+ catch (      StreamCorruptedException sce) {
+        _unsyncBufferedInputStream.reset();
+        unsyncByteArrayOutputStream.write(_unsyncBufferedInputStream.read());
+      }
+    }
+    while (true) {
+      ProcessCallable<?> processCallable=(ProcessCallable<?>)objectInputStream.readObject();
+      if (processCallable instanceof ExceptionProcessCallable) {
+        return processCallable;
+      }
+      if (processCallable instanceof ReturnProcessCallable<?>) {
+        return processCallable;
+      }
+      Serializable result=processCallable.call();
+      if (_log.isDebugEnabled()) {
+        _log.debug("Invoked generic process callable " + processCallable + " with return value "+ result);
+      }
+    }
+  }
+ catch (  EOFException eofe) {
+  }
+  return null;
+}
