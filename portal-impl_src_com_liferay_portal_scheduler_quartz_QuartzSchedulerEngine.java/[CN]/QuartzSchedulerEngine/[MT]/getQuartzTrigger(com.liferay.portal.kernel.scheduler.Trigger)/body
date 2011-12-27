@@ -2,23 +2,30 @@
   if (trigger == null) {
     return null;
   }
+  Date endDate=trigger.getEndDate();
+  String jobName=fixMaxLength(trigger.getJobName(),JOB_NAME_MAX_LENGTH);
+  String groupName=fixMaxLength(trigger.getGroupName(),GROUP_NAME_MAX_LENGTH);
   Date startDate=trigger.getStartDate();
   if (startDate == null) {
-    if (ServerDetector.getServerId().equals(ServerDetector.TOMCAT_ID)) {
+    if (ServerDetector.isTomcat()) {
       startDate=new Date(System.currentTimeMillis() + Time.MINUTE);
     }
  else {
       startDate=new Date(System.currentTimeMillis() + Time.MINUTE * 3);
     }
   }
-  Date endDate=trigger.getEndDate();
-  String jobName=fixMaxLength(trigger.getJobName(),JOB_NAME_MAX_LENGTH);
-  String groupName=fixMaxLength(trigger.getGroupName(),GROUP_NAME_MAX_LENGTH);
   Trigger quartzTrigger=null;
   TriggerType triggerType=trigger.getTriggerType();
   if (triggerType.equals(TriggerType.CRON)) {
     try {
-      quartzTrigger=TriggerBuilder.newTrigger().withIdentity(jobName,groupName).withSchedule(CronScheduleBuilder.cronSchedule((String)trigger.getTriggerContent())).forJob(jobName,groupName).startAt(startDate).endAt(endDate).build();
+      TriggerBuilder<Trigger> triggerBuilder=TriggerBuilder.newTrigger();
+      triggerBuilder.endAt(endDate);
+      triggerBuilder.forJob(jobName,groupName);
+      triggerBuilder.startAt(startDate);
+      triggerBuilder.withIdentity(jobName,groupName);
+      CronScheduleBuilder cronScheduleBuilder=CronScheduleBuilder.cronSchedule((String)trigger.getTriggerContent());
+      triggerBuilder.withSchedule(cronScheduleBuilder);
+      quartzTrigger=triggerBuilder.build();
     }
  catch (    ParseException pe) {
       throw new SchedulerException("Unable to parse cron text " + trigger.getTriggerContent());
@@ -32,7 +39,16 @@
       }
       return null;
     }
-    quartzTrigger=TriggerBuilder.newTrigger().withIdentity(jobName,groupName).withSchedule(SimpleScheduleBuilder.simpleSchedule().withIntervalInMilliseconds(interval).withRepeatCount(SimpleTrigger.REPEAT_INDEFINITELY)).forJob(jobName,groupName).startAt(startDate).endAt(endDate).build();
+    TriggerBuilder<Trigger> triggerBuilder=TriggerBuilder.newTrigger();
+    triggerBuilder.endAt(endDate);
+    triggerBuilder.forJob(jobName,groupName);
+    triggerBuilder.startAt(startDate);
+    triggerBuilder.withIdentity(jobName,groupName);
+    SimpleScheduleBuilder simpleScheduleBuilder=SimpleScheduleBuilder.simpleSchedule();
+    simpleScheduleBuilder.withIntervalInMilliseconds(interval);
+    simpleScheduleBuilder.withRepeatCount(SimpleTrigger.REPEAT_INDEFINITELY);
+    triggerBuilder.withSchedule(simpleScheduleBuilder);
+    quartzTrigger=triggerBuilder.build();
   }
  else {
     throw new SchedulerException("Unknown trigger type " + trigger.getTriggerType());
