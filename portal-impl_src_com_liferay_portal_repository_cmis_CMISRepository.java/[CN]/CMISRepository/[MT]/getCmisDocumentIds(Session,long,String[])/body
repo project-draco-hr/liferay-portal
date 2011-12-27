@@ -1,13 +1,10 @@
 {
   try {
-    String objectId=toFolderId(session,folderId);
-    StringBundler sb=new StringBundler(64);
+    String folderObjectId=toFolderId(session,folderId);
+    StringBundler sb=new StringBundler();
     sb.append("SELECT cmis:objectId FROM cmis:document");
-    sb.append(StringPool.WHERE);
-    boolean conditionExist=false;
     if ((mimeTypes != null) && (mimeTypes.length > 0)) {
-      conditionExist=Boolean.TRUE;
-      sb.append(" cmis:contentStreamMimeType IN (");
+      sb.append(" WHERE cmis:contentStreamMimeType IN (");
       for (int i=0; i < mimeTypes.length; ) {
         sb.append(StringUtil.quote(mimeTypes[i]));
         if (++i < mimeTypes.length) {
@@ -17,32 +14,29 @@
       sb.append(StringPool.CLOSE_PARENTHESIS);
     }
     if (folderId > 0) {
-      if (conditionExist) {
-        sb.append(StringPool.WHERE_AND);
+      if ((mimeTypes != null) && (mimeTypes.length > 0)) {
+        sb.append(" AND ");
       }
  else {
-        conditionExist=Boolean.TRUE;
+        sb.append(" WHERE ");
       }
       sb.append("IN_FOLDER(");
-      sb.append(StringUtil.quote(objectId));
+      sb.append(StringUtil.quote(folderObjectId));
       sb.append(StringPool.CLOSE_PARENTHESIS);
     }
     String query=sb.toString();
-    if (!conditionExist) {
-      query=query.substring(0,(query.length() - StringPool.WHERE.length()));
-    }
     if (_log.isDebugEnabled()) {
       _log.debug("Calling query " + query);
     }
     ItemIterable<QueryResult> queryResults=session.query(query,false);
     Iterator<QueryResult> itr=queryResults.iterator();
-    List<String> values=new ArrayList<String>();
+    List<String> cmisDocumentIds=new ArrayList<String>();
     while (itr.hasNext()) {
       QueryResult queryResult=itr.next();
-      PropertyData<String> propertyData=queryResult.getPropertyById(PropertyIds.OBJECT_ID);
-      values.add(propertyData.getValues().get(0));
+      String objectId=queryResult.getPropertyValueByQueryName(PropertyIds.OBJECT_ID);
+      cmisDocumentIds.add(objectId);
     }
-    return values;
+    return cmisDocumentIds;
   }
  catch (  SystemException se) {
     throw se;
