@@ -12,30 +12,32 @@
       }
       continue;
     }
-    activityCounter=fetchLatestActivityCounter(groupId,classNameId,classPK,name,ownerType,false);
-    if (activityCounter == null) {
-      if (!lock.isNew()) {
-        continue;
-      }
-      Group group=groupPersistence.findByPrimaryKey(groupId);
-      long activityCounterId=counterLocalService.increment();
-      activityCounter=socialActivityCounterPersistence.create(activityCounterId);
-      activityCounter.setGroupId(groupId);
-      activityCounter.setCompanyId(group.getCompanyId());
-      activityCounter.setClassNameId(classNameId);
-      activityCounter.setClassPK(classPK);
-      activityCounter.setName(name);
-      activityCounter.setOwnerType(ownerType);
-      activityCounter.setCurrentValue(currentValue);
-      activityCounter.setTotalValue(totalValue);
-      activityCounter.setStartPeriod(SocialCounterPeriodUtil.getStartPeriod());
-      activityCounter.setEndPeriod(SocialActivityCounterConstants.END_PERIOD_UNDEFINED);
-      socialActivityCounterPersistence.update(activityCounter,false);
-    }
     if (lock.isNew()) {
-      lockLocalService.unlock(SocialActivityCounter.class.getName(),lockKey,lockKey,false);
+      try {
+        activityCounter=socialActivityCounterLocalService.createActivityCounter(groupId,classNameId,classPK,name,ownerType,currentValue,totalValue);
+      }
+  finally {
+        lockLocalService.unlock(SocialActivityCounter.class.getName(),lockKey,lockKey,false);
+      }
+      break;
     }
-    break;
+    long elapsedTime=System.currentTimeMillis() - lock.getCreateDate().getTime();
+    if (elapsedTime >= _lockTimeout) {
+      lockLocalService.unlock(SocialActivityCounter.class.getName(),lockKey,lock.getOwner(),false);
+      if (_log.isWarnEnabled()) {
+        _log.warn("Forcibly removed timeout Lock : " + lock + ". Please increase the "+ _lockTimeoutKey+ " value, if this is a false remove.");
+      }
+    }
+ else {
+      try {
+        Thread.sleep(_lockRetryDelay);
+      }
+ catch (      InterruptedException ie) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Interrupted from Lock retry delay.",ie);
+        }
+      }
+    }
   }
   return activityCounter;
 }
