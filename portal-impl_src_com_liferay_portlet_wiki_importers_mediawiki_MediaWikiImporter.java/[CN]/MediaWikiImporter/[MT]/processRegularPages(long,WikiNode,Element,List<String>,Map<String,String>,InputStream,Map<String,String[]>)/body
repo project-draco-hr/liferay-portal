@@ -3,44 +3,38 @@
   boolean strictImportMode=MapUtil.getBoolean(options,WikiImporterKeys.OPTIONS_STRICT_IMPORT_MODE);
   ProgressTracker progressTracker=ProgressTrackerThreadLocal.getProgressTracker();
   int count=0;
-  List<Element> pages=root.elements("page");
-  int total=pages.size();
-  Iterator<Element> itr=root.elements("page").iterator();
   int percentage=10;
   int maxPercentage=50;
   if (imagesInputStream == null) {
     maxPercentage=99;
   }
-  int percentageRange=maxPercentage - percentage;
-  for (int i=0; itr.hasNext(); i++) {
-    Element pageEl=itr.next();
-    String title=pageEl.elementText("title");
+  List<Element> pageElements=rootElement.elements("page");
+  for (int i=0; i < pageElements.size(); i++) {
+    Element pageElement=pageElements.get(i);
+    String title=pageElement.elementText("title");
     title=normalizeTitle(title);
-    percentage=Math.min(10 + (i * percentageRange) / total,maxPercentage);
+    percentage=Math.min(10 + (i * (maxPercentage - percentage)) / pageElements.size(),maxPercentage);
     progressTracker.updateProgress(percentage);
     if (isSpecialMediaWikiPage(title,specialNamespaces)) {
       continue;
     }
-    List<Element> revisionEls=pageEl.elements("revision");
+    List<Element> revisionElements=pageElement.elements("revision");
     if (importLatestVersion) {
-      Element lastRevisionEl=revisionEls.get(revisionEls.size() - 1);
-      revisionEls=new ArrayList<Element>();
-      revisionEls.add(lastRevisionEl);
+      Element lastRevisionElement=revisionElements.get(revisionElements.size() - 1);
+      revisionElements=new ArrayList<Element>();
+      revisionElements.add(lastRevisionElement);
     }
-    for (    Element curRevisionEl : revisionEls) {
-      String author=curRevisionEl.element("contributor").elementText("username");
-      String content=curRevisionEl.elementText("text");
-      String summary=curRevisionEl.elementText("comment");
+    for (    Element revisionElement : revisionElements) {
+      Element contributorElement=revisionElement.element("contributor");
+      String author=contributorElement.elementText("username");
+      String content=revisionElement.elementText("text");
+      String summary=revisionElement.elementText("comment");
       try {
         importPage(userId,author,node,title,content,summary,usersMap,strictImportMode);
       }
  catch (      Exception e) {
         if (_log.isWarnEnabled()) {
-          StringBundler sb=new StringBundler(3);
-          sb.append("Page with title ");
-          sb.append(title);
-          sb.append(" could not be imported");
-          _log.warn(sb.toString(),e);
+          _log.warn("Page with title " + title + " could not be imported",e);
         }
       }
     }
