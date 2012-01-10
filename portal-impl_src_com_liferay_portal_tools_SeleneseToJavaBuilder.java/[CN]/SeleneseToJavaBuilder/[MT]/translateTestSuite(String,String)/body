@@ -1,0 +1,68 @@
+{
+  fileName=StringUtil.replace(fileName,StringPool.BACK_SLASH,StringPool.SLASH);
+  int x=fileName.lastIndexOf(StringPool.SLASH);
+  int y=fileName.indexOf(StringPool.PERIOD);
+  String testPackagePath=StringUtil.replace(fileName.substring(0,x),StringPool.SLASH,StringPool.PERIOD);
+  String testName=fileName.substring(x + 1,y);
+  String testFileName=basedir + "/" + fileName.substring(0,y)+ ".java";
+  StringBundler sb=new StringBundler();
+  sb.append("package ");
+  sb.append(testPackagePath);
+  sb.append(";\n");
+  sb.append("import com.liferay.portalweb.portal.BaseTestSuite;\n");
+  sb.append("import com.liferay.portalweb.portal.StopSeleniumTest;\n");
+  String xml=FileUtil.read(basedir + "/" + fileName);
+  x=0;
+  y=0;
+  while (xml.indexOf("<a href=\"",x) != -1) {
+    x=xml.indexOf("<a href=\"",x) + 9;
+    y=xml.indexOf("\">",x);
+    String testCaseName=xml.substring(x,y);
+    if (!testCaseName.contains("..")) {
+      continue;
+    }
+    int z=fileName.lastIndexOf(StringPool.SLASH);
+    String importClassName=fileName.substring(0,z);
+    int count=StringUtil.count(testCaseName,"..");
+    for (int i=0; i < count; i++) {
+      z=importClassName.lastIndexOf(StringPool.SLASH);
+      importClassName=fileName.substring(0,z);
+    }
+    z=testCaseName.lastIndexOf("../",z);
+    importClassName+=testCaseName.substring(z + 2,testCaseName.length() - 5);
+    importClassName=StringUtil.replace(importClassName,StringPool.SLASH,StringPool.PERIOD);
+    sb.append("import ");
+    sb.append(importClassName);
+    sb.append(";\n");
+  }
+  sb.append("import junit.framework.Test;\n");
+  sb.append("import junit.framework.TestSuite;\n");
+  sb.append("public class ");
+  sb.append(testName);
+  sb.append(" extends BaseTestSuite {");
+  sb.append("public static Test suite() {");
+  sb.append("TestSuite testSuite = new TestSuite();");
+  x=xml.indexOf("</b></td></tr>");
+  y=xml.indexOf("</tbody>");
+  xml=xml.substring(x + 15,y);
+  x=0;
+  y=0;
+  while (true) {
+    x=xml.indexOf("\">",x);
+    y=xml.indexOf("</a>",x);
+    if ((x == -1) || (y == -1)) {
+      break;
+    }
+    String className=xml.substring(x + 2,y);
+    x+=className.length();
+    sb.append("testSuite.addTestSuite(");
+    sb.append(className);
+    sb.append(".class);");
+  }
+  sb.append("return testSuite;");
+  sb.append("}");
+  sb.append("}");
+  String content=sb.toString();
+  File testFile=new File(testFileName);
+  ServiceBuilder.writeFile(testFile,content);
+}
