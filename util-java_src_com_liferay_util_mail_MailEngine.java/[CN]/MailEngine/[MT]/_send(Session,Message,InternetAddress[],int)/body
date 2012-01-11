@@ -9,17 +9,35 @@
       String protocol=GetterUtil.getString(session.getProperty("mail.transport.protocol"),Account.PROTOCOL_SMTP);
       Transport transport=session.getTransport(protocol);
       transport.connect(smtpHost,smtpPort,user,password);
+      int currentBatch=0;
+      Address[] portion=null;
       if ((bulkAddresses != null) && (bulkAddresses.length > 0)) {
-        transport.sendMessage(message,bulkAddresses);
+        portion=_getNextBatch(bulkAddresses,currentBatch,batchSize);
       }
  else {
-        transport.sendMessage(message,message.getAllRecipients());
+        portion=_getNextBatch(message.getAllRecipients(),currentBatch,batchSize);
+      }
+      while (Validator.isNotNull(portion)) {
+        transport.sendMessage(message,portion);
+        currentBatch++;
+        if ((bulkAddresses != null) && (bulkAddresses.length > 0)) {
+          portion=_getNextBatch(bulkAddresses,currentBatch,batchSize);
+        }
+ else {
+          portion=_getNextBatch(message.getAllRecipients(),currentBatch,batchSize);
+        }
       }
       transport.close();
     }
  else {
       if ((bulkAddresses != null) && (bulkAddresses.length > 0)) {
-        Transport.send(message,bulkAddresses);
+        int currentBatch=0;
+        Address[] portion=_getNextBatch(bulkAddresses,currentBatch,batchSize);
+        while (Validator.isNotNull(portion)) {
+          Transport.send(message,portion);
+          currentBatch++;
+          portion=_getNextBatch(bulkAddresses,currentBatch,batchSize);
+        }
       }
  else {
         Transport.send(message);
