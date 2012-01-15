@@ -1,0 +1,66 @@
+{
+  JSONObject jsonObject=(JSONObject)object;
+  String className;
+  try {
+    className=jsonObject.getString("javaClass");
+  }
+ catch (  JSONException e) {
+    throw new UnmarshallException("could not read javaClass",e);
+  }
+  if (className == null) {
+    throw new UnmarshallException("no javaClass hint");
+  }
+  Class javaClass=null;
+  Object serializedObject=null;
+  try {
+    javaClass=Class.forName(className);
+    serializedObject=javaClass.newInstance();
+  }
+ catch (  Exception e) {
+    throw new UnmarshallException("error handling javaClass hints " + e.getMessage(),e);
+  }
+  JSONObject jsonSerializable;
+  try {
+    jsonSerializable=jsonObject.getJSONObject("serializable");
+  }
+ catch (  JSONException e) {
+    throw new UnmarshallException("could not read serializable: " + e.getMessage(),e);
+  }
+  if (jsonSerializable == null) {
+    throw new UnmarshallException("serializable missing");
+  }
+  serializerState.setSerialized(object,serializedObject);
+  String fieldName=null;
+  try {
+    while (javaClass != null) {
+      Field[] declaredFields=javaClass.getDeclaredFields();
+      for (      Field field : declaredFields) {
+        int modifiers=field.getModifiers();
+        if (((modifiers & Modifier.FINAL) == Modifier.FINAL) || ((modifiers & Modifier.STATIC) == Modifier.STATIC) || ((modifiers & Modifier.TRANSIENT) == Modifier.TRANSIENT)) {
+          continue;
+        }
+        if (!field.isAccessible()) {
+          field.setAccessible(true);
+        }
+        fieldName=field.getName();
+        if (fieldName.startsWith("_")) {
+          fieldName=fieldName.substring(1);
+        }
+        Object value=null;
+        try {
+          value=ser.unmarshall(serializerState,null,jsonSerializable.get(fieldName));
+        }
+ catch (        UnmarshallException me) {
+        }
+        if (value != null) {
+          field.set(serializedObject,value);
+        }
+      }
+      javaClass=javaClass.getSuperclass();
+    }
+  }
+ catch (  Exception e) {
+    throw new UnmarshallException("field " + fieldName + " "+ e.getMessage(),e);
+  }
+  return serializedObject;
+}

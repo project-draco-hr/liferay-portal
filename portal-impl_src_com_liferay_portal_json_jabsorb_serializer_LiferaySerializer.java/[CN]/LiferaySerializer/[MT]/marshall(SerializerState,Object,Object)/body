@@ -1,0 +1,51 @@
+{
+  Class javaClass=object.getClass();
+  JSONObject jsonObject=new JSONObject();
+  JSONObject serializableData=new JSONObject();
+  if (ser.getMarshallClassHints()) {
+    try {
+      jsonObject.put("javaClass",object.getClass().getName());
+    }
+ catch (    JSONException e) {
+      throw new MarshallException("javaClass not found",e);
+    }
+  }
+  try {
+    jsonObject.put("serializable",serializableData);
+    serializerState.push(object,serializableData,"serializable");
+  }
+ catch (  JSONException e) {
+    throw new MarshallException("Could not add serializable to object: " + e.getMessage(),e);
+  }
+  String fieldName=null;
+  try {
+    while (javaClass != null) {
+      Field[] declaredFields=javaClass.getDeclaredFields();
+      for (      Field field : declaredFields) {
+        int modifiers=field.getModifiers();
+        if (((modifiers & Modifier.FINAL) == Modifier.FINAL) || ((modifiers & Modifier.STATIC) == Modifier.STATIC) || ((modifiers & Modifier.TRANSIENT) == Modifier.TRANSIENT)) {
+          continue;
+        }
+        if (!field.isAccessible()) {
+          field.setAccessible(true);
+        }
+        fieldName=field.getName();
+        if (fieldName.startsWith("_")) {
+          fieldName=fieldName.substring(1);
+        }
+        Object json=ser.marshall(serializerState,serializableData,field.get(object),fieldName);
+        if (JSONSerializer.CIRC_REF_OR_DUPLICATE != json) {
+          serializableData.put(fieldName,json);
+        }
+      }
+      javaClass=javaClass.getSuperclass();
+    }
+  }
+ catch (  Exception e) {
+    throw new MarshallException("field " + fieldName + " "+ e.getMessage(),e);
+  }
+ finally {
+    serializerState.pop();
+  }
+  return jsonObject;
+}

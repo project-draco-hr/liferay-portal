@@ -1,0 +1,46 @@
+{
+  JSONObject jsonObject=(JSONObject)object;
+  String className;
+  try {
+    className=jsonObject.getString("javaClass");
+  }
+ catch (  JSONException e) {
+    throw new UnmarshallException("could not read javaClass",e);
+  }
+  if (className == null) {
+    throw new UnmarshallException("no javaClass hint");
+  }
+  try {
+    Class javaClass=Class.forName(className);
+    Serializable.class.isAssignableFrom(javaClass);
+  }
+ catch (  Exception e) {
+    throw new UnmarshallException("error handling javaClass hint " + e.getMessage(),e);
+  }
+  JSONObject jsonSerializable;
+  try {
+    jsonSerializable=jsonObject.getJSONObject("serializable");
+  }
+ catch (  JSONException e) {
+    throw new UnmarshallException("could not read serializable: " + e.getMessage(),e);
+  }
+  if (jsonSerializable == null) {
+    throw new UnmarshallException("serializable missing");
+  }
+  ObjectMatch objectMatch=new ObjectMatch(-1);
+  Iterator iterator=jsonSerializable.keys();
+  String fieldName=null;
+  serializerState.setSerialized(object,objectMatch);
+  try {
+    while (iterator.hasNext()) {
+      fieldName=(String)iterator.next();
+      ObjectMatch curObjectMatch=ser.tryUnmarshall(serializerState,null,jsonSerializable.get(fieldName));
+      int mismatch=curObjectMatch.max(objectMatch).getMismatch();
+      objectMatch.setMismatch(mismatch);
+    }
+  }
+ catch (  Exception e) {
+    throw new UnmarshallException("field " + fieldName + " "+ e.getMessage(),e);
+  }
+  return objectMatch;
+}
