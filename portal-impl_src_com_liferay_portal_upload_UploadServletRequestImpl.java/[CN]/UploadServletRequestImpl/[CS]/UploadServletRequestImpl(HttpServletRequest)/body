@@ -1,6 +1,7 @@
 {
   super(request);
-  _params=new LinkedHashMap<String,LiferayFileItem[]>();
+  _fileParams=new LinkedHashMap<String,LiferayFileItem[]>();
+  _regularParams=new LinkedHashMap<String,List<String>>();
   try {
     ServletFileUpload servletFileUpload=new LiferayFileUpload(new LiferayFileItemFactory(getTempDir()),request);
     servletFileUpload.setSizeMax(PrefsPropsUtil.getLong(PropsKeys.UPLOAD_SERVLET_REQUEST_IMPL_MAX_SIZE));
@@ -8,9 +9,15 @@
     List<LiferayFileItem> liferayFileItemsList=servletFileUpload.parseRequest(_liferayServletRequest);
     for (    LiferayFileItem liferayFileItem : liferayFileItemsList) {
       if (liferayFileItem.isFormField()) {
-        liferayFileItem.setString(request.getCharacterEncoding());
+        String fieldName=liferayFileItem.getFieldName();
+        if (!_regularParams.containsKey(fieldName)) {
+          _regularParams.put(fieldName,new ArrayList<String>());
+        }
+        List<String> values=_regularParams.get(fieldName);
+        values.add(liferayFileItem.getString());
+        continue;
       }
-      LiferayFileItem[] liferayFileItems=_params.get(liferayFileItem.getFieldName());
+      LiferayFileItem[] liferayFileItems=_fileParams.get(liferayFileItem.getFieldName());
       if (liferayFileItems == null) {
         liferayFileItems=new LiferayFileItem[]{liferayFileItem};
       }
@@ -20,7 +27,7 @@
         newLiferayFileItems[newLiferayFileItems.length - 1]=liferayFileItem;
         liferayFileItems=newLiferayFileItems;
       }
-      _params.put(liferayFileItem.getFieldName(),liferayFileItems);
+      _fileParams.put(liferayFileItem.getFieldName(),liferayFileItems);
     }
   }
  catch (  Exception e) {
