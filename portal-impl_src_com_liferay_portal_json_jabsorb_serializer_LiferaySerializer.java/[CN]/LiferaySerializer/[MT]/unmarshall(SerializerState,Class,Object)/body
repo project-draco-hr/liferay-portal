@@ -1,40 +1,40 @@
 {
   JSONObject jsonObject=(JSONObject)object;
-  String className;
+  String javaClassName=null;
   try {
-    className=jsonObject.getString("javaClass");
-  }
- catch (  JSONException e) {
-    throw new UnmarshallException("could not read javaClass",e);
-  }
-  if (className == null) {
-    throw new UnmarshallException("no javaClass hint");
-  }
-  Class javaClass=null;
-  Object serializedObject=null;
-  try {
-    javaClass=Class.forName(className);
-    serializedObject=javaClass.newInstance();
+    javaClassName=jsonObject.getString("javaClass");
   }
  catch (  Exception e) {
-    throw new UnmarshallException("error handling javaClass hints " + e.getMessage(),e);
+    throw new UnmarshallException("Unable to get javaClass",e);
   }
-  JSONObject jsonSerializable;
+  if (javaClassName == null) {
+    throw new UnmarshallException("javaClass is undefined");
+  }
+  Class<?> javaClass=null;
+  Object javaClassInstance=null;
   try {
-    jsonSerializable=jsonObject.getJSONObject("serializable");
+    javaClass=Class.forName(javaClassName);
+    javaClassInstance=javaClass.newInstance();
   }
- catch (  JSONException e) {
-    throw new UnmarshallException("could not read serializable: " + e.getMessage(),e);
+ catch (  Exception e) {
+    throw new UnmarshallException("Unable to load javaClass " + javaClassName,e);
   }
-  if (jsonSerializable == null) {
-    throw new UnmarshallException("serializable missing");
+  JSONObject serializableJSONObject=null;
+  try {
+    serializableJSONObject=jsonObject.getJSONObject("serializable");
   }
-  serializerState.setSerialized(object,serializedObject);
+ catch (  Exception e) {
+    throw new UnmarshallException("Unable to get serializable",e);
+  }
+  if (serializableJSONObject == null) {
+    throw new UnmarshallException("serializable is undefined");
+  }
+  serializerState.setSerialized(object,javaClassInstance);
   String fieldName=null;
   try {
     while (javaClass != null) {
-      Field[] declaredFields=javaClass.getDeclaredFields();
-      for (      Field field : declaredFields) {
+      Field[] fields=javaClass.getDeclaredFields();
+      for (      Field field : fields) {
         int modifiers=field.getModifiers();
         if (((modifiers & Modifier.FINAL) == Modifier.FINAL) || ((modifiers & Modifier.STATIC) == Modifier.STATIC) || ((modifiers & Modifier.TRANSIENT) == Modifier.TRANSIENT)) {
           continue;
@@ -48,19 +48,19 @@
         }
         Object value=null;
         try {
-          value=ser.unmarshall(serializerState,null,jsonSerializable.get(fieldName));
+          value=ser.unmarshall(serializerState,null,serializableJSONObject.get(fieldName));
         }
- catch (        UnmarshallException me) {
+ catch (        Exception e) {
         }
         if (value != null) {
-          field.set(serializedObject,value);
+          field.set(javaClassInstance,value);
         }
       }
       javaClass=javaClass.getSuperclass();
     }
   }
  catch (  Exception e) {
-    throw new UnmarshallException("field " + fieldName + " "+ e.getMessage(),e);
+    throw new UnmarshallException("Unable to match field " + fieldName,e);
   }
-  return serializedObject;
+  return javaClassInstance;
 }
