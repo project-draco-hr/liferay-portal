@@ -4,9 +4,25 @@
   directoryScanner.setExcludes(new String[]{"**\\EvaluateLogTest.java","**\\EvaluateUserCSVFileTest.java","**\\IterateThemeTest.java","**\\StopSeleniumTest.java","**\\WaitForSystemShutdownTest.java"});
   directoryScanner.setIncludes(new String[]{"**\\*Test.html","**\\*Test.java","**\\*Tests.html","**\\*Tests.java","**\\*TestSuite.java"});
   directoryScanner.scan();
+  int testHtmlCount=0;
+  Map<String,ObjectValuePair<String,IntegerWrapper>> testHtmlMap=new HashMap<String,ObjectValuePair<String,IntegerWrapper>>();
   Set<String> fileNames=SetUtil.fromArray(directoryScanner.getIncludedFiles());
   for (  String fileName : fileNames) {
     if (fileName.endsWith("Test.html")) {
+      testHtmlCount++;
+      String content=FileUtil.read(basedir + "/" + fileName);
+      content=content.trim();
+      content=StringUtil.replace(content,"\n","");
+      content=StringUtil.replace(content,"\r\n","");
+      ObjectValuePair<String,IntegerWrapper> testHtmlOVP=testHtmlMap.get(content);
+      if (testHtmlOVP == null) {
+        testHtmlOVP=new ObjectValuePair<String,IntegerWrapper>(fileName,new IntegerWrapper());
+        testHtmlMap.put(content,testHtmlOVP);
+      }
+ else {
+        IntegerWrapper integerWrapper=testHtmlOVP.getValue();
+        integerWrapper.increment();
+      }
       translateTestCase(basedir,fileName);
     }
  else     if (fileName.endsWith("Tests.html")) {
@@ -17,5 +33,29 @@
         System.out.println("Unused: " + fileName);
       }
     }
+  }
+  List<ObjectValuePair<String,IntegerWrapper>> testHtmlOVPs=new ArrayList<ObjectValuePair<String,IntegerWrapper>>();
+  int duplicateTestHtmlCount=0;
+  for (  Map.Entry<String,ObjectValuePair<String,IntegerWrapper>> entry : testHtmlMap.entrySet()) {
+    ObjectValuePair<String,IntegerWrapper> testHtmlOVP=entry.getValue();
+    testHtmlOVPs.add(testHtmlOVP);
+    IntegerWrapper integerWrapper=testHtmlOVP.getValue();
+    duplicateTestHtmlCount+=integerWrapper.getValue();
+  }
+  Collections.sort(testHtmlOVPs,new TestHtmlCountComparator());
+  StringBundler sb=new StringBundler();
+  for (  ObjectValuePair<String,IntegerWrapper> testHtmlOVP : testHtmlOVPs) {
+    String fileName=testHtmlOVP.getKey();
+    IntegerWrapper integerWrapper=testHtmlOVP.getValue();
+    if (integerWrapper.getValue() > 0) {
+      sb.append(fileName);
+      sb.append(",");
+      sb.append(integerWrapper.getValue());
+      sb.append("\n");
+    }
+  }
+  if (sb.length() > 0) {
+    System.out.println("There are " + duplicateTestHtmlCount + " duplicate tests out of "+ testHtmlCount+ ". See duplicate_selenium_tests.csv.");
+    FileUtil.write("duplicate_selenium_tests.csv",sb.toString());
   }
 }
