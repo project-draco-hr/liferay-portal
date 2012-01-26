@@ -104,14 +104,7 @@
     groupLocalService.addUserGroups(userId,groupIds);
   }
   addDefaultGroups(userId);
-  boolean indexingEnabled=serviceContext.isIndexingEnabled();
-  serviceContext.setIndexingEnabled(false);
-  try {
-    updateOrganizations(userId,organizationIds,serviceContext);
-  }
-  finally {
-    serviceContext.setIndexingEnabled(indexingEnabled);
-  }
+  updateOrganizations(userId,organizationIds,false);
   if (roleIds != null) {
     roleIds=UsersAdminUtil.addRequiredRoles(user,roleIds);
     userPersistence.setRoles(userId,roleIds);
@@ -129,20 +122,28 @@
   if (serviceContext != null) {
     updateAsset(creatorUserId,user,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
   }
-  user.setExpandoBridgeAttributes(serviceContext);
-  if (serviceContext.isIndexingEnabled()) {
+  if (serviceContext != null) {
+    user.setExpandoBridgeAttributes(serviceContext);
+  }
+  if ((serviceContext == null) || serviceContext.isIndexingEnabled()) {
     reindex(user);
   }
   long workflowUserId=creatorUserId;
   if (workflowUserId == userId) {
     workflowUserId=defaultUser.getUserId();
   }
-  serviceContext.setAttribute("autoPassword",autoPassword);
-  serviceContext.setAttribute("sendEmail",sendEmail);
-  WorkflowHandlerRegistryUtil.startWorkflowInstance(companyId,workflowUserId,User.class.getName(),userId,user,serviceContext);
-  String passwordUnencrypted=(String)serviceContext.getAttribute("passwordUnencrypted");
-  if (Validator.isNotNull(passwordUnencrypted)) {
-    user.setPasswordUnencrypted(passwordUnencrypted);
+  ServiceContext workflowServiceContext=serviceContext;
+  if (workflowServiceContext == null) {
+    workflowServiceContext=new ServiceContext();
+  }
+  workflowServiceContext.setAttribute("autoPassword",autoPassword);
+  workflowServiceContext.setAttribute("sendEmail",sendEmail);
+  WorkflowHandlerRegistryUtil.startWorkflowInstance(companyId,workflowUserId,User.class.getName(),userId,user,workflowServiceContext);
+  if (serviceContext != null) {
+    String passwordUnencrypted=(String)serviceContext.getAttribute("passwordUnencrypted");
+    if (Validator.isNotNull(passwordUnencrypted)) {
+      user.setPasswordUnencrypted(passwordUnencrypted);
+    }
   }
   return user;
 }

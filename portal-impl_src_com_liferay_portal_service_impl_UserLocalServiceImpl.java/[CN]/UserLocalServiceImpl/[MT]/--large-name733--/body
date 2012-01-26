@@ -100,15 +100,8 @@
   Group group=groupLocalService.getUserGroup(user.getCompanyId(),userId);
   group.setFriendlyURL(StringPool.SLASH + screenName);
   groupPersistence.update(group,false);
-  boolean indexingEnabled=serviceContext.isIndexingEnabled();
-  serviceContext.setIndexingEnabled(false);
-  try {
-    updateGroups(userId,groupIds,serviceContext);
-    updateOrganizations(userId,organizationIds,serviceContext);
-  }
-  finally {
-    serviceContext.setIndexingEnabled(indexingEnabled);
-  }
+  updateGroups(userId,groupIds,serviceContext,false);
+  updateOrganizations(userId,organizationIds,false);
   if (roleIds != null) {
     roleIds=UsersAdminUtil.addRequiredRoles(user,roleIds);
     userPersistence.setRoles(userId,roleIds);
@@ -124,15 +117,17 @@
   if (serviceContext != null) {
     updateAsset(userId,user,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
   }
-  user.setExpandoBridgeAttributes(serviceContext);
+  if (serviceContext != null) {
+    user.setExpandoBridgeAttributes(serviceContext);
+  }
   if (GetterUtil.getBoolean(PropsKeys.USERS_UPDATE_USER_NAME + MBMessage.class.getName()) && !oldFullName.equals(user.getFullName())) {
     mbMessageLocalService.updateUserName(userId,user.getFullName());
   }
-  if (serviceContext.isIndexingEnabled()) {
+  if ((serviceContext == null) || serviceContext.isIndexingEnabled()) {
     Indexer indexer=IndexerRegistryUtil.getIndexer(User.class);
     indexer.reindex(user);
   }
-  if (sendEmailAddressVerification) {
+  if ((serviceContext != null) && sendEmailAddressVerification) {
     sendEmailAddressVerification(user,emailAddress,serviceContext);
   }
   PermissionCacheUtil.clearCache();
