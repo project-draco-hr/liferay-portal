@@ -6,6 +6,14 @@
   String line=null;
   String previousLine=StringPool.BLANK;
   int lineToSkipIfEmpty=0;
+  String definitionName=null;
+  int definitionType=0;
+  String previousDefinitionName=null;
+  int previousDefinitionType=0;
+  List<String> methodParameterTypes=new ArrayList<String>();
+  List<String> previousMethodParameterTypes=null;
+  boolean readMethodParameterTypes=false;
+  boolean hasSameMethodName=false;
   while ((line=unsyncBufferedReader.readLine()) != null) {
     lineCount++;
     if (line.trim().length() == 0) {
@@ -15,6 +23,48 @@
     line=StringUtil.replace(line,new String[]{"* Copyright (c) 2000-2011 Liferay, Inc."},new String[]{"* Copyright (c) 2000-2012 Liferay, Inc."});
     line=_replacePrimitiveWrapperInstantiation(fileName,line,lineCount);
     String trimmedLine=StringUtil.trimLeading(line);
+    if (line.startsWith(StringPool.TAB + "private ") || line.startsWith(StringPool.TAB + "protected ") || line.startsWith(StringPool.TAB + "public ")) {
+      hasSameMethodName=false;
+      Tuple tuple=_getDefinitionTuple(line);
+      if (tuple != null) {
+        definitionName=(String)tuple.getObject(0);
+        definitionType=(Integer)tuple.getObject(1);
+        boolean isMethod=_isInDefinitionTypeGroup(definitionType,_TYPE_METHOD);
+        boolean isPrivateMethodOrVariable=_isInDefinitionTypeGroup(definitionType,_TYPE_PRIVATE_METHOD_OR_VARIABLE);
+        if (isMethod) {
+          readMethodParameterTypes=true;
+        }
+        if ((isPrivateMethodOrVariable && !definitionName.startsWith(StringPool.UNDERLINE) && !definitionName.equals("serialVersionUID")) || (!isPrivateMethodOrVariable && definitionName.startsWith(StringPool.UNDERLINE))) {
+          _sourceFormatterHelper.printError(fileName,"underscore: " + fileName + " "+ lineCount);
+        }
+        if (Validator.isNotNull(previousDefinitionName)) {
+          if (previousDefinitionType > definitionType) {
+            _sourceFormatterHelper.printError(fileName,"order: " + fileName + " "+ lineCount);
+          }
+ else           if (previousDefinitionType == definitionType) {
+            if (isMethod && previousDefinitionName.equals(definitionName)) {
+              hasSameMethodName=true;
+            }
+ else             if (!_isInDefinitionTypeGroup(definitionType,_TYPE_STATIC_VARIABLE)) {
+              _compareDefinitionNames(fileName,previousDefinitionName,definitionName);
+            }
+          }
+        }
+        previousDefinitionName=definitionName;
+        previousDefinitionType=definitionType;
+      }
+    }
+    if (readMethodParameterTypes) {
+      methodParameterTypes=_addMethodParameterTypes(trimmedLine,methodParameterTypes);
+      if (trimmedLine.contains(StringPool.CLOSE_PARENTHESIS)) {
+        if (hasSameMethodName) {
+          _compareMethodParameterTypes(fileName,previousMethodParameterTypes,methodParameterTypes);
+        }
+        readMethodParameterTypes=false;
+        previousMethodParameterTypes=ListUtil.copy(methodParameterTypes);
+        methodParameterTypes.clear();
+      }
+    }
     if (!trimmedLine.contains(StringPool.DOUBLE_SLASH) && !trimmedLine.startsWith(StringPool.STAR)) {
       while (trimmedLine.contains(StringPool.TAB)) {
         line=StringUtil.replaceLast(line,StringPool.TAB,StringPool.SPACE);
