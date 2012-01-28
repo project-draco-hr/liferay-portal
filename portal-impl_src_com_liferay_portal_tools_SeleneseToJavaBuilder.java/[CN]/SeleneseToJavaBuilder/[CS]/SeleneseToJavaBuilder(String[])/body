@@ -1,19 +1,22 @@
 {
-  DirectoryScanner directoryScanner=new DirectoryScanner();
-  directoryScanner.setBasedir(basedir);
-  directoryScanner.setExcludes(new String[]{"**\\EvaluateLogTest.java","**\\EvaluateUserCSVFileTest.java","**\\IterateThemeTest.java","**\\StopSeleniumTest.java","**\\WaitForSystemShutdownTest.java"});
-  directoryScanner.setIncludes(new String[]{"**\\*Test.html","**\\*Test.java","**\\*Tests.html","**\\*Tests.java","**\\*TestSuite.java"});
-  directoryScanner.scan();
+  CmdLineParser cmdLineParser=new CmdLineParser();
+  CmdLineParser.Option basedirOption=cmdLineParser.addStringOption("basedir");
+  CmdLineParser.Option minimizeOption=cmdLineParser.addStringOption("minimize");
+  cmdLineParser.parse(args);
+  _basedir=(String)cmdLineParser.getOptionValue(basedirOption);
+  String minimizeTestFileName=(String)cmdLineParser.getOptionValue(minimizeOption);
+  minimizeTestFileName=normalizeFileName(minimizeTestFileName);
+  String minimizeTestContent=getNormalizedContent(minimizeTestFileName);
   int testHtmlCount=0;
   Map<String,ObjectValuePair<String,IntegerWrapper>> testHtmlMap=new HashMap<String,ObjectValuePair<String,IntegerWrapper>>();
-  Set<String> fileNames=SetUtil.fromArray(directoryScanner.getIncludedFiles());
+  Set<String> fileNames=getFileNames();
   for (  String fileName : fileNames) {
     if (fileName.endsWith("Test.html")) {
       testHtmlCount++;
-      String content=FileUtil.read(basedir + "/" + fileName);
-      content=content.trim();
-      content=StringUtil.replace(content,"\n","");
-      content=StringUtil.replace(content,"\r\n","");
+      String content=getNormalizedContent(fileName);
+      if ((content != null) && content.equals(minimizeTestContent)) {
+        minimizeTestCase(fileName,minimizeTestFileName);
+      }
       ObjectValuePair<String,IntegerWrapper> testHtmlOVP=testHtmlMap.get(content);
       if (testHtmlOVP == null) {
         testHtmlOVP=new ObjectValuePair<String,IntegerWrapper>(fileName,new IntegerWrapper());
@@ -23,10 +26,10 @@
         IntegerWrapper integerWrapper=testHtmlOVP.getValue();
         integerWrapper.increment();
       }
-      translateTestCase(basedir,fileName);
+      translateTestCase(fileName);
     }
  else     if (fileName.endsWith("Tests.html")) {
-      translateTestSuite(basedir,fileName);
+      translateTestSuite(fileName);
     }
  else     if (fileName.endsWith("Test.java") || fileName.endsWith("Tests.java")) {
       if (!fileNames.contains(fileName.substring(0,fileName.length() - 5) + ".html")) {
@@ -54,8 +57,8 @@
       sb.append("\n");
     }
   }
-  if (false && sb.length() > 0) {
-    System.out.println("There are " + duplicateTestHtmlCount + " duplicate tests out of "+ testHtmlCount+ ". See duplicate_selenium_tests.csv.");
-    FileUtil.write("duplicate_selenium_tests.csv",sb.toString());
+  if (sb.length() > 0) {
+    System.out.println("There are " + duplicateTestHtmlCount + " duplicate tests out of "+ testHtmlCount+ ". See duplicate_selenium_tests.txt.");
+    FileUtil.write("duplicate_selenium_tests.txt",sb.toString());
   }
 }
