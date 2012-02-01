@@ -1,0 +1,33 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getConnection();
+    ps=con.prepareStatement("select fileEntryId, groupId, folderId, title, extension " + "from DLFileEntry");
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      long fileEntryId=rs.getLong("fileEntryId");
+      long groupId=rs.getLong("groupId");
+      long folderId=rs.getLong("folderId");
+      String title=rs.getString("title");
+      String extension=rs.getString("extension");
+      String appendExtension=StringPool.PERIOD + extension;
+      if (title.endsWith(appendExtension)) {
+        title=FileUtil.stripExtension(title);
+        String uniqueTitle=title;
+        int counter=0;
+        while (hasFile(groupId,folderId,uniqueTitle) || hasFile(groupId,folderId,uniqueTitle + appendExtension)) {
+          counter++;
+          uniqueTitle=title + String.valueOf(counter);
+        }
+        if (counter > 0) {
+          runSQL("update DLFileEntry set title = '" + uniqueTitle + appendExtension+ "' where fileEntryId = "+ fileEntryId);
+        }
+      }
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}
