@@ -4,6 +4,7 @@
     return;
   }
   FileEntry fileEntry=(FileEntry)portletDataContext.getZipEntryAsObject(path);
+  FileVersion fileVersion=fileEntry.getFileVersion();
   long userId=portletDataContext.getUserId(fileEntry.getUserUuid());
   Map<Long,Long> folderPKs=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(DLFolder.class);
   long folderId=MapUtil.getLong(folderPKs,fileEntry.getFolderId(),fileEntry.getFolderId());
@@ -69,20 +70,28 @@
         }
       }
       serviceContext.setUuid(fileEntry.getUuid());
+      serviceContext.setAttribute("fileVersionUuid",fileVersion.getUuid());
       importedFileEntry=DLAppLocalServiceUtil.addFileEntry(userId,portletDataContext.getScopeGroupId(),folderId,titleWithExtension,fileEntry.getMimeType(),fileEntry.getTitle(),fileEntry.getDescription(),null,is,fileEntry.getSize(),serviceContext);
     }
- else     if (!isDuplicateFileEntry(folderUuid,fileEntry,existingFileEntry)) {
-      importedFileEntry=DLAppLocalServiceUtil.updateFileEntry(userId,existingFileEntry.getFileEntryId(),fileEntry.getTitle(),fileEntry.getMimeType(),fileEntry.getTitle(),fileEntry.getDescription(),null,false,is,fileEntry.getSize(),serviceContext);
-    }
  else {
-      FileVersion latestFileVersion=existingFileEntry.getLatestFileVersion();
-      DLAppLocalServiceUtil.updateAsset(userId,existingFileEntry,latestFileVersion,assetCategoryIds,assetTagNames,null);
-      if (existingFileEntry instanceof LiferayFileEntry) {
-        LiferayFileEntry liferayFileEntry=(LiferayFileEntry)existingFileEntry;
-        Indexer indexer=IndexerRegistryUtil.getIndexer(DLFileEntry.class);
-        indexer.reindex(liferayFileEntry.getModel());
+      FileVersion latestExistingFileVersion=existingFileEntry.getLatestFileVersion();
+      if (!fileVersion.getUuid().equals(latestExistingFileVersion.getUuid())) {
+        DLFileVersion alreadyExistingFileVersion=DLFileVersionLocalServiceUtil.getFileVersionByUuidAndGroupId(fileVersion.getUuid(),existingFileEntry.getGroupId());
+        if (alreadyExistingFileVersion != null) {
+          serviceContext.setAttribute("existingDLFileVersionId",alreadyExistingFileVersion.getFileVersionId());
+        }
+        serviceContext.setUuid(fileVersion.getUuid());
+        importedFileEntry=DLAppLocalServiceUtil.updateFileEntry(userId,existingFileEntry.getFileEntryId(),fileEntry.getTitle(),fileEntry.getMimeType(),fileEntry.getTitle(),fileEntry.getDescription(),null,false,is,fileEntry.getSize(),serviceContext);
       }
-      importedFileEntry=existingFileEntry;
+ else {
+        DLAppLocalServiceUtil.updateAsset(userId,existingFileEntry,latestExistingFileVersion,assetCategoryIds,assetTagNames,null);
+        if (existingFileEntry instanceof LiferayFileEntry) {
+          LiferayFileEntry liferayFileEntry=(LiferayFileEntry)existingFileEntry;
+          Indexer indexer=IndexerRegistryUtil.getIndexer(DLFileEntry.class);
+          indexer.reindex(liferayFileEntry.getModel());
+        }
+        importedFileEntry=existingFileEntry;
+      }
     }
   }
  else {
