@@ -1,0 +1,36 @@
+{
+  String returnValue="Premature return value";
+  ReturnWithoutExitProcessCallable returnWithoutExitProcessCallable=new ReturnWithoutExitProcessCallable(returnValue);
+  ProcessExecutor processExecutor=new ProcessExecutor();
+  _nullOutExecutorService();
+  Future<String> future=processExecutor.execute(_classPath,returnWithoutExitProcessCallable);
+  ThreadPoolExecutor threadPoolExecutor=(ThreadPoolExecutor)_getExecutorService();
+  Field workersField=ReflectionUtil.getDeclaredField(ThreadPoolExecutor.class,"workers");
+  Set<?> workers=(Set<?>)workersField.get(threadPoolExecutor);
+  assertEquals(1,workers.size());
+  Object worker=workers.iterator().next();
+  Field threadField=ReflectionUtil.getDeclaredField(worker.getClass(),"thread");
+  Thread executorThread=(Thread)threadField.get(worker);
+  while (executorThread.getState() != Thread.State.WAITING)   ;
+  Logger logger=_getLogger();
+  Level oldLevel=logger.getLevel();
+  logger.setLevel(Level.OFF);
+  try {
+    processExecutor.destroy();
+    try {
+      future.get();
+      fail();
+    }
+ catch (    ExecutionException ee) {
+      assertFalse(future.isCancelled());
+      assertTrue(future.isDone());
+      Throwable throwable=ee.getCause();
+      assertTrue(throwable instanceof ProcessException);
+      throwable=throwable.getCause();
+      assertTrue(throwable instanceof InterruptedException);
+    }
+  }
+  finally {
+    logger.setLevel(oldLevel);
+  }
+}

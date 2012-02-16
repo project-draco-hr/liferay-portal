@@ -1,11 +1,12 @@
 {
   try {
     ObjectInputStream objectInputStream=null;
+    UnsyncBufferedInputStream unsyncBufferedInputStream=new UnsyncBufferedInputStream(_process.getInputStream());
     UnsyncByteArrayOutputStream unsyncByteArrayOutputStream=new UnsyncByteArrayOutputStream();
     while (true) {
       try {
-        _unsyncBufferedInputStream.mark(4);
-        objectInputStream=new PortalClassLoaderObjectInputStream(_unsyncBufferedInputStream);
+        unsyncBufferedInputStream.mark(4);
+        objectInputStream=new PortalClassLoaderObjectInputStream(unsyncBufferedInputStream);
         if (unsyncByteArrayOutputStream.size() > 0) {
           if (_log.isWarnEnabled()) {
             _log.warn("Found corrupted leading log: " + unsyncByteArrayOutputStream.toString());
@@ -15,8 +16,8 @@
         break;
       }
  catch (      StreamCorruptedException sce) {
-        _unsyncBufferedInputStream.reset();
-        unsyncByteArrayOutputStream.write(_unsyncBufferedInputStream.read());
+        unsyncBufferedInputStream.reset();
+        unsyncByteArrayOutputStream.write(unsyncBufferedInputStream.read());
       }
     }
     while (true) {
@@ -34,6 +35,18 @@
     }
   }
  catch (  EOFException eofe) {
+    throw new ProcessException("Subprocess piping back ended prematurely.",eofe);
   }
-  return null;
+ finally {
+    try {
+      int exitCode=_process.waitFor();
+      if (exitCode != 0) {
+        throw new ProcessException("Subprocess terminated with exit code " + exitCode);
+      }
+    }
+ catch (    InterruptedException ie) {
+      _process.destroy();
+      throw new ProcessException("Force killed Subprocess on interruption",ie);
+    }
+  }
 }

@@ -1,12 +1,36 @@
 {
-  KillJVMProcessCallable killJVMProcessCallable=new KillJVMProcessCallable(-1);
+  Logger logger=_getLogger();
+  Level oldLevel=logger.getLevel();
+  logger.setLevel(Level.OFF);
   try {
-    ProcessExecutor.execute(killJVMProcessCallable,_classPath);
-    fail();
+    KillJVMProcessCallable killJVMProcessCallable=new KillJVMProcessCallable(-1);
+    Future<Serializable> future=ProcessExecutor.execute(_classPath,killJVMProcessCallable);
+    try {
+      future.get();
+      fail();
+    }
+ catch (    ExecutionException ee) {
+      assertFalse(future.isCancelled());
+      assertTrue(future.isDone());
+      Throwable throwable=ee.getCause();
+      assertTrue(throwable instanceof ProcessException);
+    }
+    killJVMProcessCallable=new KillJVMProcessCallable(0);
+    future=ProcessExecutor.execute(_classPath,killJVMProcessCallable);
+    try {
+      future.get();
+      fail();
+    }
+ catch (    ExecutionException ee) {
+      assertFalse(future.isCancelled());
+      assertTrue(future.isDone());
+      Throwable throwable=ee.getCause();
+      assertTrue(throwable instanceof ProcessException);
+      throwable=throwable.getCause();
+      assertTrue(throwable instanceof EOFException);
+    }
   }
- catch (  ProcessException pe) {
+  finally {
+    logger.setLevel(oldLevel);
   }
-  killJVMProcessCallable=new KillJVMProcessCallable(0);
-  Serializable result=ProcessExecutor.execute(killJVMProcessCallable,_classPath);
-  assertNull(result);
 }
