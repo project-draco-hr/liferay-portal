@@ -1,25 +1,24 @@
 {
-  String returnValue="Premature return value";
-  ReturnWithoutExitProcessCallable returnWithoutExitProcessCallable=new ReturnWithoutExitProcessCallable(returnValue);
+  ReturnWithoutExitProcessCallable returnWithoutExitProcessCallable=new ReturnWithoutExitProcessCallable("Premature return value");
   ProcessExecutor processExecutor=new ProcessExecutor();
   _nullOutExecutorService();
-  Future<String> future=processExecutor.execute(_classPath,returnWithoutExitProcessCallable);
+  Future<String> future=ProcessExecutor.execute(_classPath,returnWithoutExitProcessCallable);
   ThreadPoolExecutor threadPoolExecutor=(ThreadPoolExecutor)_getExecutorService();
   Field workersField=ReflectionUtil.getDeclaredField(ThreadPoolExecutor.class,"workers");
   Set<?> workers=(Set<?>)workersField.get(threadPoolExecutor);
   assertEquals(1,workers.size());
   Object worker=workers.iterator().next();
   Field threadField=ReflectionUtil.getDeclaredField(worker.getClass(),"thread");
-  Thread executorThread=(Thread)threadField.get(worker);
+  Thread thread=(Thread)threadField.get(worker);
   Logger logger=_getLogger();
   if (OSDetector.isWindows()) {
-    logger.log(Level.WARNING,"Can not do Thread.State checking on " + "Windows! Blindly waiting 10 seconds for blocking on" + "Process.waitFor(), on slow machine this may not be enough, "+ "which will cause this test to fail");
+    logger.log(Level.WARNING,"Windows does not properly update thread states. This test " + "may fail on slow machines.");
     Thread.sleep(10000);
   }
  else {
-    while (executorThread.getState() != Thread.State.WAITING)     ;
+    while (thread.getState() != Thread.State.WAITING)     ;
   }
-  Level oldLevel=logger.getLevel();
+  Level level=logger.getLevel();
   logger.setLevel(Level.OFF);
   try {
     processExecutor.destroy();
@@ -37,6 +36,6 @@
     }
   }
   finally {
-    logger.setLevel(oldLevel);
+    logger.setLevel(level);
   }
 }
