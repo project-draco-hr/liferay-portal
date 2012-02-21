@@ -2,6 +2,20 @@
   Connection con=null;
   PreparedStatement ps=null;
   ResultSet rs=null;
+  List<Long> tableIds=new ArrayList<Long>();
+  try {
+    long classNameId=PortalUtil.getClassNameId(DLFileEntry.class);
+    con=DataAccess.getConnection();
+    ps=con.prepareStatement("select tableId from ExpandoTable where classNameId = " + classNameId);
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      long tableId=rs.getLong("tableId");
+      tableIds.add(tableId);
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
   try {
     con=DataAccess.getConnection();
     ps=con.prepareStatement("select uuid_, fileEntryId, groupId, folderId, name, title " + "from DLFileEntry");
@@ -20,8 +34,10 @@
       if (!fileVersionIds.isEmpty()) {
         latestFileVersionId=fileVersionIds.get(0);
       }
-      runSQL("update ExpandoRow set classPK = " + latestFileVersionId + " where classPK = "+ fileEntryId);
-      runSQL("update ExpandoValue set classPK = " + latestFileVersionId + " where classPK = "+ fileEntryId);
+      for (      long tableId : tableIds) {
+        runSQL("update ExpandoRow set classPK = " + latestFileVersionId + " where tableId = "+ tableId+ " and classPK = "+ fileEntryId);
+        runSQL("update ExpandoValue set classPK = " + latestFileVersionId + " where tableId = "+ tableId+ " and classPK = "+ fileEntryId);
+      }
     }
   }
   finally {
