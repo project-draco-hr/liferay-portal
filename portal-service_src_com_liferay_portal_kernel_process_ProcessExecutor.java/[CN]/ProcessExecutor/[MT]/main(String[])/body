@@ -1,9 +1,16 @@
 {
-  ObjectOutputStream objectOutputStream=new ObjectOutputStream(new UnsyncBufferedOutputStream(System.out));
-  ProcessOutputStream outProcessOutputStream=new ProcessOutputStream(objectOutputStream,false);
-  ProcessContext._setProcessOutputStream(outProcessOutputStream);
-  PrintStream outPrintStream=new PrintStream(outProcessOutputStream,true);
-  System.setOut(outPrintStream);
+  PrintStream oldOut=System.out;
+  ObjectOutputStream objectOutputStream=null;
+  ProcessOutputStream outProcessOutputStream=null;
+synchronized (oldOut) {
+    oldOut.flush();
+    FileOutputStream fileOutputStream=new FileOutputStream(FileDescriptor.out);
+    objectOutputStream=new ObjectOutputStream(new UnsyncBufferedOutputStream(fileOutputStream));
+    outProcessOutputStream=new ProcessOutputStream(objectOutputStream,false);
+    ProcessContext._setProcessOutputStream(outProcessOutputStream);
+    PrintStream outPrintStream=new PrintStream(outProcessOutputStream,true);
+    System.setOut(outPrintStream);
+  }
   ProcessOutputStream errProcessOutputStream=new ProcessOutputStream(objectOutputStream,true);
   PrintStream errPrintStream=new PrintStream(errProcessOutputStream,true);
   System.setErr(errPrintStream);
@@ -11,13 +18,13 @@
     ObjectInputStream objectInputStream=new ObjectInputStream(System.in);
     ProcessCallable<?> processCallable=(ProcessCallable<?>)objectInputStream.readObject();
     Serializable result=processCallable.call();
-    outPrintStream.flush();
+    System.out.flush();
     outProcessOutputStream.writeProcessCallable(new ReturnProcessCallable<Serializable>(result));
-    outProcessOutputStream.close();
+    outProcessOutputStream.flush();
   }
  catch (  ProcessException pe) {
     errPrintStream.flush();
     errProcessOutputStream.writeProcessCallable(new ExceptionProcessCallable(pe));
-    errProcessOutputStream.close();
+    errProcessOutputStream.flush();
   }
 }
