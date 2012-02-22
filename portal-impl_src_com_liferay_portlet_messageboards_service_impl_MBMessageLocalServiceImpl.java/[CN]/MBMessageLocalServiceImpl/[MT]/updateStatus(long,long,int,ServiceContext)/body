@@ -1,6 +1,15 @@
 {
   MBMessage message=getMessage(messageId);
   int oldStatus=message.getStatus();
+  if (message.isPending() && (status == WorkflowConstants.STATUS_APPROVED)) {
+    oldStatus=GetterUtil.getInteger(serviceContext.getAttribute("modelStatus"),WorkflowConstants.STATUS_DRAFT);
+  }
+ else {
+    if (message.isApproved() && (status == WorkflowConstants.STATUS_PENDING)) {
+      oldStatus=WorkflowConstants.STATUS_DRAFT_FROM_APPROVED;
+    }
+    serviceContext.setAttribute("modelStatus",oldStatus);
+  }
   User user=userPersistence.findByPrimaryKey(userId);
   Date now=new Date();
   message.setStatus(status);
@@ -42,29 +51,31 @@
       if (serviceContext.isAssetEntryVisible() && ((message.getClassNameId() == 0) || (message.getParentMessageId() != 0))) {
         assetEntryLocalService.updateVisible(message.getWorkflowClassName(),message.getMessageId(),true);
       }
-      if (!message.isDiscussion()) {
-        if (!message.isAnonymous() && !user.isDefaultUser()) {
-          long receiverUserId=0;
-          MBMessage parentMessage=mbMessagePersistence.fetchByPrimaryKey(message.getParentMessageId());
-          if (parentMessage != null) {
-            receiverUserId=parentMessage.getUserId();
-          }
-          socialActivityLocalService.addActivity(userId,message.getGroupId(),MBMessage.class.getName(),message.getMessageId(),MBActivityKeys.ADD_MESSAGE,StringPool.BLANK,receiverUserId);
-          if ((parentMessage != null) && (receiverUserId != userId)) {
-            socialActivityLocalService.addActivity(userId,parentMessage.getGroupId(),MBMessage.class.getName(),parentMessage.getMessageId(),MBActivityKeys.REPLY_MESSAGE,StringPool.BLANK,0);
+      if (oldStatus == WorkflowConstants.STATUS_DRAFT) {
+        if (!message.isDiscussion()) {
+          if (!message.isAnonymous() && !user.isDefaultUser()) {
+            long receiverUserId=0;
+            MBMessage parentMessage=mbMessagePersistence.fetchByPrimaryKey(message.getParentMessageId());
+            if (parentMessage != null) {
+              receiverUserId=parentMessage.getUserId();
+            }
+            socialActivityLocalService.addActivity(userId,message.getGroupId(),MBMessage.class.getName(),message.getMessageId(),MBActivityKeys.ADD_MESSAGE,StringPool.BLANK,receiverUserId);
+            if ((parentMessage != null) && (receiverUserId != userId)) {
+              socialActivityLocalService.addActivity(userId,parentMessage.getGroupId(),MBMessage.class.getName(),parentMessage.getMessageId(),MBActivityKeys.REPLY_MESSAGE,StringPool.BLANK,0);
+            }
           }
         }
-      }
  else {
-        String className=(String)serviceContext.getAttribute("className");
-        long classPK=GetterUtil.getLong((String)serviceContext.getAttribute("classPK"));
-        long parentMessageId=message.getParentMessageId();
-        if (parentMessageId != MBMessageConstants.DEFAULT_PARENT_MESSAGE_ID) {
-          AssetEntry assetEntry=assetEntryLocalService.fetchEntry(className,classPK);
-          if (assetEntry != null) {
-            JSONObject extraDataJSONObject=JSONFactoryUtil.createJSONObject();
-            extraDataJSONObject.put("messageId",message.getMessageId());
-            socialActivityLocalService.addActivity(userId,assetEntry.getGroupId(),className,classPK,SocialActivityConstants.TYPE_ADD_COMMENT,extraDataJSONObject.toString(),assetEntry.getUserId());
+          String className=(String)serviceContext.getAttribute("className");
+          long classPK=GetterUtil.getLong((String)serviceContext.getAttribute("classPK"));
+          long parentMessageId=message.getParentMessageId();
+          if (parentMessageId != MBMessageConstants.DEFAULT_PARENT_MESSAGE_ID) {
+            AssetEntry assetEntry=assetEntryLocalService.fetchEntry(className,classPK);
+            if (assetEntry != null) {
+              JSONObject extraDataJSONObject=JSONFactoryUtil.createJSONObject();
+              extraDataJSONObject.put("messageId",message.getMessageId());
+              socialActivityLocalService.addActivity(userId,assetEntry.getGroupId(),className,classPK,SocialActivityConstants.TYPE_ADD_COMMENT,extraDataJSONObject.toString(),assetEntry.getUserId());
+            }
           }
         }
       }
