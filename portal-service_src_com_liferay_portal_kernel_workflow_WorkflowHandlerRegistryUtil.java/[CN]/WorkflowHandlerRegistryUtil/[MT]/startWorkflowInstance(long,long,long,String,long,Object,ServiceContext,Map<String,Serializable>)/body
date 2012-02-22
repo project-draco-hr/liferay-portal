@@ -6,8 +6,16 @@
   if (workflowHandler == null) {
     throw new WorkflowException("No workflow handler found for " + className);
   }
+  WorkflowDefinitionLink workflowDefinitionLink=null;
+  if (WorkflowThreadLocal.isEnabled() && WorkflowEngineManagerUtil.isDeployed()) {
+    try {
+      workflowDefinitionLink=workflowHandler.getWorkflowDefinitionLink(companyId,groupId,classPK);
+    }
+ catch (    NoSuchWorkflowDefinitionLinkException nswdle) {
+    }
+  }
   int status=WorkflowConstants.STATUS_PENDING;
-  if (!WorkflowThreadLocal.isEnabled() || !WorkflowEngineManagerUtil.isDeployed()) {
+  if (workflowDefinitionLink == null) {
     status=WorkflowConstants.STATUS_APPROVED;
   }
   workflowContext=new HashMap<String,Serializable>(workflowContext);
@@ -19,12 +27,7 @@
   workflowContext.put(WorkflowConstants.CONTEXT_ENTRY_TYPE,workflowHandler.getType(LocaleUtil.getDefault()));
   workflowContext.put(WorkflowConstants.CONTEXT_SERVICE_CONTEXT,serviceContext);
   workflowHandler.updateStatus(status,workflowContext);
-  if (WorkflowThreadLocal.isEnabled() && WorkflowEngineManagerUtil.isDeployed()) {
-    try {
-      workflowHandler.startWorkflowInstance(companyId,groupId,userId,classPK,model,workflowContext);
-    }
- catch (    NoSuchWorkflowDefinitionLinkException nswdle) {
-      workflowHandler.updateStatus(WorkflowConstants.STATUS_APPROVED,workflowContext);
-    }
+  if (workflowDefinitionLink != null) {
+    workflowHandler.startWorkflowInstance(companyId,groupId,userId,classPK,model,workflowContext);
   }
 }
