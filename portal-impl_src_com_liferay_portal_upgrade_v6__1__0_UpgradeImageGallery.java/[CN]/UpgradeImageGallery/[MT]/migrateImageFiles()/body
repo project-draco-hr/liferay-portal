@@ -4,24 +4,51 @@
   ResultSet rs=null;
   try {
     con=DataAccess.getConnection();
-    ps=con.prepareStatement("select imageId from Image");
+    StringBundler sb=new StringBundler(11);
+    sb.append("select fileEntryId, companyId, groupId, folderId, ");
+    sb.append("name, smallImageId, largeImageId, custom1ImageId, ");
+    sb.append("custom2ImageId from DLFileEntry where ");
+    sb.append("((smallImageId is not null) and ");
+    sb.append("(smallImageId != 0)) or ");
+    sb.append("((largeImageId is not null) and ");
+    sb.append("(largeImageId != 0)) or ");
+    sb.append("((custom1ImageId is not null) and ");
+    sb.append("(custom1ImageId != 0)) or ");
+    sb.append("((custom2ImageId is not null) and ");
+    sb.append("(custom2ImageId != 0))");
+    ps=con.prepareStatement(sb.toString());
     rs=ps.executeQuery();
     while (rs.next()) {
-      long imageId=rs.getLong("imageId");
-      migrateImage(imageId);
-    }
-    StringBundler sb=new StringBundler(5);
-    sb.append("delete from Image where imageId in (select ");
-    sb.append("smallImageId from DLFileEntry) or imageId in (select ");
-    sb.append("largeImageId from DLFileEntry) or imageId in (select ");
-    sb.append("custom1ImageId from DLFileEntry) or imageId in ");
-    sb.append("(select custom2ImageId from DLFileEntry)");
-    runSQL(sb.toString());
-    if (_sourceHookClassName.equals(DatabaseHook.class.getName())) {
-      runSQL("update Image set text_ = ''");
+      long fileEntryId=rs.getLong("fileEntryId");
+      long companyId=rs.getLong("companyId");
+      long groupId=rs.getLong("groupId");
+      long folderId=rs.getLong("folderId");
+      String name=rs.getString("name");
+      long smallImageId=rs.getLong("smallImageId");
+      long largeImageId=rs.getLong("largeImageId");
+      long custom1ImageId=rs.getLong("custom1ImageId");
+      long custom2ImageId=rs.getLong("custom2ImageId");
+      migrateImage(fileEntryId,companyId,groupId,folderId,name,smallImageId,largeImageId,custom1ImageId,custom2ImageId);
     }
   }
   finally {
     DataAccess.cleanUp(con,ps,rs);
+  }
+  if (!_sourceHookClassName.equals(DLHook.class.getName())) {
+    try {
+      con=DataAccess.getConnection();
+      ps=con.prepareStatement("select imageId from Image");
+      rs=ps.executeQuery();
+      while (rs.next()) {
+        long imageId=rs.getLong("imageId");
+        migrateImage(imageId);
+      }
+    }
+  finally {
+      DataAccess.cleanUp(con,ps,rs);
+    }
+    if (_sourceHookClassName.equals(DatabaseHook.class.getName())) {
+      runSQL("update Image set text_ = ''");
+    }
   }
 }

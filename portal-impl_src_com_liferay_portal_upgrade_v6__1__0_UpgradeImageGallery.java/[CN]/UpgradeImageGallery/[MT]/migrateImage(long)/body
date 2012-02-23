@@ -1,84 +1,13 @@
 {
-  Connection con=null;
-  PreparedStatement ps=null;
-  ResultSet rs=null;
+  Image image=ImageLocalServiceUtil.getImage(imageId);
   try {
-    con=DataAccess.getConnection();
-    StringBundler sb=new StringBundler(8);
-    sb.append("select fileVersionId, fileEntry.fileEntryId ");
-    sb.append("as fileEntryId, fileEntry.groupId as groupId, ");
-    sb.append("fileEntry.companyId as companyId, fileEntry.folderId ");
-    sb.append("as folderId, name, largeImageId, smallImageId, ");
-    sb.append("custom1ImageId, custom2ImageId from ");
-    sb.append("DLFileVersion fileVersion, DLFileEntry fileEntry ");
-    sb.append("where fileEntry.fileEntryId = fileVersion.fileEntryId ");
-    sb.append("and (largeImageId = ? or smallImageId = ? or ");
-    sb.append("custom1ImageId = ? or custom2ImageId = ?)");
-    String sql=sb.toString();
-    ps=con.prepareStatement(sql);
-    ps.setLong(1,imageId);
-    ps.setLong(2,imageId);
-    ps.setLong(3,imageId);
-    ps.setLong(4,imageId);
-    rs=ps.executeQuery();
-    if (rs.next()) {
-      long fileVersionId=rs.getLong("fileVersionId");
-      long fileEntryId=rs.getLong("fileEntryId");
-      long companyId=rs.getLong("companyId");
-      long groupId=rs.getLong("groupId");
-      long folderId=rs.getLong("folderId");
-      String name=rs.getString("name");
-      long largeImageId=rs.getLong("largeImageId");
-      long custom1ImageId=rs.getLong("custom1ImageId");
-      long custom2ImageId=rs.getLong("custom2ImageId");
-      Image image=ImageLocalServiceUtil.getImage(imageId);
-      if (largeImageId == imageId) {
-        long repositoryId=DLFolderConstants.getDataRepositoryId(groupId,folderId);
-        try {
-          migrateFile(repositoryId,companyId,name,image);
-        }
- catch (        Exception e) {
-          if (_log.isWarnEnabled()) {
-            _log.warn("Ignoring exception for image " + imageId,e);
-          }
-          return;
-        }
-      }
- else {
-        try {
-          InputStream is=_sourceHook.getImageAsStream(image);
-          if (custom1ImageId != imageId) {
-            custom1ImageId=0;
-          }
-          if (custom2ImageId != imageId) {
-            custom2ImageId=0;
-          }
-          ImageProcessorUtil.storeThumbnail(companyId,groupId,fileEntryId,fileVersionId,custom1ImageId,custom2ImageId,is,image.getType());
-        }
- catch (        Exception e) {
-          if (_log.isWarnEnabled()) {
-            _log.warn("Ignoring exception for image " + imageId,e);
-          }
-          return;
-        }
-      }
-      _sourceHook.deleteImage(image);
-    }
- else     if (!_sourceHookClassName.equals(DLHook.class.getName())) {
-      Image image=ImageLocalServiceUtil.getImage(imageId);
-      try {
-        migrateFile(0,0,null,image);
-      }
- catch (      Exception e) {
-        if (_log.isWarnEnabled()) {
-          _log.warn("Ignoring exception for image " + imageId,e);
-        }
-        return;
-      }
-      _sourceHook.deleteImage(image);
-    }
+    migrateFile(0,0,null,image);
   }
-  finally {
-    DataAccess.cleanUp(con,ps,rs);
+ catch (  Exception e) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Ignoring exception for image " + imageId,e);
+    }
+    return;
   }
+  _sourceHook.deleteImage(image);
 }
