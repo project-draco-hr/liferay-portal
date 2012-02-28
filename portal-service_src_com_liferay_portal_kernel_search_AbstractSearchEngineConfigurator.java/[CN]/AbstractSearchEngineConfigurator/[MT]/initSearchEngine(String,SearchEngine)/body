@@ -1,0 +1,23 @@
+{
+  SearchEngineRegistration searchEngineRegistration=new SearchEngineRegistration(searchEngineId,searchEngine);
+  _searchEngineRegistrations.add(searchEngineRegistration);
+  MessageBus messageBus=getMessageBus();
+  Destination searchReaderDestination=getSearchReaderDestination(messageBus,searchEngineId,searchEngine);
+  searchEngineRegistration.setSearchReaderDestinationName(searchReaderDestination.getName());
+  Destination searchWriterDestination=getSearchWriterDestination(messageBus,searchEngineId,searchEngine);
+  searchEngineRegistration.setSearchWriterDestinationName(searchEngineId);
+  Map<String,SearchEngine> searchEngines=SearchEngineUtil.getSearchEngines();
+  SearchEngine originalSearchEngine=searchEngines.get(searchEngineId);
+  if (originalSearchEngine != null) {
+    searchEngineRegistration.setOverride(true);
+    searchEngineRegistration.setOriginalSearchEngineProxyWrapper((SearchEngineProxyWrapper)originalSearchEngine);
+    savePreviousSearchEngineListeners(searchReaderDestination,searchWriterDestination,searchEngineRegistration);
+    messageBus.removeDestination(searchReaderDestination.getName());
+    searchReaderDestination=getSearchReaderDestination(messageBus,searchEngineId,originalSearchEngine);
+    messageBus.removeDestination(searchWriterDestination.getName());
+    searchWriterDestination=getSearchWriterDestination(messageBus,searchEngineId,originalSearchEngine);
+  }
+  createSearchEngineListeners(searchEngineId,searchEngine,searchReaderDestination,searchWriterDestination);
+  SearchEngineProxyWrapper searchEngineProxyWrapper=new SearchEngineProxyWrapper(searchEngine,getIndexSearcher(),getIndexWriter());
+  SearchEngineUtil.setSearchEngine(searchEngineId,searchEngineProxyWrapper);
+}
