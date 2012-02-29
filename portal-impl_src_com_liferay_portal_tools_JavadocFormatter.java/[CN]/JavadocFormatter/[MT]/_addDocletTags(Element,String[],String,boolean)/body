@@ -1,11 +1,9 @@
 {
-  StringBundler sb=new StringBundler();
-  int maxNameLength=0;
-  for (  String name : names) {
-    if (name.length() < maxNameLength) {
-      continue;
-    }
-    List<Element> elements=parentElement.elements(name);
+  ArrayList<String> allTags=new ArrayList<String>();
+  ArrayList<String> commonCommentedTags=new ArrayList<String>();
+  ArrayList<String> nonCommonTags=new ArrayList<String>();
+  for (  String tagName : tagNames) {
+    List<Element> elements=parentElement.elements(tagName);
     for (    Element element : elements) {
       Element commentElement=element.element("comment");
       String comment=null;
@@ -15,51 +13,66 @@
  else {
         comment=element.getText();
       }
-      if (Validator.isNull(comment) && (!publicAccess || !_initializeMissingJavadocs) && (name.equals("param") || name.equals("return") || name.equals("throws"))) {
-        continue;
-      }
-      maxNameLength=name.length();
-      break;
-    }
-  }
-  maxNameLength+=2;
-  String nameIndent=_getSpacesIndent(maxNameLength);
-  for (  String name : names) {
-    List<Element> elements=parentElement.elements(name);
-    for (    Element element : elements) {
-      Element commentElement=element.element("comment");
-      String comment=null;
-      if (commentElement != null) {
-        comment=commentElement.getText();
-      }
- else {
-        comment=element.getText();
-      }
-      if (Validator.isNull(comment) && (!publicAccess || !_initializeMissingJavadocs) && (name.equals("param") || name.equals("return") || name.equals("throws"))) {
-        continue;
-      }
-      if (commentElement != null) {
-        String elementName=element.elementText("name");
-        if (Validator.isNotNull(elementName)) {
-          if (Validator.isNotNull(comment)) {
-            comment=elementName + " " + comment;
-          }
- else {
-            comment=elementName;
-          }
+      if (tagName.equals("param") || tagName.equals("return") || tagName.equals("throws")) {
+        if (Validator.isNotNull(comment)) {
+          commonCommentedTags.add(tagName);
         }
       }
-      if (Validator.isNull(comment)) {
-        sb.append(indent);
-        sb.append(StringPool.AT);
-        sb.append(name);
-        sb.append(StringPool.NEW_LINE);
+ else {
+        nonCommonTags.add(tagName);
+      }
+      allTags.add(tagName);
+    }
+  }
+  ArrayList<String> tagsToMeasure=new ArrayList<String>();
+  if (_initializeMissingJavadocs) {
+    tagsToMeasure.addAll(allTags);
+  }
+ else {
+    tagsToMeasure.addAll(commonCommentedTags);
+    tagsToMeasure.addAll(nonCommonTags);
+  }
+  int maxNameLength=0;
+  for (  String tagName : tagsToMeasure) {
+    if (tagName.length() > maxNameLength) {
+      maxNameLength=tagName.length();
+    }
+  }
+  StringBundler sb=new StringBundler();
+  maxNameLength+=2;
+  String nameIndent=_getSpacesIndent(maxNameLength);
+  for (  String tagName : tagNames) {
+    List<Element> elements=parentElement.elements(tagName);
+    for (    Element element : elements) {
+      Element commentElement=element.element("comment");
+      String comment=null;
+      if (commentElement != null) {
+        comment=commentElement.getText();
       }
  else {
-        comment=_wrapText(comment,indent + nameIndent);
-        String firstLine=indent + "@" + name;
-        comment=firstLine + comment.substring(firstLine.length());
+        comment=element.getText();
+      }
+      String elementName=null;
+      if (commentElement != null) {
+        elementName=element.elementText("name");
+      }
+      if (Validator.isNotNull(comment)) {
+        comment=_assembleTagComment(tagName,elementName,comment,indent,nameIndent);
         sb.append(comment);
+      }
+ else {
+        if (_initializeMissingJavadocs && publicAccess) {
+          comment=_assembleTagComment(tagName,elementName,comment,indent,nameIndent);
+          sb.append(comment);
+        }
+ else {
+          if (!tagName.equals("param") && !tagName.equals("return") && !tagName.equals("throws")) {
+            comment=_assembleTagComment(tagName,elementName,comment,indent,nameIndent);
+            sb.append(comment);
+          }
+ else {
+          }
+        }
       }
     }
   }
