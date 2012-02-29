@@ -10,10 +10,12 @@
  catch (  SystemException se) {
     _log.error("Unable to determine local network address",se);
   }
-  ObjectValuePair<Address,ClusterNode> localInstance=new ObjectValuePair<Address,ClusterNode>(_localAddress,_localClusterNode);
-  _liveInstances.put(localInstance,Long.MAX_VALUE);
-  _clusterNodeAddresses.put(_localClusterNode.getClusterNodeId(),_localAddress);
-  _clusterRequestReceiver.initialize();
-  _scheduledExecutorService=Executors.newScheduledThreadPool(1,new NamedThreadFactory(ClusterExecutorImpl.class.getName(),Thread.NORM_PRIORITY,Thread.currentThread().getContextClassLoader()));
-  _scheduledExecutorService.scheduleWithFixedDelay(new HeartbeatTask(),0,PropsValues.CLUSTER_EXECUTOR_HEARTBEAT_INTERVAL,TimeUnit.MILLISECONDS);
+  try {
+    memberJoined(_localAddress,_localClusterNode);
+    ClusterRequest clusterRequest=ClusterRequest.createClusterRequest(ClusterMessageType.NOTIFY,_localClusterNode);
+    _controlChannel.send(null,null,clusterRequest);
+  }
+ catch (  Exception ce) {
+    _log.error("Unable to send multicast message ",ce);
+  }
 }
