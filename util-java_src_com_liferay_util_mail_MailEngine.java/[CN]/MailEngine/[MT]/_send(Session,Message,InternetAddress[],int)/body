@@ -9,31 +9,30 @@
       String protocol=GetterUtil.getString(session.getProperty("mail.transport.protocol"),Account.PROTOCOL_SMTP);
       Transport transport=session.getTransport(protocol);
       transport.connect(smtpHost,smtpPort,user,password);
-      int curBatch=0;
-      Address[] portion=null;
-      Address[] recipientAddresses=null;
+      Address[] addresses=null;
       if (Validator.isNotNull(bulkAddresses)) {
-        recipientAddresses=bulkAddresses;
+        addresses=bulkAddresses;
       }
  else {
-        recipientAddresses=message.getAllRecipients();
+        addresses=message.getAllRecipients();
       }
-      portion=_getNextBatch(recipientAddresses,curBatch,batchSize);
-      while (Validator.isNotNull(portion)) {
-        transport.sendMessage(message,portion);
-        curBatch++;
-        portion=_getNextBatch(recipientAddresses,curBatch,batchSize);
+      for (int i=0; ; i++) {
+        Address[] batchAddresses=_getBatchAddresses(addresses,i,batchSize);
+        if ((batchAddresses == null) || (batchAddresses.length == 0)) {
+          break;
+        }
+        transport.sendMessage(message,batchAddresses);
       }
       transport.close();
     }
  else {
       if (Validator.isNotNull(bulkAddresses)) {
         int curBatch=0;
-        Address[] portion=_getNextBatch(bulkAddresses,curBatch,batchSize);
+        Address[] portion=_getBatchAddresses(bulkAddresses,curBatch,batchSize);
         while (Validator.isNotNull(portion)) {
           Transport.send(message,portion);
           curBatch++;
-          portion=_getNextBatch(bulkAddresses,curBatch,batchSize);
+          portion=_getBatchAddresses(bulkAddresses,curBatch,batchSize);
         }
       }
  else {
