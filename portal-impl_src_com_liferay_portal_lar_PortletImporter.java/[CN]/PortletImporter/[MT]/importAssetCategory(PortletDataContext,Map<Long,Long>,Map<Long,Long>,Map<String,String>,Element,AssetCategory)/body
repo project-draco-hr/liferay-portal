@@ -2,6 +2,7 @@
   long userId=portletDataContext.getUserId(assetCategory.getUserUuid());
   long assetVocabularyId=MapUtil.getLong(assetVocabularyPKs,assetCategory.getVocabularyId(),assetCategory.getVocabularyId());
   long parentAssetCategoryId=MapUtil.getLong(assetCategoryPKs,assetCategory.getParentCategoryId(),assetCategory.getParentCategoryId());
+  long groupId=portletDataContext.getGroupId();
   if ((parentAssetCategoryId != AssetCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) && (parentAssetCategoryId == assetCategory.getParentCategoryId())) {
     String path=getAssetCategoryPath(portletDataContext,parentAssetCategoryId);
     AssetCategory parentAssetCategory=(AssetCategory)portletDataContext.getZipEntryAsObject(path);
@@ -16,19 +17,11 @@
   serviceContext.setAddGuestPermissions(true);
   serviceContext.setCreateDate(assetCategory.getCreateDate());
   serviceContext.setModifiedDate(assetCategory.getModifiedDate());
+  serviceContext.setScopeGroupId(portletDataContext.getScopeGroupId());
   boolean global=GetterUtil.getBoolean(assetCategoryElement.attributeValue("global"));
   if (global) {
     Group companyGroup=GroupLocalServiceUtil.getCompanyGroup(portletDataContext.getCompanyId());
-    try {
-      AssetPermission.check(PermissionThreadLocal.getPermissionChecker(),companyGroup.getGroupId(),ActionKeys.ADD_CATEGORY);
-      serviceContext.setScopeGroupId(companyGroup.getGroupId());
-    }
- catch (    PortalException e) {
-      serviceContext.setScopeGroupId(portletDataContext.getScopeGroupId());
-    }
-  }
- else {
-    serviceContext.setScopeGroupId(portletDataContext.getScopeGroupId());
+    groupId=companyGroup.getGroupId();
   }
   AssetCategory importedAssetCategory=null;
   try {
@@ -43,15 +36,38 @@
       String value=propertyElement.attributeValue("value");
       properties[i]=key.concat(StringPool.COLON).concat(value);
     }
-    AssetCategory existingAssetCategory=AssetCategoryUtil.fetchByUUID_G(assetCategory.getUuid(),portletDataContext.getScopeGroupId());
+    AssetCategory existingAssetCategory=AssetCategoryUtil.fetchByUUID_G(assetCategory.getUuid(),groupId);
     if (existingAssetCategory == null) {
       String name=getAssetCategoryName(null,portletDataContext.getGroupId(),parentAssetCategoryId,assetCategory.getName(),2);
       serviceContext.setUuid(assetCategory.getUuid());
+      if (global) {
+        if (AssetPermission.contains(PermissionThreadLocal.getPermissionChecker(),groupId,ActionKeys.ADD_CATEGORY)) {
+          serviceContext.setScopeGroupId(groupId);
+        }
+ else {
+          _log.error("Category " + assetCategory.getName() + " could not be imported to the Global scope because"+ " the user doesn't have enough permissions");
+        }
+      }
       importedAssetCategory=AssetCategoryLocalServiceUtil.addCategory(userId,parentAssetCategoryId,getAssetCategoryTitleMap(assetCategory,name),assetCategory.getDescriptionMap(),assetVocabularyId,properties,serviceContext);
     }
  else {
       String name=getAssetCategoryName(assetCategory.getUuid(),assetCategory.getGroupId(),parentAssetCategoryId,assetCategory.getName(),2);
-      importedAssetCategory=AssetCategoryLocalServiceUtil.updateCategory(userId,existingAssetCategory.getCategoryId(),parentAssetCategoryId,getAssetCategoryTitleMap(assetCategory,name),assetCategory.getDescriptionMap(),assetVocabularyId,properties,serviceContext);
+      boolean updateCategory=true;
+      if (global) {
+        PermissionChecker permissionChecker=PermissionThreadLocal.getPermissionChecker();
+        if (permissionChecker.hasPermission(groupId,AssetCategory.class.getName(),existingAssetCategory.getCategoryId(),ActionKeys.UPDATE)) {
+          serviceContext.setScopeGroupId(groupId);
+        }
+ else {
+          updateCategory=false;
+        }
+      }
+      if (updateCategory) {
+        importedAssetCategory=AssetCategoryLocalServiceUtil.updateCategory(userId,existingAssetCategory.getCategoryId(),parentAssetCategoryId,getAssetCategoryTitleMap(assetCategory,name),assetCategory.getDescriptionMap(),assetVocabularyId,properties,serviceContext);
+      }
+ else {
+        _log.error("Category " + existingAssetCategory.getName() + " could not be updated in the global scope because"+ " the user doesn't have enough permissions");
+      }
     }
     assetCategoryPKs.put(assetCategory.getCategoryId(),importedAssetCategory.getCategoryId());
     assetCategoryUuids.put(assetCategory.getUuid(),importedAssetCategory.getUuid());
