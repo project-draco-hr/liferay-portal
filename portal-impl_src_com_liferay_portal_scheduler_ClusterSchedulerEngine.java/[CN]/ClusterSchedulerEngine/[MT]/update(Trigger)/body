@@ -1,11 +1,10 @@
 {
-  if (!PropsValues.SCHEDULER_ENABLED) {
-    return;
-  }
   String jobName=trigger.getJobName();
   String groupName=trigger.getGroupName();
+  boolean isMemoryClusteredSlaveJob=isMemoryClusteredSlaveJob(groupName);
+  _readLock.lock();
   try {
-    if (isMemorySchedulerSlave(groupName)) {
+    if (isMemoryClusteredSlaveJob) {
       for (      ObjectValuePair<SchedulerResponse,TriggerState> memoryClusteredJob : _memoryClusteredJobs.values()) {
         SchedulerResponse schedulerResponse=memoryClusteredJob.getKey();
         if (jobName.equals(schedulerResponse.getJobName()) && groupName.equals(schedulerResponse.getGroupName())) {
@@ -13,14 +12,8 @@
           return;
         }
       }
-      throw new Exception("Unable to update trigger for memory clustered job");
+      throw new SchedulerException("Unable to update trigger for memory clustered job");
     }
-  }
- catch (  Exception e) {
-    throw new SchedulerException("Unable to update job {jobName=" + jobName + ", groupName="+ groupName+ "}",e);
-  }
-  _readLock.lock();
-  try {
     _schedulerEngine.update(trigger);
   }
   finally {

@@ -1,0 +1,37 @@
+{
+  String owner=null;
+  Lock lock=null;
+  while (true) {
+    try {
+      if (owner == null) {
+        lock=LockLocalServiceUtil.lock(_LOCK_CLASS_NAME,_LOCK_CLASS_NAME,_localClusterNodeAddress,PropsValues.MEMORY_CLUSTER_SCHEDULER_LOCK_CACHE_ENABLED);
+      }
+ else {
+        lock=LockLocalServiceUtil.lock(_LOCK_CLASS_NAME,_LOCK_CLASS_NAME,owner,_localClusterNodeAddress,PropsValues.MEMORY_CLUSTER_SCHEDULER_LOCK_CACHE_ENABLED);
+      }
+      Address address=(Address)getDeserializedObject(lock.getOwner());
+      if (ClusterExecutorUtil.isClusterNodeAlive(address)) {
+        break;
+      }
+ else {
+        owner=lock.getOwner();
+      }
+    }
+ catch (    Exception e) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Unable to obtain memory scheduler cluster lock. " + "Trying again.");
+      }
+    }
+  }
+  boolean master=_localClusterNodeAddress.equals(lock.getOwner());
+  if (master == _master) {
+    return lock.getOwner();
+  }
+  if (master) {
+    slaveToMaster();
+  }
+ else {
+    masterToSlave(lock.getOwner());
+  }
+  return lock.getOwner();
+}
