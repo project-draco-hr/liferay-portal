@@ -1,0 +1,62 @@
+{
+  Address bootupAddress=null;
+  do {
+    _clusterNodeAddressesCount--;
+    ClusterNodeResponse clusterNodeResponse=null;
+    try {
+      clusterNodeResponse=blockingQueue.poll(_BOOTUP_CLUSTER_NODE_RESPONSE_TIMEOUT,java.util.concurrent.TimeUnit.MILLISECONDS);
+    }
+ catch (    Exception e) {
+      _log.error("Unable to get cluster node response",e);
+    }
+    if (clusterNodeResponse == null) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Unable to get cluster node response in " + _BOOTUP_CLUSTER_NODE_RESPONSE_TIMEOUT + java.util.concurrent.TimeUnit.MILLISECONDS);
+      }
+      continue;
+    }
+    ClusterNode clusterNode=clusterNodeResponse.getClusterNode();
+    if (clusterNode.getPort() > 0) {
+      try {
+        long remoteLastGeneration=(Long)clusterNodeResponse.getResult();
+        if (remoteLastGeneration > _localLastGeneration) {
+          bootupAddress=clusterNodeResponse.getAddress();
+          break;
+        }
+      }
+ catch (      Exception e) {
+        if (_log.isDebugEnabled()) {
+          _log.debug("Suppress exception caused by remote method " + "invocation",e);
+        }
+        continue;
+      }
+    }
+ else {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Cluster node " + clusterNode + " has invalid port");
+      }
+    }
+  }
+ while ((bootupAddress == null) && (_clusterNodeAddressesCount > 1));
+  if (bootupAddress == null) {
+    return;
+  }
+  InputStream inputStream=null;
+  try {
+    inputStream=getLoadIndexesInputStreamFromCluster(_companyId,bootupAddress);
+    _indexAccessor.loadIndex(inputStream);
+  }
+ catch (  Exception e) {
+    _log.error("Unable to load index for company " + _companyId,e);
+  }
+ finally {
+    if (inputStream != null) {
+      try {
+        inputStream.close();
+      }
+ catch (      IOException ioe) {
+        _log.error("Unable to close input stream for company " + _companyId,ioe);
+      }
+    }
+  }
+}
