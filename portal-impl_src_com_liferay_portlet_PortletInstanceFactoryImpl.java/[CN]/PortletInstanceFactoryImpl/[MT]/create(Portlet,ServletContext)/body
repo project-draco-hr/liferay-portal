@@ -1,56 +1,50 @@
 {
   boolean instanceable=false;
-  if (portlet.isInstanceable() && (PortletConstants.getInstanceId(portlet.getPortletId()) != null)) {
+  if (portlet.isInstanceable() && PortletConstants.isInstanceId(portlet.getPortletId())) {
     instanceable=true;
   }
-  Map<String,InvokerPortlet> portletInstances=_pool.get(portlet.getRootPortletId());
+  String rootPortletId=portlet.getRootPortletId();
+  Map<String,InvokerPortlet> portletInstances=_pool.get(rootPortletId);
   if (portletInstances == null) {
     portletInstances=new ConcurrentHashMap<String,InvokerPortlet>();
-    _pool.put(portlet.getRootPortletId(),portletInstances);
+    _pool.put(rootPortletId,portletInstances);
   }
-  InvokerPortlet instanceInvokerPortletInstance=null;
-  if (instanceable) {
-    instanceInvokerPortletInstance=portletInstances.get(portlet.getPortletId());
+ else   if (instanceable) {
+    InvokerPortlet instanceInvokerPortletInstance=portletInstances.get(portlet.getPortletId());
+    if (instanceInvokerPortletInstance != null) {
+      return instanceInvokerPortletInstance;
+    }
   }
-  InvokerPortlet rootInvokerPortletInstance=null;
-  if (instanceInvokerPortletInstance == null) {
-    rootInvokerPortletInstance=portletInstances.get(portlet.getRootPortletId());
-    if (rootInvokerPortletInstance == null) {
-      PortletBag portletBag=PortletBagPool.get(portlet.getRootPortletId());
-      if (portletBag == null) {
-        PortletBagFactory portletBagFactory=new PortletBagFactory();
-        portletBagFactory.setClassLoader(PortalClassLoaderUtil.getClassLoader());
-        portletBagFactory.setServletContext(servletContext);
-        portletBagFactory.setWARFile(false);
-        try {
-          portletBag=portletBagFactory.create(portlet);
-        }
- catch (        Exception e) {
-          throw new PortletException(e);
-        }
+  InvokerPortlet rootInvokerPortletInstance=portletInstances.get(rootPortletId);
+  if (rootInvokerPortletInstance == null) {
+    PortletBag portletBag=PortletBagPool.get(rootPortletId);
+    if (portletBag == null) {
+      PortletBagFactory portletBagFactory=new PortletBagFactory();
+      portletBagFactory.setClassLoader(PortalClassLoaderUtil.getClassLoader());
+      portletBagFactory.setServletContext(servletContext);
+      portletBagFactory.setWARFile(false);
+      try {
+        portletBag=portletBagFactory.create(portlet);
       }
-      PortletConfig portletConfig=PortletConfigFactoryUtil.create(portlet,servletContext);
-      rootInvokerPortletInstance=init(portlet,portletConfig,portletBag.getPortletInstance());
-      portletInstances.put(portlet.getRootPortletId(),rootInvokerPortletInstance);
+ catch (      Exception e) {
+        throw new PortletException(e);
+      }
     }
+    PortletConfig portletConfig=PortletConfigFactoryUtil.create(portlet,servletContext);
+    rootInvokerPortletInstance=init(portlet,portletConfig,portletBag.getPortletInstance());
+    portletInstances.put(rootPortletId,rootInvokerPortletInstance);
   }
-  if (instanceable) {
-    if (instanceInvokerPortletInstance == null) {
-      javax.portlet.Portlet portletInstance=rootInvokerPortletInstance.getPortletInstance();
-      PortletConfig portletConfig=PortletConfigFactoryUtil.create(portlet,servletContext);
-      PortletContext portletContext=portletConfig.getPortletContext();
-      boolean checkAuthToken=rootInvokerPortletInstance.isCheckAuthToken();
-      boolean facesPortlet=rootInvokerPortletInstance.isFacesPortlet();
-      boolean strutsPortlet=rootInvokerPortletInstance.isStrutsPortlet();
-      boolean strutsBridgePortlet=rootInvokerPortletInstance.isStrutsBridgePortlet();
-      instanceInvokerPortletInstance=_invokerPortletFactory.create(portlet,portletInstance,portletConfig,portletContext,checkAuthToken,facesPortlet,strutsPortlet,strutsBridgePortlet);
-      portletInstances.put(portlet.getPortletId(),instanceInvokerPortletInstance);
-    }
+  if (!instanceable) {
+    return rootInvokerPortletInstance;
   }
- else {
-    if (rootInvokerPortletInstance != null) {
-      instanceInvokerPortletInstance=rootInvokerPortletInstance;
-    }
-  }
+  javax.portlet.Portlet portletInstance=rootInvokerPortletInstance.getPortletInstance();
+  PortletConfig portletConfig=PortletConfigFactoryUtil.create(portlet,servletContext);
+  PortletContext portletContext=portletConfig.getPortletContext();
+  boolean checkAuthToken=rootInvokerPortletInstance.isCheckAuthToken();
+  boolean facesPortlet=rootInvokerPortletInstance.isFacesPortlet();
+  boolean strutsPortlet=rootInvokerPortletInstance.isStrutsPortlet();
+  boolean strutsBridgePortlet=rootInvokerPortletInstance.isStrutsBridgePortlet();
+  InvokerPortlet instanceInvokerPortletInstance=_invokerPortletFactory.create(portlet,portletInstance,portletConfig,portletContext,checkAuthToken,facesPortlet,strutsPortlet,strutsBridgePortlet);
+  portletInstances.put(portlet.getPortletId(),instanceInvokerPortletInstance);
   return instanceInvokerPortletInstance;
 }
