@@ -67,12 +67,29 @@
     throw new LayoutImportException("LAR build number " + importBuildNumber + " does not match "+ "portal build number "+ buildNumber);
   }
   String larType=headerElement.attributeValue("type");
-  if (!larType.equals("layout-set")) {
+  if (!larType.equals("layout-set") && !larType.equals("layout-set-prototype")) {
     throw new LARTypeException("Invalid type of LAR file (" + larType + ")");
   }
   long sourceGroupId=GetterUtil.getLong(headerElement.attributeValue("group-id"));
   portletDataContext.setSourceGroupId(sourceGroupId);
-  String layoutSetPrototypeUuid=headerElement.attributeValue("layout-set-prototype-uuid");
+  if (group.isLayoutSetPrototype() && larType.equals("layout-set-prototype")) {
+    LayoutSetPrototype layoutSetPrototype=LayoutSetPrototypeLocalServiceUtil.getLayoutSetPrototype(group.getClassPK());
+    String layoutSetPrototypeUuid=GetterUtil.getString(headerElement.attributeValue("type-uuid"));
+    LayoutSetPrototype existingLayoutSetPrototype=null;
+    if (Validator.isNotNull(layoutSetPrototypeUuid)) {
+      try {
+        existingLayoutSetPrototype=LayoutSetPrototypeLocalServiceUtil.getLayoutSetPrototypeByUuid(layoutSetPrototypeUuid);
+      }
+ catch (      NoSuchLayoutSetPrototypeException nslspe) {
+      }
+    }
+    if (existingLayoutSetPrototype == null) {
+      layoutSetPrototype.setUuid(layoutSetPrototypeUuid);
+      LayoutSetPrototypeLocalServiceUtil.updateLayoutSetPrototype(layoutSetPrototype);
+    }
+  }
+  Element layoutsElement=rootElement.element("layouts");
+  String layoutSetPrototypeUuid=layoutsElement.attributeValue("layout-set-prototype-uuid");
   ServiceContext serviceContext=ServiceContextThreadLocal.getServiceContext();
   if (Validator.isNotNull(layoutSetPrototypeUuid)) {
     if (layoutSetPrototypeLinkEnabled) {
@@ -156,7 +173,6 @@
   List<Layout> newLayouts=new ArrayList<Layout>();
   Set<Long> newLayoutIds=new HashSet<Long>();
   Map<Long,Layout> newLayoutsMap=(Map<Long,Layout>)portletDataContext.getNewPrimaryKeysMap(Layout.class);
-  Element layoutsElement=rootElement.element("layouts");
   List<Element> layoutElements=layoutsElement.elements("layout");
   if (_log.isDebugEnabled()) {
     if (layoutElements.size() > 0) {
