@@ -3,26 +3,24 @@
     _log.debug("Locating " + name);
   }
   if (name.endsWith(VELOCITY_SUFFIX)) {
-    Object bean=_velocityBeans.get(name);
-    if (bean == null) {
+    Object velocityBean=_velocityBeans.get(name);
+    if (velocityBean == null) {
       String originalName=name.substring(0,name.length() - VELOCITY_SUFFIX.length());
-      bean=_applicationContext.getBean(originalName);
-      Class<?> beanClass=bean.getClass();
-      Class<?>[] interfaces=beanClass.getInterfaces();
-      List<Class<?>> interfacesList=new ArrayList<Class<?>>();
-      for (      Class<?> clazz : interfaces) {
-        try {
-          interfacesList.add(_classLoader.loadClass(clazz.getName()));
-        }
- catch (        ClassNotFoundException cnfe) {
-        }
-      }
-      bean=ProxyUtil.newProxyInstance(_classLoader,interfacesList.toArray(new Class<?>[interfacesList.size()]),new VelocityBeanHandler(bean,_classLoader));
-      _velocityBeans.put(name,bean);
+      Object bean=_applicationContext.getBean(originalName);
+      velocityBean=ProxyUtil.newProxyInstance(_classLoader,getInterfaces(bean),new VelocityBeanHandler(bean,_classLoader));
+      _velocityBeans.put(name,velocityBean);
     }
-    return bean;
+    return velocityBean;
   }
- else {
-    return _applicationContext.getBean(name);
+  Object bean=_applicationContext.getBean(name);
+  if (_wrapPersistenceWithPACLBeanHandler && (bean != null) && (bean instanceof BasePersistence)) {
+    Object paclPersistenceBean=_paclPersistenceBeans.get(name);
+    if (paclPersistenceBean != null) {
+      return paclPersistenceBean;
+    }
+    paclPersistenceBean=ProxyUtil.newProxyInstance(_classLoader,getInterfaces(bean),new PACLBeanHandler(bean));
+    _paclPersistenceBeans.put(name,paclPersistenceBean);
+    return paclPersistenceBean;
   }
+  return bean;
 }
