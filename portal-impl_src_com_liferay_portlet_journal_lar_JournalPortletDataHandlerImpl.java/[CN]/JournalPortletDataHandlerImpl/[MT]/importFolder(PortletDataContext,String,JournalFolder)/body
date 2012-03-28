@@ -1,0 +1,27 @@
+{
+  long userId=portletDataContext.getUserId(folder.getUserUuid());
+  Map<Long,Long> folderPKs=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(JournalFolder.class);
+  long parentFolderId=MapUtil.getLong(folderPKs,folder.getParentFolderId(),folder.getParentFolderId());
+  if ((parentFolderId != JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID) && (parentFolderId == folder.getParentFolderId())) {
+    String path=getImportFolderPath(portletDataContext,parentFolderId);
+    JournalFolder parentFolder=(JournalFolder)portletDataContext.getZipEntryAsObject(path);
+    importFolder(portletDataContext,path,parentFolder);
+    parentFolderId=MapUtil.getLong(folderPKs,folder.getParentFolderId(),folder.getParentFolderId());
+  }
+  ServiceContext serviceContext=portletDataContext.createServiceContext(folderPath,folder,_NAMESPACE);
+  JournalFolder importedFolder=null;
+  if (portletDataContext.isDataStrategyMirror()) {
+    JournalFolder existingFolder=JournalFolderUtil.fetchByUUID_G(folder.getUuid(),portletDataContext.getScopeGroupId());
+    if (existingFolder == null) {
+      serviceContext.setUuid(folder.getUuid());
+      importedFolder=JournalFolderLocalServiceUtil.addFolder(userId,parentFolderId,folder.getName(),folder.getDescription(),serviceContext);
+    }
+ else {
+      importedFolder=JournalFolderLocalServiceUtil.updateFolder(existingFolder.getFolderId(),parentFolderId,folder.getName(),folder.getDescription(),false,serviceContext);
+    }
+  }
+ else {
+    importedFolder=JournalFolderLocalServiceUtil.addFolder(userId,parentFolderId,folder.getName(),folder.getDescription(),serviceContext);
+  }
+  portletDataContext.importClassedModel(folder,importedFolder,_NAMESPACE);
+}
