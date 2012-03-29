@@ -1,17 +1,25 @@
 {
   Callable<Void> callable=new Callable<Void>(){
     public Void call() throws Exception {
-      ObjectValuePair<ClusterLinkImpl,JChannel[]> clusterPlatform=_getClusterLinkPlatform(1,true);
+      ClusterLinkImpl clusterLinkImpl1=_getClusterLinkImpl(1,true);
+      ClusterLinkImpl clusterLinkImpl2=_getClusterLinkImpl(1,true);
+      List<JChannel> channelList1=_getChannelList(clusterLinkImpl1);
+      List<JChannel> channelList2=_getChannelList(clusterLinkImpl2);
       Message message=_createMessage();
-      CaptureHandler captureHandler=_handleLog(ClusterLinkImpl.class,Level.WARNING);
-      clusterPlatform.getValue()[0].close();
-      try {
-        clusterPlatform.getKey().sendUnicastMessage(new AddressImpl(new MockAddress()),message,Priority.LEVEL1);
-      }
- catch (      Exception e) {
-        fail();
-      }
-      _assertLogger(captureHandler,"Unable to send unicast message:" + message,ChannelClosedException.class);
+      TestReceiver testReceiver1=(TestReceiver)channelList1.get(0).getReceiver();
+      TestReceiver testReceiver2=(TestReceiver)channelList2.get(0).getReceiver();
+      clusterLinkImpl1.sendUnicastMessage(new AddressImpl(channelList2.get(0).getAddress()),message,Priority.LEVEL1);
+      String localMessage1=testReceiver1.waitLocalMessage();
+      String remoteMessage1=testReceiver1.waitRemoteMessage();
+      String localMessage2=testReceiver2.waitLocalMessage();
+      String remoteMessage2=testReceiver2.waitRemoteMessage();
+      String messageKey=(String)message.getPayload();
+      assertNull(localMessage1);
+      assertNull(remoteMessage1);
+      assertNull(localMessage2);
+      assertEquals(messageKey,remoteMessage2);
+      clusterLinkImpl1.destroy();
+      clusterLinkImpl2.destroy();
       return null;
     }
   }
