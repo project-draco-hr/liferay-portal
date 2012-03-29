@@ -1,0 +1,50 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+  JSONArray jsonArray=JSONFactoryUtil.createJSONArray();
+  List<Layout> layoutAncestors=null;
+  long selPlid=ParamUtil.getLong(request,"selPlid");
+  if (selPlid != 0) {
+    Layout selLayout=LayoutLocalServiceUtil.getLayout(selPlid);
+    layoutAncestors=selLayout.getAncestors();
+  }
+  List<Layout> layouts=getLayouts(request,groupId,privateLayout,parentLayoutId);
+  for (  Layout layout : layouts) {
+    JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+    if ((layoutAncestors != null) && layoutAncestors.contains(layout) || ArrayUtil.contains(expandedLayoutIds,layout.getLayoutId())) {
+      String childrenJSON=getJSON(request,groupId,layout.getPrivateLayout(),layout.getLayoutId(),expandedLayoutIds);
+      jsonObject.put("children",JSONFactoryUtil.createJSONArray(childrenJSON));
+    }
+    jsonObject.put("contentDisplayPage",layout.isContentDisplayPage());
+    jsonObject.put("friendlyURL",layout.getFriendlyURL());
+    jsonObject.put("hasChildren",layout.hasChildren());
+    jsonObject.put("layoutId",layout.getLayoutId());
+    jsonObject.put("name",layout.getName(themeDisplay.getLocale()));
+    jsonObject.put("parentLayoutId",layout.getParentLayoutId());
+    jsonObject.put("plid",layout.getPlid());
+    jsonObject.put("priority",layout.getPriority());
+    jsonObject.put("privateLayout",layout.isPrivateLayout());
+    jsonObject.put("type",layout.getType());
+    jsonObject.put("updateable",SitesUtil.isLayoutUpdateable(layout));
+    jsonObject.put("uuid",layout.getUuid());
+    LayoutRevision layoutRevision=LayoutStagingUtil.getLayoutRevision(layout);
+    if (layoutRevision != null) {
+      User user=themeDisplay.getUser();
+      long recentLayoutSetBranchId=StagingUtil.getRecentLayoutSetBranchId(user,layout.getLayoutSet().getLayoutSetId());
+      if (StagingUtil.isIncomplete(layout,recentLayoutSetBranchId)) {
+        jsonObject.put("incomplete",true);
+      }
+      long layoutSetBranchId=layoutRevision.getLayoutSetBranchId();
+      LayoutSetBranch layoutSetBranch=LayoutSetBranchLocalServiceUtil.getLayoutSetBranch(layoutSetBranchId);
+      LayoutBranch layoutBranch=layoutRevision.getLayoutBranch();
+      if (!layoutBranch.isMaster()) {
+        jsonObject.put("layoutBranchId",layoutBranch.getLayoutBranchId());
+        jsonObject.put("layoutBranchName",layoutBranch.getName());
+      }
+      jsonObject.put("layoutRevisionId",layoutRevision.getLayoutRevisionId());
+      jsonObject.put("layoutSetBranchId",layoutSetBranchId);
+      jsonObject.put("layoutSetBranchName",layoutSetBranch.getName());
+    }
+    jsonArray.put(jsonObject);
+  }
+  return jsonArray.toString();
+}
