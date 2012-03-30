@@ -1,19 +1,14 @@
 {
-  if (_deployedServletContextNames.contains(event.getServletContextName())) {
-    return;
-  }
-  boolean hasDependencies=true;
-  for (  String dependentServletContextName : event.getDependentServletContextNames()) {
-    if (!_deployedServletContextNames.contains(dependentServletContextName)) {
-      hasDependencies=false;
-      break;
-    }
-  }
-  if (hasDependencies) {
+  if (!_checkMissingDependencies(event)) {
     if (_dependentEvents.contains(event)) {
       if (_log.isInfoEnabled()) {
         _log.info("Deploying " + event.getServletContextName() + " from queue");
       }
+    }
+    String servletContextName=event.getServletContextName();
+synchronized (_dependentServletContexts) {
+      _initDependentServletContextListeners(servletContextName);
+      _dependentServletContexts.remove(servletContextName);
     }
     for (    HotDeployListener listener : _listeners) {
       try {
@@ -29,7 +24,7 @@
         }
       }
     }
-    _deployedServletContextNames.add(event.getServletContextName());
+    _deployedServletContextNames.add(servletContextName);
     _dependentEvents.remove(event);
     List<HotDeployEvent> dependentEvents=new ArrayList<HotDeployEvent>(_dependentEvents);
     for (    HotDeployEvent dependentEvent : dependentEvents) {
