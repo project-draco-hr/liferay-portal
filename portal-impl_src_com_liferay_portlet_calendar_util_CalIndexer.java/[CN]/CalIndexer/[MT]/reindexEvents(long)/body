@@ -1,9 +1,24 @@
 {
-  int count=CalEventLocalServiceUtil.getCompanyEventsCount(companyId);
-  int pages=count / Indexer.DEFAULT_INTERVAL;
-  for (int i=0; i <= pages; i++) {
-    int start=(i * Indexer.DEFAULT_INTERVAL);
-    int end=start + Indexer.DEFAULT_INTERVAL;
-    reindexEvents(companyId,start,end);
+  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(CalEvent.class,PortalClassLoaderUtil.getClassLoader());
+  Projection minEventIdProjection=ProjectionFactoryUtil.min("eventId");
+  Projection maxEventIdProjection=ProjectionFactoryUtil.max("eventId");
+  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
+  projectionList.add(minEventIdProjection);
+  projectionList.add(maxEventIdProjection);
+  dynamicQuery.setProjection(projectionList);
+  addReindexCriteria(dynamicQuery,companyId);
+  List<Object[]> results=CalEventLocalServiceUtil.dynamicQuery(dynamicQuery);
+  Object[] minAndMaxEventIds=results.get(0);
+  if ((minAndMaxEventIds[0] == null) || (minAndMaxEventIds[1] == null)) {
+    return;
+  }
+  long minEventId=(Long)minAndMaxEventIds[0];
+  long maxEventId=(Long)minAndMaxEventIds[1];
+  long startEventId=minEventId;
+  long endEventId=startEventId + DEFAULT_INTERVAL;
+  while (startEventId <= maxEventId) {
+    reindexEvents(companyId,startEventId,endEventId);
+    startEventId=endEventId;
+    endEventId+=DEFAULT_INTERVAL;
   }
 }

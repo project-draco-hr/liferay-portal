@@ -1,0 +1,24 @@
+{
+  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(BookmarksEntry.class,PortalClassLoaderUtil.getClassLoader());
+  Projection minEntryIdProjection=ProjectionFactoryUtil.min("entryId");
+  Projection maxEntryIdProjection=ProjectionFactoryUtil.max("entryId");
+  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
+  projectionList.add(minEntryIdProjection);
+  projectionList.add(maxEntryIdProjection);
+  dynamicQuery.setProjection(projectionList);
+  addReindexCriteria(dynamicQuery,groupId,folderId);
+  List<Object[]> results=BookmarksEntryLocalServiceUtil.dynamicQuery(dynamicQuery);
+  Object[] minAndMaxEntryIds=results.get(0);
+  if ((minAndMaxEntryIds[0] == null) || (minAndMaxEntryIds[1] == null)) {
+    return;
+  }
+  long minEntryId=(Long)minAndMaxEntryIds[0];
+  long maxEntryId=(Long)minAndMaxEntryIds[1];
+  long startEntryId=minEntryId;
+  long endEntryId=startEntryId + DEFAULT_INTERVAL;
+  while (startEntryId <= maxEntryId) {
+    reindexEntries(companyId,groupId,folderId,startEntryId,endEntryId);
+    startEntryId=endEntryId;
+    endEntryId+=DEFAULT_INTERVAL;
+  }
+}

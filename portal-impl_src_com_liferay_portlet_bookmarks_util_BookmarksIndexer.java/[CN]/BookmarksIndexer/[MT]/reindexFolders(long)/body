@@ -1,9 +1,24 @@
 {
-  int folderCount=BookmarksFolderLocalServiceUtil.getCompanyFoldersCount(companyId);
-  int folderPages=folderCount / Indexer.DEFAULT_INTERVAL;
-  for (int i=0; i <= folderPages; i++) {
-    int folderStart=(i * Indexer.DEFAULT_INTERVAL);
-    int folderEnd=folderStart + Indexer.DEFAULT_INTERVAL;
-    reindexFolders(companyId,folderStart,folderEnd);
+  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(BookmarksFolder.class,PortalClassLoaderUtil.getClassLoader());
+  Projection minFolderIdProjection=ProjectionFactoryUtil.min("folderId");
+  Projection maxFolderIdProjection=ProjectionFactoryUtil.max("folderId");
+  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
+  projectionList.add(minFolderIdProjection);
+  projectionList.add(maxFolderIdProjection);
+  dynamicQuery.setProjection(projectionList);
+  addReindexCriteria(dynamicQuery,companyId);
+  List<Object[]> results=BookmarksFolderLocalServiceUtil.dynamicQuery(dynamicQuery);
+  Object[] minAndMaxFolderIds=results.get(0);
+  if ((minAndMaxFolderIds[0] == null) || (minAndMaxFolderIds[1] == null)) {
+    return;
+  }
+  long minFolderId=(Long)minAndMaxFolderIds[0];
+  long maxFolderId=(Long)minAndMaxFolderIds[1];
+  long startFolderId=minFolderId;
+  long endFolderId=startFolderId + DEFAULT_INTERVAL;
+  while (startFolderId <= maxFolderId) {
+    reindexFolders(companyId,startFolderId,endFolderId);
+    startFolderId=endFolderId;
+    endFolderId+=DEFAULT_INTERVAL;
   }
 }

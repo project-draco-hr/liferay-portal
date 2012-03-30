@@ -1,0 +1,24 @@
+{
+  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(WikiPage.class,PortalClassLoaderUtil.getClassLoader());
+  Projection minPageIdProjection=ProjectionFactoryUtil.min("pageId");
+  Projection maxPageIdProjection=ProjectionFactoryUtil.max("pageId");
+  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
+  projectionList.add(minPageIdProjection);
+  projectionList.add(maxPageIdProjection);
+  dynamicQuery.setProjection(projectionList);
+  addReindexCriteria(dynamicQuery,groupId,nodeId);
+  List<Object[]> results=WikiPageLocalServiceUtil.dynamicQuery(dynamicQuery);
+  Object[] minAndMaxPageIds=results.get(0);
+  if ((minAndMaxPageIds[0] == null) || (minAndMaxPageIds[1] == null)) {
+    return;
+  }
+  long minPageId=(Long)minAndMaxPageIds[0];
+  long maxPageId=(Long)minAndMaxPageIds[1];
+  long startPageId=minPageId;
+  long endPageId=startPageId + DEFAULT_INTERVAL;
+  while (startPageId <= maxPageId) {
+    reindexPages(companyId,groupId,nodeId,startPageId,endPageId);
+    startPageId=endPageId;
+    endPageId+=DEFAULT_INTERVAL;
+  }
+}

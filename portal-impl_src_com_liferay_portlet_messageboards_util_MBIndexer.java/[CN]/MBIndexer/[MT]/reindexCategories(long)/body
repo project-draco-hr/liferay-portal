@@ -1,9 +1,24 @@
 {
-  int categoryCount=MBCategoryLocalServiceUtil.getCompanyCategoriesCount(companyId);
-  int categoryPages=categoryCount / Indexer.DEFAULT_INTERVAL;
-  for (int i=0; i <= categoryPages; i++) {
-    int categoryStart=(i * Indexer.DEFAULT_INTERVAL);
-    int categoryEnd=categoryStart + Indexer.DEFAULT_INTERVAL;
-    reindexCategories(companyId,categoryStart,categoryEnd);
+  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(MBCategory.class,PortalClassLoaderUtil.getClassLoader());
+  Projection minCategoryIdProjection=ProjectionFactoryUtil.min("categoryId");
+  Projection maxCategoryIdProjection=ProjectionFactoryUtil.max("categoryId");
+  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
+  projectionList.add(minCategoryIdProjection);
+  projectionList.add(maxCategoryIdProjection);
+  dynamicQuery.setProjection(projectionList);
+  addReindexCriteria(dynamicQuery,companyId);
+  List<Object[]> results=MBCategoryLocalServiceUtil.dynamicQuery(dynamicQuery);
+  Object[] minAndMaxCategoryIds=results.get(0);
+  if ((minAndMaxCategoryIds[0] == null) || (minAndMaxCategoryIds[1] == null)) {
+    return;
+  }
+  long minCategoryId=(Long)minAndMaxCategoryIds[0];
+  long maxCategoryId=(Long)minAndMaxCategoryIds[1];
+  long startCategoryId=minCategoryId;
+  long endCategoryId=startCategoryId + DEFAULT_INTERVAL;
+  while (startCategoryId <= maxCategoryId) {
+    reindexCategories(companyId,startCategoryId,endCategoryId);
+    startCategoryId=endCategoryId;
+    endCategoryId+=DEFAULT_INTERVAL;
   }
 }

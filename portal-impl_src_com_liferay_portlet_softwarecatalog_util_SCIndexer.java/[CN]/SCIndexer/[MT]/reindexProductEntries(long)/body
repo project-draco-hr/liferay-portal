@@ -1,9 +1,24 @@
 {
-  int count=SCProductEntryLocalServiceUtil.getCompanyProductEntriesCount(companyId);
-  int pages=count / Indexer.DEFAULT_INTERVAL;
-  for (int i=0; i <= pages; i++) {
-    int start=(i * Indexer.DEFAULT_INTERVAL);
-    int end=start + Indexer.DEFAULT_INTERVAL;
-    reindexProductEntries(companyId,start,end);
+  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(SCProductEntry.class,PortalClassLoaderUtil.getClassLoader());
+  Projection minProductEntryIdProjection=ProjectionFactoryUtil.min("productEntryId");
+  Projection maxProductEntryIdProjection=ProjectionFactoryUtil.max("productEntryId");
+  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
+  projectionList.add(minProductEntryIdProjection);
+  projectionList.add(maxProductEntryIdProjection);
+  dynamicQuery.setProjection(projectionList);
+  addReindexCriteria(dynamicQuery,companyId);
+  List<Object[]> results=SCProductEntryLocalServiceUtil.dynamicQuery(dynamicQuery);
+  Object[] minAndMaxProductEntryIds=results.get(0);
+  if ((minAndMaxProductEntryIds[0] == null) || (minAndMaxProductEntryIds[1] == null)) {
+    return;
+  }
+  long minProductEntryId=(Long)minAndMaxProductEntryIds[0];
+  long maxProductEntryId=(Long)minAndMaxProductEntryIds[1];
+  long startProductEntryId=minProductEntryId;
+  long endProductEntryId=startProductEntryId + DEFAULT_INTERVAL;
+  while (startProductEntryId <= maxProductEntryId) {
+    reindexProductEntries(companyId,startProductEntryId,endProductEntryId);
+    startProductEntryId=endProductEntryId;
+    endProductEntryId+=DEFAULT_INTERVAL;
   }
 }

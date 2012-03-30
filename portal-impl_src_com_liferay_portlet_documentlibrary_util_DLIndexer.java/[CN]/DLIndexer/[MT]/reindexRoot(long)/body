@@ -1,9 +1,24 @@
 {
-  int groupCount=GroupLocalServiceUtil.getCompanyGroupsCount(companyId);
-  int groupPages=groupCount / Indexer.DEFAULT_INTERVAL;
-  for (int i=0; i <= groupPages; i++) {
-    int groupStart=(i * Indexer.DEFAULT_INTERVAL);
-    int groupEnd=groupStart + Indexer.DEFAULT_INTERVAL;
-    reindexRoot(companyId,groupStart,groupEnd);
+  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(Group.class,PortalClassLoaderUtil.getClassLoader());
+  Projection minGroupIdProjection=ProjectionFactoryUtil.min("groupId");
+  Projection maxGroupIdProjection=ProjectionFactoryUtil.max("groupId");
+  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
+  projectionList.add(minGroupIdProjection);
+  projectionList.add(maxGroupIdProjection);
+  dynamicQuery.setProjection(projectionList);
+  addReindexCriteria(dynamicQuery,companyId);
+  List<Object[]> results=GroupLocalServiceUtil.dynamicQuery(dynamicQuery);
+  Object[] minAndMaxGroupIds=results.get(0);
+  if ((minAndMaxGroupIds[0] == null) || (minAndMaxGroupIds[1] == null)) {
+    return;
+  }
+  long minGroupId=(Long)minAndMaxGroupIds[0];
+  long maxGroupId=(Long)minAndMaxGroupIds[1];
+  long startGroupId=minGroupId;
+  long endGroupId=startGroupId + DEFAULT_INTERVAL;
+  while (startGroupId <= maxGroupId) {
+    reindexRoot(companyId,startGroupId,endGroupId);
+    startGroupId=endGroupId;
+    endGroupId+=DEFAULT_INTERVAL;
   }
 }

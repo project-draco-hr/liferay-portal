@@ -1,9 +1,24 @@
 {
-  int count=BlogsEntryLocalServiceUtil.getCompanyEntriesCount(companyId,new Date(),WorkflowConstants.STATUS_APPROVED);
-  int pages=count / Indexer.DEFAULT_INTERVAL;
-  for (int i=0; i <= pages; i++) {
-    int start=(i * Indexer.DEFAULT_INTERVAL);
-    int end=start + Indexer.DEFAULT_INTERVAL;
-    reindexEntries(companyId,start,end);
+  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(BlogsEntry.class,PortalClassLoaderUtil.getClassLoader());
+  Projection minEntryIdProjection=ProjectionFactoryUtil.min("entryId");
+  Projection maxEntryIdProjection=ProjectionFactoryUtil.max("entryId");
+  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
+  projectionList.add(minEntryIdProjection);
+  projectionList.add(maxEntryIdProjection);
+  dynamicQuery.setProjection(projectionList);
+  addReindexCriteria(dynamicQuery,companyId);
+  List<Object[]> results=BlogsEntryLocalServiceUtil.dynamicQuery(dynamicQuery);
+  Object[] minAndMaxEntryIds=results.get(0);
+  if ((minAndMaxEntryIds[0] == null) || (minAndMaxEntryIds[1] == null)) {
+    return;
+  }
+  long minEntryId=(Long)minAndMaxEntryIds[0];
+  long maxEntryId=(Long)minAndMaxEntryIds[1];
+  long startEntryId=minEntryId;
+  long endEntryId=startEntryId + DEFAULT_INTERVAL;
+  while (startEntryId <= maxEntryId) {
+    reindexEntries(companyId,startEntryId,endEntryId);
+    startEntryId=endEntryId;
+    endEntryId+=DEFAULT_INTERVAL;
   }
 }

@@ -1,9 +1,24 @@
 {
-  int count=JournalArticleLocalServiceUtil.getCompanyArticlesCount(companyId,WorkflowConstants.STATUS_APPROVED);
-  int pages=count / Indexer.DEFAULT_INTERVAL;
-  for (int i=0; i <= pages; i++) {
-    int start=(i * Indexer.DEFAULT_INTERVAL);
-    int end=start + Indexer.DEFAULT_INTERVAL;
-    reindexArticles(companyId,start,end);
+  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(JournalArticle.class,PortalClassLoaderUtil.getClassLoader());
+  Projection minIdProjection=ProjectionFactoryUtil.min("id");
+  Projection maxIdProjection=ProjectionFactoryUtil.max("id");
+  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
+  projectionList.add(minIdProjection);
+  projectionList.add(maxIdProjection);
+  dynamicQuery.setProjection(projectionList);
+  addReindexCriteria(dynamicQuery,companyId,WorkflowConstants.STATUS_APPROVED);
+  List<Object[]> results=JournalArticleLocalServiceUtil.dynamicQuery(dynamicQuery);
+  Object[] minAndMaxIds=results.get(0);
+  if ((minAndMaxIds[0] == null) || (minAndMaxIds[1] == null)) {
+    return;
+  }
+  long minId=(Long)minAndMaxIds[0];
+  long maxId=(Long)minAndMaxIds[1];
+  long startId=minId;
+  long endId=startId + DEFAULT_INTERVAL;
+  while (startId <= maxId) {
+    reindexArticles(companyId,startId,endId);
+    startId=endId;
+    endId+=DEFAULT_INTERVAL;
   }
 }
