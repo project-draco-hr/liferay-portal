@@ -1,9 +1,24 @@
 {
-  int recordsCount=DDLRecordLocalServiceUtil.getCompanyRecordsCount(companyId);
-  int recordPages=recordsCount / Indexer.DEFAULT_INTERVAL;
-  for (int i=0; i <= recordPages; i++) {
-    int start=(i * Indexer.DEFAULT_INTERVAL);
-    int end=start + Indexer.DEFAULT_INTERVAL;
-    reindexRecords(companyId,start,end);
+  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(DDLRecord.class,PortalClassLoaderUtil.getClassLoader());
+  Projection minRecordIdProjection=ProjectionFactoryUtil.min("recordId");
+  Projection maxRecordIdProjection=ProjectionFactoryUtil.max("recordId");
+  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
+  projectionList.add(minRecordIdProjection);
+  projectionList.add(maxRecordIdProjection);
+  dynamicQuery.setProjection(projectionList);
+  addReindexCriteria(dynamicQuery,companyId);
+  List<Object[]> results=DDLRecordLocalServiceUtil.dynamicQuery(dynamicQuery);
+  Object[] minAndMaxRecordIds=results.get(0);
+  if ((minAndMaxRecordIds[0] == null) || (minAndMaxRecordIds[1] == null)) {
+    return;
+  }
+  long minRecordId=(Long)minAndMaxRecordIds[0];
+  long maxRecordId=(Long)minAndMaxRecordIds[1];
+  long startRecordId=minRecordId;
+  long endRecordId=startRecordId + DEFAULT_INTERVAL;
+  while (startRecordId <= maxRecordId) {
+    reindexRecords(companyId,startRecordId,endRecordId);
+    startRecordId=endRecordId;
+    endRecordId+=DEFAULT_INTERVAL;
   }
 }
