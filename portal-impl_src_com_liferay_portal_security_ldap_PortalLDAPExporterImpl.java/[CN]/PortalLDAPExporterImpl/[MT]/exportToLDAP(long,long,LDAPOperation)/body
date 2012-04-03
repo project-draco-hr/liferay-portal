@@ -1,0 +1,45 @@
+{
+  User user=UserLocalServiceUtil.getUser(userId);
+  long companyId=user.getCompanyId();
+  if (!AuthSettingsUtil.isLDAPAuthEnabled(companyId) || !LDAPSettingsUtil.isExportEnabled(companyId) || !LDAPSettingsUtil.isExportGroupEnabled(companyId)) {
+    return;
+  }
+  long ldapServerId=PortalLDAPUtil.getLdapServerId(companyId,user.getScreenName(),user.getEmailAddress());
+  LdapContext ldapContext=PortalLDAPUtil.getContext(ldapServerId,companyId);
+  UserGroup userGroup=UserGroupLocalServiceUtil.getUserGroup(userGroupId);
+  Properties groupMappings=LDAPSettingsUtil.getGroupMappings(ldapServerId,companyId);
+  Properties userMappings=LDAPSettingsUtil.getUserMappings(ldapServerId,companyId);
+  Binding binding=PortalLDAPUtil.getGroup(ldapServerId,companyId,userGroup.getName());
+  try {
+    if (ldapContext == null) {
+      return;
+    }
+    if (binding == null) {
+      if (ldapOperation == LDAPOperation.ADD) {
+        addGroup(ldapServerId,ldapContext,userGroup,user,groupMappings,userMappings);
+      }
+      return;
+    }
+    Name name=new CompositeName();
+    name.add(PortalLDAPUtil.getNameInNamespace(ldapServerId,companyId,binding));
+    Modifications modifications=_portalToLDAPConverter.getLDAPGroupModifications(ldapServerId,userGroup,user,groupMappings,userMappings,ldapOperation);
+    ModificationItem[] modificationItems=modifications.getItems();
+    ldapContext.modifyAttributes(name,modificationItems);
+  }
+ catch (  SchemaViolationException sve) {
+    String fullGroupDN=PortalLDAPUtil.getNameInNamespace(ldapServerId,companyId,binding);
+    Attributes attributes=PortalLDAPUtil.getGroupAttributes(ldapServerId,companyId,ldapContext,fullGroupDN,true);
+    Attribute groupMembers=attributes.get(groupMappings.getProperty(GroupConverterKeys.USER));
+    if (groupMembers.size() == 1) {
+      ldapContext.unbind(fullGroupDN);
+    }
+  }
+catch (  Exception e) {
+    throw e;
+  }
+ finally {
+    if (ldapContext != null) {
+      ldapContext.close();
+    }
+  }
+}
