@@ -1,18 +1,18 @@
 {
-  if (!_checkMissingDependencies(event)) {
-    if (_dependentEvents.contains(event)) {
+  String servletContextName=hotDeployEvent.getServletContextName();
+  if (!_isMissingDependentServletContext(hotDeployEvent)) {
+    if (_dependentHotDeployEvents.contains(hotDeployEvent)) {
       if (_log.isInfoEnabled()) {
-        _log.info("Deploying " + event.getServletContextName() + " from queue");
+        _log.info("Deploying " + servletContextName + " from queue");
       }
     }
-    String servletContextName=event.getServletContextName();
 synchronized (_dependentServletContexts) {
       _initDependentServletContextListeners(servletContextName);
       _dependentServletContexts.remove(servletContextName);
     }
-    for (    HotDeployListener listener : _listeners) {
+    for (    HotDeployListener hotDeployListener : _hotDeployListeners) {
       try {
-        listener.invokeDeploy(event);
+        hotDeployListener.invokeDeploy(hotDeployEvent);
       }
  catch (      HotDeployException hde) {
         Throwable cause=hde.getCause();
@@ -25,31 +25,31 @@ synchronized (_dependentServletContexts) {
       }
     }
     _deployedServletContextNames.add(servletContextName);
-    _dependentEvents.remove(event);
-    List<HotDeployEvent> dependentEvents=new ArrayList<HotDeployEvent>(_dependentEvents);
+    _dependentHotDeployEvents.remove(hotDeployEvent);
+    List<HotDeployEvent> dependentEvents=new ArrayList<HotDeployEvent>(_dependentHotDeployEvents);
     for (    HotDeployEvent dependentEvent : dependentEvents) {
       _doFireDeployEvent(dependentEvent);
     }
   }
  else {
-    if (!_dependentEvents.contains(event)) {
+    if (!_dependentHotDeployEvents.contains(hotDeployEvent)) {
       if (_log.isInfoEnabled()) {
-        StringBuilder sb=new StringBuilder();
+        StringBundler sb=new StringBundler(4);
         sb.append("Queueing ");
-        sb.append(event.getServletContextName());
+        sb.append(servletContextName);
         sb.append(" for deploy because it is missing ");
-        sb.append(_getRequiredServletContextNames(event));
+        sb.append(_getRequiredServletContextNames(hotDeployEvent));
         _log.info(sb.toString());
       }
-      _dependentEvents.add(event);
+      _dependentHotDeployEvents.add(hotDeployEvent);
     }
  else {
       if (_log.isInfoEnabled()) {
-        for (        HotDeployEvent dependentEvent : _dependentEvents) {
-          StringBuilder sb=new StringBuilder();
-          sb.append(dependentEvent.getServletContextName());
+        for (        HotDeployEvent dependentHotDeployEvent : _dependentHotDeployEvents) {
+          StringBundler sb=new StringBundler(3);
+          sb.append(servletContextName);
           sb.append(" is still in queue because it is missing ");
-          sb.append(_getRequiredServletContextNames(dependentEvent));
+          sb.append(_getRequiredServletContextNames(dependentHotDeployEvent));
           _log.info(sb.toString());
         }
       }
