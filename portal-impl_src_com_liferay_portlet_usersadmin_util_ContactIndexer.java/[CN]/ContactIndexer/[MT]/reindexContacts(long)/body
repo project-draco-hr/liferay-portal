@@ -1,0 +1,24 @@
+{
+  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(Contact.class,PortalClassLoaderUtil.getClassLoader());
+  Projection minContactIdProjection=ProjectionFactoryUtil.min("contactId");
+  Projection maxContactIdProjection=ProjectionFactoryUtil.max("contactId");
+  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
+  projectionList.add(minContactIdProjection);
+  projectionList.add(maxContactIdProjection);
+  dynamicQuery.setProjection(projectionList);
+  addReindexCriteria(dynamicQuery,companyId);
+  List<Object[]> results=ContactLocalServiceUtil.dynamicQuery(dynamicQuery);
+  Object[] minAndMaxContactIds=results.get(0);
+  if ((minAndMaxContactIds[0] == null) || (minAndMaxContactIds[1] == null)) {
+    return;
+  }
+  long minContactId=(Long)minAndMaxContactIds[0];
+  long maxContactId=(Long)minAndMaxContactIds[1];
+  long startContactId=minContactId;
+  long endContactId=startContactId + DEFAULT_INTERVAL;
+  while (startContactId <= maxContactId) {
+    reindexContacts(companyId,startContactId,endContactId);
+    startContactId=endContactId;
+    endContactId+=DEFAULT_INTERVAL;
+  }
+}
