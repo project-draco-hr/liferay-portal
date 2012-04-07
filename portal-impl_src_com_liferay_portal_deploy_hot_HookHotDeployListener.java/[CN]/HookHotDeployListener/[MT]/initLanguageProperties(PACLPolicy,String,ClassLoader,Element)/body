@@ -1,0 +1,52 @@
+{
+  LanguagesContainer languagesContainer=new LanguagesContainer();
+  _languagesContainerMap.put(servletContextName,languagesContainer);
+  List<Element> languagePropertiesElements=parentElement.elements("language-properties");
+  Map<String,String> baseLanguageMap=null;
+  for (  Element languagePropertiesElement : languagePropertiesElements) {
+    Properties properties=null;
+    String languagePropertiesLocation=languagePropertiesElement.getText();
+    Locale locale=getLocale(languagePropertiesLocation);
+    if (locale != null) {
+      if (!paclPolicy.hasHookLanguagePropertiesLocale(locale)) {
+        if (_log.isInfoEnabled()) {
+          _log.info("Rejecting locale " + locale);
+        }
+        continue;
+      }
+    }
+    try {
+      URL url=portletClassLoader.getResource(languagePropertiesLocation);
+      if (url == null) {
+        continue;
+      }
+      InputStream is=url.openStream();
+      properties=PropertiesUtil.load(is,StringPool.UTF8);
+      is.close();
+    }
+ catch (    Exception e) {
+      _log.error("Unable to read " + languagePropertiesLocation,e);
+      continue;
+    }
+    Map<String,String> languageMap=new HashMap<String,String>();
+    if (baseLanguageMap != null) {
+      languageMap.putAll(baseLanguageMap);
+    }
+    for (    Map.Entry<Object,Object> entry : properties.entrySet()) {
+      String key=(String)entry.getKey();
+      String value=(String)entry.getValue();
+      value=LanguageResources.fixValue(value);
+      languageMap.put(key,value);
+    }
+    if (locale != null) {
+      languagesContainer.addLanguage(locale,languageMap);
+    }
+ else     if (!languageMap.isEmpty()) {
+      baseLanguageMap=languageMap;
+    }
+  }
+  if (baseLanguageMap != null) {
+    Locale locale=new Locale(StringPool.BLANK);
+    languagesContainer.addLanguage(locale,baseLanguageMap);
+  }
+}
