@@ -28,10 +28,21 @@
       _log.debug("Retrieved PACL policy for " + paclPolicy.getServletContextName());
     }
   }
-  if (paclPolicy != null) {
-    if (!paclPolicy.hasService(_bean,method)) {
-      throw new SecurityException("Attempted to invoke " + method);
-    }
+  if (paclPolicy == null) {
+    return method.invoke(_bean,arguments);
   }
-  return method.invoke(_bean,arguments);
+  if (!paclPolicy.hasService(_bean,method)) {
+    throw new SecurityException("Attempted to invoke " + method);
+  }
+  boolean enabled=PortalSecurityManagerThreadLocal.isEnabled();
+  try {
+    Class<?> beanClass=_bean.getClass();
+    if (paclPolicy.getClassLoader() != beanClass.getClassLoader()) {
+      PortalSecurityManagerThreadLocal.setEnabled(false);
+    }
+    return method.invoke(_bean,arguments);
+  }
+  finally {
+    PortalSecurityManagerThreadLocal.setEnabled(enabled);
+  }
 }
