@@ -1,0 +1,55 @@
+{
+  InputStream inputStream=null;
+  OutputStream outputStream=null;
+  try {
+    String serverURL=_LICENSE_SERVER_URL;
+    if (!serverURL.endsWith(StringPool.SLASH)) {
+      serverURL+=StringPool.SLASH;
+    }
+    serverURL+="osb-portlet/license";
+    URL url=new URL(serverURL);
+    URLConnection connection=null;
+    if (Validator.isNotNull(_PROXY_URL)) {
+      if (_log.isInfoEnabled()) {
+        _log.info("Using proxy " + _PROXY_URL + StringPool.COLON+ _PROXY_PORT);
+      }
+      Proxy proxy=new Proxy(Proxy.Type.HTTP,new InetSocketAddress(_PROXY_URL,_PROXY_PORT));
+      connection=url.openConnection(proxy);
+      if (Validator.isNotNull(_PROXY_USER_NAME)) {
+        String login=_PROXY_USER_NAME + StringPool.COLON + _PROXY_PASSWORD;
+        String encodedLogin=Base64.encode(login.getBytes());
+        connection.setRequestProperty("Proxy-Authorization","Basic " + encodedLogin);
+      }
+    }
+ else {
+      connection=url.openConnection();
+    }
+    connection.setDoOutput(true);
+    outputStream=connection.getOutputStream();
+    outputStream.write(_encryptRequest(serverURL,request));
+    String response=_decryptResponse(serverURL,connection.getInputStream());
+    if (_log.isDebugEnabled()) {
+      _log.debug("Server response: " + response);
+    }
+    if (Validator.isNull(response)) {
+      throw new Exception("Server response is null");
+    }
+    return response;
+  }
+  finally {
+    try {
+      if (inputStream != null) {
+        inputStream.close();
+      }
+    }
+ catch (    Exception e) {
+    }
+    try {
+      if (outputStream != null) {
+        outputStream.close();
+      }
+    }
+ catch (    Exception e) {
+    }
+  }
+}
