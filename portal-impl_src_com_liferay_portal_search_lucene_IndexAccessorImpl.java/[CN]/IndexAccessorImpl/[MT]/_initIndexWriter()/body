@@ -1,8 +1,25 @@
 {
   try {
-    _indexWriter=new IndexWriter(getLuceneDir(),LuceneHelperUtil.getAnalyzer(),_dumpIndexDeletionPolicy,IndexWriter.MaxFieldLength.LIMITED);
-    _indexWriter.setMergeFactor(PropsValues.LUCENE_MERGE_FACTOR);
-    _indexWriter.setRAMBufferSizeMB(PropsValues.LUCENE_BUFFER_SIZE);
+    LimitTokenCountAnalyzer analyzer=new LimitTokenCountAnalyzer(LuceneHelperUtil.getAnalyzer(),_DEFAULT_MAX_FIELD_LENGTH);
+    IndexWriterConfig indexWriterConfig=new IndexWriterConfig(LuceneHelperUtil.getVersion(),analyzer);
+    String mergePolicyClassName=PropsUtil.get(PropsKeys.LUCENE_MERGE_POLICY);
+    ClassLoader classLoader=PortalClassLoaderUtil.getClassLoader();
+    MergePolicy mergePolicy=(MergePolicy)InstanceFactory.newInstance(classLoader,mergePolicyClassName);
+    if (mergePolicy instanceof LogMergePolicy) {
+      LogMergePolicy logMergePolicy=(LogMergePolicy)mergePolicy;
+      logMergePolicy.setMergeFactor(PropsValues.LUCENE_MERGE_FACTOR);
+    }
+    indexWriterConfig.setMergePolicy(mergePolicy);
+    indexWriterConfig.setRAMBufferSizeMB(PropsValues.LUCENE_BUFFER_SIZE);
+    indexWriterConfig.setIndexDeletionPolicy(_dumpIndexDeletionPolicy);
+    _indexWriter=new IndexWriter(getLuceneDir(),indexWriterConfig);
+    IndexReader indexReader=IndexReader.open(_indexWriter,false);
+    if (!indexReader.indexExists(getLuceneDir())) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Index file does not exists, creating empty" + " index, please reindex to make it up-to-date.");
+      }
+      _doCommit();
+    }
   }
  catch (  Exception e) {
     _log.error("Initializing Lucene writer failed for " + _companyId,e);
