@@ -14,24 +14,33 @@
     blogsStatsUserLocalService.updateStatsUser(entry.getGroupId(),user.getUserId(),entry.getDisplayDate());
     if (oldStatus != WorkflowConstants.STATUS_APPROVED) {
       assetEntryLocalService.updateVisible(BlogsEntry.class.getName(),entryId,true);
-      boolean update=ParamUtil.getBoolean(serviceContext,"update");
-      if (update) {
-        socialActivityLocalService.addActivity(user.getUserId(),entry.getGroupId(),BlogsEntry.class.getName(),entryId,BlogsActivityKeys.UPDATE_ENTRY,StringPool.BLANK,0);
-      }
+      if (oldStatus != WorkflowConstants.STATUS_IN_TRASH) {
+        boolean update=ParamUtil.getBoolean(serviceContext,"update");
+        if (update) {
+          socialActivityLocalService.addActivity(user.getUserId(),entry.getGroupId(),BlogsEntry.class.getName(),entryId,BlogsActivityKeys.UPDATE_ENTRY,StringPool.BLANK,0);
+        }
  else {
-        socialActivityLocalService.addUniqueActivity(user.getUserId(),entry.getGroupId(),BlogsEntry.class.getName(),entryId,BlogsActivityKeys.ADD_ENTRY,StringPool.BLANK,0);
+          socialActivityLocalService.addUniqueActivity(user.getUserId(),entry.getGroupId(),BlogsEntry.class.getName(),entryId,BlogsActivityKeys.ADD_ENTRY,StringPool.BLANK,0);
+        }
       }
     }
     indexer.reindex(entry);
-    notifySubscribers(entry,serviceContext);
-    String[] trackbacks=(String[])serviceContext.getAttribute("trackbacks");
-    Boolean pingOldTrackbacks=GetterUtil.getBoolean((String)serviceContext.getAttribute("pingOldTrackbacks"));
-    pingGoogle(entry,serviceContext);
-    pingPingback(entry,serviceContext);
-    pingTrackbacks(entry,trackbacks,pingOldTrackbacks,serviceContext);
+    if (oldStatus != WorkflowConstants.STATUS_IN_TRASH) {
+      notifySubscribers(entry,serviceContext);
+      String[] trackbacks=(String[])serviceContext.getAttribute("trackbacks");
+      Boolean pingOldTrackbacks=GetterUtil.getBoolean((String)serviceContext.getAttribute("pingOldTrackbacks"));
+      pingGoogle(entry,serviceContext);
+      pingPingback(entry,serviceContext);
+      pingTrackbacks(entry,trackbacks,pingOldTrackbacks,serviceContext);
+    }
   }
- else   if (status != WorkflowConstants.STATUS_APPROVED) {
-    assetEntryLocalService.updateVisible(BlogsEntry.class.getName(),entryId,false);
+ else {
+    if (status == WorkflowConstants.STATUS_IN_TRASH) {
+      assetEntryLocalService.moveEntryToTrash(BlogsEntry.class.getName(),entryId);
+    }
+ else {
+      assetEntryLocalService.updateVisible(BlogsEntry.class.getName(),entryId,false);
+    }
     indexer.delete(entry);
   }
   return entry;
