@@ -1,0 +1,66 @@
+{
+  String portletId=portlet.getPortletId();
+  ServletContext servletContext=(ServletContext)request.getAttribute(WebKeys.CTX);
+  InvokerPortlet invokerPortlet=PortletInstanceFactoryUtil.create(portlet,servletContext);
+  PortletConfig portletConfig=PortletConfigFactoryUtil.create(portlet,servletContext);
+  PortletContext portletContext=portletConfig.getPortletContext();
+  LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
+  WindowState windowState=null;
+  if (layoutTypePortlet.hasStateMaxPortletId(portletId)) {
+    windowState=WindowState.MAXIMIZED;
+  }
+ else   if (layoutTypePortlet.hasStateMinPortletId(portletId)) {
+    windowState=WindowState.MINIMIZED;
+  }
+ else {
+    windowState=WindowState.NORMAL;
+  }
+  PortletMode portletMode=null;
+  if (layoutTypePortlet.hasModeAboutPortletId(portletId)) {
+    portletMode=LiferayPortletMode.ABOUT;
+  }
+ else   if (layoutTypePortlet.hasModeConfigPortletId(portletId)) {
+    portletMode=LiferayPortletMode.CONFIG;
+  }
+ else   if (layoutTypePortlet.hasModeEditPortletId(portletId)) {
+    portletMode=PortletMode.EDIT;
+  }
+ else   if (layoutTypePortlet.hasModeEditDefaultsPortletId(portletId)) {
+    portletMode=LiferayPortletMode.EDIT_DEFAULTS;
+  }
+ else   if (layoutTypePortlet.hasModeEditGuestPortletId(portletId)) {
+    portletMode=LiferayPortletMode.EDIT_GUEST;
+  }
+ else   if (layoutTypePortlet.hasModeHelpPortletId(portletId)) {
+    portletMode=PortletMode.HELP;
+  }
+ else   if (layoutTypePortlet.hasModePreviewPortletId(portletId)) {
+    portletMode=LiferayPortletMode.PREVIEW;
+  }
+ else   if (layoutTypePortlet.hasModePrintPortletId(portletId)) {
+    portletMode=LiferayPortletMode.PRINT;
+  }
+ else {
+    portletMode=PortletMode.VIEW;
+  }
+  long scopeGroupId=getScopeGroupId(request,layout,portletId);
+  PortletPreferences portletPreferences=PortletPreferencesFactoryUtil.getPortletSetup(scopeGroupId,layout,portletId,null);
+  EventRequestImpl eventRequestImpl=EventRequestFactory.create(request,portlet,invokerPortlet,portletContext,windowState,portletMode,portletPreferences,layout.getPlid());
+  eventRequestImpl.setEvent(serializeEvent(event,invokerPortlet.getPortletClassLoader()));
+  User user=PortalUtil.getUser(request);
+  Layout requestLayout=(Layout)request.getAttribute(WebKeys.LAYOUT);
+  EventResponseImpl eventResponseImpl=EventResponseFactory.create(eventRequestImpl,response,portletId,user,requestLayout);
+  eventRequestImpl.defineObjects(portletConfig,eventResponseImpl);
+  try {
+    invokerPortlet.processEvent(eventRequestImpl,eventResponseImpl);
+    if (eventResponseImpl.isCalledSetRenderParameter()) {
+      Map<String,String[]> renderParameterMap=new HashMap<String,String[]>();
+      renderParameterMap.putAll(eventResponseImpl.getRenderParameterMap());
+      RenderParametersPool.put(request,requestLayout.getPlid(),portletId,renderParameterMap);
+    }
+    processEvents(request,response,eventResponseImpl.getEvents());
+  }
+  finally {
+    eventRequestImpl.cleanUp();
+  }
+}

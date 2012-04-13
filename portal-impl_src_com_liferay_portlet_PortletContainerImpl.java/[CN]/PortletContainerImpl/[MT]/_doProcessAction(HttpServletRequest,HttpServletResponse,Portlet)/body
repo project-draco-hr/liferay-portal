@@ -1,0 +1,78 @@
+{
+  Layout layout=(Layout)request.getAttribute(WebKeys.LAYOUT);
+  String portletId=portlet.getPortletId();
+  WindowState windowState=WindowStateFactory.getWindowState(ParamUtil.getString(request,"p_p_state"));
+  if (layout.isTypeControlPanel() && ((windowState == null) || windowState.equals(WindowState.NORMAL) || Validator.isNull(windowState.toString()))) {
+    windowState=WindowState.MAXIMIZED;
+  }
+  PortletMode portletMode=PortletModeFactory.getPortletMode(ParamUtil.getString(request,"p_p_mode"));
+  PortletPreferencesIds portletPreferencesIds=PortletPreferencesFactoryUtil.getPortletPreferencesIds(request,portletId);
+  PortletPreferences portletPreferences=null;
+  if (PortalUtil.isAllowAddPortletDefaultResource(request,portlet)) {
+    portletPreferences=PortletPreferencesLocalServiceUtil.getPreferences(portletPreferencesIds);
+  }
+ else {
+    portletPreferences=PortletPreferencesLocalServiceUtil.getStrictPreferences(portletPreferencesIds);
+  }
+  ServletContext servletContext=(ServletContext)request.getAttribute(WebKeys.CTX);
+  InvokerPortlet invokerPortlet=PortletInstanceFactoryUtil.create(portlet,servletContext);
+  PortletConfig portletConfig=PortletConfigFactoryUtil.create(portlet,servletContext);
+  PortletContext portletContext=portletConfig.getPortletContext();
+  String contentType=request.getHeader(HttpHeaders.CONTENT_TYPE);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Content type " + contentType);
+  }
+  UploadServletRequest uploadServletRequest=null;
+  try {
+    if ((contentType != null) && contentType.startsWith(ContentTypes.MULTIPART_FORM_DATA)) {
+      PortletConfigImpl invokerPortletConfigImpl=(PortletConfigImpl)invokerPortlet.getPortletConfig();
+      if (invokerPortlet.isStrutsPortlet() || ((invokerPortletConfigImpl != null) && !invokerPortletConfigImpl.isWARFile())) {
+        uploadServletRequest=new UploadServletRequestImpl(request);
+        request=uploadServletRequest;
+      }
+    }
+    if (PropsValues.AUTH_TOKEN_CHECK_ENABLED && invokerPortlet.isCheckAuthToken()) {
+      AuthTokenUtil.check(request);
+    }
+    ActionRequestImpl actionRequestImpl=ActionRequestFactory.create(request,portlet,invokerPortlet,portletContext,windowState,portletMode,portletPreferences,layout.getPlid());
+    User user=PortalUtil.getUser(request);
+    ActionResponseImpl actionResponseImpl=ActionResponseFactory.create(actionRequestImpl,response,portletId,user,layout,windowState,portletMode);
+    actionRequestImpl.defineObjects(portletConfig,actionResponseImpl);
+    ServiceContext serviceContext=ServiceContextFactory.getInstance(actionRequestImpl);
+    ServiceContextThreadLocal.pushServiceContext(serviceContext);
+    PermissionChecker permissionChecker=PermissionThreadLocal.getPermissionChecker();
+    ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+    long scopeGroupId=themeDisplay.getScopeGroupId();
+    boolean access=PortletPermissionUtil.hasAccessPermission(permissionChecker,scopeGroupId,layout,portlet,portletMode);
+    if (access) {
+      invokerPortlet.processAction(actionRequestImpl,actionResponseImpl);
+      actionResponseImpl.transferHeaders(response);
+    }
+    RenderParametersPool.put(request,layout.getPlid(),portletId,actionResponseImpl.getRenderParameterMap());
+    List<Event> events=actionResponseImpl.getEvents();
+    if (!events.isEmpty()) {
+      processEvents(request,response,events);
+      actionRequestImpl.defineObjects(portletConfig,actionResponseImpl);
+    }
+    String redirectLocation=actionResponseImpl.getRedirectLocation();
+    if (Validator.isNotNull(redirectLocation)) {
+      response.sendRedirect(redirectLocation);
+    }
+ else     if (portlet.isActionURLRedirect()) {
+      PortletURL portletURL=new PortletURLImpl(actionRequestImpl,actionRequestImpl.getPortletName(),layout.getPlid(),PortletRequest.RENDER_PHASE);
+      Map<String,String[]> renderParameters=actionResponseImpl.getRenderParameterMap();
+      for (      Map.Entry<String,String[]> entry : renderParameters.entrySet()) {
+        String key=entry.getKey();
+        String[] value=entry.getValue();
+        portletURL.setParameter(key,value);
+      }
+      response.sendRedirect(portletURL.toString());
+    }
+  }
+  finally {
+    if (uploadServletRequest != null) {
+      uploadServletRequest.cleanUp();
+    }
+    ServiceContextThreadLocal.popServiceContext();
+  }
+}

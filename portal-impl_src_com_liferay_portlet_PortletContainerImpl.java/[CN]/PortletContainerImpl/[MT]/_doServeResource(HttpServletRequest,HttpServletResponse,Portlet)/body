@@ -1,0 +1,52 @@
+{
+  String portletId=portlet.getPortletId();
+  WindowState windowState=(WindowState)request.getAttribute(WebKeys.WINDOW_STATE);
+  PortletMode portletMode=PortletModeFactory.getPortletMode(ParamUtil.getString(request,"p_p_mode"));
+  PortletPreferencesIds portletPreferencesIds=PortletPreferencesFactoryUtil.getPortletPreferencesIds(request,portletId);
+  PortletPreferences portletPreferences=null;
+  if (PortalUtil.isAllowAddPortletDefaultResource(request,portlet)) {
+    portletPreferences=PortletPreferencesLocalServiceUtil.getPreferences(portletPreferencesIds);
+  }
+ else {
+    portletPreferences=PortletPreferencesLocalServiceUtil.getStrictPreferences(portletPreferencesIds);
+  }
+  ServletContext servletContext=(ServletContext)request.getAttribute(WebKeys.CTX);
+  InvokerPortlet invokerPortlet=PortletInstanceFactoryUtil.create(portlet,servletContext);
+  PortletConfig portletConfig=PortletConfigFactoryUtil.create(portlet,servletContext);
+  PortletContext portletContext=portletConfig.getPortletContext();
+  ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+  PortletDisplay portletDisplay=themeDisplay.getPortletDisplay();
+  Layout layout=(Layout)request.getAttribute(WebKeys.LAYOUT);
+  String portletPrimaryKey=PortletPermissionUtil.getPrimaryKey(layout.getPlid(),portletId);
+  portletDisplay.setId(portletId);
+  portletDisplay.setRootPortletId(portlet.getRootPortletId());
+  portletDisplay.setInstanceId(portlet.getInstanceId());
+  portletDisplay.setResourcePK(portletPrimaryKey);
+  portletDisplay.setPortletName(portletConfig.getPortletName());
+  portletDisplay.setNamespace(PortalUtil.getPortletNamespace(portletId));
+  WebDAVStorage webDAVStorage=portlet.getWebDAVStorageInstance();
+  if (webDAVStorage != null) {
+    portletDisplay.setWebDAVEnabled(true);
+  }
+ else {
+    portletDisplay.setWebDAVEnabled(false);
+  }
+  ResourceRequestImpl resourceRequestImpl=ResourceRequestFactory.create(request,portlet,invokerPortlet,portletContext,windowState,portletMode,portletPreferences,layout.getPlid());
+  long companyId=PortalUtil.getCompanyId(request);
+  ResourceResponseImpl resourceResponseImpl=ResourceResponseFactory.create(resourceRequestImpl,response,portletId,companyId);
+  resourceRequestImpl.defineObjects(portletConfig,resourceResponseImpl);
+  try {
+    ServiceContext serviceContext=ServiceContextFactory.getInstance(resourceRequestImpl);
+    ServiceContextThreadLocal.pushServiceContext(serviceContext);
+    PermissionChecker permissionChecker=PermissionThreadLocal.getPermissionChecker();
+    long scopeGroupId=themeDisplay.getScopeGroupId();
+    boolean access=PortletPermissionUtil.hasAccessPermission(permissionChecker,scopeGroupId,layout,portlet,portletMode);
+    if (access) {
+      invokerPortlet.serveResource(resourceRequestImpl,resourceResponseImpl);
+      resourceResponseImpl.transferHeaders(response);
+    }
+  }
+  finally {
+    ServiceContextThreadLocal.popServiceContext();
+  }
+}
