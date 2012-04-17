@@ -1,0 +1,37 @@
+{
+  handleTemplateContent(_templateId,_templateContent);
+  if (!_hasErrorTemplate) {
+    try {
+      return _velocityEngine.mergeTemplate(_templateId,StringPool.UTF8,_velocityContext,writer);
+    }
+ catch (    Exception e) {
+      throw new TemplateException("Unable to process freemarker template " + _templateId,e);
+    }
+  }
+  UnsyncStringWriter unsyncStringWriter=new UnsyncStringWriter();
+  boolean result;
+  try {
+    result=_velocityEngine.mergeTemplate(_templateId,StringPool.UTF8,_velocityContext,unsyncStringWriter);
+    unsyncStringWriter.getStringBundler().writeTo(writer);
+    return result;
+  }
+ catch (  Exception e) {
+    put("exception",e.getMessage());
+    put("script",_templateContent);
+    if (e instanceof ParseErrorException) {
+      ParseErrorException pee=(ParseErrorException)e;
+      put("column",pee.getColumnNumber());
+      put("line",pee.getLineNumber());
+    }
+    unsyncStringWriter.reset();
+    handleTemplateContent(_errorTemplateId,_errorTemplateContent);
+    try {
+      _velocityEngine.mergeTemplate(_errorTemplateId,StringPool.UTF8,_velocityContext,unsyncStringWriter);
+      unsyncStringWriter.getStringBundler().writeTo(writer);
+      return false;
+    }
+ catch (    Exception ex) {
+      throw new TemplateException("Unable to process freemarker template " + _errorTemplateId,ex);
+    }
+  }
+}

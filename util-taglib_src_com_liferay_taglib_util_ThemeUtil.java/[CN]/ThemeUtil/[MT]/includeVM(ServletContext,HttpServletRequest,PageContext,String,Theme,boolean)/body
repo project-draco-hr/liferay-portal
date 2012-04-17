@@ -7,23 +7,23 @@
   String resourcePath=theme.getResourcePath(servletContext,portletId,page);
   boolean checkResourceExists=true;
   if (Validator.isNotNull(portletId)) {
-    if (portletId.contains(PortletConstants.INSTANCE_SEPARATOR) && (checkResourceExists=!VelocityEngineUtil.resourceExists(resourcePath))) {
+    if (portletId.contains(PortletConstants.INSTANCE_SEPARATOR) && (checkResourceExists=!TemplateManagerUtil.hasTemplate(TemplateManager.VELOCITY,resourcePath))) {
       String rootPortletId=PortletConstants.getRootPortletId(portletId);
       resourcePath=theme.getResourcePath(servletContext,rootPortletId,page);
     }
-    if (checkResourceExists && (checkResourceExists=!VelocityEngineUtil.resourceExists(resourcePath))) {
+    if (checkResourceExists && (checkResourceExists=!TemplateManagerUtil.hasTemplate(TemplateManager.VELOCITY,resourcePath))) {
       resourcePath=theme.getResourcePath(servletContext,null,page);
     }
   }
-  if (checkResourceExists && !VelocityEngineUtil.resourceExists(resourcePath)) {
+  if (checkResourceExists && !TemplateManagerUtil.hasTemplate(TemplateManager.VELOCITY,resourcePath)) {
     _log.error(resourcePath + " does not exist");
     return null;
   }
-  VelocityContext velocityContext=VelocityEngineUtil.getWrappedStandardToolsContext();
-  VelocityVariablesUtil.insertVariables(velocityContext,request);
-  velocityContext.put("pageContext",pageContext);
+  Template velocityTemplate=TemplateManagerUtil.getTemplate(TemplateManager.VELOCITY,resourcePath,TemplateContextType.STANDARD);
+  velocityTemplate.prepare(request);
+  velocityTemplate.put("pageContext",pageContext);
   ServletContext themeServletContext=ServletContextPool.get(servletContextName);
-  velocityContext.put("themeServletContext",themeServletContext);
+  velocityTemplate.put("themeServletContext",themeServletContext);
   HttpServletResponse response=(HttpServletResponse)pageContext.getResponse();
   Writer writer=null;
   if (write) {
@@ -34,10 +34,10 @@
   }
   VelocityTaglib velocityTaglib=new VelocityTaglib(servletContext,request,new PipingServletResponse(response,writer),pageContext);
   request.setAttribute(WebKeys.VELOCITY_TAGLIB,velocityTaglib);
-  velocityContext.put("taglibLiferay",velocityTaglib);
-  velocityContext.put("theme",velocityTaglib);
-  velocityContext.put("writer",writer);
-  VelocityEngineUtil.mergeTemplate(resourcePath,velocityContext,writer);
+  velocityTemplate.put("taglibLiferay",velocityTaglib);
+  velocityTemplate.put("theme",velocityTaglib);
+  velocityTemplate.put("writer",writer);
+  velocityTemplate.processTemplate(writer);
   if (write) {
     return null;
   }
