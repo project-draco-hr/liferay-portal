@@ -5,21 +5,21 @@
   }
   String portletId=getPortletId(request);
   String resourcePath=theme.getResourcePath(servletContext,portletId,path);
-  if (Validator.isNotNull(portletId) && !FreeMarkerEngineUtil.resourceExists(resourcePath) && portletId.contains(PortletConstants.INSTANCE_SEPARATOR)) {
+  if (Validator.isNotNull(portletId) && !TemplateManagerUtil.hasTemplate(TemplateManager.FREE_MARKER,resourcePath) && portletId.contains(PortletConstants.INSTANCE_SEPARATOR)) {
     String rootPortletId=PortletConstants.getRootPortletId(portletId);
     resourcePath=theme.getResourcePath(servletContext,rootPortletId,path);
   }
-  if (Validator.isNotNull(portletId) && !FreeMarkerEngineUtil.resourceExists(resourcePath)) {
+  if (Validator.isNotNull(portletId) && !TemplateManagerUtil.hasTemplate(TemplateManager.FREE_MARKER,resourcePath)) {
     resourcePath=theme.getResourcePath(servletContext,null,path);
   }
-  if (!FreeMarkerEngineUtil.resourceExists(resourcePath)) {
+  if (!TemplateManagerUtil.hasTemplate(TemplateManager.FREE_MARKER,resourcePath)) {
     _log.error(resourcePath + " does not exist");
     return null;
   }
-  FreeMarkerContext freeMarkerContext=FreeMarkerEngineUtil.getWrappedStandardToolsContext();
-  FreeMarkerVariablesUtil.insertVariables(freeMarkerContext,request);
+  Template freemarkerTemplate=TemplateManagerUtil.getTemplate(TemplateManager.FREE_MARKER,resourcePath,TemplateContextType.STANDARD);
+  freemarkerTemplate.prepare(request);
   ServletContext themeServletContext=ServletContextPool.get(servletContextName);
-  freeMarkerContext.put("themeServletContext",themeServletContext);
+  freemarkerTemplate.put("themeServletContext",themeServletContext);
   HttpServletResponse response=(HttpServletResponse)pageContext.getResponse();
   Writer writer=null;
   if (write) {
@@ -30,13 +30,13 @@
   }
   VelocityTaglib velocityTaglib=new VelocityTaglib(servletContext,request,new PipingServletResponse(response,writer),pageContext);
   request.setAttribute(WebKeys.VELOCITY_TAGLIB,velocityTaglib);
-  freeMarkerContext.put("taglibLiferay",velocityTaglib);
-  freeMarkerContext.put("theme",velocityTaglib);
-  freeMarkerContext.put("writer",writer);
+  freemarkerTemplate.put("taglibLiferay",velocityTaglib);
+  freemarkerTemplate.put("theme",velocityTaglib);
+  freemarkerTemplate.put("writer",writer);
   TemplateHashModel portalTaglib=FreeMarkerTaglibFactoryUtil.createTaglibFactory(servletContext);
-  freeMarkerContext.put("PortalJspTagLibs",portalTaglib);
+  freemarkerTemplate.put("PortalJspTagLibs",portalTaglib);
   TemplateHashModel themeTaglib=FreeMarkerTaglibFactoryUtil.createTaglibFactory(themeServletContext);
-  freeMarkerContext.put("ThemeJspTaglibs",themeTaglib);
+  freemarkerTemplate.put("ThemeJspTaglibs",themeTaglib);
   final Servlet servlet=(Servlet)pageContext.getPage();
   GenericServlet genericServlet=null;
   if (servlet instanceof GenericServlet) {
@@ -52,10 +52,10 @@
     genericServlet.init(pageContext.getServletConfig());
   }
   ServletContextHashModel servletContextHashModel=new ServletContextHashModel(genericServlet,ObjectWrapper.DEFAULT_WRAPPER);
-  freeMarkerContext.put("Application",servletContextHashModel);
+  freemarkerTemplate.put("Application",servletContextHashModel);
   HttpRequestHashModel httpRequestHashModel=new HttpRequestHashModel(request,response,ObjectWrapper.DEFAULT_WRAPPER);
-  freeMarkerContext.put("Request",httpRequestHashModel);
-  FreeMarkerEngineUtil.mergeTemplate(resourcePath,freeMarkerContext,writer);
+  freemarkerTemplate.put("Request",httpRequestHashModel);
+  freemarkerTemplate.processTemplate(writer);
   if (write) {
     return null;
   }
