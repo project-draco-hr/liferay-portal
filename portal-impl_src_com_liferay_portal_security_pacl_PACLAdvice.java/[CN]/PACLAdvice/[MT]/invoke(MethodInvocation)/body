@@ -9,46 +9,24 @@
     }
   }
   Method method=methodInvocation.getMethod();
-  boolean debug=false;
   if (_log.isDebugEnabled()) {
     Object thisObject=methodInvocation.getThis();
     Class<?> clazz=thisObject.getClass();
     String className=clazz.getName();
     if (className.equals(PortalServiceImpl.class.getName()) || className.equals(_ENTRY_LOCAL_SERVICE_IMPL_CLASS_NAME) || className.equals(_STATUS_LOCAL_SERVICE_IMPL_CLASS_NAME)) {
-      debug=true;
       _log.debug("Intercepting " + className + "#"+ method.getName());
     }
   }
-  PACLPolicy paclPolicy=PACLClassUtil.getPACLPolicyByReflection(debug);
-  if (debug) {
-    if (paclPolicy != null) {
-      _log.debug("Retrieved PACL policy for " + paclPolicy.getServletContextName());
-    }
-  }
-  if (paclPolicy == null) {
-    try {
-      return methodInvocation.proceed();
-    }
- catch (    Throwable throwable) {
-      throw throwable;
-    }
-  }
-  if (!paclPolicy.hasService(methodInvocation.getThis(),method)) {
-    throw new SecurityException("Attempted to invoke " + method);
+  SecurityManager sm=System.getSecurityManager();
+  if (sm != null) {
+    sm.checkPermission(new PortalServicePermission("hasService",null,methodInvocation.getThis(),method));
   }
   boolean enabled=PortalSecurityManagerThreadLocal.isEnabled();
   try {
-    Object thisObject=methodInvocation.getThis();
-    Class<?> thisObjectClass=thisObject.getClass();
-    if (paclPolicy.getClassLoader() != thisObjectClass.getClassLoader()) {
-      PortalSecurityManagerThreadLocal.setEnabled(false);
-    }
+    PortalSecurityManagerThreadLocal.setEnabled(false);
     return methodInvocation.proceed();
   }
- catch (  Throwable throwable) {
-    throw throwable;
-  }
- finally {
+  finally {
     PortalSecurityManagerThreadLocal.setEnabled(enabled);
   }
 }

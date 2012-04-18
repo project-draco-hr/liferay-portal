@@ -13,26 +13,28 @@
   }
   _servletContextNames.add(servletContextName);
   ClassLoader portletClassLoader=hotDeployEvent.getContextClassLoader();
-  PACLPolicy paclPolicy=PACLPolicyManager.getPACLPolicy(portletClassLoader);
-  if (paclPolicy == null) {
-    paclPolicy=PACLPolicyManager.getDefaultPACLPolicy();
-  }
   initLogger(portletClassLoader);
   Document document=SAXReaderUtil.read(xml,true);
   Element rootElement=document.getRootElement();
-  initPortalProperties(paclPolicy,servletContextName,portletClassLoader,rootElement);
-  initLanguageProperties(paclPolicy,servletContextName,portletClassLoader,rootElement);
-  initCustomJspDir(paclPolicy,servletContext,servletContextName,hotDeployEvent.getPluginPackage(),rootElement);
-  initIndexerPostProcessors(paclPolicy,servletContextName,portletClassLoader,rootElement);
+  initPortalProperties(servletContextName,portletClassLoader,rootElement);
+  initLanguageProperties(servletContextName,portletClassLoader,rootElement);
+  initCustomJspDir(servletContext,servletContextName,portletClassLoader,hotDeployEvent.getPluginPackage(),rootElement);
+  initIndexerPostProcessors(servletContextName,portletClassLoader,rootElement);
   List<Element> serviceElements=rootElement.elements("service");
   for (  Element serviceElement : serviceElements) {
     String serviceType=serviceElement.elementText("service-type");
     String serviceImpl=serviceElement.elementText("service-impl");
-    if (!paclPolicy.hasHookService(serviceType)) {
-      if (_log.isInfoEnabled()) {
-        _log.info("Rejecting service " + serviceImpl);
+    SecurityManager sm=System.getSecurityManager();
+    if (sm != null) {
+      try {
+        sm.checkPermission(new PortalHookPermission("hasService",portletClassLoader,serviceType));
       }
-      continue;
+ catch (      SecurityException se) {
+        if (_log.isInfoEnabled()) {
+          _log.info("Rejecting service " + serviceImpl);
+        }
+        continue;
+      }
     }
     Class<?> serviceTypeClass=portletClassLoader.loadClass(serviceType);
     Class<?> serviceImplClass=portletClassLoader.loadClass(serviceImpl);
@@ -45,8 +47,8 @@
       _log.error("Service hooks require Spring to be configured to use " + "JdkDynamicProxy and will not work with CGLIB");
     }
   }
-  initServletFilters(paclPolicy,servletContext,servletContextName,portletClassLoader,rootElement);
-  initStrutsActions(paclPolicy,servletContextName,portletClassLoader,rootElement);
+  initServletFilters(servletContext,servletContextName,portletClassLoader,rootElement);
+  initStrutsActions(servletContextName,portletClassLoader,rootElement);
   ModelListenersContainer modelListenersContainer=_modelListenersContainerMap.get(servletContextName);
   if (modelListenersContainer == null) {
     modelListenersContainer=new ModelListenersContainer();
