@@ -13,17 +13,36 @@
   if (!PACLPolicyManager.isActive()) {
     return method.invoke(_bean,arguments);
   }
+  boolean debug=false;
   if (_log.isDebugEnabled()) {
     Class<?> clazz=_bean.getClass();
     String className=clazz.getName();
     if (className.equals(GroupPersistenceImpl.class.getName()) || className.equals(UserPersistenceImpl.class.getName())) {
+      debug=true;
       _log.debug("Intercepting " + className + "#"+ method.getName());
     }
   }
-  SecurityManager securityManager=System.getSecurityManager();
-  if (securityManager != null) {
-    Permission permission=new PortalServicePermission(PACLConstants.PORTAL_PERMISSION_SERVICE,null,_bean,method);
-    securityManager.checkPermission(permission);
+  PACLPolicy paclPolicy=PACLClassUtil.getPACLPolicyByReflection(debug);
+  if (debug) {
+    if (paclPolicy != null) {
+      _log.debug("Retrieved PACL policy for " + paclPolicy.getServletContextName());
+    }
   }
-  return method.invoke(_bean,arguments);
+  if (paclPolicy == null) {
+    return method.invoke(_bean,arguments);
+  }
+  if (!paclPolicy.hasService(_bean,method)) {
+    throw new SecurityException("Attempted to invoke " + method);
+  }
+  boolean enabled=PortalSecurityManagerThreadLocal.isEnabled();
+  try {
+    Class<?> beanClass=_bean.getClass();
+    if (paclPolicy.getClassLoader() != beanClass.getClassLoader()) {
+      PortalSecurityManagerThreadLocal.setEnabled(false);
+    }
+    return method.invoke(_bean,arguments);
+  }
+  finally {
+    PortalSecurityManagerThreadLocal.setEnabled(enabled);
+  }
 }
