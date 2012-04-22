@@ -1,0 +1,25 @@
+{
+  if (environment == null) {
+    environment=_environment;
+  }
+  String initialContextFactoryClassName=null;
+  if (environment == null) {
+    initialContextFactoryClassName=System.getProperty(Context.INITIAL_CONTEXT_FACTORY);
+  }
+ else {
+    initialContextFactoryClassName=(String)environment.get(Context.INITIAL_CONTEXT_FACTORY);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Instantiating " + initialContextFactoryClassName);
+  }
+  InitialContextFactory initialContextFactory=(InitialContextFactory)InstanceFactory.newInstance(initialContextFactoryClassName);
+  Context context=initialContextFactory.getInitialContext(environment);
+  if (!PACLPolicyManager.isActive() || !PortalSecurityManagerThreadLocal.isEnabled()) {
+    return context;
+  }
+  PACLPolicy paclPolicy=PACLClassUtil.getPACLPolicyByReflection(_log.isDebugEnabled());
+  if ((paclPolicy == null) || !paclPolicy.isActive()) {
+    return context;
+  }
+  return (Context)ProxyUtil.newProxyInstance(paclPolicy.getClassLoader(),new Class<?>[]{Context.class},new PACLContextHandler(context,paclPolicy));
+}
