@@ -12,15 +12,53 @@
       addPermission(permissions,path,action);
     }
   }
+  String pathContext=ContextPathUtil.getContextPath(PropsValues.PORTAL_CTX);
+  ServletContext servletContext=ServletContextPool.get(pathContext);
+  if (!action.equals(FILE_PERMISSION_ACTION_EXECUTE) && (_appWorkDir != null)) {
+    addPermission(permissions,_appWorkDir,action);
+    addPermission(permissions,_appWorkDir + "/-",action);
+    if (servletContext != null) {
+      File tempDir=(File)servletContext.getAttribute(JavaConstants.JAVAX_SERVLET_CONTEXT_TEMPDIR);
+      String rootTempPath=tempDir.getAbsolutePath();
+      if (action.equals(FILE_PERMISSION_ACTION_READ)) {
+        addPermission(permissions,rootTempPath,action);
+      }
+      addPermission(permissions,rootTempPath + "/-",action);
+    }
+  }
   if (!action.equals(FILE_PERMISSION_ACTION_READ)) {
     return permissions;
   }
-  String catalinaHome=System.getProperty("catalina.home") + "/";
+  List<String> defaultPaths=new UniqueList<String>();
   String javaHome=System.getProperty("java.home") + "/";
-  String portalWebDir=PropsValues.LIFERAY_WEB_PORTAL_DIR;
-  String[] defaultPaths={javaHome + "lib/-",_rootDir + "-",portalWebDir + "html/common/-",portalWebDir + "html/taglib/-",portalWebDir + "localhost/html/taglib/-",portalWebDir + "localhost/WEB-INF/tld/-",portalWebDir + "WEB-INF/classes/java/-",portalWebDir + "WEB-INF/classes/javax/-",portalWebDir + "WEB-INF/classes/org/apache/-",portalWebDir + "WEB-INF/classes/META-INF/services/javax.el.ExpressionFactory",portalWebDir + "WEB-INF/tld/-",catalinaHome + "lib/-",catalinaHome + "work/Catalina/localhost/" + getServletContextName()+ "/-",catalinaHome + "work/Catalina/localhost/_",catalinaHome + "work/Catalina/localhost/_/-"};
+  File file=new File(javaHome + "lib");
+  try {
+    addCanonicalSystemPaths(file,defaultPaths);
+  }
+ catch (  IOException e) {
+    _log.error(e,e);
+  }
+  defaultPaths.add(_globalSharedLibDir);
+  defaultPaths.add(_rootDir);
+  if (!_portalDir.equals(_rootDir)) {
+    defaultPaths.add(_portalDir + "html/common/");
+    defaultPaths.add(_portalDir + "html/taglib/");
+    defaultPaths.add(_portalDir + "html/themes/");
+    defaultPaths.add(_portalDir + "localhost/html/common/");
+    defaultPaths.add(_portalDir + "localhost/html/taglib/");
+    defaultPaths.add(_portalDir + "localhost/html/themes/");
+    defaultPaths.add(_portalDir + "localhost/WEB-INF");
+    defaultPaths.add(_portalDir + "localhost/WEB-INF/");
+    defaultPaths.add(_portalDir + "WEB-INF");
+    defaultPaths.add(_portalDir + "WEB-INF/");
+  }
   for (  String defaultPath : defaultPaths) {
-    addPermission(permissions,defaultPath,action);
+    if (defaultPath.endsWith(StringPool.SLASH)) {
+      addPermission(permissions,defaultPath + "-",action);
+    }
+ else {
+      addPermission(permissions,defaultPath,action);
+    }
   }
   return permissions;
 }
