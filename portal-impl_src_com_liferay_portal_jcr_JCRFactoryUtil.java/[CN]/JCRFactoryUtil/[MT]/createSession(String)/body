@@ -5,11 +5,15 @@
   if (!PropsValues.JCR_WRAP_SESSION) {
     return getJCRFactory().createSession(workspaceName);
   }
-  CloseableSessionMap closableSessionMap=_closeableSessionMaps.get();
-  if (!closableSessionMap.containsKey(workspaceName)) {
-    Session session=getJCRFactory().createSession(workspaceName);
-    Object sessionProxy=ProxyUtil.newProxyInstance(PortalClassLoaderUtil.getClassLoader(),new Class<?>[]{Closeable.class,Map.class,Session.class},new JCRSessionInvocationHandler(session));
-    closableSessionMap.put(workspaceName,(Closeable)sessionProxy);
+  Map<String,Session> sessionMap=_sessionMap.get();
+  Session session=sessionMap.get(workspaceName);
+  if (session == null) {
+    Session jcrSession=getJCRFactory().createSession(workspaceName);
+    JCRSessionInvocationHandler jcrSessionInvocationHandler=new JCRSessionInvocationHandler(jcrSession);
+    Object sessionProxy=ProxyUtil.newProxyInstance(PortalClassLoaderUtil.getClassLoader(),new Class<?>[]{Map.class,Session.class},jcrSessionInvocationHandler);
+    FinalizeManager.register(sessionProxy,jcrSessionInvocationHandler);
+    session=(Session)sessionProxy;
+    sessionMap.put(workspaceName,session);
   }
-  return (Session)closableSessionMap.get(workspaceName);
+  return session;
 }
