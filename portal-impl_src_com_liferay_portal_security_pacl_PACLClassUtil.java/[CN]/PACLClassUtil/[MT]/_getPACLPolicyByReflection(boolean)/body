@@ -1,14 +1,24 @@
 {
-  for (int i=3; ; i++) {
+  boolean initialPortalClassLoaderPhase=true;
+  for (int i=1; ; i++) {
     Class<?> callerClass=Reflection.getCallerClass(i);
     if (callerClass == null) {
       break;
     }
-    if (_isSkipCallerClass(callerClass,i,debug)) {
-      continue;
+    if (debug) {
+      _log.debug("Frame " + i + " has caller class "+ callerClass.getName());
     }
     ClassLoader callerClassLoader=_getCallerClassLoader(callerClass);
-    if (_isSkipCallerClassLoader(callerClassLoader)) {
+    if (callerClassLoader == null) {
+      continue;
+    }
+    if (!initialPortalClassLoaderPhase && (callerClassLoader == _portalClassLoader)) {
+      return PACLPolicyManager.getDefaultPACLPolicy();
+    }
+    if (initialPortalClassLoaderPhase && (callerClassLoader != _portalClassLoader)) {
+      initialPortalClassLoaderPhase=false;
+    }
+    if ((callerClassLoader == _commonClassLoader) || (callerClassLoader == _portalClassLoader) || (callerClassLoader == _systemClassLoader)) {
       continue;
     }
     PACLPolicy paclPolicy=PACLPolicyManager.getPACLPolicy(callerClassLoader);
@@ -16,5 +26,5 @@
       return paclPolicy;
     }
   }
-  return PACLPolicyManager.getDefaultPACLPolicy();
+  return null;
 }
