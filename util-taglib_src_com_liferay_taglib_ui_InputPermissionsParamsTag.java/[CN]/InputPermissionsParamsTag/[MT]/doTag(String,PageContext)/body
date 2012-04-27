@@ -1,9 +1,56 @@
 {
-  Object returnObj=PortalClassInvoker.invoke(false,_doEndTagMethodKey,modelName,pageContext);
-  if (returnObj != null) {
-    return returnObj.toString();
+  try {
+    HttpServletRequest request=(HttpServletRequest)pageContext.getRequest();
+    RenderResponse renderResponse=(RenderResponse)request.getAttribute(JavaConstants.JAVAX_PORTLET_RESPONSE);
+    ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+    Layout layout=themeDisplay.getLayout();
+    Group layoutGroup=layout.getGroup();
+    Group group=themeDisplay.getScopeGroup();
+    List<String> supportedActions=ResourceActionsUtil.getModelResourceActions(modelName);
+    List<String> groupDefaultActions=ResourceActionsUtil.getModelResourceGroupDefaultActions(modelName);
+    List<String> guestDefaultActions=ResourceActionsUtil.getModelResourceGuestDefaultActions(modelName);
+    List<String> guestUnsupportedActions=ResourceActionsUtil.getModelResourceGuestUnsupportedActions(modelName);
+    StringBundler sb=new StringBundler();
+    for (int i=0; i < supportedActions.size(); i++) {
+      String action=supportedActions.get(i);
+      boolean groupChecked=groupDefaultActions.contains(action);
+      boolean guestChecked=false;
+      if (layoutGroup.isControlPanel()) {
+        if (!group.hasPrivateLayouts() && guestDefaultActions.contains(action)) {
+          guestChecked=true;
+        }
+      }
+ else       if (layout.isPublicLayout() && guestDefaultActions.contains(action)) {
+        guestChecked=true;
+      }
+      boolean guestDisabled=guestUnsupportedActions.contains(action);
+      if (guestDisabled) {
+        guestChecked=false;
+      }
+      if (group.isOrganization() || group.isRegularSite()) {
+        if (groupChecked) {
+          sb.append(StringPool.AMPERSAND);
+          sb.append(renderResponse.getNamespace());
+          sb.append("groupPermissions=");
+          sb.append(HttpUtil.encodeURL(action));
+        }
+      }
+      if (guestChecked) {
+        sb.append(StringPool.AMPERSAND);
+        sb.append(renderResponse.getNamespace());
+        sb.append("guestPermissions=");
+        sb.append(HttpUtil.encodeURL(action));
+      }
+    }
+    String inputPermissionsViewRole=getDefaultViewRole(modelName,themeDisplay);
+    sb.append(StringPool.AMPERSAND);
+    sb.append(renderResponse.getNamespace());
+    sb.append("inputPermissionsViewRole=");
+    sb.append(HttpUtil.encodeURL(inputPermissionsViewRole));
+    pageContext.getOut().print(sb.toString());
   }
- else {
-    return StringPool.BLANK;
+ catch (  Exception e) {
+    throw new JspException(e);
   }
+  return StringPool.BLANK;
 }
