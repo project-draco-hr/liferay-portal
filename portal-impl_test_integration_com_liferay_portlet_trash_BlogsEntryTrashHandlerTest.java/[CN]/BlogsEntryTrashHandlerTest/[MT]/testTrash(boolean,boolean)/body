@@ -1,0 +1,45 @@
+{
+  try {
+    Group group=ServiceTestUtil.addGroup("BlogsEntryTrashHandlerTest#testGroup");
+    int initialBlogsEntriesCount=getBlogsEntriesNotInTrashCount(group.getGroupId());
+    int initialTrashEntriesCount=getTrashEntriesCount(group.getGroupId());
+    BlogsEntry blogsEntry=addBlogsEntry(group,approved);
+    int oldStatus=blogsEntry.getStatus();
+    Assert.assertEquals(initialBlogsEntriesCount + 1,getBlogsEntriesNotInTrashCount(group.getGroupId()));
+    Assert.assertEquals(initialTrashEntriesCount,getTrashEntriesCount(group.getGroupId()));
+    if (approved) {
+      Assert.assertTrue(isAssetEntryVisible(blogsEntry.getEntryId()));
+    }
+ else {
+      Assert.assertFalse(isAssetEntryVisible(blogsEntry.getEntryId()));
+    }
+    BlogsEntryServiceUtil.moveEntryToTrash(blogsEntry.getEntryId());
+    TrashEntry trashEntry=TrashEntryLocalServiceUtil.getEntry(BlogsEntry.class.getName(),blogsEntry.getEntryId());
+    Assert.assertEquals(blogsEntry.getEntryId(),trashEntry.getClassPK());
+    Assert.assertEquals(WorkflowConstants.STATUS_IN_TRASH,blogsEntry.getStatus());
+    Assert.assertEquals(initialBlogsEntriesCount,getBlogsEntriesNotInTrashCount(group.getGroupId()));
+    Assert.assertEquals(initialTrashEntriesCount + 1,getTrashEntriesCount(group.getGroupId()));
+    Assert.assertFalse(isAssetEntryVisible(blogsEntry.getEntryId()));
+    TrashHandler trashHandler=TrashHandlerRegistryUtil.getTrashHandler(blogsEntry.getModelClassName());
+    if (delete) {
+      trashHandler.deleteTrashEntry(blogsEntry.getEntryId());
+      Assert.assertEquals(initialBlogsEntriesCount,getBlogsEntriesNotInTrashCount(group.getGroupId()));
+      Assert.assertNull(fetchAssetEntry(blogsEntry.getEntryId()));
+    }
+ else {
+      trashHandler.restoreTrashEntry(blogsEntry.getEntryId());
+      blogsEntry=BlogsEntryServiceUtil.getEntry(blogsEntry.getEntryId());
+      Assert.assertEquals(oldStatus,blogsEntry.getStatus());
+      Assert.assertEquals(initialBlogsEntriesCount + 1,getBlogsEntriesNotInTrashCount(group.getGroupId()));
+      if (approved) {
+        Assert.assertTrue(isAssetEntryVisible(blogsEntry.getEntryId()));
+      }
+ else {
+        Assert.assertFalse(isAssetEntryVisible(blogsEntry.getEntryId()));
+      }
+    }
+  }
+ catch (  Exception e) {
+    Assert.fail("Unexpected error restoring blogsEntry from Trash: " + e.getMessage());
+  }
+}
