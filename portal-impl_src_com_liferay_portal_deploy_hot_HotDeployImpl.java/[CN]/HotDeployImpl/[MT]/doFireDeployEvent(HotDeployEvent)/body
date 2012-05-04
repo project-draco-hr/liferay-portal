@@ -1,10 +1,18 @@
 {
   String servletContextName=hotDeployEvent.getServletContextName();
-  if (!isMissingDependentServletContext(hotDeployEvent)) {
-    if (_dependentHotDeployEvents.contains(hotDeployEvent)) {
-      if (_log.isInfoEnabled()) {
-        _log.info("Deploying " + servletContextName + " from queue");
-      }
+  if (_deployedServletContextNames.contains(servletContextName)) {
+    return;
+  }
+  boolean hasDependencies=true;
+  for (  String dependentServletContextName : hotDeployEvent.getDependentServletContextNames()) {
+    if (!_deployedServletContextNames.contains(dependentServletContextName)) {
+      hasDependencies=false;
+      break;
+    }
+  }
+  if (hasDependencies) {
+    if (_log.isInfoEnabled()) {
+      _log.info("Deploying " + servletContextName + " from queue");
     }
     for (    HotDeployListener hotDeployListener : _hotDeployListeners) {
       try {
@@ -19,11 +27,10 @@
     ClassLoader contextClassLoader=getContextClassLoader();
     try {
       setContextClassLoader(PortalClassLoaderUtil.getClassLoader());
-      initDependentServletContextListeners();
       List<HotDeployEvent> dependentEvents=new ArrayList<HotDeployEvent>(_dependentHotDeployEvents);
       for (      HotDeployEvent dependentEvent : dependentEvents) {
         setContextClassLoader(dependentEvent.getContextClassLoader());
-        fireDeployEvent(dependentEvent);
+        doFireDeployEvent(dependentEvent);
       }
     }
   finally {

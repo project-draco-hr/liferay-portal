@@ -10,42 +10,23 @@
  else {
     message=(Message)JSONFactoryUtil.deserialize(messageJSON);
   }
-  String contextPath=message.getString(SchedulerEngine.CONTEXT_PATH);
-  String lockKey=PortletContextLoaderListener.getLockKey(contextPath);
-  ReentrantLock executionLock=null;
-  if (lockKey != null) {
-    executionLock=LockRegistry.getLock(lockKey,lockKey);
-    if (executionLock != null) {
-      if (executionLock.hasQueuedThreads()) {
-        return;
-      }
-      executionLock.lock();
+  message.put(SchedulerEngine.DESTINATION_NAME,destinationName);
+  Map<String,Object> jobStateMap=(Map<String,Object>)jobDataMap.get(SchedulerEngine.JOB_STATE);
+  JobState jobState=JobStateSerializeUtil.deserialize(jobStateMap);
+  JobKey jobKey=jobDetail.getKey();
+  if (jobExecutionContext.getNextFireTime() == null) {
+    message.put(SchedulerEngine.DISABLE,true);
+    StorageType storageType=StorageType.valueOf(jobDataMap.getString(SchedulerEngine.STORAGE_TYPE));
+    if (PropsValues.CLUSTER_LINK_ENABLED && storageType.equals(StorageType.MEMORY_CLUSTERED)) {
+      notifyClusterMember(jobKey,storageType);
+    }
+    if (storageType.equals(StorageType.PERSISTED)) {
+      Scheduler scheduler=jobExecutionContext.getScheduler();
+      scheduler.deleteJob(jobKey);
     }
   }
-  try {
-    message.put(SchedulerEngine.DESTINATION_NAME,destinationName);
-    Map<String,Object> jobStateMap=(Map<String,Object>)jobDataMap.get(SchedulerEngine.JOB_STATE);
-    JobState jobState=JobStateSerializeUtil.deserialize(jobStateMap);
-    JobKey jobKey=jobDetail.getKey();
-    if (jobExecutionContext.getNextFireTime() == null) {
-      message.put(SchedulerEngine.DISABLE,true);
-      StorageType storageType=StorageType.valueOf(jobDataMap.getString(SchedulerEngine.STORAGE_TYPE));
-      if (PropsValues.CLUSTER_LINK_ENABLED && storageType.equals(StorageType.MEMORY_CLUSTERED)) {
-        notifyClusterMember(jobKey,storageType);
-      }
-      if (storageType.equals(StorageType.PERSISTED)) {
-        Scheduler scheduler=jobExecutionContext.getScheduler();
-        scheduler.deleteJob(jobKey);
-      }
-    }
-    message.put(SchedulerEngine.JOB_NAME,jobKey.getName());
-    message.put(SchedulerEngine.JOB_STATE,jobState);
-    message.put(SchedulerEngine.GROUP_NAME,jobKey.getGroup());
-    MessageBusUtil.sendMessage(destinationName,message);
-  }
-  finally {
-    if (executionLock != null) {
-      executionLock.unlock();
-    }
-  }
+  message.put(SchedulerEngine.JOB_NAME,jobKey.getName());
+  message.put(SchedulerEngine.JOB_STATE,jobState);
+  message.put(SchedulerEngine.GROUP_NAME,jobKey.getGroup());
+  MessageBusUtil.sendMessage(destinationName,message);
 }
