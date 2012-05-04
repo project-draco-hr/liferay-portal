@@ -3,17 +3,24 @@
   if (allowedProperties == null) {
     throw new SpringFactoryException("Undefined class " + className);
   }
-  Object bean=InstanceFactory.newInstance(PortalClassLoaderUtil.getClassLoader(),className);
-  if (properties == null) {
+  boolean enabled=PortalSecurityManagerThreadLocal.isEnabled();
+  try {
+    PortalSecurityManagerThreadLocal.setEnabled(false);
+    Object bean=InstanceFactory.newInstance(PortalClassLoaderUtil.getClassLoader(),className);
+    if (properties == null) {
+      return bean;
+    }
+    for (    Map.Entry<String,Object> entry : properties.entrySet()) {
+      String name=entry.getKey();
+      if (!allowedProperties.contains(name)) {
+        throw new SpringFactoryException("Undefined property " + name + " for class "+ className);
+      }
+      Object value=entry.getValue();
+      BeanPropertiesUtil.setProperty(bean,name,value);
+    }
     return bean;
   }
-  for (  Map.Entry<String,Object> entry : properties.entrySet()) {
-    String name=entry.getKey();
-    if (!allowedProperties.contains(name)) {
-      throw new SpringFactoryException("Undefined property " + name + " for class "+ className);
-    }
-    Object value=entry.getValue();
-    BeanPropertiesUtil.setProperty(bean,name,value);
+  finally {
+    PortalSecurityManagerThreadLocal.setEnabled(enabled);
   }
-  return bean;
 }
