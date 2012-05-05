@@ -4,17 +4,19 @@
   if (_log.isDebugEnabled()) {
     _log.debug("Invoking deploy for " + servletContextName);
   }
-  long[] companyIds=PortalInstances.getCompanyIds();
   String[] xmls=new String[]{HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/" + Portal.PORTLET_XML_FILE_NAME_STANDARD)),HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/" + Portal.PORTLET_XML_FILE_NAME_CUSTOM)),HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/liferay-portlet.xml")),HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/web.xml"))};
   if ((xmls[0] == null) && (xmls[1] == null)) {
     return;
   }
-  logRegistration(servletContextName);
+  if (_log.isInfoEnabled()) {
+    _log.info("Registering portlets for " + servletContextName);
+  }
   List<Portlet> portlets=PortletLocalServiceUtil.initWAR(servletContextName,servletContext,xmls,hotDeployEvent.getPluginPackage());
   ClassLoader classLoader=hotDeployEvent.getContextClassLoader();
   initLogger(classLoader);
-  _portletAppInitialized=false;
-  _strutsBridges=false;
+  boolean portletAppInitialized=false;
+  boolean phpPortlet=false;
+  boolean strutsBridges=false;
   PortletBagFactory portletBagFactory=new PortletBagFactory();
   portletBagFactory.setClassLoader(classLoader);
   portletBagFactory.setServletContext(servletContext);
@@ -27,20 +29,31 @@
       itr.remove();
     }
  else {
-      if (!_portletAppInitialized) {
+      if (!portletAppInitialized) {
         initPortletApp(portlet,servletContextName,servletContext,classLoader);
-        _portletAppInitialized=true;
+        portletAppInitialized=true;
+      }
+      javax.portlet.Portlet portletInstance=portletBag.getPortletInstance();
+      if (ClassUtil.isSubclass(portletInstance.getClass(),PHPPortlet.class.getName())) {
+        phpPortlet=true;
+      }
+      if (ClassUtil.isSubclass(portletInstance.getClass(),StrutsPortlet.class.getName())) {
+        strutsBridges=true;
       }
     }
   }
-  if (!_strutsBridges) {
-    _strutsBridges=GetterUtil.getBoolean(servletContext.getInitParameter("struts-bridges-context-provider"));
+  if (phpPortlet) {
+    bindDataSource(servletContextName);
   }
-  if (_strutsBridges) {
+  if (!strutsBridges) {
+    strutsBridges=GetterUtil.getBoolean(servletContext.getInitParameter("struts-bridges-context-provider"));
+  }
+  if (strutsBridges) {
     servletContext.setAttribute(ServletContextProvider.STRUTS_BRIDGES_CONTEXT_PROVIDER,new LiferayServletContextProvider());
   }
   String xml=HttpUtil.URLtoString(servletContext.getResource("/WEB-INF/liferay-display.xml"));
   PortletCategory newPortletCategory=PortletLocalServiceUtil.getWARDisplay(servletContextName,xml);
+  long[] companyIds=PortalInstances.getCompanyIds();
   for (  long companyId : companyIds) {
     PortletCategory portletCategory=(PortletCategory)WebAppPool.get(companyId,WebKeys.PORTLET_CATEGORY);
     if (portletCategory != null) {
@@ -72,7 +85,7 @@
   JavadocManagerUtil.load(servletContextName,classLoader);
   DirectServletRegistryUtil.clearServlets();
   FileTimestampUtil.reset();
-  _vars.put(servletContextName,new ObjectValuePair<long[],List<Portlet>>(companyIds,portlets));
+  _portlets.put(servletContextName,new ObjectValuePair<long[],List<Portlet>>(companyIds,portlets));
   if (_log.isInfoEnabled()) {
     if (portlets.size() == 1) {
       _log.info("1 portlet for " + servletContextName + " is available for use");
