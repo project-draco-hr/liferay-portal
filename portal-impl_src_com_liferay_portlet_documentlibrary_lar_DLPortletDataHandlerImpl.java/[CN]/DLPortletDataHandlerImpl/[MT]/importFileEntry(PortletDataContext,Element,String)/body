@@ -33,35 +33,33 @@
   }
   importMetaData(portletDataContext,fileEntryElement,serviceContext);
   FileEntry importedFileEntry=null;
-  String titleWithExtension=fileEntry.getTitle();
+  String titleWithExtension=DLUtil.getTitleWithExtension(fileEntry);
   String extension=fileEntry.getExtension();
-  if (!titleWithExtension.endsWith(StringPool.PERIOD + extension)) {
-    titleWithExtension+=StringPool.PERIOD + extension;
-  }
+  String dotExtension=StringPool.PERIOD + extension;
   if (portletDataContext.isDataStrategyMirror()) {
     FileEntry existingFileEntry=FileEntryUtil.fetchByUUID_R(fileEntry.getUuid(),portletDataContext.getScopeGroupId());
     FileVersion fileVersion=fileEntry.getFileVersion();
     if (existingFileEntry == null) {
-      FileEntry existingTitleFileEntry=FileEntryUtil.fetchByR_F_T(portletDataContext.getScopeGroupId(),folderId,fileEntry.getTitle());
-      String newFileEntryTitle=fileEntry.getTitle();
+      String fileEntryTitle=fileEntry.getTitle();
+      FileEntry existingTitleFileEntry=FileEntryUtil.fetchByR_F_T(portletDataContext.getScopeGroupId(),folderId,fileEntryTitle);
       if (existingTitleFileEntry != null) {
         if (portletDataContext.isDataStrategyMirrorWithOverwritting()) {
           DLAppLocalServiceUtil.deleteFileEntry(existingTitleFileEntry.getFileEntryId());
         }
  else {
-          String dotExtension=StringPool.PERIOD + extension;
-          if (newFileEntryTitle.endsWith(dotExtension)) {
-            int pos=newFileEntryTitle.lastIndexOf(dotExtension);
-            newFileEntryTitle=newFileEntryTitle.substring(0,pos);
+          boolean titleHasExtension=false;
+          if (fileEntryTitle.endsWith(dotExtension)) {
+            fileEntryTitle=FileUtil.stripExtension(fileEntryTitle);
+            titleHasExtension=true;
           }
           for (int i=1; ; i++) {
-            newFileEntryTitle=newFileEntryTitle + StringPool.SPACE + i;
-            titleWithExtension=newFileEntryTitle + dotExtension;
-            if (fileEntry.getTitle().endsWith(dotExtension)) {
-              newFileEntryTitle=newFileEntryTitle + dotExtension;
-            }
-            existingTitleFileEntry=FileEntryUtil.fetchByR_F_T(portletDataContext.getScopeGroupId(),folderId,newFileEntryTitle);
+            fileEntryTitle+=StringPool.SPACE + i;
+            titleWithExtension=fileEntryTitle + dotExtension;
+            existingTitleFileEntry=FileEntryUtil.fetchByR_F_T(portletDataContext.getScopeGroupId(),folderId,titleWithExtension);
             if (existingTitleFileEntry == null) {
+              if (titleHasExtension) {
+                fileEntryTitle+=dotExtension;
+              }
               break;
             }
           }
@@ -69,7 +67,7 @@
       }
       serviceContext.setAttribute("fileVersionUuid",fileVersion.getUuid());
       serviceContext.setUuid(fileEntry.getUuid());
-      importedFileEntry=DLAppLocalServiceUtil.addFileEntry(userId,portletDataContext.getScopeGroupId(),folderId,titleWithExtension,fileEntry.getMimeType(),newFileEntryTitle,fileEntry.getDescription(),null,is,fileEntry.getSize(),serviceContext);
+      importedFileEntry=DLAppLocalServiceUtil.addFileEntry(userId,portletDataContext.getScopeGroupId(),folderId,titleWithExtension,fileEntry.getMimeType(),fileEntryTitle,fileEntry.getDescription(),null,is,fileEntry.getSize(),serviceContext);
       if (fileVersion.getStatus() == WorkflowConstants.STATUS_IN_TRASH) {
         importedFileEntry=DLAppServiceUtil.moveFileEntryToTrash(importedFileEntry.getFileEntryId());
       }
@@ -106,8 +104,8 @@
       if (titleParts.length > 1) {
         title+=StringPool.PERIOD + titleParts[1];
       }
-      if (!title.endsWith(StringPool.PERIOD + extension)) {
-        title+=StringPool.PERIOD + extension;
+      if (!title.endsWith(dotExtension)) {
+        title+=dotExtension;
       }
       importedFileEntry=DLAppLocalServiceUtil.addFileEntry(userId,portletDataContext.getScopeGroupId(),folderId,title,fileEntry.getMimeType(),title,fileEntry.getDescription(),null,is,fileEntry.getSize(),serviceContext);
     }
