@@ -1,8 +1,8 @@
 {
   ServletContext servletContext=getServletContext();
-  Field field=servletContext.getClass().getDeclaredField("this$0");
-  field.setAccessible(true);
-  Object webAppContext=field.get(servletContext);
+  Field outerClassField=servletContext.getClass().getDeclaredField("this$0");
+  outerClassField.setAccessible(true);
+  Object webAppContext=outerClassField.get(servletContext);
   Class<?> abstractHandlerClass=webAppContext.getClass();
   for (int i=0; i < 6; i++) {
     abstractHandlerClass=abstractHandlerClass.getSuperclass();
@@ -31,19 +31,20 @@
   Field providersField=deploymentManager.getClass().getDeclaredField("_providers");
   providersField.setAccessible(true);
   List providers=(List)providersField.get(deploymentManager);
+  boolean hotDeploySupported=false;
   for (  Object provider : providers) {
-    if (!provider.getClass().getName().equals("org.eclipse.jetty.deploy.providers.ContextProvider")) {
+    Class<?> providerClass=provider.getClass();
+    if (!providerClass.getName().equals("org.eclipse.jetty.deploy.providers.ContextProvider")) {
       continue;
     }
-    Field scanIntervalField=provider.getClass().getSuperclass().getDeclaredField("_scanInterval");
+    Class<?> scanningAppProviderClass=providerClass.getSuperclass();
+    Field scanIntervalField=scanningAppProviderClass.getDeclaredField("_scanInterval");
     scanIntervalField.setAccessible(true);
     Integer scanInterval=(Integer)scanIntervalField.get(provider);
     if ((scanInterval != null) && (scanInterval.intValue() > 0)) {
-      ServerDetector.setSupportsHotDeploy(true);
+      hotDeploySupported=true;
+      break;
     }
- else {
-      ServerDetector.setSupportsHotDeploy(false);
-    }
-    break;
   }
+  ServerDetector.setSupportsHotDeploy(hotDeploySupported);
 }
