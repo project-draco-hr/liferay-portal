@@ -1,22 +1,14 @@
 {
   try {
-    LimitTokenCountAnalyzer analyzer=new LimitTokenCountAnalyzer(LuceneHelperUtil.getAnalyzer(),_DEFAULT_MAX_FIELD_LENGTH);
+    Analyzer analyzer=new LimitTokenCountAnalyzer(LuceneHelperUtil.getAnalyzer(),PropsValues.LUCENE_ANALYZER_MAX_TOKENS);
     IndexWriterConfig indexWriterConfig=new IndexWriterConfig(LuceneHelperUtil.getVersion(),analyzer);
-    String mergePolicyClassName=PropsUtil.get(PropsKeys.LUCENE_MERGE_POLICY);
-    ClassLoader classLoader=PortalClassLoaderUtil.getClassLoader();
-    MergePolicy mergePolicy=(MergePolicy)InstanceFactory.newInstance(classLoader,mergePolicyClassName);
-    if (mergePolicy instanceof LogMergePolicy) {
-      LogMergePolicy logMergePolicy=(LogMergePolicy)mergePolicy;
-      logMergePolicy.setMergeFactor(PropsValues.LUCENE_MERGE_FACTOR);
-    }
-    indexWriterConfig.setMergePolicy(mergePolicy);
-    indexWriterConfig.setRAMBufferSizeMB(PropsValues.LUCENE_BUFFER_SIZE);
     indexWriterConfig.setIndexDeletionPolicy(_dumpIndexDeletionPolicy);
+    indexWriterConfig.setMergePolicy(_getMergePolicy());
+    indexWriterConfig.setRAMBufferSizeMB(PropsValues.LUCENE_BUFFER_SIZE);
     _indexWriter=new IndexWriter(getLuceneDir(),indexWriterConfig);
-    IndexReader indexReader=IndexReader.open(_indexWriter,false);
-    if (!indexReader.indexExists(getLuceneDir())) {
+    if (!IndexReader.indexExists(getLuceneDir())) {
       if (_log.isDebugEnabled()) {
-        _log.debug("Index file does not exists, creating empty" + " index, please reindex to make it up-to-date.");
+        _log.debug("Creating missing index");
       }
       _doCommit();
     }
