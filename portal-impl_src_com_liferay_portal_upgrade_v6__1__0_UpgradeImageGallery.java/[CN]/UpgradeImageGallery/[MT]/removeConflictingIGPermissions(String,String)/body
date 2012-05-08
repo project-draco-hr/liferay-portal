@@ -1,0 +1,50 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getConnection();
+    DatabaseMetaData databaseMetaData=con.getMetaData();
+    boolean supportsBatchUpdates=databaseMetaData.supportsBatchUpdates();
+    StringBundler sb=new StringBundler();
+    sb.append("select companyId, scope, primKey, roleId from ");
+    sb.append("ResourcePermission where name = ?");
+    String sql=sb.toString();
+    ps=con.prepareStatement(sql);
+    ps.setString(1,igResourceName);
+    rs=ps.executeQuery();
+    sb=new StringBundler();
+    sb.append("delete from ResourcePermission where name = ? and ");
+    sb.append("companyId = ? and scope = ? and primKey = ? and ");
+    sb.append("roleId = ?");
+    sql=sb.toString();
+    ps=con.prepareStatement(sql);
+    int count=0;
+    while (rs.next()) {
+      ps.setString(1,dlResourceName);
+      ps.setLong(2,rs.getLong("companyId"));
+      ps.setLong(3,rs.getLong("scope"));
+      ps.setLong(4,rs.getLong("primKey"));
+      ps.setLong(5,rs.getLong("roleId"));
+      if (supportsBatchUpdates) {
+        ps.addBatch();
+        if (count == _BATCH_SIZE) {
+          ps.executeBatch();
+          count=0;
+        }
+ else {
+          count++;
+        }
+      }
+ else {
+        ps.executeUpdate();
+      }
+    }
+    if (supportsBatchUpdates && (count > 0)) {
+      ps.executeBatch();
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}
