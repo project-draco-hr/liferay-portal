@@ -1,13 +1,26 @@
 {
-  if (!_initInitialContextFactoryBuilder) {
-    return;
-  }
-  _initInitialContextFactoryBuilder=false;
-  if (NamingManager.hasInitialContextFactoryBuilder()) {
+  if (!NamingManager.hasInitialContextFactoryBuilder()) {
+    PACLInitialContextFactoryBuilder paclInitialContextFactoryBuilder=new PACLInitialContextFactoryBuilder();
     if (_log.isInfoEnabled()) {
-      _log.info("Unable to override the initial context factory builder " + "because one already exists. JNDI security is not " + "enabled.");
+      _log.info("Overriding the initial context factory builder");
     }
+    NamingManager.setInitialContextFactoryBuilder(paclInitialContextFactoryBuilder);
+  }
+  Class<?> clazz=NamingManager.class;
+  String fieldName="initctx_factory_builder";
+  if (JavaDetector.isIBM()) {
+    fieldName="icfb";
+  }
+  Field field=clazz.getDeclaredField(fieldName);
+  field.setAccessible(true);
+  InitialContextFactoryBuilder initialContextFactoryBuilder=(InitialContextFactoryBuilder)field.get(null);
+  if (initialContextFactoryBuilder instanceof PACLInitialContextFactoryBuilder) {
     return;
   }
-  NamingManager.setInitialContextFactoryBuilder(new PACLInitialContextFactoryBuilder());
+  PACLInitialContextFactoryBuilder paclInitialContextFactoryBuilder=new PACLInitialContextFactoryBuilder();
+  paclInitialContextFactoryBuilder.setInitialContextFactoryBuilder(initialContextFactoryBuilder);
+  field.set(null,paclInitialContextFactoryBuilder);
+  if (_log.isInfoEnabled()) {
+    _log.info("Overriding the initial context factory builder using " + "reflection");
+  }
 }
