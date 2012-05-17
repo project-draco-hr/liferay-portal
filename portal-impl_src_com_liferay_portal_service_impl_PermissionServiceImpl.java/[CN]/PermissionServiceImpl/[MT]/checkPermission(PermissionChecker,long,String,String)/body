@@ -79,6 +79,25 @@
     PortletPermissionUtil.check(permissionChecker,plid,portletId,ActionKeys.CONFIGURATION);
   }
  else   if (!permissionChecker.hasPermission(groupId,name,primKey,ActionKeys.PERMISSIONS)) {
+    long ownerId=0;
+    if (resourceBlockLocalService.isSupported(name)) {
+      PermissionedModel permissionedModel=resourceBlockLocalService.getPermissionedModel(name,Long.valueOf(primKey));
+      if (permissionedModel instanceof GroupedModel) {
+        GroupedModel groupedModel=(GroupedModel)permissionedModel;
+        ownerId=groupedModel.getUserId();
+      }
+ else       if (permissionedModel instanceof AuditedModel) {
+        AuditedModel auditedModel=(AuditedModel)permissionedModel;
+        ownerId=auditedModel.getUserId();
+      }
+    }
+ else {
+      ResourcePermission resourcePermission=resourcePermissionLocalService.getResourcePermission(permissionChecker.getCompanyId(),name,ResourceConstants.SCOPE_INDIVIDUAL,primKey,permissionChecker.getOwnerRoleId());
+      ownerId=resourcePermission.getOwnerId();
+    }
+    if (permissionChecker.hasOwnerPermission(permissionChecker.getCompanyId(),name,primKey,ownerId,ActionKeys.PERMISSIONS)) {
+      return;
+    }
     Role role=null;
     if (name.equals(Role.class.getName())) {
       long roleId=GetterUtil.getLong(primKey);
