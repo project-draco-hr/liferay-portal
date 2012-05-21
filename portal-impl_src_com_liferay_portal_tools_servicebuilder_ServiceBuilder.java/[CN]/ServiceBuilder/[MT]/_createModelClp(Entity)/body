@@ -2,24 +2,28 @@
   if (Validator.isNull(_pluginName)) {
     return;
   }
-  JavaClass implJavaClass=_getJavaClass(_outputPath + "/model/impl/" + entity.getName()+ "Impl.java");
-  JavaClass modelImplJavaClass=_getJavaClass(_outputPath + "/model/impl/" + entity.getName()+ "ModelImpl.java");
-  JavaMethod[] implMethods=_getMethods(implJavaClass);
-  JavaMethod[] implModelMethods=_getMethods(modelImplJavaClass);
-  Map<String,JavaMethod> Methods=new HashMap<String,JavaMethod>();
-  for (  JavaMethod method : implMethods) {
-    Methods.put(method.getDeclarationSignature(false),method);
+  JavaClass javaClass=_getJavaClass(_outputPath + "/model/impl/" + entity.getName()+ "Impl.java");
+  Map<String,JavaMethod> methods=new HashMap<String,JavaMethod>();
+  for (  JavaMethod method : javaClass.getMethods()) {
+    methods.put(method.getDeclarationSignature(false),method);
   }
-  for (  JavaMethod method : implModelMethods) {
-    Methods.remove(method.getDeclarationSignature(false));
-  }
-  List<JavaMethod> contextMethods=new ArrayList<JavaMethod>();
-  for (  String DeclarationSignature : Methods.keySet()) {
-    contextMethods.add(Methods.get(DeclarationSignature));
+  Type superClassType=javaClass.getSuperClass();
+  String superClassValue=superClassType.getValue();
+  while (!superClassValue.endsWith("BaseModelImpl")) {
+    int lastPeriod=superClassValue.lastIndexOf(StringPool.PERIOD);
+    if (lastPeriod > 0) {
+      superClassValue=superClassValue.substring(lastPeriod + 1);
+    }
+    javaClass=_getJavaClass(_outputPath + "/model/impl/" + superClassValue+ ".java");
+    for (    JavaMethod method : _getMethods(javaClass)) {
+      methods.remove(method.getDeclarationSignature(false));
+    }
+    superClassType=javaClass.getSuperClass();
+    superClassValue=superClassType.getValue();
   }
   Map<String,Object> context=_getContext();
   context.put("entity",entity);
-  context.put("methods",contextMethods);
+  context.put("methods",methods.values());
   String content=_processTemplate(_tplModelClp,context);
   File modelFile=new File(_serviceOutputPath + "/model/" + entity.getName()+ "Clp.java");
   writeFile(modelFile,content,_author);
