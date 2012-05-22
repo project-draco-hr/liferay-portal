@@ -1,0 +1,35 @@
+{
+  if (_fileVersionIds.contains(fileVersion.getFileVersionId())) {
+    return;
+  }
+  boolean generateImages=false;
+  String extension=fileVersion.getExtension();
+  if (extension.equals("pdf")) {
+    generateImages=true;
+  }
+ else   if (DocumentConversionUtil.isEnabled()) {
+    String[] conversions=DocumentConversionUtil.getConversions(extension);
+    for (    String conversion : conversions) {
+      if (conversion.equals("pdf")) {
+        generateImages=true;
+        break;
+      }
+    }
+  }
+  if (generateImages) {
+    _fileVersionIds.add(fileVersion.getFileVersionId());
+    if (PropsValues.DL_FILE_ENTRY_PROCESSORS_TRIGGER_SYNCHRONOUSLY) {
+      try {
+        MessageBusUtil.sendSynchronousMessage(DestinationNames.DOCUMENT_LIBRARY_PDF_PROCESSOR,new Object[]{copyFromVersion,fileVersion});
+      }
+ catch (      MessageBusException mbe) {
+        if (_log.isWarnEnabled()) {
+          _log.warn(mbe,mbe);
+        }
+      }
+    }
+ else {
+      MessageBusUtil.sendMessage(DestinationNames.DOCUMENT_LIBRARY_PDF_PROCESSOR,new Object[]{copyFromVersion,fileVersion});
+    }
+  }
+}

@@ -1,0 +1,62 @@
+{
+  if (!XugglerUtil.isEnabled() || _hasVideo(fileVersion)) {
+    return;
+  }
+  InputStream inputStream=null;
+  File[] previewTempFiles=new File[_PREVIEW_TYPES.length];
+  File videoTempFile=null;
+  try {
+    if (copyFromVersion != null) {
+      copy(copyFromVersion,fileVersion);
+    }
+ else {
+      File file=null;
+      if (!hasPreviews(fileVersion) || !hasThumbnails(fileVersion)) {
+        if (fileVersion instanceof LiferayFileVersion) {
+          try {
+            LiferayFileVersion liferayFileVersion=(LiferayFileVersion)fileVersion;
+            file=liferayFileVersion.getFile(false);
+          }
+ catch (          UnsupportedOperationException uoe) {
+          }
+        }
+        if (file == null) {
+          inputStream=fileVersion.getContentStream(false);
+          videoTempFile=FileUtil.createTempFile(fileVersion.getExtension());
+          FileUtil.write(videoTempFile,inputStream);
+          file=videoTempFile;
+        }
+      }
+      if (!hasPreviews(fileVersion)) {
+        String tempFileId=DLUtil.getTempFileId(fileVersion.getFileEntryId(),fileVersion.getVersion());
+        for (int i=0; i < _PREVIEW_TYPES.length; i++) {
+          previewTempFiles[i]=getPreviewTempFile(tempFileId,_PREVIEW_TYPES[i]);
+        }
+        try {
+          _generateVideoXuggler(fileVersion,file,previewTempFiles,PropsValues.DL_FILE_ENTRY_PREVIEW_VIDEO_HEIGHT,PropsValues.DL_FILE_ENTRY_PREVIEW_VIDEO_WIDTH);
+        }
+ catch (        Exception e) {
+          _log.error(e,e);
+        }
+      }
+      if (!hasThumbnails(fileVersion)) {
+        try {
+          _generateThumbnailXuggler(fileVersion,file,PropsValues.DL_FILE_ENTRY_PREVIEW_VIDEO_HEIGHT,PropsValues.DL_FILE_ENTRY_PREVIEW_VIDEO_WIDTH);
+        }
+ catch (        Exception e) {
+          _log.error(e,e);
+        }
+      }
+    }
+  }
+ catch (  NoSuchFileEntryException nsfee) {
+  }
+ finally {
+    StreamUtil.cleanUp(inputStream);
+    _fileVersionIds.remove(fileVersion.getFileVersionId());
+    for (int i=0; i < previewTempFiles.length; i++) {
+      FileUtil.delete(previewTempFiles[i]);
+    }
+    FileUtil.delete(videoTempFile);
+  }
+}
