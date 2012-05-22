@@ -1,0 +1,35 @@
+{
+  Group globalScopeGroup=GroupLocalServiceUtil.getCompanyGroup(portletDataContext.getCompanyId());
+  long globalScopeGroupId=globalScopeGroup.getGroupId();
+  portletDataContext.addPermissions(_PERMISSION_NAMESPACE,portletDataContext.getScopeGroupId());
+  Document document=SAXReaderUtil.createDocument();
+  Element rootElement=document.addElement("mobile-device-rules-data");
+  Element mdrRuleGroupInstancesElement=rootElement.addElement(_MDR_RULE_GROUP_INSTANCES_ELEMENT);
+  Element siteMDRRuleGroupsElement=rootElement.addElement(_SITE_MDR_RULE_GROUPS_ELEMENT);
+  Element globalMDRRuleGroupsElement=rootElement.addElement(_GLOBAL_MDR_RULE_GROUPS_ELEMENT);
+  boolean exportAllSiteMDRRuleGroups=portletDataContext.getBooleanParameter(_NAMESPACE,"site-mdr-rule-groups");
+  boolean exportAllGlobalMDRRuleGroups=portletDataContext.getBooleanParameter(_NAMESPACE,"global-mdr-rule-groups");
+  if (_log.isDebugEnabled()) {
+    _log.debug("Current configuration will force exporting of " + "all site device rule groups: " + exportAllSiteMDRRuleGroups);
+    _log.debug("Current configuration will force exporting of " + "all global device rule groups: " + exportAllGlobalMDRRuleGroups);
+  }
+  List<MDRRuleGroupInstance> mdrRuleGroupInstances=MDRRuleGroupInstanceUtil.findByGroupId(portletDataContext.getScopeGroupId());
+  for (  MDRRuleGroupInstance mdrRuleGroupInstance : mdrRuleGroupInstances) {
+    MDRRuleGroup mdrRuleGroup=mdrRuleGroupInstance.getRuleGroup();
+    Element ruleGroupsElement=null;
+    if ((mdrRuleGroup.getGroupId() == portletDataContext.getGroupId()) && (!exportAllSiteMDRRuleGroups)) {
+      ruleGroupsElement=siteMDRRuleGroupsElement;
+    }
+ else     if ((mdrRuleGroup.getGroupId() == globalScopeGroupId) && (!exportAllGlobalMDRRuleGroups)) {
+      ruleGroupsElement=globalMDRRuleGroupsElement;
+    }
+    exportMDRRuleGroupInstance(portletDataContext,mdrRuleGroupInstance,mdrRuleGroup,mdrRuleGroupInstancesElement,ruleGroupsElement);
+  }
+  if (exportAllSiteMDRRuleGroups) {
+    exportMDRRuleGroups(portletDataContext.getGroupId(),portletDataContext,siteMDRRuleGroupsElement);
+  }
+  if (exportAllGlobalMDRRuleGroups) {
+    exportMDRRuleGroups(globalScopeGroupId,portletDataContext,globalMDRRuleGroupsElement);
+  }
+  return document.formattedString();
+}
