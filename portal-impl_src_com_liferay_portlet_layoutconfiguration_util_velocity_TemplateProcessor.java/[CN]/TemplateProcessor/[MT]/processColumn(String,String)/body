@@ -1,19 +1,4 @@
 {
-  boolean parallelRenderEnable=PropsValues.LAYOUT_PARALLEL_RENDER_ENABLE;
-  if (parallelRenderEnable) {
-    if (PropsValues.SESSION_DISABLED) {
-      if (_log.isWarnEnabled()) {
-        _log.warn("Parallel rendering should be disabled if sessions " + "are disabled");
-      }
-    }
-    Boolean portletParallelRender=(Boolean)_request.getAttribute(WebKeys.PORTLET_PARALLEL_RENDER);
-    if (Boolean.FALSE.equals(portletParallelRender)) {
-      parallelRenderEnable=false;
-    }
-  }
- else {
-    _request.removeAttribute(WebKeys.PORTLET_PARALLEL_RENDER);
-  }
   ThemeDisplay themeDisplay=(ThemeDisplay)_request.getAttribute(WebKeys.THEME_DISPLAY);
   LayoutTypePortlet layoutTypePortlet=themeDisplay.getLayoutTypePortlet();
   List<Portlet> portlets=layoutTypePortlet.getAllPortlets(columnId);
@@ -38,17 +23,21 @@
   sb.append("\">");
   for (int i=0; i < portlets.size(); i++) {
     Portlet portlet=portlets.get(i);
-    if (parallelRenderEnable && (portlet.getRenderWeight() < 1)) {
-      String path="/html/portal/load_render_portlet.jsp";
-      StringServletResponse stringServletResponse=new StringServletResponse(_response);
-      HttpServletRequest request=PortletContainerUtil.setupOptionalRenderParameters(_request,path,null,null,null);
-      PortletContainerUtil.render(request,stringServletResponse,portlet);
-      sb.append(stringServletResponse.getString());
+    Integer columnPos=new Integer(i);
+    Integer columnCount=new Integer(portlets.size());
+    Integer renderWeight=portlet.getRenderWeight();
+    PortletRenderer portletRenderer=new PortletRenderer(portlet,columnId,columnCount,columnPos);
+    if (_ajaxableRenderEnable && (portlet.getRenderWeight() < 1)) {
+      StringBundler renderResult=portletRenderer.renderAjax(_request,_response);
+      sb.append(renderResult);
     }
  else {
-      Integer columnPos=new Integer(i);
-      Integer columnCount=new Integer(portlets.size());
-      _portletsMap.put(portlet,new Object[]{columnId,columnPos,columnCount});
+      List<PortletRenderer> portletRenderers=_portletRenderersMap.get(renderWeight);
+      if (portletRenderers == null) {
+        portletRenderers=new ArrayList<PortletRenderer>();
+        _portletRenderersMap.put(renderWeight,portletRenderers);
+      }
+      portletRenderers.add(portletRenderer);
       sb.append("[$TEMPLATE_PORTLET_");
       sb.append(portlet.getPortletId());
       sb.append("$]");
