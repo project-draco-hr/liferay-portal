@@ -1,0 +1,30 @@
+{
+  if (_log.isInfoEnabled()) {
+    StringBundler sb=new StringBundler(baseAsyncDestinations.size() + 1);
+    sb.append("[");
+    for (    BaseAsyncDestination baseAsyncDestination : baseAsyncDestinations) {
+      sb.append(baseAsyncDestination.getName());
+      sb.append(", ");
+    }
+    sb.setStringAt("]",sb.index() - 1);
+    _log.info("Synchronize cluster index loading for destinations : " + sb.toString());
+  }
+  int workerThreadCount=0;
+  for (  BaseAsyncDestination baseAsyncDestination : baseAsyncDestinations) {
+    workerThreadCount+=baseAsyncDestination.getWorkersMaxSize();
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Total synchronize thread count : " + workerThreadCount);
+  }
+  CountDownLatch countDownLatch=new CountDownLatch(workerThreadCount + 1);
+  ClusterLoadingSyncJob slaveJob=new ClusterLoadingSyncJob(companyIds,countDownLatch,false);
+  for (  BaseAsyncDestination baseAsyncDestination : baseAsyncDestinations) {
+    ThreadPoolExecutor threadPoolExecutor=PortalExecutorManagerUtil.getPortalExecutor(baseAsyncDestination.getName());
+    for (int i=0; i < baseAsyncDestination.getWorkersMaxSize(); i++) {
+      threadPoolExecutor.execute(slaveJob);
+    }
+  }
+  ClusterLoadingSyncJob masterJob=new ClusterLoadingSyncJob(companyIds,countDownLatch,true);
+  ThreadPoolExecutor threadPoolExecutor=PortalExecutorManagerUtil.getPortalExecutor(EditServerAction.class.getName());
+  threadPoolExecutor.execute(masterJob);
+}

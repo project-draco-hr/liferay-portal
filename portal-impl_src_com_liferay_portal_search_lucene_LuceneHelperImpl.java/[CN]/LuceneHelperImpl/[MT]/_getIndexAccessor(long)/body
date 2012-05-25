@@ -8,12 +8,20 @@ synchronized (this) {
     if (indexAccessor == null) {
       indexAccessor=new IndexAccessorImpl(companyId);
       if (isLoadIndexFromClusterEnabled()) {
-        indexAccessor=new SynchronizedIndexAccessorImpl(indexAccessor);
-        try {
-          _loadIndexFromCluster(indexAccessor,indexAccessor.getLastGeneration());
+        Boolean clusterForward=(Boolean)MessageValuesThreadLocal.getValue(ClusterLinkUtil.CLUSTER_FORWARD_MESSAGE);
+        if (Boolean.TRUE.equals(clusterForward)) {
+          if (_log.isInfoEnabled()) {
+            _log.info("Skip Luncene index files cluster loading, " + "as this is a manual reindex request.");
+          }
         }
- catch (        Exception e) {
-          _log.error("Unable to load index for company " + indexAccessor.getCompanyId(),e);
+ else {
+          indexAccessor=new SynchronizedIndexAccessorImpl(indexAccessor);
+          try {
+            _loadIndexFromCluster(indexAccessor,indexAccessor.getLastGeneration());
+          }
+ catch (          Exception e) {
+            _log.error("Unable to load index for company " + indexAccessor.getCompanyId(),e);
+          }
         }
       }
       _indexAccessors.put(companyId,indexAccessor);
