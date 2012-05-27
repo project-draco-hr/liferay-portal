@@ -7,16 +7,29 @@
   if (isJSPCompiler(permission.getName(),FILE_PERMISSION_ACTION_READ)) {
     return true;
   }
-  if (isResinVFS()) {
-    return true;
+  for (int i=7; ; i++) {
+    Class<?> callerClass=Reflection.getCallerClass(i);
+    if (callerClass == null) {
+      return false;
+    }
+    if ((callerClass == DirectServletRegistryImpl.class) || (callerClass == FileAvailabilityUtil.class) || ClassLoader.class.isAssignableFrom(callerClass)) {
+      return true;
+    }
+    if (ServerDetector.isGlassfish()) {
+      Class<?> enclosingClass=callerClass.getEnclosingClass();
+      if (enclosingClass != null) {
+        if ((enclosingClass.getEnclosingClass() == URLClassLoader.class) && CheckerUtil.isAccessControllerDoPrivileged(i + 1)) {
+          return true;
+        }
+      }
+    }
+ else     if (ServerDetector.isResin()) {
+      String callerClassName=callerClass.getName();
+      if (callerClassName.equals(_CLASS_NAME_FILE_PATH)) {
+        String actualClassLocation=PACLClassUtil.getClassLocation(callerClass);
+        String expectedClassLocation=PathUtil.toUnixPath(System.getProperty("resin.home") + "/lib/resin.jar!/");
+        return actualClassLocation.contains(expectedClassLocation);
+      }
+    }
   }
-  Class<?> callerClass10=Reflection.getCallerClass(10);
-  if (isGeronimoJarFileClassLoader(callerClass10.getEnclosingClass()) && CheckerUtil.isAccessControllerDoPrivileged(11)) {
-    return true;
-  }
-  Class<?> callerClass20=Reflection.getCallerClass(20);
-  if (isGeronimoJarFileClassLoader(callerClass20.getEnclosingClass()) && CheckerUtil.isAccessControllerDoPrivileged(21)) {
-    return true;
-  }
-  return false;
 }

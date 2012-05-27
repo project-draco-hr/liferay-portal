@@ -1,72 +1,78 @@
 {
-  for (int i=1; ; i++) {
+  for (int i=7; ; i++) {
     Class<?> callerClass=Reflection.getCallerClass(i);
     if (callerClass == null) {
-      break;
+      return false;
     }
+    Boolean allowed=null;
     String callerClassName=callerClass.getName();
-    if (!callerClassName.startsWith(_PACKAGE_NAME_ORG_APACHE_JASPER_COMPILER) && !callerClassName.startsWith(_PACKAGE_NAME_ORG_APACHE_JASPER_XMLPARSER) && !callerClassName.startsWith(_PACKAGE_NAME_ORG_APACHE_NAMING_RESOURCES)&& !callerClassName.equals(_ClASS_NAME_DEFAULT_ANNOTATION_PROCESSOR)&& !callerClassName.equals(_ClASS_NAME_DEFAULT_INSTANCE_MANAGER)&& !callerClassName.equals(_ClASS_NAME_JASPER_LOADER)&& !callerClassName.startsWith(_CLASS_NAME_JASPER_SERVLET_CONTEXT_CUSTOMIZER)&& !callerClassName.equals(_ClASS_NAME_JSP_MANAGER)&& !callerClassName.equals(_ClASS_NAME_PAGE_MANAGER)&& !callerClassName.equals(_ClASS_NAME_TAG_HANDLER_POOL)) {
+    if (ServerDetector.isGeronimo()) {
+      if (callerClassName.equals(_ClASS_NAME_COMPILER) || callerClassName.startsWith(_CLASS_NAME_JASPER_SERVLET_CONTEXT_CUSTOMIZER) || callerClassName.equals(_ClASS_NAME_TAG_HANDLER_POOL)) {
+        String actualClassLocation=PACLClassUtil.getClassLocation(callerClass);
+        String expectedClassLocation=PathUtil.toUnixPath(System.getProperty("org.apache.geronimo.home.dir") + "/repository/org/apache/geronimo/");
+        allowed=actualClassLocation.contains(expectedClassLocation);
+      }
+    }
+ else     if (ServerDetector.isGlassfish()) {
+      if (callerClassName.equals(_ClASS_NAME_COMPILER) || callerClassName.equals(_ClASS_NAME_JSP_COMPILATION_CONTEXT)) {
+        String classLocation=PACLClassUtil.getClassLocation(callerClass);
+        allowed=classLocation.startsWith("bundle://");
+      }
+    }
+ else     if (ServerDetector.isJBoss()) {
+      if (callerClassName.equals(_ClASS_NAME_COMPILER)) {
+        ClassLoader callerClassLoader=PACLClassLoaderUtil.getClassLoader(callerClass);
+        String callerClassLoaderString=callerClassLoader.toString();
+        allowed=callerClassLoaderString.contains(_MODULE_NAME_ORG_JBOSS_AS_WEB_MAIN);
+      }
+    }
+ else     if (ServerDetector.isJetty()) {
+      if (callerClassName.equals(_ClASS_NAME_COMPILER) || callerClassName.equals(_ClASS_NAME_JASPER_LOADER)) {
+        ClassLoader callerClassLoader=PACLClassLoaderUtil.getClassLoader(callerClass);
+        allowed=(callerClassLoader == _commonClassLoader);
+      }
+    }
+ else     if (ServerDetector.isJOnAS()) {
+      if (callerClassName.equals(_ClASS_NAME_DEFAULT_ANNOTATION_PROCESSOR) || callerClassName.equals(_ClASS_NAME_JASPER_LOADER) || callerClassName.equals(_ClASS_NAME_JSP_COMPILATION_CONTEXT)) {
+        String classLocation=PACLClassUtil.getClassLocation(callerClass);
+        allowed=classLocation.startsWith("bundle://");
+      }
+    }
+ else     if (ServerDetector.isResin()) {
+      if (callerClassName.equals(_ClASS_NAME_JSP_MANAGER) || callerClassName.equals(_ClASS_NAME_PAGE_MANAGER)) {
+        String actualClassLocation=PACLClassUtil.getClassLocation(callerClass);
+        String expectedClassLocation=PathUtil.toUnixPath(System.getProperty("resin.home") + "/lib/resin.jar!/");
+        allowed=actualClassLocation.contains(expectedClassLocation);
+      }
+    }
+ else     if (ServerDetector.isTomcat()) {
+      if (callerClassName.equals(_ClASS_NAME_DEFAULT_INSTANCE_MANAGER) || callerClassName.equals(_ClASS_NAME_COMPILER) || callerClassName.equals(_ClASS_NAME_TAG_HANDLER_POOL)) {
+        ClassLoader callerClassLoader=PACLClassLoaderUtil.getClassLoader(callerClass);
+        allowed=(callerClassLoader == _commonClassLoader);
+      }
+    }
+    if (allowed == null) {
       continue;
     }
-    ClassLoader callerClassLoader=PACLClassLoaderUtil.getClassLoader(callerClass);
-    if (callerClassLoader != _commonClassLoader) {
-      boolean allow=false;
-      if (ServerDetector.isGeronimo()) {
-        Class<?> callerClassLoaderClass=callerClassLoader.getClass();
-        String callerClassLoaderClassName=callerClassLoaderClass.getName();
-        if (callerClassLoaderClassName.equals(_CLASS_NAME_JAR_FILE_CLASS_LOADER)) {
-          allow=true;
-        }
-      }
- else       if (ServerDetector.isGlassfish()) {
-        Class<?> callerClassLoaderClass=callerClassLoader.getClass();
-        callerClassLoaderClass=callerClassLoaderClass.getEnclosingClass();
-        if (callerClassLoaderClass != null) {
-          String callerClassLoaderClassName=callerClassLoaderClass.getName();
-          if (callerClassLoaderClassName.equals(_ClASS_NAME_BUNDLE_WIRING_IMPL)) {
-            allow=true;
-          }
-        }
-      }
- else       if (ServerDetector.isJBoss()) {
-        String callerClassLoaderString=callerClassLoader.toString();
-        if (callerClassLoaderString.contains(_MODULE_NAME_ORG_JBOSS_AS_WEB_MAIN)) {
-          allow=true;
-        }
-      }
- else       if (ServerDetector.isJOnAS()) {
-        Class<?> callerClassLoaderClass=callerClassLoader.getClass();
-        String callerClassLoaderClassName=callerClassLoaderClass.getName();
-        if (callerClassLoaderClassName.startsWith(_CLASS_NAME_MODULE_IMPL)) {
-          allow=true;
-        }
-      }
- else       if (ServerDetector.isResin()) {
-        Class<?> callerClassLoaderClass=callerClassLoader.getClass();
-        String classLocation=PACLClassUtil.getClassLocation(callerClassLoaderClass);
-        if (Validator.isNull(classLocation)) {
-          allow=true;
-        }
-      }
-      if (!allow) {
+    if (allowed) {
+      if (_log.isDebugEnabled()) {
         if (Validator.isNotNull(actions)) {
-          _log.error("A plugin is hijacking the JSP compiler via " + callerClassName + " to "+ actions+ " "+ subject);
+          _log.debug("Allowing the JSP compiler via " + callerClassName + " to "+ actions+ " "+ subject);
         }
  else {
-          _log.error("A plugin is hijacking the JSP compiler via " + callerClassName + " to "+ subject);
+          _log.debug("Allowing the JSP compiler via " + callerClassName + " to "+ subject);
         }
-        return false;
       }
+      return true;
     }
-    if (_log.isDebugEnabled()) {
+ else {
       if (Validator.isNotNull(actions)) {
-        _log.debug("Allowing the JSP compiler via " + callerClassName + " to "+ actions+ " "+ subject);
+        _log.error("A plugin is hijacking the JSP compiler via " + callerClassName + " to "+ actions+ " "+ subject);
       }
  else {
-        _log.debug("Allowing the JSP compiler via " + callerClassName + " to "+ subject);
+        _log.error("A plugin is hijacking the JSP compiler via " + callerClassName + " to "+ subject);
       }
+      return false;
     }
-    return true;
   }
-  return false;
 }
