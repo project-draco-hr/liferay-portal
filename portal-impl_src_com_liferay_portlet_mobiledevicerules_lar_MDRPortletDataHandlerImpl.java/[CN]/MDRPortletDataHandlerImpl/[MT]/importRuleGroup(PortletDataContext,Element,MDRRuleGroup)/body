@@ -1,0 +1,30 @@
+{
+  long userId=portletDataContext.getUserId(ruleGroup.getUserUuid());
+  ServiceContext serviceContext=portletDataContext.createServiceContext(ruleGroupElement,ruleGroup,_NAMESPACE);
+  serviceContext.setUserId(userId);
+  MDRRuleGroup importedRuleGroup=null;
+  if (portletDataContext.isDataStrategyMirror()) {
+    MDRRuleGroup existingRuleGroup=MDRRuleGroupUtil.fetchByUUID_G(ruleGroup.getUuid(),portletDataContext.getScopeGroupId());
+    if (existingRuleGroup == null) {
+      serviceContext.setUuid(ruleGroup.getUuid());
+      importedRuleGroup=MDRRuleGroupLocalServiceUtil.addRuleGroup(portletDataContext.getScopeGroupId(),ruleGroup.getNameMap(),ruleGroup.getDescriptionMap(),serviceContext);
+    }
+ else {
+      importedRuleGroup=MDRRuleGroupLocalServiceUtil.updateRuleGroup(existingRuleGroup.getRuleGroupId(),ruleGroup.getNameMap(),ruleGroup.getDescriptionMap(),serviceContext);
+    }
+  }
+ else {
+    importedRuleGroup=MDRRuleGroupLocalServiceUtil.addRuleGroup(portletDataContext.getScopeGroupId(),ruleGroup.getNameMap(),ruleGroup.getDescriptionMap(),serviceContext);
+  }
+  portletDataContext.importClassedModel(ruleGroup,importedRuleGroup,_NAMESPACE);
+  Element rulesElement=ruleGroupElement.element("rules");
+  List<Element> ruleElements=rulesElement.elements("rule");
+  for (  Element ruleElement : ruleElements) {
+    String path=ruleElement.attributeValue("path");
+    if (!portletDataContext.isPathNotProcessed(path)) {
+      continue;
+    }
+    MDRRule rule=(MDRRule)portletDataContext.getZipEntryAsObject(path);
+    importRule(portletDataContext,ruleElement,importedRuleGroup,rule);
+  }
+}

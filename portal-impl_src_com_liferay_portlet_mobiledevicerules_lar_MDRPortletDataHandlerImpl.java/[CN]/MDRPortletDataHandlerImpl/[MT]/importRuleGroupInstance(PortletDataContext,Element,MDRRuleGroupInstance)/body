@@ -1,0 +1,56 @@
+{
+  long userId=portletDataContext.getUserId(ruleGroupInstance.getUserUuid());
+  Map<Long,Long> ruleGroupIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(MDRRuleGroup.class);
+  long ruleGroupId=ruleGroupIds.get(ruleGroupInstance.getRuleGroupId());
+  long classPK=0;
+  String layoutUuid=ruleGroupInstanceElement.attributeValue("layout-uuid");
+  try {
+    if (Validator.isNotNull(layoutUuid)) {
+      Layout layout=LayoutLocalServiceUtil.getLayoutByUuidAndGroupId(layoutUuid,portletDataContext.getScopeGroupId());
+      classPK=layout.getPrimaryKey();
+    }
+ else {
+      LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(portletDataContext.getScopeGroupId(),portletDataContext.isPrivateLayout());
+      classPK=layoutSet.getLayoutSetId();
+    }
+  }
+ catch (  Exception e) {
+    if (_log.isWarnEnabled()) {
+      StringBundler sb=new StringBundler(5);
+      sb.append("Layout ");
+      sb.append(layoutUuid);
+      sb.append(" is missing for rule group instance ");
+      sb.append(ruleGroupInstance.getRuleGroupInstanceId());
+      sb.append(", skipping this rule group instance.");
+      _log.warn(sb.toString());
+    }
+    return;
+  }
+  ServiceContext serviceContext=portletDataContext.createServiceContext(ruleGroupInstanceElement,ruleGroupInstance,_NAMESPACE);
+  serviceContext.setUserId(userId);
+  MDRRuleGroupInstance importedRuleGroupInstance=null;
+  if (portletDataContext.isDataStrategyMirror()) {
+    MDRRuleGroupInstance existingMDRRuleGroupInstance=MDRRuleGroupInstanceUtil.fetchByUUID_G(ruleGroupInstance.getUuid(),portletDataContext.getScopeGroupId());
+    if (existingMDRRuleGroupInstance == null) {
+      serviceContext.setUuid(ruleGroupInstance.getUuid());
+      importedRuleGroupInstance=MDRRuleGroupInstanceLocalServiceUtil.addRuleGroupInstance(portletDataContext.getScopeGroupId(),ruleGroupInstance.getClassName(),classPK,ruleGroupId,ruleGroupInstance.getPriority(),serviceContext);
+    }
+ else {
+      importedRuleGroupInstance=MDRRuleGroupInstanceLocalServiceUtil.updateRuleGroupInstance(existingMDRRuleGroupInstance.getRuleGroupInstanceId(),ruleGroupInstance.getPriority());
+    }
+  }
+ else {
+    importedRuleGroupInstance=MDRRuleGroupInstanceLocalServiceUtil.addRuleGroupInstance(portletDataContext.getScopeGroupId(),ruleGroupInstance.getClassName(),classPK,ruleGroupId,ruleGroupInstance.getPriority(),serviceContext);
+  }
+  portletDataContext.importClassedModel(ruleGroupInstance,importedRuleGroupInstance,_NAMESPACE);
+  Element actionsElement=ruleGroupInstanceElement.element("actions");
+  List<Element> actionElements=actionsElement.elements("action");
+  for (  Element actionElement : actionElements) {
+    String path=actionElement.attributeValue("path");
+    if (!portletDataContext.isPathNotProcessed(path)) {
+      continue;
+    }
+    MDRAction action=(MDRAction)portletDataContext.getZipEntryAsObject(path);
+    importAction(portletDataContext,actionElement,importedRuleGroupInstance,action);
+  }
+}
