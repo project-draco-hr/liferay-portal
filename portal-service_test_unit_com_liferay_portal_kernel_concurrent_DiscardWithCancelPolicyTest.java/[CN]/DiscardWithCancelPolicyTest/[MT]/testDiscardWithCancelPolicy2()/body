@@ -1,0 +1,34 @@
+{
+  ThreadPoolExecutor threadPoolExecutor=new ThreadPoolExecutor(1,1,TestUtil.KEEPALIVE_TIME,TimeUnit.MILLISECONDS,true,1,new DiscardWithCancelPolicy(),Executors.defaultThreadFactory(),new ThreadPoolHandlerAdapter());
+  try {
+    MarkerBlockingJob markerBlockingJob1=new MarkerBlockingJob(true);
+    MarkerBlockingJob markerBlockingJob2=new MarkerBlockingJob(true);
+    MarkerBlockingJob markerBlockingJob3=new MarkerBlockingJob();
+    Future<?> future1=threadPoolExecutor.submit(markerBlockingJob1);
+    markerBlockingJob1.waitUntilBlock();
+    Future<?> future2=threadPoolExecutor.submit(markerBlockingJob2);
+    assertEquals(1,threadPoolExecutor.getActiveCount());
+    assertEquals(1,threadPoolExecutor.getPendingTaskCount());
+    Future<?> future3=threadPoolExecutor.submit(markerBlockingJob3);
+    assertFalse(markerBlockingJob3.isStarted());
+    assertTrue(future3.isCancelled());
+    assertEquals(1,threadPoolExecutor.getActiveCount());
+    assertEquals(1,threadPoolExecutor.getPendingTaskCount());
+    markerBlockingJob1.unBlock();
+    markerBlockingJob2.waitUntilBlock();
+    assertTrue(markerBlockingJob1.isEnded());
+    assertTrue(future1.isDone());
+    assertFalse(future1.isCancelled());
+    assertEquals(1,threadPoolExecutor.getActiveCount());
+    assertEquals(0,threadPoolExecutor.getPendingTaskCount());
+    markerBlockingJob2.unBlock();
+    TestUtil.waitUntilEnded(markerBlockingJob2);
+    assertTrue(future2.isDone());
+    assertFalse(future2.isCancelled());
+    assertEquals(0,threadPoolExecutor.getActiveCount());
+    assertEquals(0,threadPoolExecutor.getPendingTaskCount());
+  }
+  finally {
+    TestUtil.closePool(threadPoolExecutor);
+  }
+}

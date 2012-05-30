@@ -6,7 +6,15 @@
       Portlet portlet=portletRenderer.getPortlet();
       _log.debug("Submit portlet " + portlet.getPortletId() + " for parallel rendering");
     }
-    Future<StringBundler> future=executorService.submit(portletRenderer.getCallable(request,response));
+    Callable<StringBundler> renderCallable=portletRenderer.getCallable(request,response);
+    Future<StringBundler> future=null;
+    try {
+      future=executorService.submit(renderCallable);
+    }
+ catch (    RejectedExecutionException ree) {
+      future=new FutureTask<StringBundler>(renderCallable);
+      future.cancel(true);
+    }
     futures.put(future,portletRenderer);
   }
   long waitTime=_waitTime;
@@ -14,7 +22,12 @@
     Future<StringBundler> future=entry.getKey();
     PortletRenderer portletRenderer=entry.getValue();
     Portlet portlet=portletRenderer.getPortlet();
-    if ((waitTime > 0) || future.isDone()) {
+    if (future.isCancelled()) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Reject portlet " + portlet.getPortletId() + " for parallel rendering");
+      }
+    }
+ else     if ((waitTime > 0) || future.isDone()) {
       try {
         long startTime=System.currentTimeMillis();
         StringBundler sb=future.get(waitTime,TimeUnit.MILLISECONDS);
@@ -36,8 +49,14 @@ catch (      InterruptedException ie) {
 catch (      TimeoutException te) {
         waitTime=-1;
       }
+catch (      CancellationException ce) {
+        if (_log.isDebugEnabled()) {
+          _log.debug("Asynchronized cancellation detected, should " + "only be caused by concurrent shutdown " + "ThreadPool, otherwise could be a bug",ce);
+        }
+        return;
+      }
+      future.cancel(true);
     }
-    future.cancel(true);
     StringBundler sb=null;
     if (processor.isPortletAjaxRender() && portlet.isAjaxable()) {
       if (_log.isDebugEnabled()) {
