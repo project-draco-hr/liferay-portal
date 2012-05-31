@@ -1,0 +1,41 @@
+{
+  if (Validator.isNull(PropsValues.AUTO_DEPLOY_WEBSPHERE_WSADMIN_APP_MANAGER_QUERY)) {
+    if (_log.isInfoEnabled()) {
+      StringBundler sb=new StringBundler();
+      sb.append("Do not install the plugin with wsadmin since the ");
+      sb.append("property \"");
+      sb.append(PropsKeys.AUTO_DEPLOY_WEBSPHERE_WSADMIN_APP_MANAGER_QUERY);
+      sb.append("\"is not configured");
+      _log.info(sb.toString());
+    }
+    return;
+  }
+  String wsadminContent=FileUtil.read(DeployUtil.getResourcePath("wsadmin.py"));
+  String pluginServletContextName=deployDir.substring(0,deployDir.length() - 4);
+  wsadminContent=StringUtil.replace(wsadminContent,new String[]{"${auto.deploy.dest.dir}","${auto.deploy.websphere.wsadmin.app.manager.query}","${plugin.servlet.context.name}"},new String[]{destDir,PropsValues.AUTO_DEPLOY_WEBSPHERE_WSADMIN_APP_MANAGER_QUERY,pluginServletContextName});
+  String wsadminFileName=FileUtil.createTempFileName("py");
+  FileUtil.write(wsadminFileName,wsadminContent);
+  String webSphereHome=System.getenv("WAS_HOME");
+  if (_log.isInfoEnabled()) {
+    _log.info("Installing plugin by executing " + webSphereHome + "\\bin\\wsadmin.bat -f "+ wsadminFileName);
+  }
+  ProcessBuilder processBuilder=new ProcessBuilder(webSphereHome + "\\bin\\wsadmin.bat","-f",wsadminFileName);
+  processBuilder.redirectErrorStream(true);
+  Process process=processBuilder.start();
+  if (_log.isInfoEnabled()) {
+    InputStream inputStream=process.getInputStream();
+    String output=StringUtil.read(inputStream);
+    for (    String line : StringUtil.split(output,CharPool.NEW_LINE)) {
+      _log.info("Process output: " + line);
+    }
+    inputStream.close();
+    int exitValue=process.exitValue();
+    if (exitValue == 0) {
+      _log.info("Successfully executed command with an exit value of " + exitValue);
+    }
+ else {
+      _log.info("Unsuccessfully executed command with an exit value of " + exitValue);
+    }
+  }
+  FileUtil.delete(wsadminFileName);
+}
