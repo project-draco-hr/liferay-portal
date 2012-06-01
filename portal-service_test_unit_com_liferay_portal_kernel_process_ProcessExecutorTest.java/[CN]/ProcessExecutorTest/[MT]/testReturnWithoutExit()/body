@@ -1,26 +1,19 @@
 {
   ReturnWithoutExitProcessCallable returnWithoutExitProcessCallable=new ReturnWithoutExitProcessCallable("Premature return value");
-  ProcessExecutor processExecutor=new ProcessExecutor();
-  _nullOutExecutorService();
   Future<String> future=ProcessExecutor.execute(_classPath,returnWithoutExitProcessCallable);
-  ThreadPoolExecutor threadPoolExecutor=(ThreadPoolExecutor)_getExecutorService();
-  Field workersField=ReflectionUtil.getDeclaredField(ThreadPoolExecutor.class,"workers");
-  Set<?> workers=(Set<?>)workersField.get(threadPoolExecutor);
-  assertEquals(1,workers.size());
-  Object worker=workers.iterator().next();
-  Field threadField=ReflectionUtil.getDeclaredField(worker.getClass(),"thread");
-  Thread thread=(Thread)threadField.get(worker);
+  for (int i=0; i < 10; i++) {
+    try {
+      future.get(1,TimeUnit.SECONDS);
+      fail();
+    }
+ catch (    TimeoutException te) {
+    }
+  }
   Logger logger=_getLogger();
-  if (OSDetector.isWindows()) {
-    logger.log(Level.WARNING,"Windows does not properly update thread states. This test " + "may fail on slow machines.");
-    Thread.sleep(10000);
-  }
- else {
-    while (thread.getState() != Thread.State.WAITING)     ;
-  }
   Level level=logger.getLevel();
   logger.setLevel(Level.OFF);
   try {
+    ProcessExecutor processExecutor=new ProcessExecutor();
     processExecutor.destroy();
     try {
       future.get();
@@ -31,8 +24,6 @@
       assertTrue(future.isDone());
       Throwable throwable=ee.getCause();
       assertTrue(throwable instanceof ProcessException);
-      throwable=throwable.getCause();
-      assertTrue(throwable instanceof InterruptedException);
     }
   }
   finally {

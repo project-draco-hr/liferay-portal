@@ -1,4 +1,5 @@
 {
+  ProcessCallable<?> resultProcessCallable=null;
   try {
     ObjectInputStream objectInputStream=null;
     UnsyncBufferedInputStream unsyncBufferedInputStream=new UnsyncBufferedInputStream(_process.getInputStream());
@@ -22,11 +23,9 @@
     }
     while (true) {
       ProcessCallable<?> processCallable=(ProcessCallable<?>)objectInputStream.readObject();
-      if (processCallable instanceof ExceptionProcessCallable) {
-        return processCallable;
-      }
-      if (processCallable instanceof ReturnProcessCallable<?>) {
-        return processCallable;
+      if ((processCallable instanceof ExceptionProcessCallable) || (processCallable instanceof ReturnProcessCallable<?>)) {
+        resultProcessCallable=processCallable;
+        continue;
       }
       Serializable returnValue=processCallable.call();
       if (_log.isDebugEnabled()) {
@@ -47,6 +46,10 @@
  catch (    InterruptedException ie) {
       _process.destroy();
       throw new ProcessException("Forcibly killed subprocess on interruption",ie);
+    }
+    _managedProcesses.remove(_process);
+    if (resultProcessCallable != null) {
+      return resultProcessCallable;
     }
   }
 }

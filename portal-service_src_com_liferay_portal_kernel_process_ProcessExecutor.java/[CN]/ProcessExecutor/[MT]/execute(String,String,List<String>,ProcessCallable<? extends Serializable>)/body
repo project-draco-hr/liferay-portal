@@ -17,8 +17,15 @@
     }
     ExecutorService executorService=_getExecutorService();
     SubprocessReactor subprocessReactor=new SubprocessReactor(process);
-    Future<ProcessCallable<? extends Serializable>> futureResponseProcessCallable=executorService.submit(subprocessReactor);
-    return new ProcessExecutionFutureResult<T>(futureResponseProcessCallable,process);
+    try {
+      Future<ProcessCallable<? extends Serializable>> futureResponseProcessCallable=executorService.submit(subprocessReactor);
+      _managedProcesses.add(process);
+      return new ProcessExecutionFutureResult<T>(futureResponseProcessCallable,process);
+    }
+ catch (    RejectedExecutionException ree) {
+      process.destroy();
+      throw new ProcessException("Execution has been cancelled, because of a concurrent " + "destroy.",ree);
+    }
   }
  catch (  IOException ioe) {
     throw new ProcessException(ioe);
