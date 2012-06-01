@@ -1,8 +1,8 @@
 {
-  Range fullRange=new Range(0,fullLength - 1,fullLength);
   OutputStream outputStream=null;
   try {
     outputStream=response.getOutputStream();
+    Range fullRange=new Range(0,fullLength - 1,fullLength);
     Range firstRange=null;
     if (!ranges.isEmpty()) {
       firstRange=ranges.get(0);
@@ -15,20 +15,37 @@
       setHeaders(request,response,fileName,contentType,fullRange);
       copyRange(inputStream,outputStream,fullRange.getStart(),fullRange.getLength());
     }
- else     if (ranges.size() >= 1) {
+ else     if (ranges.size() == 1) {
       if (_log.isDebugEnabled()) {
-        _log.debug("Attempting to write single or multiple range");
-      }
-      if (ranges.size() > 1) {
-        if (_log.isWarnEnabled()) {
-          _log.warn("Multiple range is not supported");
-        }
+        _log.debug("Attempting to write a single range");
       }
       Range range=ranges.get(0);
       response.setContentType(contentType);
       setHeaders(request,response,fileName,contentType,range);
       response.setStatus(HttpServletResponse.SC_PARTIAL_CONTENT);
       copyRange(inputStream,outputStream,range.getStart(),range.getLength());
+    }
+ else     if (ranges.size() > 1) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Attempting to write multiple ranges");
+      }
+      ServletOutputStream servletOutputStream=(ServletOutputStream)outputStream;
+      String boundary="liferay-multipart-boundary-" + System.currentTimeMillis();
+      String multipartContentType="multipart/byteranges; boundary=" + boundary;
+      response.setContentType(multipartContentType);
+      setHeaders(request,response,fileName,multipartContentType,null);
+      response.setStatus(HttpServletResponse.SC_PARTIAL_CONTENT);
+      for (int i=0; i < ranges.size(); i++) {
+        Range range=ranges.get(i);
+        servletOutputStream.println();
+        servletOutputStream.println(StringPool.DOUBLE_DASH + boundary);
+        servletOutputStream.println(HttpHeaders.CONTENT_TYPE + ": " + contentType);
+        servletOutputStream.println(HttpHeaders.CONTENT_RANGE + ": " + range.getContentRange());
+        servletOutputStream.println();
+        copyRange(inputStream,outputStream,range.getStart(),range.getLength());
+      }
+      servletOutputStream.println();
+      servletOutputStream.println(StringPool.DOUBLE_DASH + boundary + StringPool.DOUBLE_DASH);
     }
   }
   finally {
