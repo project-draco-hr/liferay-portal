@@ -1,0 +1,32 @@
+{
+  List<JournalContentSearch> journalContentSearches=JournalContentSearchLocalServiceUtil.getArticleContentSearches();
+  Set<String> portletIds=new HashSet<String>();
+  for (  JournalContentSearch journalContentSearch : journalContentSearches) {
+    portletIds.add(journalContentSearch.getPortletId());
+  }
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getConnection();
+    for (    String portletId : portletIds) {
+      journalContentSearches=JournalContentSearchLocalServiceUtil.getArticleContentSearchesByPortletId(portletId);
+      if (journalContentSearches.size() <= 1) {
+        continue;
+      }
+      ps=con.prepareStatement("select preferences from PortletPreferences where " + "portletId = ?");
+      ps.setString(1,portletId);
+      rs=ps.executeQuery();
+      while (rs.next()) {
+        String xml=rs.getString("preferences");
+        PortletPreferences portletPreferences=PortletPreferencesFactoryUtil.fromDefaultXML(xml);
+        String articleId=portletPreferences.getValue("articleId",null);
+        JournalContentSearch journalContentSearch=journalContentSearches.get(1);
+        JournalContentSearchLocalServiceUtil.updateContentSearch(journalContentSearch.getGroupId(),journalContentSearch.isPrivateLayout(),journalContentSearch.getLayoutId(),journalContentSearch.getPortletId(),articleId,true);
+      }
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}
