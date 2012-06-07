@@ -1,0 +1,34 @@
+{
+  Element ddmStructureReferencesElement=recordSetElement.element("ddm-structure-references");
+  if (ddmStructureReferencesElement != null) {
+    importStructureReferences(portletDataContext,ddmStructureReferencesElement);
+  }
+  Element ddmTemplateReferencesElement=recordSetElement.element("ddm-template-references");
+  if (ddmTemplateReferencesElement != null) {
+    importTemplateReferences(portletDataContext,ddmTemplateReferencesElement);
+  }
+  String path=recordSetElement.attributeValue("path");
+  if (!portletDataContext.isPathNotProcessed(path)) {
+    return;
+  }
+  DDLRecordSet recordSet=(DDLRecordSet)portletDataContext.getZipEntryAsObject(path);
+  long userId=portletDataContext.getUserId(recordSet.getUserUuid());
+  ServiceContext serviceContext=portletDataContext.createServiceContext(recordSetElement,recordSet,_NAMESPACE);
+  Map<Long,Long> structureIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(DDMStructure.class);
+  long structureId=MapUtil.getLong(structureIds,recordSet.getDDMStructureId(),recordSet.getDDMStructureId());
+  DDLRecordSet importedRecordSet=null;
+  if (portletDataContext.isDataStrategyMirror()) {
+    DDLRecordSet existingRecordSet=DDLRecordSetUtil.fetchByUUID_G(recordSet.getUuid(),portletDataContext.getScopeGroupId());
+    if (existingRecordSet == null) {
+      serviceContext.setUuid(recordSet.getUuid());
+      importedRecordSet=DDLRecordSetLocalServiceUtil.addRecordSet(userId,portletDataContext.getScopeGroupId(),structureId,recordSet.getRecordSetKey(),recordSet.getNameMap(),recordSet.getDescriptionMap(),recordSet.getMinDisplayRows(),recordSet.getScope(),serviceContext);
+    }
+ else {
+      importedRecordSet=DDLRecordSetLocalServiceUtil.updateRecordSet(existingRecordSet.getRecordSetId(),structureId,recordSet.getNameMap(),recordSet.getDescriptionMap(),recordSet.getMinDisplayRows(),serviceContext);
+    }
+  }
+ else {
+    importedRecordSet=DDLRecordSetLocalServiceUtil.addRecordSet(userId,portletDataContext.getScopeGroupId(),structureId,recordSet.getRecordSetKey(),recordSet.getNameMap(),recordSet.getDescriptionMap(),recordSet.getMinDisplayRows(),recordSet.getScope(),serviceContext);
+  }
+  portletDataContext.importClassedModel(recordSet,importedRecordSet,_NAMESPACE);
+}
