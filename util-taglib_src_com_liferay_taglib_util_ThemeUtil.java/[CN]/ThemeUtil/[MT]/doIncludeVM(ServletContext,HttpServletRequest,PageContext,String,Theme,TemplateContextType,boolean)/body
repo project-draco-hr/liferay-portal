@@ -1,0 +1,46 @@
+{
+  String servletContextName=GetterUtil.getString(theme.getServletContextName());
+  if (ServletContextPool.get(servletContextName) == null) {
+    ServletContextPool.put(servletContextName,servletContext);
+  }
+  String portletId=getPortletId(request);
+  String resourcePath=theme.getResourcePath(servletContext,portletId,page);
+  boolean checkResourceExists=true;
+  if (Validator.isNotNull(portletId)) {
+    if (portletId.contains(PortletConstants.INSTANCE_SEPARATOR) && (checkResourceExists=!TemplateManagerUtil.hasTemplate(TemplateManager.VELOCITY,resourcePath))) {
+      String rootPortletId=PortletConstants.getRootPortletId(portletId);
+      resourcePath=theme.getResourcePath(servletContext,rootPortletId,page);
+    }
+    if (checkResourceExists && (checkResourceExists=!TemplateManagerUtil.hasTemplate(TemplateManager.VELOCITY,resourcePath))) {
+      resourcePath=theme.getResourcePath(servletContext,null,page);
+    }
+  }
+  if (checkResourceExists && !TemplateManagerUtil.hasTemplate(TemplateManager.VELOCITY,resourcePath)) {
+    _log.error(resourcePath + " does not exist");
+    return null;
+  }
+  Template template=TemplateManagerUtil.getTemplate(TemplateManager.VELOCITY,resourcePath,templateContextType);
+  template.prepare(request);
+  template.put("pageContext",pageContext);
+  ServletContext themeServletContext=ServletContextPool.get(servletContextName);
+  template.put("themeServletContext",themeServletContext);
+  HttpServletResponse response=(HttpServletResponse)pageContext.getResponse();
+  Writer writer=null;
+  if (write) {
+    writer=pageContext.getOut();
+  }
+ else {
+    writer=new UnsyncStringWriter();
+  }
+  VelocityTaglib velocityTaglib=new VelocityTaglib(servletContext,request,new PipingServletResponse(response,writer),pageContext);
+  template.put("taglibLiferay",velocityTaglib);
+  template.put("theme",velocityTaglib);
+  template.put("writer",writer);
+  template.processTemplate(writer);
+  if (write) {
+    return null;
+  }
+ else {
+    return ((UnsyncStringWriter)writer).toString();
+  }
+}
