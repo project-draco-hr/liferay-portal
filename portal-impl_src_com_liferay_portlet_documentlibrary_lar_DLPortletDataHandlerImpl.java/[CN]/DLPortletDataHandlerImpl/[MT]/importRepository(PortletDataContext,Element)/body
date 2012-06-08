@@ -6,14 +6,30 @@
   Repository repository=(Repository)portletDataContext.getZipEntryAsObject(path);
   long userId=portletDataContext.getUserId(repository.getUserUuid());
   long classNameId=PortalUtil.getClassNameId(repositoryElement.attributeValue("repositoryClassName"));
-  String repositoryPath=getImportRepositoryPath(portletDataContext,repository.getRepositoryId());
+  String repositoryPath=getRepositoryPath(portletDataContext,repository);
   ServiceContext serviceContext=portletDataContext.createServiceContext(repositoryPath,repository,_NAMESPACE);
+  long importedRepositoryId=0;
   try {
-    RepositoryLocalServiceUtil.addRepository(userId,portletDataContext.getScopeGroupId(),classNameId,DLFolderConstants.DEFAULT_PARENT_FOLDER_ID,repository.getName(),repository.getDescription(),repository.getPortletId(),repository.getTypeSettingsProperties(),serviceContext);
+    if (portletDataContext.isDataStrategyMirror()) {
+      Repository existingRepository=RepositoryUtil.fetchByUUID_G(repository.getUuid(),portletDataContext.getScopeGroupId());
+      if (existingRepository == null) {
+        serviceContext.setUuid(repository.getUuid());
+        importedRepositoryId=RepositoryLocalServiceUtil.addRepository(userId,portletDataContext.getScopeGroupId(),classNameId,DLFolderConstants.DEFAULT_PARENT_FOLDER_ID,repository.getName(),repository.getDescription(),repository.getPortletId(),repository.getTypeSettingsProperties(),serviceContext);
+      }
+ else {
+        RepositoryLocalServiceUtil.updateRepository(existingRepository.getRepositoryId(),repository.getName(),repository.getDescription());
+        importedRepositoryId=existingRepository.getRepositoryId();
+      }
+    }
+ else {
+      importedRepositoryId=RepositoryLocalServiceUtil.addRepository(userId,portletDataContext.getScopeGroupId(),classNameId,DLFolderConstants.DEFAULT_PARENT_FOLDER_ID,repository.getName(),repository.getDescription(),repository.getPortletId(),repository.getTypeSettingsProperties(),serviceContext);
+    }
   }
  catch (  Exception e) {
     if (_log.isWarnEnabled()) {
       _log.warn("Unable to connect to repository {name=" + repository.getName() + ",typeSettings="+ repository.getTypeSettingsProperties()+ "}",e);
     }
   }
+  Repository importedRepository=RepositoryLocalServiceUtil.getRepository(importedRepositoryId);
+  portletDataContext.importClassedModel(repository,importedRepository,_NAMESPACE);
 }
