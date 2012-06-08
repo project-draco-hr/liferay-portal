@@ -8,16 +8,34 @@
       throw throwable;
     }
   }
+  Object thisObject=methodInvocation.getThis();
   Method method=methodInvocation.getMethod();
+  Object[] arguments=methodInvocation.getArguments();
   boolean debug=false;
   if (_log.isDebugEnabled()) {
-    Object thisObject=methodInvocation.getThis();
     Class<?> clazz=thisObject.getClass();
     String className=clazz.getName();
     if (className.equals(PortalServiceImpl.class.getName()) || className.equals(_ENTRY_LOCAL_SERVICE_IMPL_CLASS_NAME) || className.equals(_STATUS_LOCAL_SERVICE_IMPL_CLASS_NAME)) {
       debug=true;
       _log.debug("Intercepting " + className + "#"+ method.getName());
     }
+  }
+  if (method.getDeclaringClass() == Object.class) {
+    String methodName=method.getName();
+    if (methodName.equals("equals")) {
+      if (thisObject == arguments[0]) {
+        return true;
+      }
+ else {
+        return false;
+      }
+    }
+ else     if (methodName.equals("toString")) {
+      return method.invoke(thisObject,arguments);
+    }
+  }
+  if (!PACLPolicyManager.isActive()) {
+    return method.invoke(thisObject,arguments);
   }
   PACLPolicy paclPolicy=PACLClassUtil.getPACLPolicy(false,debug);
   if (debug) {
@@ -26,29 +44,20 @@
     }
   }
   if (paclPolicy == null) {
-    try {
-      return methodInvocation.proceed();
-    }
- catch (    Throwable throwable) {
-      throw throwable;
-    }
+    return methodInvocation.proceed();
   }
-  if (!paclPolicy.hasPortalService(methodInvocation.getThis(),method,methodInvocation.getArguments())) {
+  if (!paclPolicy.hasPortalService(thisObject,method,arguments)) {
     throw new SecurityException("Attempted to invoke " + method);
   }
   boolean checkSQL=PortalSecurityManagerThreadLocal.isCheckSQL();
   try {
-    Object thisObject=methodInvocation.getThis();
     Class<?> thisObjectClass=thisObject.getClass();
     if (paclPolicy.getClassLoader() != PACLClassLoaderUtil.getClassLoader(thisObjectClass)) {
       PortalSecurityManagerThreadLocal.setCheckSQL(false);
     }
     return methodInvocation.proceed();
   }
- catch (  Throwable throwable) {
-    throw throwable;
-  }
- finally {
+  finally {
     PortalSecurityManagerThreadLocal.setCheckSQL(checkSQL);
   }
 }

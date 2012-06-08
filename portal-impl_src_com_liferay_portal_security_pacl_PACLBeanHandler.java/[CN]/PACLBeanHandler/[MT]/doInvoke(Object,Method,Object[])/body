@@ -1,4 +1,13 @@
 {
+  boolean debug=false;
+  if (_log.isDebugEnabled()) {
+    Class<?> clazz=_bean.getClass();
+    String className=clazz.getName();
+    if (className.equals(GroupPersistenceImpl.class.getName()) || className.equals(UserPersistenceImpl.class.getName())) {
+      debug=true;
+      _log.debug("Intercepting " + className + "#"+ method.getName());
+    }
+  }
   if (method.getDeclaringClass() == Object.class) {
     String methodName=method.getName();
     if (methodName.equals("equals")) {
@@ -9,18 +18,12 @@
         return false;
       }
     }
+ else     if (methodName.equals("toString")) {
+      return method.invoke(_bean,arguments);
+    }
   }
   if (!PACLPolicyManager.isActive()) {
     return method.invoke(_bean,arguments);
-  }
-  boolean debug=false;
-  if (_log.isDebugEnabled()) {
-    Class<?> clazz=_bean.getClass();
-    String className=clazz.getName();
-    if (className.equals(GroupPersistenceImpl.class.getName()) || className.equals(UserPersistenceImpl.class.getName())) {
-      debug=true;
-      _log.debug("Intercepting " + className + "#"+ method.getName());
-    }
   }
   PACLPolicy paclPolicy=PACLClassUtil.getPACLPolicy(false,debug);
   if (debug) {
@@ -37,7 +40,7 @@
   boolean checkSQL=PortalSecurityManagerThreadLocal.isCheckSQL();
   try {
     Class<?> beanClass=_bean.getClass();
-    if (paclPolicy.getClassLoader() != beanClass.getClassLoader()) {
+    if (paclPolicy.getClassLoader() != PACLClassLoaderUtil.getClassLoader(beanClass)) {
       PortalSecurityManagerThreadLocal.setCheckSQL(false);
     }
     return method.invoke(_bean,arguments);
