@@ -1,0 +1,94 @@
+{
+  File srcFile=autoDeploymentContext.getFileToDeploy();
+  PluginPackage pluginPackage=readPluginPackage(srcFile);
+  if (_log.isInfoEnabled()) {
+    _log.info("Deploying " + srcFile.getName());
+  }
+  String specifiedContext=autoDeploymentContext.getContext();
+  String deployDir=null;
+  String displayName=specifiedContext;
+  boolean overwrite=false;
+  String preliminaryContext=specifiedContext;
+  if (Validator.isNull(specifiedContext) && srcFile.getName().startsWith(DEPLOY_TO_PREFIX)) {
+    displayName=srcFile.getName().substring(DEPLOY_TO_PREFIX.length(),srcFile.getName().length() - 4);
+    overwrite=true;
+    preliminaryContext=displayName;
+  }
+  if (preliminaryContext == null) {
+    preliminaryContext=getDisplayName(srcFile);
+  }
+  if (pluginPackage != null) {
+    if (!PluginPackageUtil.isCurrentVersionSupported(pluginPackage.getLiferayVersions())) {
+      throw new AutoDeployException(srcFile.getName() + " does not support this version of Liferay");
+    }
+    if (displayName == null) {
+      displayName=pluginPackage.getRecommendedDeploymentContext();
+    }
+    if (Validator.isNull(displayName)) {
+      displayName=getDisplayName(srcFile);
+    }
+    pluginPackage.setContext(displayName);
+    PluginPackageUtil.updateInstallingPluginPackage(preliminaryContext,pluginPackage);
+  }
+  if (Validator.isNotNull(displayName)) {
+    deployDir=displayName + ".war";
+  }
+ else {
+    deployDir=srcFile.getName();
+    displayName=getDisplayName(srcFile);
+  }
+  if (appServerType.equals(ServerDetector.JBOSS_ID)) {
+    deployDir=jbossPrefix + deployDir;
+  }
+ else   if (appServerType.equals(ServerDetector.JETTY_ID) || appServerType.equals(ServerDetector.OC4J_ID) || appServerType.equals(ServerDetector.RESIN_ID)|| appServerType.equals(ServerDetector.TOMCAT_ID)) {
+    if (unpackWar) {
+      deployDir=deployDir.substring(0,deployDir.length() - 4);
+    }
+  }
+  if (autoDeploymentContext.getDestDir() != null) {
+    destDir=autoDeploymentContext.getDestDir();
+  }
+  deployDir=destDir + "/" + deployDir;
+  File deployDirFile=new File(deployDir);
+  try {
+    PluginPackage previousPluginPackage=readPluginPackage(deployDirFile);
+    if ((pluginPackage != null) && (previousPluginPackage != null)) {
+      if (_log.isInfoEnabled()) {
+        String name=pluginPackage.getName();
+        String previousVersion=previousPluginPackage.getVersion();
+        String version=pluginPackage.getVersion();
+        _log.info("Updating " + name + " from version "+ previousVersion+ " to version "+ version);
+      }
+      if (pluginPackage.isLaterVersionThan(previousPluginPackage)) {
+        overwrite=true;
+      }
+    }
+    File mergeDirFile=new File(srcFile.getParent() + "/merge/" + srcFile.getName());
+    if (srcFile.isDirectory()) {
+      deployDirectory(srcFile,mergeDirFile,deployDirFile,displayName,overwrite,pluginPackage);
+    }
+ else {
+      boolean deployed=deployFile(srcFile,mergeDirFile,deployDirFile,displayName,overwrite,pluginPackage);
+      if (!deployed) {
+        String context=preliminaryContext;
+        if (pluginPackage != null) {
+          context=pluginPackage.getContext();
+        }
+        PluginPackageUtil.endPluginPackageInstallation(context);
+      }
+ else {
+        if (appServerType.equals(ServerDetector.JBOSS_ID)) {
+          File doDeployFile=new File(deployDir + ".dodeploy");
+          FileUtil.write(doDeployFile,StringPool.BLANK);
+        }
+      }
+    }
+  }
+ catch (  Exception e) {
+    if (pluginPackage != null) {
+      PluginPackageUtil.endPluginPackageInstallation(pluginPackage.getContext());
+    }
+    throw e;
+  }
+  return autoDeploymentContext;
+}
