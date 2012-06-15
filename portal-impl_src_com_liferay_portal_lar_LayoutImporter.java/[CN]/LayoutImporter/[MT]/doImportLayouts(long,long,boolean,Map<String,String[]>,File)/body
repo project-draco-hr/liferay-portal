@@ -17,6 +17,7 @@
   if (group.isLayoutSetPrototype()) {
     layoutSetPrototypeLinkEnabled=false;
   }
+  boolean globalScopeImport=group.isCompany();
   String layoutsImportMode=MapUtil.getString(parameterMap,PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE,PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_MERGE_BY_LAYOUT_UUID);
   String portletsMergeMode=MapUtil.getString(parameterMap,PortletDataHandlerKeys.PORTLETS_MERGE_MODE,PortletDataHandlerKeys.PORTLETS_MERGE_MODE_REPLACE);
   String userIdStrategy=MapUtil.getString(parameterMap,PortletDataHandlerKeys.USER_ID_STRATEGY);
@@ -160,7 +161,7 @@
   if (importPermissions) {
     _permissionImporter.readPortletDataPermissions(portletDataContext);
   }
-  if (importCategories) {
+  if (importCategories || globalScopeImport) {
     _portletImporter.readAssetCategories(portletDataContext);
   }
   _portletImporter.readAssetTags(portletDataContext);
@@ -219,7 +220,10 @@
     String portletPath=portletElement.attributeValue("path");
     String portletId=portletElement.attributeValue("portlet-id");
     long layoutId=GetterUtil.getLong(portletElement.attributeValue("layout-id"));
-    long plid=newLayoutsMap.get(layoutId).getPlid();
+    long plid=LayoutConstants.DEFAULT_PLID;
+    if (newLayoutsMap.containsKey(layoutId)) {
+      plid=newLayoutsMap.get(layoutId).getPlid();
+    }
     long oldPlid=GetterUtil.getLong(portletElement.attributeValue("old-plid"));
     Portlet portlet=PortletLocalServiceUtil.getPortletById(portletDataContext.getCompanyId(),portletId);
     if (!portlet.isActive() || portlet.isUndeployedPortlet()) {
@@ -230,22 +234,28 @@
       layout=LayoutUtil.findByPrimaryKey(plid);
     }
  catch (    NoSuchLayoutException nsle) {
-      continue;
+      if (!globalScopeImport) {
+        continue;
+      }
     }
     portletDataContext.setPlid(plid);
     portletDataContext.setOldPlid(oldPlid);
     Document portletDocument=SAXReaderUtil.read(portletDataContext.getZipEntryAsString(portletPath));
     portletElement=portletDocument.getRootElement();
     _portletImporter.setPortletScope(portletDataContext,portletElement);
+    long prefsGroupId=groupId;
     try {
-      _portletImporter.importPortletPreferences(portletDataContext,layoutSet.getCompanyId(),layout.getGroupId(),layout,null,portletElement,importPortletSetup,importPortletArchivedSetups,importPortletUserPreferences,false);
+      if ((layout != null) && !globalScopeImport) {
+        prefsGroupId=layout.getGroupId();
+      }
+      _portletImporter.importPortletPreferences(portletDataContext,layoutSet.getCompanyId(),prefsGroupId,layout,null,portletElement,importPortletSetup,importPortletArchivedSetups,importPortletUserPreferences,false);
       Element portletDataElement=portletElement.element("portlet-data");
       if (importPortletData && (portletDataElement != null)) {
         _portletImporter.importPortletData(portletDataContext,portletId,plid,portletDataElement);
       }
     }
   finally {
-      _portletImporter.resetPortletScope(portletDataContext,layout.getGroupId());
+      _portletImporter.resetPortletScope(portletDataContext,prefsGroupId);
     }
     if (importPermissions) {
       _permissionImporter.importPortletPermissions(layoutCache,companyId,groupId,userId,layout,portletElement,portletId);

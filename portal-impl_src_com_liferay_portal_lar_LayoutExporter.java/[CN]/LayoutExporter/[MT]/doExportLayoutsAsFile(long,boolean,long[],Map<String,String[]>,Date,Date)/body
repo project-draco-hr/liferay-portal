@@ -17,6 +17,8 @@
     _log.debug("Export theme " + exportTheme);
   }
   LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(groupId,privateLayout);
+  Group group=layoutSet.getGroup();
+  boolean globalScopeExport=group.isCompany();
   long companyId=layoutSet.getCompanyId();
   long defaultUserId=UserLocalServiceUtil.getDefaultUserId(companyId);
   ServiceContext serviceContext=ServiceContextThreadLocal.getServiceContext();
@@ -58,7 +60,6 @@
   }
   headerElement.addAttribute("group-id",String.valueOf(groupId));
   headerElement.addAttribute("private-layout",String.valueOf(privateLayout));
-  Group group=layoutSet.getGroup();
   String type="layout-set";
   if (group.isLayoutPrototype()) {
     type="layout-prototype";
@@ -99,20 +100,22 @@
     layouts=LayoutLocalServiceUtil.getLayouts(groupId,privateLayout,layoutIds);
   }
   List<Portlet> portlets=getAlwaysExportablePortlets(companyId);
+  long plid=LayoutConstants.DEFAULT_PLID;
   if (!layouts.isEmpty()) {
     Layout firstLayout=layouts.get(0);
-    if (group.isStagingGroup()) {
-      group=group.getLiveGroup();
+    plid=firstLayout.getPlid();
+  }
+  if (group.isStagingGroup()) {
+    group=group.getLiveGroup();
+  }
+  for (  Portlet portlet : portlets) {
+    String portletId=portlet.getRootPortletId();
+    if (!group.isStagedPortlet(portletId)) {
+      continue;
     }
-    for (    Portlet portlet : portlets) {
-      String portletId=portlet.getRootPortletId();
-      if (!group.isStagedPortlet(portletId)) {
-        continue;
-      }
-      String key=PortletPermissionUtil.getPrimaryKey(0,portletId);
-      if (portletIds.get(key) == null) {
-        portletIds.put(key,new Object[]{portletId,firstLayout.getPlid(),groupId,StringPool.BLANK,StringPool.BLANK});
-      }
+    String key=PortletPermissionUtil.getPrimaryKey(0,portletId);
+    if (portletIds.get(key) == null) {
+      portletIds.put(key,new Object[]{portletId,plid,groupId,StringPool.BLANK,StringPool.BLANK});
     }
   }
   Element layoutsElement=rootElement.addElement("layouts");
@@ -130,7 +133,7 @@
   for (  Map.Entry<String,Object[]> portletIdsEntry : portletIds.entrySet()) {
     Object[] portletObjects=portletIdsEntry.getValue();
     String portletId=null;
-    long plid=0;
+    plid=LayoutConstants.DEFAULT_PLID;
     long scopeGroupId=0;
     String scopeType=StringPool.BLANK;
     String scopeLayoutUuid=null;
@@ -147,9 +150,23 @@
       scopeType=(String)portletIdsEntry.getValue()[3];
       scopeLayoutUuid=(String)portletIdsEntry.getValue()[4];
     }
-    Layout layout=LayoutLocalServiceUtil.getLayout(plid);
-    portletDataContext.setPlid(layout.getPlid());
-    portletDataContext.setOldPlid(layout.getPlid());
+    Layout layout=null;
+    try {
+      layout=LayoutLocalServiceUtil.getLayout(plid);
+    }
+ catch (    NoSuchLayoutException nsle) {
+      if (!globalScopeExport && (plid <= LayoutConstants.DEFAULT_PLID)) {
+        continue;
+      }
+      if (_log.isWarnEnabled()) {
+        _log.warn("No Layout has been found, " + "assuming global scope");
+      }
+      layout=new LayoutImpl();
+      layout.setCompanyId(companyId);
+      layout.setGroupId(groupId);
+    }
+    portletDataContext.setPlid(plid);
+    portletDataContext.setOldPlid(plid);
     portletDataContext.setScopeGroupId(scopeGroupId);
     portletDataContext.setScopeType(scopeType);
     portletDataContext.setScopeLayoutUuid(scopeLayoutUuid);
@@ -157,7 +174,7 @@
     _portletExporter.exportPortlet(portletDataContext,layoutCache,portletId,layout,portletsElement,defaultUserId,exportPermissions,exportPortletArchivedSetups,exportPortletControls[0],exportPortletControls[1],exportPortletUserPreferences);
   }
   portletDataContext.setScopeGroupId(previousScopeGroupId);
-  if (exportCategories) {
+  if (exportCategories || globalScopeExport) {
     exportAssetCategories(portletDataContext);
   }
   _portletExporter.exportAssetLinks(portletDataContext);
