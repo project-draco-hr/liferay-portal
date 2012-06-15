@@ -17,7 +17,6 @@
   if (group.isLayoutSetPrototype()) {
     layoutSetPrototypeLinkEnabled=false;
   }
-  boolean globalScopeImport=group.isCompany();
   String layoutsImportMode=MapUtil.getString(parameterMap,PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE,PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_MERGE_BY_LAYOUT_UUID);
   String portletsMergeMode=MapUtil.getString(parameterMap,PortletDataHandlerKeys.PORTLETS_MERGE_MODE,PortletDataHandlerKeys.PORTLETS_MERGE_MODE_REPLACE);
   String userIdStrategy=MapUtil.getString(parameterMap,PortletDataHandlerKeys.USER_ID_STRATEGY);
@@ -161,7 +160,7 @@
   if (importPermissions) {
     _permissionImporter.readPortletDataPermissions(portletDataContext);
   }
-  if (importCategories || globalScopeImport) {
+  if (importCategories || group.isCompany()) {
     _portletImporter.readAssetCategories(portletDataContext);
   }
   _portletImporter.readAssetTags(portletDataContext);
@@ -231,7 +230,7 @@
       plid=layout.getPlid();
     }
     layout=LayoutUtil.fetchByPrimaryKey(plid);
-    if ((layout == null) && !globalScopeImport) {
+    if ((layout == null) && !group.isCompany()) {
       continue;
     }
     portletDataContext.setPlid(plid);
@@ -239,19 +238,19 @@
     Document portletDocument=SAXReaderUtil.read(portletDataContext.getZipEntryAsString(portletPath));
     portletElement=portletDocument.getRootElement();
     _portletImporter.setPortletScope(portletDataContext,portletElement);
-    long prefsGroupId=groupId;
+    long portletPreferencesGroupId=groupId;
     try {
-      if ((layout != null) && !globalScopeImport) {
-        prefsGroupId=layout.getGroupId();
+      if ((layout != null) && !group.isCompany()) {
+        portletPreferencesGroupId=layout.getGroupId();
       }
-      _portletImporter.importPortletPreferences(portletDataContext,layoutSet.getCompanyId(),prefsGroupId,layout,null,portletElement,importPortletSetup,importPortletArchivedSetups,importPortletUserPreferences,false);
+      _portletImporter.importPortletPreferences(portletDataContext,layoutSet.getCompanyId(),portletPreferencesGroupId,layout,null,portletElement,importPortletSetup,importPortletArchivedSetups,importPortletUserPreferences,false);
       Element portletDataElement=portletElement.element("portlet-data");
       if (importPortletData && (portletDataElement != null)) {
         _portletImporter.importPortletData(portletDataContext,portletId,plid,portletDataElement);
       }
     }
   finally {
-      _portletImporter.resetPortletScope(portletDataContext,prefsGroupId);
+      _portletImporter.resetPortletScope(portletDataContext,portletPreferencesGroupId);
     }
     if (importPermissions) {
       _permissionImporter.importPortletPermissions(layoutCache,companyId,groupId,userId,layout,portletElement,portletId);
