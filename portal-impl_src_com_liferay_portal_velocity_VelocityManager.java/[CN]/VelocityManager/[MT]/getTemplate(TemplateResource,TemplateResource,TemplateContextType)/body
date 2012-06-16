@@ -1,0 +1,33 @@
+{
+  if (templateContextType.equals(TemplateContextType.CLASS_LOADER)) {
+    ClassLoader contextClassLoader=PACLClassLoaderUtil.getContextClassLoader();
+    PACLPolicy threadLocalPACLPolicy=PortalSecurityManagerThreadLocal.getPACLPolicy();
+    PACLPolicy contextClassLoaderPACLPolicy=PACLPolicyManager.getPACLPolicy(contextClassLoader);
+    try {
+      PortalSecurityManagerThreadLocal.setPACLPolicy(contextClassLoaderPACLPolicy);
+      VelocityContext velocityContext=_classLoaderVelocityContexts.get(contextClassLoader);
+      if (velocityContext == null) {
+        velocityContext=new VelocityContext();
+        Map<String,Object> helperUtilities=_templateContextHelper.getHelperUtilities();
+        for (        Map.Entry<String,Object> entry : helperUtilities.entrySet()) {
+          velocityContext.put(entry.getKey(),entry.getValue());
+        }
+        _classLoaderVelocityContexts.put(contextClassLoader,velocityContext);
+      }
+      return new PACLVelocityTemplate(templateResource,errorTemplateResource,velocityContext,_velocityEngine,_templateContextHelper,contextClassLoaderPACLPolicy);
+    }
+  finally {
+      PortalSecurityManagerThreadLocal.setPACLPolicy(threadLocalPACLPolicy);
+    }
+  }
+ else   if (templateContextType.equals(TemplateContextType.EMPTY)) {
+    return new VelocityTemplate(templateResource,errorTemplateResource,null,_velocityEngine,_templateContextHelper);
+  }
+ else   if (templateContextType.equals(TemplateContextType.RESTRICTED)) {
+    return new RestrictedTemplate(new VelocityTemplate(templateResource,errorTemplateResource,_restrictedVelocityContext,_velocityEngine,_templateContextHelper),_templateContextHelper.getRestrictedVariables());
+  }
+ else   if (templateContextType.equals(TemplateContextType.STANDARD)) {
+    return new VelocityTemplate(templateResource,errorTemplateResource,_standardVelocityContext,_velocityEngine,_templateContextHelper);
+  }
+  return null;
+}
