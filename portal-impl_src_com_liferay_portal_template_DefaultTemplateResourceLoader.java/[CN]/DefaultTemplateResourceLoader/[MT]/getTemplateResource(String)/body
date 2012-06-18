@@ -1,0 +1,43 @@
+{
+  TemplateResource templateResource=null;
+  Object object=_portalCache.get(templateId);
+  if (object != null) {
+    if (object instanceof TemplateResource) {
+      templateResource=(TemplateResource)object;
+      if (_modificationCheckInterval <= 0) {
+        return templateResource;
+      }
+      long expireTime=templateResource.getLastModified() + _modificationCheckInterval;
+      if (expireTime > System.currentTimeMillis()) {
+        return templateResource;
+      }
+ else {
+        _portalCache.remove(templateId);
+        if (_log.isDebugEnabled()) {
+          _log.debug("Cache result " + object + " for template id"+ templateId+ " is timeout, reload it from source.");
+        }
+      }
+    }
+ else {
+      _portalCache.remove(templateId);
+      if (_log.isWarnEnabled()) {
+        _log.warn("Corrupted cache result " + object + " for templare id "+ templateId+ ". Not type of"+ " TemplateResource, automatically removed.");
+      }
+    }
+  }
+  for (  TemplateResourceParser templateResourceParser : _templateResourceParsers) {
+    try {
+      templateResource=templateResourceParser.getTemplateResource(templateId);
+      if (templateResource != null) {
+        if (!TemplateManager.VELOCITY.equals(getName()) || !templateId.contains(SandboxHandler.SANDBOX_MARKER)) {
+          _portalCache.put(templateId,templateResource);
+        }
+        break;
+      }
+    }
+ catch (    TemplateException te) {
+      _log.warn("Failed to parser template id " + templateId + " with parser "+ templateResourceParser,te);
+    }
+  }
+  return templateResource;
+}
