@@ -1,19 +1,21 @@
 {
-  if (imageFiles.size() < 1) {
+  if (imageURLs.size() < 1) {
     return null;
   }
-  if (spritePropertiesRootPath.endsWith(StringPool.BACK_SLASH) || spritePropertiesRootPath.endsWith(StringPool.SLASH)) {
-    spritePropertiesRootPath=spritePropertiesRootPath.substring(0,spritePropertiesRootPath.length() - 1);
-  }
-  Collections.sort(imageFiles);
-  String spriteRootDirName=getSpriteRootDirName(servletContext,imageFiles);
-  File spritePropertiesFile=new File(spriteRootDirName + StringPool.SLASH + spritePropertiesFileName);
+  Collections.sort(imageURLs,new PropertyComparator("path"));
+  File tempDir=(File)servletContext.getAttribute(JavaConstants.JAVAX_SERVLET_CONTEXT_TEMPDIR);
+  File spriteRootDir=new File(tempDir,SpriteProcessor.PATH);
+  spriteRootDir.mkdirs();
+  File spritePropertiesFile=new File(spriteRootDir,spritePropertiesFileName);
+  spritePropertiesFile.getParentFile().mkdirs();
   boolean build=false;
   long lastModified=0;
   if (spritePropertiesFile.exists()) {
     lastModified=spritePropertiesFile.lastModified();
-    for (    File imageFile : imageFiles) {
-      if (imageFile.lastModified() > lastModified) {
+    URLConnection connection=null;
+    for (    URL imageURL : imageURLs) {
+      connection=imageURL.openConnection();
+      if ((connection != null) && (connection.getLastModified() > lastModified)) {
         build=true;
         break;
       }
@@ -35,12 +37,15 @@
   Properties spriteProperties=new SortedProperties();
   float x=0;
   float y=0;
-  for (  File imageFile : imageFiles) {
-    if (imageFile.length() > maxSize) {
+  String contextPath=ContextPathUtil.getContextPath(servletContext);
+  URLConnection connection=null;
+  for (  URL imageURL : imageURLs) {
+    connection=imageURL.openConnection();
+    if ((connection != null) && (connection.getContentLength() > maxSize)) {
       continue;
     }
     try {
-      ImageBag imageBag=ImageToolUtil.read(imageFile);
+      ImageBag imageBag=ImageToolUtil.read(connection.getInputStream());
       RenderedImage renderedImage=imageBag.getRenderedImage();
       int height=renderedImage.getHeight();
       int width=renderedImage.getWidth();
@@ -48,8 +53,9 @@
         renderedImage=convert(renderedImage);
         renderedImage=TranslateDescriptor.create(renderedImage,x,y,null,null);
         renderedImages.add(renderedImage);
-        String key=StringUtil.replace(imageFile.toString(),CharPool.BACK_SLASH,CharPool.SLASH);
-        key=key.substring(spritePropertiesRootPath.toString().length());
+        String key=imageURL.getPath();
+        key=key.substring(spritePropertiesRootURL.getPath().length() - 1);
+        key=contextPath.concat(key);
         String value=(int)y + "," + height+ ","+ width;
         spriteProperties.setProperty(key,value);
         y+=renderedImage.getHeight();
@@ -57,7 +63,7 @@
     }
  catch (    Exception e) {
       if (_log.isWarnEnabled()) {
-        _log.warn("Unable to process " + imageFile);
+        _log.warn("Unable to process " + imageURL);
       }
       if (_log.isDebugEnabled()) {
         _log.debug(e,e);
@@ -70,7 +76,7 @@
   }
  else {
     RenderedImage renderedImage=MosaicDescriptor.create(renderedImages.toArray(new RenderedImage[renderedImages.size()]),MosaicDescriptor.MOSAIC_TYPE_OVERLAY,null,null,null,null,null);
-    File spriteFile=new File(spriteRootDirName + StringPool.SLASH + spriteFileName);
+    File spriteFile=new File(spriteRootDir,spriteFileName);
     spriteFile.mkdirs();
     ImageIO.write(renderedImage,"png",spriteFile);
     if (lastModified > 0) {
@@ -79,7 +85,7 @@
     ImageWorker imageWorker=new ImageWorker(renderedImage);
     imageWorker.forceIndexColorModelForGIF(true);
     renderedImage=imageWorker.getPlanarImage();
-    spriteFile=new File(spriteRootDirName + StringPool.SLASH + StringUtil.replace(spriteFileName,".png",".gif"));
+    spriteFile=new File(spriteRootDir,StringUtil.replace(spriteFileName,".png",".gif"));
     FileOutputStream fos=new FileOutputStream(spriteFile);
     try {
       ImageToolUtil.encodeGIF(renderedImage,fos);
