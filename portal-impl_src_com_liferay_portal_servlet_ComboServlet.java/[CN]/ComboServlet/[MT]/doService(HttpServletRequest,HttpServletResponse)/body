@@ -5,12 +5,17 @@
     response.sendError(HttpServletResponse.SC_BAD_REQUEST);
     return;
   }
+  Set<String> modulePathSet=new HashSet<String>(modulePaths.length);
+  for (  String path : modulePaths) {
+    modulePathSet.add(path);
+  }
+  modulePaths=modulePathSet.toArray(new String[modulePathSet.size()]);
   Arrays.sort(modulePaths);
   String modulePathsString=null;
   byte[][] bytesArray=null;
   if (!PropsValues.COMBO_CHECK_TIMESTAMP) {
     modulePathsString=Arrays.toString(modulePaths);
-    bytesArray=_byteArrays.get(modulePathsString);
+    bytesArray=(byte[][])_byteArraysCache.get(modulePathsString);
   }
   String firstModulePath=modulePaths[0];
   String extension=FileUtil.getExtension(firstModulePath);
@@ -23,22 +28,31 @@
         minifierType="css";
       }
     }
+    if (!minifierType.equals("js") && !minifierType.equals("css")) {
+      minifierType="js";
+    }
     int length=modulePaths.length;
     bytesArray=new byte[length][];
     for (    String modulePath : modulePaths) {
       if (!validateModuleExtension(modulePath)) {
-        PortalUtil.sendError(HttpServletResponse.SC_NOT_FOUND,new IOException(),request,response);
+        response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        response.setHeader(HttpHeaders.CACHE_CONTROL,HttpHeaders.CACHE_CONTROL_NO_CACHE_VALUE);
         return;
       }
       byte[] bytes=new byte[0];
       if (Validator.isNotNull(modulePath)) {
         modulePath=StringUtil.replaceFirst(p.concat(modulePath),contextPath,StringPool.BLANK);
+        if (getFile(modulePath) == null) {
+          response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+          response.setHeader(HttpHeaders.CACHE_CONTROL,HttpHeaders.CACHE_CONTROL_NO_CACHE_VALUE);
+          return;
+        }
         bytes=getFileContent(request,response,modulePath,minifierType);
       }
       bytesArray[--length]=bytes;
     }
-    if (modulePathsString != null) {
-      _byteArrays.put(modulePathsString,bytesArray);
+    if ((modulePathsString != null) && !PropsValues.COMBO_CHECK_TIMESTAMP) {
+      _byteArraysCache.put(modulePathsString,bytesArray);
     }
   }
   String contentType=ContentTypes.TEXT_JAVASCRIPT;
