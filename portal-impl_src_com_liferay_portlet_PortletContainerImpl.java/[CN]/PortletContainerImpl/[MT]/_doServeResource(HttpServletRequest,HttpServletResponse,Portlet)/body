@@ -1,24 +1,23 @@
 {
-  String portletId=portlet.getPortletId();
-  Layout layout=(Layout)request.getAttribute(WebKeys.LAYOUT);
   if (!PortalUtil.isAllowAddPortletDefaultResource(request,portlet)) {
-    if (_log.isErrorEnabled()) {
-      String url=request.getRequestURI().toString();
-      LastPath lastPath=(LastPath)request.getAttribute(WebKeys.LAST_PATH);
-      if (lastPath != null) {
-        StringBundler lastPathSB=new StringBundler(4);
-        lastPathSB.append(PortalUtil.getPortalURL(request));
-        lastPathSB.append(lastPath.getContextPath());
-        lastPathSB.append(lastPath.getPath());
-        url=lastPathSB.toString();
-      }
-      _log.error("Portlet default resource check denied to execute " + "serveResource [portletId, page url]: [" + portletId + ", "+ url+ "]");
+    String url=null;
+    LastPath lastPath=(LastPath)request.getAttribute(WebKeys.LAST_PATH);
+    if (lastPath != null) {
+      StringBundler sb=new StringBundler(3);
+      sb.append(PortalUtil.getPortalURL(request));
+      sb.append(lastPath.getContextPath());
+      sb.append(lastPath.getPath());
+      url=sb.toString();
     }
+ else {
+      url=String.valueOf(request.getRequestURI());
+    }
+    _log.error("Reject serveResource for " + url + " on "+ portlet.getPortletId());
     return;
   }
   WindowState windowState=(WindowState)request.getAttribute(WebKeys.WINDOW_STATE);
   PortletMode portletMode=PortletModeFactory.getPortletMode(ParamUtil.getString(request,"p_p_mode"));
-  PortletPreferencesIds portletPreferencesIds=PortletPreferencesFactoryUtil.getPortletPreferencesIds(request,portletId);
+  PortletPreferencesIds portletPreferencesIds=PortletPreferencesFactoryUtil.getPortletPreferencesIds(request,portlet.getPortletId());
   PortletPreferences portletPreferences=null;
   if (PortalUtil.isAllowAddPortletDefaultResource(request,portlet)) {
     portletPreferences=PortletPreferencesLocalServiceUtil.getPreferences(portletPreferencesIds);
@@ -32,13 +31,14 @@
   PortletContext portletContext=portletConfig.getPortletContext();
   ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
   PortletDisplay portletDisplay=themeDisplay.getPortletDisplay();
-  String portletPrimaryKey=PortletPermissionUtil.getPrimaryKey(layout.getPlid(),portletId);
-  portletDisplay.setId(portletId);
+  Layout layout=(Layout)request.getAttribute(WebKeys.LAYOUT);
+  String portletPrimaryKey=PortletPermissionUtil.getPrimaryKey(layout.getPlid(),portlet.getPortletId());
+  portletDisplay.setId(portlet.getPortletId());
   portletDisplay.setRootPortletId(portlet.getRootPortletId());
   portletDisplay.setInstanceId(portlet.getInstanceId());
   portletDisplay.setResourcePK(portletPrimaryKey);
   portletDisplay.setPortletName(portletConfig.getPortletName());
-  portletDisplay.setNamespace(PortalUtil.getPortletNamespace(portletId));
+  portletDisplay.setNamespace(PortalUtil.getPortletNamespace(portlet.getPortletId()));
   WebDAVStorage webDAVStorage=portlet.getWebDAVStorageInstance();
   if (webDAVStorage != null) {
     portletDisplay.setWebDAVEnabled(true);
@@ -48,7 +48,7 @@
   }
   ResourceRequestImpl resourceRequestImpl=ResourceRequestFactory.create(request,portlet,invokerPortlet,portletContext,windowState,portletMode,portletPreferences,layout.getPlid());
   long companyId=PortalUtil.getCompanyId(request);
-  ResourceResponseImpl resourceResponseImpl=ResourceResponseFactory.create(resourceRequestImpl,response,portletId,companyId);
+  ResourceResponseImpl resourceResponseImpl=ResourceResponseFactory.create(resourceRequestImpl,response,portlet.getPortletId(),companyId);
   resourceRequestImpl.defineObjects(portletConfig,resourceResponseImpl);
   try {
     ServiceContext serviceContext=ServiceContextFactory.getInstance(resourceRequestImpl);

@@ -1,27 +1,27 @@
 {
-  Layout layout=(Layout)request.getAttribute(WebKeys.LAYOUT);
-  String portletId=portlet.getPortletId();
   if (!PortalUtil.isAllowAddPortletDefaultResource(request,portlet)) {
-    if (_log.isErrorEnabled()) {
-      String url=request.getRequestURI().toString();
-      LastPath lastPath=(LastPath)request.getAttribute(WebKeys.LAST_PATH);
-      if (lastPath != null) {
-        StringBundler lastPathSB=new StringBundler(4);
-        lastPathSB.append(PortalUtil.getPortalURL(request));
-        lastPathSB.append(lastPath.getContextPath());
-        lastPathSB.append(lastPath.getPath());
-        url=lastPathSB.toString();
-      }
-      _log.error("Portlet default resource check denied to execute " + "processAction [portletId, page url]: [" + portletId + ", "+ url+ "]");
+    String url=null;
+    LastPath lastPath=(LastPath)request.getAttribute(WebKeys.LAST_PATH);
+    if (lastPath != null) {
+      StringBundler sb=new StringBundler(3);
+      sb.append(PortalUtil.getPortalURL(request));
+      sb.append(lastPath.getContextPath());
+      sb.append(lastPath.getPath());
+      url=sb.toString();
     }
+ else {
+      url=String.valueOf(request.getRequestURI());
+    }
+    _log.error("Reject processAction for " + url + " on "+ portlet.getPortletId());
     return;
   }
+  Layout layout=(Layout)request.getAttribute(WebKeys.LAYOUT);
   WindowState windowState=WindowStateFactory.getWindowState(ParamUtil.getString(request,"p_p_state"));
   if (layout.isTypeControlPanel() && ((windowState == null) || windowState.equals(WindowState.NORMAL) || Validator.isNull(windowState.toString()))) {
     windowState=WindowState.MAXIMIZED;
   }
   PortletMode portletMode=PortletModeFactory.getPortletMode(ParamUtil.getString(request,"p_p_mode"));
-  PortletPreferencesIds portletPreferencesIds=PortletPreferencesFactoryUtil.getPortletPreferencesIds(request,portletId);
+  PortletPreferencesIds portletPreferencesIds=PortletPreferencesFactoryUtil.getPortletPreferencesIds(request,portlet.getPortletId());
   PortletPreferences portletPreferences=null;
   if (PortalUtil.isAllowAddPortletDefaultResource(request,portlet)) {
     portletPreferences=PortletPreferencesLocalServiceUtil.getPreferences(portletPreferencesIds);
@@ -51,7 +51,7 @@
     }
     ActionRequestImpl actionRequestImpl=ActionRequestFactory.create(request,portlet,invokerPortlet,portletContext,windowState,portletMode,portletPreferences,layout.getPlid());
     User user=PortalUtil.getUser(request);
-    ActionResponseImpl actionResponseImpl=ActionResponseFactory.create(actionRequestImpl,response,portletId,user,layout,windowState,portletMode);
+    ActionResponseImpl actionResponseImpl=ActionResponseFactory.create(actionRequestImpl,response,portlet.getPortletId(),user,layout,windowState,portletMode);
     actionRequestImpl.defineObjects(portletConfig,actionResponseImpl);
     ServiceContext serviceContext=ServiceContextFactory.getInstance(actionRequestImpl);
     ServiceContextThreadLocal.pushServiceContext(serviceContext);
@@ -63,7 +63,7 @@
       invokerPortlet.processAction(actionRequestImpl,actionResponseImpl);
       actionResponseImpl.transferHeaders(response);
     }
-    RenderParametersPool.put(request,layout.getPlid(),portletId,actionResponseImpl.getRenderParameterMap());
+    RenderParametersPool.put(request,layout.getPlid(),portlet.getPortletId(),actionResponseImpl.getRenderParameterMap());
     List<Event> events=actionResponseImpl.getEvents();
     if (!events.isEmpty()) {
       processEvents(request,response,events);
