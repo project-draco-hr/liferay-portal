@@ -1,0 +1,100 @@
+{
+  if (message.isAttachments()) {
+    long companyId=message.getCompanyId();
+    long repositoryId=CompanyConstants.SYSTEM;
+    String dirName=message.getAttachmentsDir();
+    try {
+      DLStoreUtil.deleteDirectory(companyId,repositoryId,dirName);
+    }
+ catch (    NoSuchDirectoryException nsde) {
+      if (_log.isDebugEnabled()) {
+        _log.debug(nsde.getMessage());
+      }
+    }
+  }
+  int count=mbMessagePersistence.countByThreadId(message.getThreadId());
+  if (count == 1) {
+    long companyId=message.getCompanyId();
+    long repositoryId=CompanyConstants.SYSTEM;
+    String dirName=message.getThreadAttachmentsDir();
+    try {
+      DLStoreUtil.deleteDirectory(companyId,repositoryId,dirName);
+    }
+ catch (    NoSuchDirectoryException nsde) {
+      if (_log.isDebugEnabled()) {
+        _log.debug(nsde.getMessage());
+      }
+    }
+    subscriptionLocalService.deleteSubscriptions(message.getCompanyId(),MBThread.class.getName(),message.getThreadId());
+    mbThreadPersistence.remove(message.getThreadId());
+    if ((message.getCategoryId() != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) && (message.getCategoryId() != MBCategoryConstants.DISCUSSION_CATEGORY_ID)) {
+      MBCategory category=mbCategoryPersistence.findByPrimaryKey(message.getCategoryId());
+      category.setThreadCount(category.getThreadCount() - 1);
+      category.setMessageCount(category.getMessageCount() - 1);
+      mbCategoryPersistence.update(category,false);
+    }
+  }
+ else {
+    MBThread thread=mbThreadPersistence.findByPrimaryKey(message.getThreadId());
+    if (thread.getRootMessageId() == message.getMessageId()) {
+      List<MBMessage> childrenMessages=mbMessagePersistence.findByT_P(message.getThreadId(),message.getMessageId());
+      if (childrenMessages.size() > 1) {
+        throw new RequiredMessageException(String.valueOf(message.getMessageId()));
+      }
+ else       if (childrenMessages.size() == 1) {
+        MBMessage childMessage=childrenMessages.get(0);
+        childMessage.setRootMessageId(childMessage.getMessageId());
+        childMessage.setParentMessageId(MBMessageConstants.DEFAULT_PARENT_MESSAGE_ID);
+        mbMessagePersistence.update(childMessage,false);
+        List<MBMessage> repliesMessages=mbMessagePersistence.findByThreadReplies(message.getThreadId());
+        for (        MBMessage repliesMessage : repliesMessages) {
+          repliesMessage.setRootMessageId(childMessage.getMessageId());
+          mbMessagePersistence.update(repliesMessage,false);
+        }
+        thread.setRootMessageId(childMessage.getMessageId());
+        thread.setRootMessageUserId(childMessage.getUserId());
+        mbThreadPersistence.update(thread,false);
+      }
+    }
+ else {
+      List<MBMessage> childrenMessages=mbMessagePersistence.findByT_P(message.getThreadId(),message.getMessageId());
+      if (!childrenMessages.isEmpty()) {
+        for (        MBMessage childMessage : childrenMessages) {
+          childMessage.setParentMessageId(message.getParentMessageId());
+          mbMessagePersistence.update(childMessage,false);
+        }
+      }
+ else {
+        MessageCreateDateComparator comparator=new MessageCreateDateComparator(true);
+        MBMessage lastMessage=mbMessagePersistence.findByT_S_Last(thread.getThreadId(),WorkflowConstants.STATUS_APPROVED,comparator);
+        if (message.getMessageId() == lastMessage.getMessageId()) {
+          MBMessage parentMessage=mbMessagePersistence.findByPrimaryKey(message.getParentMessageId());
+          thread.setLastPostByUserId(parentMessage.getUserId());
+          thread.setLastPostDate(parentMessage.getModifiedDate());
+        }
+      }
+    }
+    if (message.isApproved()) {
+      int messageCount=mbMessagePersistence.countByT_S(message.getThreadId(),WorkflowConstants.STATUS_APPROVED);
+      thread.setMessageCount(messageCount - 1);
+    }
+    mbThreadPersistence.update(thread,false);
+    if ((message.getCategoryId() != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) && (message.getCategoryId() != MBCategoryConstants.DISCUSSION_CATEGORY_ID) && !message.isDraft()) {
+      MBCategory category=mbCategoryPersistence.findByPrimaryKey(message.getCategoryId());
+      category.setMessageCount(category.getMessageCount() - 1);
+      mbCategoryPersistence.update(category,false);
+    }
+  }
+  assetEntryLocalService.deleteEntry(className,message.getMessageId());
+  expandoValueLocalService.deleteValues(className,message.getMessageId());
+  ratingsStatsLocalService.deleteStats(className,message.getMessageId());
+  if (!message.isDiscussion()) {
+    resourceLocalService.deleteResource(message.getCompanyId(),className,ResourceConstants.SCOPE_INDIVIDUAL,message.getMessageId());
+  }
+  mbMessagePersistence.remove(message);
+  if (!message.isDiscussion()) {
+    mbStatsUserLocalService.updateStatsUser(message.getGroupId(),message.getUserId());
+  }
+  workflowInstanceLinkLocalService.deleteWorkflowInstanceLinks(message.getCompanyId(),message.getGroupId(),message.getWorkflowClassName(),message.getMessageId());
+  return message;
+}
