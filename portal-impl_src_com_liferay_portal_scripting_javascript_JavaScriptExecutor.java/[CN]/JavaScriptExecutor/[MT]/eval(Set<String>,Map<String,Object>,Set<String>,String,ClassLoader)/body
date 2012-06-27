@@ -1,0 +1,34 @@
+{
+  Script compiledScript=getCompiledScript(script,classLoaders);
+  try {
+    Context context=Context.enter();
+    Scriptable scriptable=context.initStandardObjects();
+    if ((classLoaders != null) && (classLoaders.length > 0)) {
+      ClassLoader aggregateClassLoader=AggregateClassLoader.getAggregateClassLoader(PACLClassLoaderUtil.getPortalClassLoader(),classLoaders);
+      context.setApplicationClassLoader(aggregateClassLoader);
+    }
+    for (    Map.Entry<String,Object> entry : inputObjects.entrySet()) {
+      String key=entry.getKey();
+      Object value=entry.getValue();
+      ScriptableObject.putProperty(scriptable,key,Context.javaToJS(value,scriptable));
+    }
+    if (allowedClasses != null) {
+      context.setClassShutter(new JavaScriptClassVisibilityChecker(allowedClasses));
+    }
+    compiledScript.exec(context,scriptable);
+    if (outputNames == null) {
+      return null;
+    }
+    Map<String,Object> outputObjects=new HashMap<String,Object>();
+    for (    String outputName : outputNames) {
+      outputObjects.put(outputName,ScriptableObject.getProperty(scriptable,outputName));
+    }
+    return outputObjects;
+  }
+ catch (  Exception e) {
+    throw new ScriptingException(e.getMessage() + "\n\n",e);
+  }
+ finally {
+    Context.exit();
+  }
+}
