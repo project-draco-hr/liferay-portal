@@ -1,0 +1,64 @@
+{
+  PermissionChecker permissionChecker=PermissionThreadLocal.getPermissionChecker();
+  User user=UserLocalServiceUtil.getUser(permissionChecker.getUserId());
+  StringBundler sb=new StringBundler(4);
+  if (secureConnection) {
+    sb.append(Http.HTTPS_WITH_SLASH);
+  }
+ else {
+    sb.append(Http.HTTP_WITH_SLASH);
+  }
+  sb.append(remoteAddress);
+  sb.append(StringPool.COLON);
+  sb.append(remotePort);
+  sb.append(remotePathContext);
+  String url=sb.toString();
+  HttpPrincipal httpPrincipal=new HttpPrincipal(url,user.getEmailAddress(),user.getPassword(),user.getPasswordEncrypted());
+  try {
+    GroupServiceHttp.getGroup(httpPrincipal,remoteGroupId);
+  }
+ catch (  NoSuchGroupException nsge) {
+    RemoteExportException ree=new RemoteExportException(RemoteExportException.NO_GROUP);
+    ree.setGroupId(remoteGroupId);
+    throw ree;
+  }
+catch (  SystemException se) {
+    RemoteExportException ree=new RemoteExportException(RemoteExportException.BAD_CONNECTION);
+    ree.setURL(url);
+    throw ree;
+  }
+  byte[] bytes=null;
+  if (layoutIdMap == null) {
+    bytes=LayoutLocalServiceUtil.exportLayouts(sourceGroupId,privateLayout,parameterMap,startDate,endDate);
+  }
+ else {
+    List<Layout> layouts=new ArrayList<Layout>();
+    for (    Map.Entry<Long,Boolean> entry : layoutIdMap.entrySet()) {
+      long plid=GetterUtil.getLong(String.valueOf(entry.getKey()));
+      boolean includeChildren=entry.getValue();
+      Layout layout=LayoutLocalServiceUtil.getLayout(plid);
+      if (!layouts.contains(layout)) {
+        layouts.add(layout);
+      }
+      List<Layout> parentLayouts=getMissingParentLayouts(layout,sourceGroupId);
+      for (      Layout parentLayout : parentLayouts) {
+        if (!layouts.contains(parentLayout)) {
+          layouts.add(parentLayout);
+        }
+      }
+      if (includeChildren) {
+        for (        Layout childLayout : layout.getAllChildren()) {
+          if (!layouts.contains(childLayout)) {
+            layouts.add(childLayout);
+          }
+        }
+      }
+    }
+    long[] layoutIds=getLayoutIds(layouts);
+    if (layoutIds.length <= 0) {
+      throw new RemoteExportException(RemoteExportException.NO_LAYOUTS);
+    }
+    bytes=LayoutLocalServiceUtil.exportLayouts(sourceGroupId,privateLayout,layoutIds,parameterMap,startDate,endDate);
+  }
+  LayoutServiceHttp.importLayouts(httpPrincipal,remoteGroupId,remotePrivateLayout,parameterMap,bytes);
+}
