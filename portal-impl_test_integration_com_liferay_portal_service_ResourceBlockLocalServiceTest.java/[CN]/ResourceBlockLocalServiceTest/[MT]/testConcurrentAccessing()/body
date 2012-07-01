@@ -1,0 +1,21 @@
+{
+  deleteResourceBlock(COMPANY_ID,GROUP_ID,MODEL_NAME);
+  ResourceBlockPermissionsContainer resourceBlockPermissionsContainer=getResourceBlockPermissionsContainer();
+  String permissionsHash=ResourceBlockLocalServiceUtil.getPermissionsHash(resourceBlockPermissionsContainer);
+  long increaseCountValue=1000;
+  int threadCount=10;
+  List<Callable<Void>> callables=new ArrayList<Callable<Void>>();
+  for (int i=0; i < increaseCountValue; i++) {
+    PermissionedModel permissionedModel=new MockPermissionedModel();
+    permissionedModel.setResourceBlockId(NOT_READY);
+    callables.add(new UpdateResourceBlockIdCallable(permissionedModel,permissionsHash,resourceBlockPermissionsContainer));
+    callables.add(new ReleaseResourceBlockCallable(permissionedModel));
+  }
+  ExecutorService executorService=Executors.newFixedThreadPool(threadCount);
+  List<Future<Void>> futures=executorService.invokeAll(callables);
+  for (  Future<Void> future : futures) {
+    future.get();
+  }
+  executorService.shutdownNow();
+  assertNoSuchResourceBlock(COMPANY_ID,GROUP_ID,MODEL_NAME);
+}
