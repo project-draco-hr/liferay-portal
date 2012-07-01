@@ -6,32 +6,41 @@
     }
   }
   long lastModified=0;
-  Set<String> resourcePaths=servletContext.getResourcePaths(resourcePath);
-  if (resourcePaths != null) {
-    for (    String curResourcePath : resourcePaths) {
-      if (curResourcePath.endsWith(StringPool.SLASH)) {
-        long curLastModified=getLastModified(servletContext,curResourcePath);
-        if (curLastModified > lastModified) {
-          lastModified=curLastModified;
-        }
+  Set<String> resourcePaths=null;
+  if (resourcePath.endsWith(StringPool.SLASH)) {
+    resourcePaths=servletContext.getResourcePaths(resourcePath);
+  }
+ else {
+    resourcePaths=new HashSet<String>();
+    resourcePaths.add(resourcePath);
+  }
+  if ((resourcePaths == null) || resourcePaths.isEmpty()) {
+    if (cache) {
+      servletContext.setAttribute(ServletContextUtil.class.getName() + StringPool.PERIOD + resourcePath,new Long(lastModified));
+    }
+    return lastModified;
+  }
+  for (  String curResourcePath : resourcePaths) {
+    if (curResourcePath.endsWith(StringPool.SLASH)) {
+      long curLastModified=getLastModified(servletContext,curResourcePath);
+      if (curLastModified > lastModified) {
+        lastModified=curLastModified;
       }
+    }
  else {
-        String realPath=getRealPath(servletContext,curResourcePath);
-        if (realPath == null) {
-          if (ServerDetector.isTomcat()) {
-            if (_log.isInfoEnabled()) {
-              _log.info(LOG_INFO_LAST_MODIFIED);
-            }
-          }
- else {
-            _log.error("Real path for " + curResourcePath + " is null");
-          }
+      try {
+        URL resourceURL=servletContext.getResource(curResourcePath);
+        if (resourceURL == null) {
+          _log.error("Resource url for " + curResourcePath + " is null");
           continue;
         }
-        File file=new File(realPath);
-        if (file.lastModified() > lastModified) {
-          lastModified=file.lastModified();
+        URLConnection urlConnection=resourceURL.openConnection();
+        if (urlConnection.getLastModified() > lastModified) {
+          lastModified=urlConnection.getLastModified();
         }
+      }
+ catch (      IOException ioe) {
+        _log.error(ioe,ioe);
       }
     }
   }

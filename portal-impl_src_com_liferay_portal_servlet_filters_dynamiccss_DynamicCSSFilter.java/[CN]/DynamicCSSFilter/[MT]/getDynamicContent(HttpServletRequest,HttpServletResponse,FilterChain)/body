@@ -5,19 +5,15 @@
   if (!contextPath.equals(StringPool.SLASH)) {
     requestPath=requestPath.substring(contextPath.length());
   }
-  String realPath=ServletContextUtil.getRealPath(_servletContext,requestPath);
-  if (realPath == null) {
+  URL resourceURL=_servletContext.getResource(requestPath);
+  if (resourceURL == null) {
     return null;
   }
-  realPath=StringUtil.replace(realPath,CharPool.BACK_SLASH,CharPool.SLASH);
-  File file=new File(realPath);
-  if (!file.exists()) {
-    return null;
-  }
+  URLConnection urlConnection=resourceURL.openConnection();
   String cacheCommonFileName=getCacheFileName(request);
-  File cacheContentTypeFile=new File(cacheCommonFileName + "_E_CONTENT_TYPE");
-  File cacheDataFile=new File(cacheCommonFileName + "_E_DATA");
-  if (cacheDataFile.exists() && (cacheDataFile.lastModified() >= file.lastModified())) {
+  File cacheContentTypeFile=new File(_tempDir,cacheCommonFileName + "_E_CONTENT_TYPE");
+  File cacheDataFile=new File(_tempDir,cacheCommonFileName + "_E_DATA");
+  if (cacheDataFile.exists() && (cacheDataFile.lastModified() >= urlConnection.getLastModified())) {
     if (cacheContentTypeFile.exists()) {
       String contentType=FileUtil.read(cacheContentTypeFile);
       response.setContentType(contentType);
@@ -27,25 +23,25 @@
   String dynamicContent=null;
   String content=null;
   try {
-    if (realPath.endsWith(_CSS_EXTENSION) && file.exists()) {
+    if (requestPath.endsWith(_CSS_EXTENSION)) {
       if (_log.isInfoEnabled()) {
-        _log.info("Parsing SASS on CSS " + file);
+        _log.info("Parsing SASS on CSS " + requestPath);
       }
-      content=FileUtil.read(file);
-      dynamicContent=DynamicCSSUtil.parseSass(request,realPath,content);
+      content=StringUtil.read(urlConnection.getInputStream());
+      dynamicContent=DynamicCSSUtil.parseSass(request,_servletContext,requestPath,content);
       response.setContentType(ContentTypes.TEXT_CSS);
       FileUtil.write(cacheContentTypeFile,ContentTypes.TEXT_CSS);
     }
- else     if (realPath.endsWith(_JSP_EXTENSION) || !file.exists()) {
+ else     if (requestPath.endsWith(_JSP_EXTENSION)) {
       if (_log.isInfoEnabled()) {
-        _log.info("Parsing SASS on JSP or servlet " + realPath);
+        _log.info("Parsing SASS on JSP or servlet " + requestPath);
       }
       StringServletResponse stringResponse=new StringServletResponse(response);
       processFilter(DynamicCSSFilter.class,request,stringResponse,filterChain);
       CacheResponseUtil.setHeaders(response,stringResponse.getHeaders());
       response.setContentType(stringResponse.getContentType());
       content=stringResponse.getString();
-      dynamicContent=DynamicCSSUtil.parseSass(request,realPath,content);
+      dynamicContent=DynamicCSSUtil.parseSass(request,_servletContext,requestPath,content);
       FileUtil.write(cacheContentTypeFile,stringResponse.getContentType());
     }
  else {
@@ -53,7 +49,7 @@
     }
   }
  catch (  Exception e) {
-    _log.error("Unable to parse SASS on CSS " + realPath,e);
+    _log.error("Unable to parse SASS on CSS " + requestPath,e);
     if (_log.isDebugEnabled()) {
       _log.debug(content);
     }

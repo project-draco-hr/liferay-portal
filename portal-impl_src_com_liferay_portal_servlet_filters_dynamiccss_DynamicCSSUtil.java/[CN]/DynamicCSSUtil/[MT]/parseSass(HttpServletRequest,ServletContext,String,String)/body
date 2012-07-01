@@ -1,0 +1,59 @@
+{
+  if (!DynamicCSSFilter.ENABLED) {
+    return content;
+  }
+  StopWatch stopWatch=null;
+  if (_log.isDebugEnabled()) {
+    stopWatch=new StopWatch();
+    stopWatch.start();
+  }
+  if (request == null) {
+    return content;
+  }
+  ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+  Theme theme=null;
+  if (themeDisplay == null) {
+    theme=_getTheme(request);
+    if (theme == null) {
+      String currentURL=PortalUtil.getCurrentURL(request);
+      if (_log.isWarnEnabled()) {
+        _log.warn("No theme found for " + currentURL);
+      }
+      return content;
+    }
+  }
+  String parsedContent=null;
+  boolean themeCssFastLoad=_isThemeCssFastLoad(request,themeDisplay);
+  URL resourceURL=servletContext.getResource(resourcePath);
+  URLConnection resourceConnection=null;
+  URLConnection cacheResourceConnection=null;
+  if (resourceURL != null) {
+    resourceConnection=resourceURL.openConnection();
+  }
+  URL cacheResourceURL=getCacheResource(servletContext,resourcePath);
+  if (cacheResourceURL != null) {
+    cacheResourceConnection=cacheResourceURL.openConnection();
+  }
+  if (themeCssFastLoad && (cacheResourceConnection != null) && (resourceConnection != null)&& (cacheResourceConnection.getLastModified() == resourceConnection.getLastModified())) {
+    parsedContent=StringUtil.read(cacheResourceConnection.getInputStream());
+    if (_log.isDebugEnabled()) {
+      _log.debug("Loading SASS cache from " + cacheResourceURL.getPath() + " takes "+ stopWatch.getTime()+ " ms");
+    }
+  }
+ else {
+    content=SassToCssBuilder.parseStaticTokens(content);
+    String queryString=request.getQueryString();
+    if (!themeCssFastLoad && Validator.isNotNull(queryString)) {
+      content=_propagateQueryString(content,queryString);
+    }
+    parsedContent=_parseSass(request,servletContext,themeDisplay,theme,resourcePath,content);
+    if (_log.isDebugEnabled()) {
+      _log.debug("Parsing SASS for " + resourcePath + " takes "+ stopWatch.getTime()+ " ms");
+    }
+  }
+  if (Validator.isNull(parsedContent)) {
+    return content;
+  }
+  parsedContent=StringUtil.replace(parsedContent,new String[]{"@portal_ctx@","@theme_image_path@"},new String[]{PortalUtil.getPathContext(),_getThemeImagesPath(request,themeDisplay,theme)});
+  return parsedContent;
+}

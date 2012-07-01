@@ -1,0 +1,51 @@
+{
+  String minifierType=ParamUtil.getString(request,"minifierType");
+  String bundleId=ParamUtil.getString(request,"bundleId",ParamUtil.getString(request,"minifierBundleId"));
+  if (Validator.isNull(minifierType) || Validator.isNull(bundleId) || !ArrayUtil.contains(PropsValues.JAVASCRIPT_BUNDLE_IDS,bundleId)) {
+    return null;
+  }
+  String bundleDir=PropsUtil.get(PropsKeys.JAVASCRIPT_BUNDLE_DIR,new Filter(bundleId));
+  URL bundleDirURL=_servletContext.getResource(bundleDir);
+  if (bundleDirURL == null) {
+    return null;
+  }
+  String cacheFileName=getCacheFileName(request);
+  String[] fileNames=JavaScriptBundleUtil.getFileNames(bundleId);
+  File cacheFile=new File(_tempDir,cacheFileName);
+  if (_limitedFilesCache != null) {
+    _limitedFilesCache.put(cacheFileName);
+  }
+  if (cacheFile.exists()) {
+    boolean staleCache=false;
+    for (    String fileName : fileNames) {
+      URL resourceURL=_servletContext.getResource(bundleDir.concat(StringPool.SLASH).concat(fileName));
+      if (resourceURL == null) {
+        continue;
+      }
+      URLConnection urlConnection=resourceURL.openConnection();
+      if (urlConnection.getLastModified() > cacheFile.lastModified()) {
+        staleCache=true;
+        break;
+      }
+    }
+    if (!staleCache) {
+      response.setContentType(ContentTypes.TEXT_JAVASCRIPT);
+      return cacheFile;
+    }
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Aggregating JavaScript bundle " + bundleId);
+  }
+  String content=null;
+  if (fileNames.length == 0) {
+    content=StringPool.BLANK;
+  }
+ else {
+    AggregateContext aggregateContext=new ServletAggregateContext(_servletContext,_servletContext.getResource(StringPool.SLASH));
+    aggregateContext.pushPath(bundleDir);
+    content=aggregateJavaScript(aggregateContext,fileNames);
+  }
+  response.setContentType(ContentTypes.TEXT_JAVASCRIPT);
+  FileUtil.write(cacheFile,content);
+  return content;
+}
