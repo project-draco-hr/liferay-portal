@@ -33,11 +33,8 @@
       dlFileEntry.setVersion(newVersion);
       dlFileEntryPersistence.update(dlFileEntry,false);
     }
-    Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(DLFileEntry.class);
-    if (status == WorkflowConstants.STATUS_IN_TRASH) {
-      indexer.reindex(dlFileEntry);
-    }
- else     if (dlFileVersion.getVersion().equals(DLFileEntryConstants.VERSION_DEFAULT)) {
+    if (dlFileVersion.getVersion().equals(DLFileEntryConstants.VERSION_DEFAULT)) {
+      Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(DLFileEntry.class);
       indexer.delete(dlFileEntry);
     }
   }
@@ -48,16 +45,31 @@
       trashedDLFileVersion.setStatus(trashVersion.getStatus());
       dlFileVersionPersistence.update(trashedDLFileVersion,false);
     }
+    trashEntryLocalService.deleteEntry(DLFileEntryConstants.getClassName(),dlFileEntry.getFileEntryId());
+    Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(DLFileEntry.class);
+    indexer.delete(dlFileEntry);
   }
  else   if (status == WorkflowConstants.STATUS_IN_TRASH) {
-    List<DLFileVersion> trashedDLFileVersions=dlFileVersionPersistence.findByFileEntryId(dlFileEntry.getFileEntryId());
-    for (    DLFileVersion trashedDLFileVersion : trashedDLFileVersions) {
-      trashedDLFileVersion.setStatus(WorkflowConstants.STATUS_IN_TRASH);
-      dlFileVersionPersistence.update(trashedDLFileVersion,false);
+    List<DLFileVersion> dlFileVersions=(List<DLFileVersion>)workflowContext.get("dlFileVersions");
+    List<ObjectValuePair<Long,Integer>> fileVersionStatuses=new ArrayList<ObjectValuePair<Long,Integer>>(dlFileVersions.size());
+    DLFileVersion oldFileVersion=dlFileVersions.get(0);
+    int oldFileVersionStatus=oldFileVersion.getStatus();
+    for (    DLFileVersion curDLFileVersion : dlFileVersions) {
+      ObjectValuePair<Long,Integer> fileVersionStatus=new ObjectValuePair<Long,Integer>();
+      fileVersionStatus.setKey(curDLFileVersion.getFileVersionId());
+      int versionStatus=curDLFileVersion.getStatus();
+      if (versionStatus == WorkflowConstants.STATUS_PENDING) {
+        versionStatus=WorkflowConstants.STATUS_DRAFT;
+      }
+      fileVersionStatus.setValue(versionStatus);
+      fileVersionStatuses.add(fileVersionStatus);
+      curDLFileVersion.setStatus(WorkflowConstants.STATUS_IN_TRASH);
+      dlFileVersionPersistence.update(curDLFileVersion,false);
     }
+    trashEntryLocalService.addTrashEntry(userId,dlFileEntry.getGroupId(),DLFileEntryConstants.getClassName(),dlFileEntry.getFileEntryId(),oldFileVersionStatus,fileVersionStatuses,null);
   }
   dlAppHelperLocalService.updateStatus(userId,new LiferayFileEntry(dlFileEntry),new LiferayFileVersion(dlFileVersion),oldStatus,status,workflowContext);
-  if ((status == WorkflowConstants.STATUS_APPROVED) || (oldStatus == WorkflowConstants.STATUS_IN_TRASH)) {
+  if ((status == WorkflowConstants.STATUS_APPROVED) || (status == WorkflowConstants.STATUS_IN_TRASH) || (oldStatus == WorkflowConstants.STATUS_IN_TRASH)) {
     reindex(dlFileEntry);
   }
   return dlFileEntry;
