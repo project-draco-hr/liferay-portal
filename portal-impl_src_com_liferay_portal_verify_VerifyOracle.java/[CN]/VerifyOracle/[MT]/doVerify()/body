@@ -4,50 +4,8 @@
   if (!dbType.equals(DB.TYPE_ORACLE)) {
     return;
   }
-  Connection con=null;
-  PreparedStatement ps=null;
-  ResultSet rs=null;
-  int buildNumber;
-  try {
-    con=DataAccess.getUpgradeOptimizedConnection();
-    ps=con.prepareStatement("select buildNumber from release_");
-    rs=ps.executeQuery();
-    rs.next();
-    buildNumber=rs.getInt(1);
-    ps=con.prepareStatement("select table_name, column_name, data_length from " + "user_tab_columns where data_type = 'VARCHAR2' and " + "char_used = 'B'");
-    rs=ps.executeQuery();
-    while (rs.next()) {
-      String tableName=rs.getString(1);
-      String columnName=rs.getString(2);
-      int dataLength=rs.getInt(3);
-      if (dataLength != 4000) {
-        if ((buildNumber >= 6000) && (buildNumber < 6120)) {
-          dataLength=dataLength / 4;
-        }
-      }
-      try {
-        runSQL("alter table " + tableName + " modify "+ columnName+ " varchar2("+ dataLength+ " char)");
-      }
- catch (      SQLException sqle) {
-        if (sqle.getErrorCode() == 1441) {
-          if (_log.isWarnEnabled()) {
-            StringBundler sb=new StringBundler(6);
-            sb.append("Unable to alter length of column ");
-            sb.append(columnName);
-            sb.append(" for table ");
-            sb.append(tableName);
-            sb.append("because it contains values that are ");
-            sb.append("larger than the new column length");
-            _log.warn(sb.toString());
-          }
-        }
- else {
-          throw sqle;
-        }
-      }
-    }
-  }
-  finally {
-    DataAccess.cleanUp(con,ps,rs);
+  int buildNumber=getBuildNumber();
+  if ((buildNumber >= ReleaseInfo.RELEASE_6_0_0_BUILD_NUMBER) && (buildNumber < ReleaseInfo.RELEASE_6_1_20_BUILD_NUMBER)) {
+    alterColumns();
   }
 }
