@@ -1,7 +1,7 @@
 {
   DDLRecordSet recordSet=DDLRecordSetServiceUtil.getRecordSet(recordSetId);
   DDMStructure ddmStructure=recordSet.getDDMStructure();
-  Map<String,Map<String,String>> fieldsMap=ddmStructure.getFieldsMap();
+  Map<String,Map<String,String>> fieldsMap=ddmStructure.getFieldsMap(LocaleUtil.toLanguageId(getLocale()));
   StringBundler sb=new StringBundler();
   for (  Map<String,String> fieldMap : fieldsMap.values()) {
     String label=fieldMap.get(FieldConstants.LABEL);
@@ -12,12 +12,18 @@
   sb.append(StringPool.NEW_LINE);
   List<DDLRecord> records=DDLRecordLocalServiceUtil.getRecords(recordSetId,status,start,end,orderByComparator);
   for (  DDLRecord record : records) {
-    Fields fields=record.getFields();
-    for (    Map<String,String> fieldMap : fieldsMap.values()) {
-      String name=fieldMap.get(FieldConstants.NAME);
-      Field field=fields.get(name);
-      Serializable value=field.getValue();
-      sb.append(CSVUtil.encode(value));
+    DDLRecordVersion recordVersion=record.getRecordVersion();
+    Fields fieldsModel=StorageEngineUtil.getFields(recordVersion.getDDMStorageId());
+    for (    Map<String,String> fields : fieldsMap.values()) {
+      String dataType=fields.get(FieldConstants.DATA_TYPE);
+      String name=fields.get(FieldConstants.NAME);
+      String value=StringPool.BLANK;
+      if (fieldsModel.contains(name)) {
+        Field field=fieldsModel.get(name);
+        value=field.getRenderedValue(getLocale());
+      }
+      Serializable fieldValueSerializable=FieldConstants.getSerializable(dataType,value);
+      sb.append(CSVUtil.encode(fieldValueSerializable));
       sb.append(CharPool.COMMA);
     }
     sb.setIndex(sb.index() - 1);

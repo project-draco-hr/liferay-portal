@@ -1,19 +1,25 @@
 {
   DDLRecordSet recordSet=DDLRecordSetServiceUtil.getRecordSet(recordSetId);
   DDMStructure ddmStructure=recordSet.getDDMStructure();
-  Map<String,Map<String,String>> fieldsMap=ddmStructure.getFieldsMap();
+  Map<String,Map<String,String>> fieldsMap=ddmStructure.getFieldsMap(LocaleUtil.toLanguageId(getLocale()));
   Document document=SAXReaderUtil.createDocument();
   Element rootElement=document.addElement("root");
   List<DDLRecord> records=DDLRecordLocalServiceUtil.getRecords(recordSetId,status,start,end,orderByComparator);
   for (  DDLRecord record : records) {
     Element fieldsElement=rootElement.addElement("fields");
-    Fields fields=record.getFields();
-    for (    Map<String,String> fieldMap : fieldsMap.values()) {
-      String label=fieldMap.get(FieldConstants.LABEL);
-      String name=fieldMap.get(FieldConstants.NAME);
-      Field field=fields.get(name);
-      Serializable value=field.getValue();
-      addFieldElement(fieldsElement,label,value);
+    DDLRecordVersion recordVersion=record.getRecordVersion();
+    Fields fieldsModel=StorageEngineUtil.getFields(recordVersion.getDDMStorageId());
+    for (    Map<String,String> fields : fieldsMap.values()) {
+      String dataType=fields.get(FieldConstants.DATA_TYPE);
+      String label=fields.get(FieldConstants.LABEL);
+      String name=fields.get(FieldConstants.NAME);
+      String value=StringPool.BLANK;
+      if (fieldsModel.contains(name)) {
+        Field field=fieldsModel.get(name);
+        value=field.getRenderedValue(getLocale());
+      }
+      Serializable fieldValueSerializable=FieldConstants.getSerializable(dataType,value);
+      addFieldElement(fieldsElement,label,fieldValueSerializable);
     }
   }
   String xml=document.asXML();
