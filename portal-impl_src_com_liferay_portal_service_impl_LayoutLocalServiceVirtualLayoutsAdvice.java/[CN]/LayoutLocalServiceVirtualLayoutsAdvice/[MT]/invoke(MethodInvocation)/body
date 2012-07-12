@@ -36,22 +36,24 @@
     try {
       Group group=GroupLocalServiceUtil.getGroup(groupId);
       LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(groupId,privateLayout);
-      List<Layout> layouts=(List<Layout>)methodInvocation.proceed();
-      for (      Layout layout : layouts) {
-        if (!SitesUtil.isLayoutModifiedSinceLastMerge(layout)) {
-          try {
-            MergeLayoutPrototypesThreadLocal.setInProgress(true);
-            WorkflowThreadLocal.setEnabled(false);
+      Object returnValue=methodInvocation.proceed();
+      try {
+        MergeLayoutPrototypesThreadLocal.setInProgress(true);
+        WorkflowThreadLocal.setEnabled(false);
+        if (((List<Layout>)returnValue).isEmpty()) {
+          SitesUtil.mergeLayoutSetProtypeLayouts(group,layoutSet);
+        }
+        for (        Layout layout : (List<Layout>)returnValue) {
+          if (!SitesUtil.isLayoutModifiedSinceLastMerge(layout)) {
             SitesUtil.mergeLayoutSetProtypeLayouts(group,layoutSet);
+            break;
           }
-  finally {
-            MergeLayoutPrototypesThreadLocal.setInProgress(false);
-            WorkflowThreadLocal.setEnabled(workflowEnabled);
-          }
-          break;
         }
       }
-      Object returnValue=methodInvocation.proceed();
+  finally {
+        MergeLayoutPrototypesThreadLocal.setInProgress(false);
+        WorkflowThreadLocal.setEnabled(workflowEnabled);
+      }
       if (PropsValues.USER_GROUPS_COPY_LAYOUTS_TO_USER_PERSONAL_SITE && group.isUser()) {
         if (parentLayoutId == LayoutConstants.DEFAULT_PARENT_LAYOUT_ID) {
           return addUserGroupLayouts(group,layoutSet,(List<Layout>)returnValue,parentLayoutId);
