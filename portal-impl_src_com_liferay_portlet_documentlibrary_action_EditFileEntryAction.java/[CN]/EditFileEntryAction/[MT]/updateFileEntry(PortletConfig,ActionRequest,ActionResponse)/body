@@ -20,10 +20,10 @@
   try {
     String contentType=uploadPortletRequest.getContentType("file");
     long size=uploadPortletRequest.getSize("file");
-    if (cmd.equals(Constants.ADD) && (size == 0)) {
+    if ((cmd.equals(Constants.ADD) || cmd.equals(Constants.ADD_DYNAMIC)) && (size == 0)) {
       contentType=MimeTypesUtil.getContentType(title);
     }
-    if (cmd.equals(Constants.ADD) || (size > 0)) {
+    if (cmd.equals(Constants.ADD) || cmd.equals(Constants.ADD_DYNAMIC) || (size > 0)) {
       String portletName=portletConfig.getPortletName();
       if (portletName.equals(PortletKeys.MEDIA_GALLERY_DISPLAY)) {
         String portletResource=ParamUtil.getString(actionRequest,"portletResource");
@@ -43,9 +43,14 @@
     inputStream=uploadPortletRequest.getFileAsStream("file");
     ServiceContext serviceContext=ServiceContextFactory.getInstance(DLFileEntry.class.getName(),uploadPortletRequest);
     FileEntry fileEntry=null;
-    if (cmd.equals(Constants.ADD)) {
+    if (cmd.equals(Constants.ADD) || cmd.equals(Constants.ADD_DYNAMIC)) {
       fileEntry=DLAppServiceUtil.addFileEntry(repositoryId,folderId,sourceFileName,contentType,title,description,changeLog,inputStream,size,serviceContext);
       AssetPublisherUtil.addAndStoreSelection(actionRequest,DLFileEntry.class.getName(),fileEntry.getFileEntryId(),-1);
+      if (cmd.equals(Constants.ADD_DYNAMIC)) {
+        JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+        jsonObject.put("fileEntryId",fileEntry.getFileEntryId());
+        writeJSON(actionRequest,actionResponse,jsonObject);
+      }
     }
  else     if (cmd.equals(Constants.UPDATE_AND_CHECKIN)) {
       fileEntry=DLAppServiceUtil.updateFileEntryAndCheckIn(fileEntryId,sourceFileName,contentType,title,description,changeLog,majorVersion,inputStream,size,serviceContext);
@@ -55,7 +60,14 @@
     }
     AssetPublisherUtil.addRecentFolderId(actionRequest,DLFileEntry.class.getName(),folderId);
   }
-  finally {
+ catch (  Exception e) {
+    UploadException uploadException=(UploadException)actionRequest.getAttribute(WebKeys.UPLOAD_EXCEPTION);
+    if (uploadException != null && uploadException.isExceededSizeLimit()) {
+      throw new FileSizeException(uploadException.getCause());
+    }
+    throw e;
+  }
+ finally {
     StreamUtil.cleanUp(inputStream);
   }
 }
