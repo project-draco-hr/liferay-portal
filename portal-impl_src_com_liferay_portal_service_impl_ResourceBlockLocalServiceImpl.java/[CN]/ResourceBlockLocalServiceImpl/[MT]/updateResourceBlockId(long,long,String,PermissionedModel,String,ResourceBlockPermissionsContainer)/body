@@ -1,34 +1,37 @@
 {
-  Session session=resourceBlockPersistence.openSession();
   ResourceBlock resourceBlock;
-  try {
-    while (true) {
-      resourceBlock=resourceBlockPersistence.fetchByC_G_N_P(companyId,groupId,name,permissionsHash,false);
-      if (resourceBlock == null) {
-        try {
-          resourceBlock=addResourceBlock(companyId,groupId,name,permissionsHash,resourceBlockPermissionsContainer);
-          session.flush();
-        }
- catch (        SystemException se) {
-          _log.warn("Failed to insert a new resource block, retrying.",se);
-          continue;
-        }
-        break;
+  while (true) {
+    resourceBlock=resourceBlockPersistence.fetchByC_G_N_P(companyId,groupId,name,permissionsHash,false);
+    if (resourceBlock == null) {
+      try {
+        resourceBlock=addResourceBlock(companyId,groupId,name,permissionsHash,resourceBlockPermissionsContainer);
       }
+ catch (      SystemException se) {
+        _log.warn("Failed to insert a new resource block, retry.",se);
+        continue;
+      }
+      break;
+    }
  else {
-        session.evict(resourceBlock);
+      Session session=resourceBlockPersistence.openSession();
+      try {
         SQLQuery sqlQuery=session.createSQLQuery(_SQL_UPDATE_RETAIN);
         QueryPos qPos=QueryPos.getInstance(sqlQuery);
         qPos.add(resourceBlock.getResourceBlockId());
         int affectRows=sqlQuery.executeUpdate();
         if (affectRows > 0) {
+          resourceBlock.setReferenceCount(resourceBlock.getReferenceCount() + 1);
           break;
         }
       }
+ catch (      ORMException orme) {
+        _log.warn("Failed to increase reference count for " + "ResourceBlock id : " + resourceBlock.getResourceBlockId() + ", retry.",orme);
+      }
+ finally {
+        session.evict(resourceBlock);
+        resourceBlockPersistence.closeSession(session);
+      }
     }
-  }
-  finally {
-    resourceBlockPersistence.closeSession(session);
   }
   permissionedModel.setResourceBlockId(resourceBlock.getResourceBlockId());
   permissionedModel.persist();

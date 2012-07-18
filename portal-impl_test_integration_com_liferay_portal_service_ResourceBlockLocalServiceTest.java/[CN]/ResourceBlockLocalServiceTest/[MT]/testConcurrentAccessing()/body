@@ -1,15 +1,15 @@
 {
-  deleteResourceBlock(COMPANY_ID,GROUP_ID,MODEL_NAME);
-  ResourceBlockPermissionsContainer resourceBlockPermissionsContainer=getResourceBlockPermissionsContainer();
-  String permissionsHash=ResourceBlockLocalServiceUtil.getPermissionsHash(resourceBlockPermissionsContainer);
+  ResourceBlockPermissionsContainer resourceBlockPermissionsContainer=new ResourceBlockPermissionsContainer();
+  resourceBlockPermissionsContainer.addPermission(_ROLE_ID,_ACTION_IDS);
+  String permissionsHash=resourceBlockPermissionsContainer.getPermissionsHash();
+  PermissionedModel permissionedModel=new MockPermissionedModel();
   long increaseCountValue=1000;
   int threadCount=10;
+  Semaphore semaphore=new Semaphore(0);
   List<Callable<Void>> callables=new ArrayList<Callable<Void>>();
   for (int i=0; i < increaseCountValue; i++) {
-    PermissionedModel permissionedModel=new MockPermissionedModel();
-    permissionedModel.setResourceBlockId(NOT_READY);
-    callables.add(new UpdateResourceBlockIdCallable(permissionedModel,permissionsHash,resourceBlockPermissionsContainer));
-    callables.add(new ReleaseResourceBlockCallable(permissionedModel));
+    callables.add(new UpdateResourceBlockIdCallable(permissionedModel,permissionsHash,resourceBlockPermissionsContainer,semaphore));
+    callables.add(new ReleaseResourceBlockCallable(permissionedModel,semaphore));
   }
   ExecutorService executorService=Executors.newFixedThreadPool(threadCount);
   List<Future<Void>> futures=executorService.invokeAll(callables);
@@ -17,5 +17,5 @@
     future.get();
   }
   executorService.shutdownNow();
-  assertNoSuchResourceBlock(COMPANY_ID,GROUP_ID,MODEL_NAME);
+  _assertNoSuchResourceBlock(_COMPANY_ID,_GROUP_ID,_MODEL_NAME);
 }

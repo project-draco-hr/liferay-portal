@@ -1,16 +1,25 @@
 {
   Session session=resourceBlockPersistence.openSession();
-  try {
-    SQLQuery sqlQuery=session.createSQLQuery(_SQL_UPDATE_RELEASE);
-    QueryPos qPos=QueryPos.getInstance(sqlQuery);
-    qPos.add(resourceBlockId);
-    sqlQuery.executeUpdate();
-    sqlQuery=session.createSQLQuery(_SQL_DELETE_RELEASED);
-    qPos=QueryPos.getInstance(sqlQuery);
-    qPos.add(resourceBlockId);
-    sqlQuery.executeUpdate();
-  }
-  finally {
-    resourceBlockPersistence.closeSession(session);
+  while (true) {
+    try {
+      SQLQuery sqlQuery=session.createSQLQuery(_SQL_UPDATE_RELEASE);
+      QueryPos qPos=QueryPos.getInstance(sqlQuery);
+      qPos.add(resourceBlockId);
+      int affectRows=sqlQuery.executeUpdate();
+      if (affectRows > 0) {
+        ResourceBlock resourceBlock=(ResourceBlock)session.get(ResourceBlockImpl.class,Long.valueOf(resourceBlockId));
+        if (resourceBlock.getReferenceCount() == 0) {
+          sqlQuery=session.createSQLQuery(_SQL_DELETE_RELEASED);
+          qPos=QueryPos.getInstance(sqlQuery);
+          qPos.add(resourceBlockId);
+          sqlQuery.executeUpdate();
+        }
+      }
+      resourceBlockPersistence.closeSession(session);
+      break;
+    }
+ catch (    ORMException orme) {
+      _log.warn("Failed to decrease reference count for ResourceBlock " + "id : " + resourceBlockId + ", retry.",orme);
+    }
   }
 }
