@@ -1,5 +1,5 @@
 {
-  ResourceBlock resourceBlock;
+  ResourceBlock resourceBlock=null;
   while (true) {
     resourceBlock=resourceBlockPersistence.fetchByC_G_N_P(companyId,groupId,name,permissionsHash,false);
     if (resourceBlock == null) {
@@ -7,7 +7,9 @@
         resourceBlock=addResourceBlock(companyId,groupId,name,permissionsHash,resourceBlockPermissionsContainer);
       }
  catch (      SystemException se) {
-        _log.warn("Failed to insert a new resource block, retry.",se);
+        if (_log.isWarnEnabled()) {
+          _log.warn("Unable to add a new resource block. Retrying");
+        }
         continue;
       }
       break;
@@ -15,17 +17,20 @@
  else {
       Session session=resourceBlockPersistence.openSession();
       try {
-        SQLQuery sqlQuery=session.createSQLQuery(_SQL_UPDATE_RETAIN);
+        String sql=CustomSQLUtil.get(_RETAIN_RESOURCE_BLOCK);
+        SQLQuery sqlQuery=session.createSQLQuery(sql);
         QueryPos qPos=QueryPos.getInstance(sqlQuery);
         qPos.add(resourceBlock.getResourceBlockId());
-        int affectRows=sqlQuery.executeUpdate();
-        if (affectRows > 0) {
+        if (sqlQuery.executeUpdate() > 0) {
           resourceBlock.setReferenceCount(resourceBlock.getReferenceCount() + 1);
           break;
         }
       }
  catch (      ORMException orme) {
-        _log.warn("Failed to increase reference count for " + "ResourceBlock id : " + resourceBlock.getResourceBlockId() + ", retry.",orme);
+        if (_log.isWarnEnabled()) {
+          long resourceBlockId=resourceBlock.getResourceBlockId();
+          _log.warn("Unable to increment reference count for " + "resource block " + resourceBlockId + ". Retrying");
+        }
       }
  finally {
         session.evict(resourceBlock);
