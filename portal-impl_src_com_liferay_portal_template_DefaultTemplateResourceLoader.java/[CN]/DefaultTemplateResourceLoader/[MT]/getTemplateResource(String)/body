@@ -1,48 +1,19 @@
 {
-  TemplateResource templateResource=null;
-  Object object=_portalCache.get(templateId);
-  if (object != null) {
-    if (object instanceof TemplateResource) {
-      templateResource=(TemplateResource)object;
-      if (_modificationCheckInterval < 0) {
-        return templateResource;
-      }
-      long expireTime=templateResource.getLastModified() + _modificationCheckInterval;
-      if (expireTime > System.currentTimeMillis()) {
-        return templateResource;
-      }
- else {
-        _portalCache.remove(templateId);
-        if (_log.isDebugEnabled()) {
-          _log.debug("Reload stale template " + templateId);
-        }
-      }
-    }
- else     if (object == _nullHolder) {
+  TemplateResource templateResource=_loadFromCache(templateId);
+  if (templateResource != null) {
+    if (templateResource instanceof NullHolderTemplateResource) {
       return null;
     }
+    return templateResource;
+  }
+  templateResource=_loadFromParser(templateId);
+  if (_modificationCheckInterval != 0) {
+    if (templateResource == null) {
+      _portalCache.put(templateId,new NullHolderTemplateResource());
+    }
  else {
-      _portalCache.remove(templateId);
-      if (_log.isWarnEnabled()) {
-        _log.warn("Remove template " + templateId + " because it is not a template resource");
-      }
+      _portalCache.put(templateId,templateResource);
     }
   }
-  for (  TemplateResourceParser templateResourceParser : _templateResourceParsers) {
-    try {
-      templateResource=templateResourceParser.getTemplateResource(templateId);
-      if (templateResource != null) {
-        if ((_modificationCheckInterval != 0) && (!_name.equals(TemplateManager.VELOCITY) || !templateId.contains(SandboxHandler.SANDBOX_MARKER))) {
-          templateResource=new CacheTemplateResource(templateResource);
-          _portalCache.put(templateId,templateResource);
-        }
-        return templateResource;
-      }
-    }
- catch (    TemplateException te) {
-      _log.warn("Unable to parse template " + templateId + " with parser "+ templateResourceParser,te);
-    }
-  }
-  _portalCache.put(templateId,_nullHolder);
-  return null;
+  return templateResource;
 }
