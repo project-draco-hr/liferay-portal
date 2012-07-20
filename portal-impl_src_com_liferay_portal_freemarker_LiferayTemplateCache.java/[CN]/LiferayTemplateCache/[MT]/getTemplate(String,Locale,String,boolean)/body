@@ -8,21 +8,27 @@
   if (encoding == null) {
     throw new IllegalArgumentException("Argument \"encoding\" cannot be null");
   }
-  try {
-    templateId=(String)_normalizeNameMethod.invoke(this,templateId);
+  TemplateResource templateResource=null;
+  if (templateId.startsWith(TemplateResource.TEMPLATE_RESOURCE_UUID_PREFIX)) {
+    templateResource=TemplateResourceThreadLocal.getTemplateResource(TemplateManager.FREEMARKER);
   }
- catch (  Exception e) {
-    return null;
+ else {
+    try {
+      templateId=(String)_normalizeNameMethod.invoke(this,templateId);
+      templateResource=TemplateResourceLoaderUtil.getTemplateResource(TemplateManager.FREEMARKER,templateId);
+    }
+ catch (    Exception e) {
+      templateResource=null;
+    }
   }
-  if (templateId == null) {
-    return null;
+  if (templateResource == null) {
+    throw new IOException("Unable to find Freemarker tempalte with Id " + templateId);
   }
-  try {
-    TemplateResource templateResource=TemplateResourceLoaderUtil.getTemplateResource(TemplateManager.FREEMARKER,templateId);
-    freemarker.template.Template template=new freemarker.template.Template(templateResource.getTemplateId(),templateResource.getReader(),_configuration,TemplateResource.DEFAUT_ENCODING);
-    return template;
+  Object object=_portalCache.get(templateResource);
+  if ((object != null) && (object instanceof Template)) {
+    return (Template)object;
   }
- catch (  TemplateException te) {
-    return null;
-  }
+  Template template=new Template(templateResource.getTemplateId(),templateResource.getReader(),_configuration,TemplateResource.DEFAUT_ENCODING);
+  _portalCache.put(templateResource,template);
+  return template;
 }
