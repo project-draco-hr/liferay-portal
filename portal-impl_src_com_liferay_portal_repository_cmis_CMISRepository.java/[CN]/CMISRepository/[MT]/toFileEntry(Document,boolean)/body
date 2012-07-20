@@ -1,0 +1,38 @@
+{
+  Object[] ids=null;
+  if (isDocumentRetrievableByVersionSeriesId()) {
+    ids=getRepositoryEntryIds(document.getVersionSeriesId());
+  }
+ else {
+    ids=getRepositoryEntryIds(document.getId());
+  }
+  long fileEntryId=(Long)ids[0];
+  String uuid=(String)ids[1];
+  FileEntry fileEntry=new CMISFileEntry(this,uuid,fileEntryId,document);
+  FileVersion fileVersion=null;
+  try {
+    fileVersion=fileEntry.getFileVersion();
+  }
+ catch (  Exception e) {
+    if (strict) {
+      if ((Boolean)ids[2]) {
+        RepositoryEntryUtil.remove(fileEntryId);
+      }
+      if (e instanceof CmisObjectNotFoundException) {
+        throw new NoSuchFileVersionException("No CMIS file version with CMIS file entry {objectId=" + document.getId() + "}",e);
+      }
+ else       if (e instanceof SystemException) {
+        throw (SystemException)e;
+      }
+ else {
+        processException(e);
+        throw new RepositoryException(e);
+      }
+    }
+ else {
+      _log.error("Unable to update asset",e);
+    }
+  }
+  dlAppHelperLocalService.checkAssetEntry(PrincipalThreadLocal.getUserId(),fileEntry,fileVersion);
+  return fileEntry;
+}
