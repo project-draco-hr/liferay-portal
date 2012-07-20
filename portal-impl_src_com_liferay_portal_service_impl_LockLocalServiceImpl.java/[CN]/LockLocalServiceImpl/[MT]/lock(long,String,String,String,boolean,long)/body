@@ -1,34 +1,45 @@
 {
-  Date now=new Date();
-  Lock lock=lockPersistence.fetchByC_K(className,key);
-  if (lock != null) {
-    if (lock.isExpired()) {
-      lockPersistence.remove(lock);
-      lock=null;
+  LockListener lockListener=LockListenerRegistryUtil.getLockListener(className);
+  if (lockListener != null) {
+    lockListener.onBeforeLock(key);
+  }
+  try {
+    Date now=new Date();
+    Lock lock=lockPersistence.fetchByC_K(className,key);
+    if (lock != null) {
+      if (lock.isExpired()) {
+        expireLock(lock);
+        lock=null;
+      }
+ else       if (lock.getUserId() != userId) {
+        throw new DuplicateLockException(lock);
+      }
     }
- else     if (lock.getUserId() != userId) {
-      throw new DuplicateLockException(lock);
+    if (lock == null) {
+      User user=userPersistence.findByPrimaryKey(userId);
+      long lockId=counterLocalService.increment();
+      lock=lockPersistence.create(lockId);
+      lock.setCompanyId(user.getCompanyId());
+      lock.setUserId(user.getUserId());
+      lock.setUserName(user.getFullName());
+      lock.setClassName(className);
+      lock.setKey(key);
+      lock.setOwner(owner);
+      lock.setInheritable(inheritable);
     }
-  }
-  if (lock == null) {
-    User user=userPersistence.findByPrimaryKey(userId);
-    long lockId=counterLocalService.increment();
-    lock=lockPersistence.create(lockId);
-    lock.setCompanyId(user.getCompanyId());
-    lock.setUserId(user.getUserId());
-    lock.setUserName(user.getFullName());
-    lock.setClassName(className);
-    lock.setKey(key);
-    lock.setOwner(owner);
-    lock.setInheritable(inheritable);
-  }
-  lock.setCreateDate(now);
-  if (expirationTime == 0) {
-    lock.setExpirationDate(null);
-  }
+    lock.setCreateDate(now);
+    if (expirationTime == 0) {
+      lock.setExpirationDate(null);
+    }
  else {
-    lock.setExpirationDate(new Date(now.getTime() + expirationTime));
+      lock.setExpirationDate(new Date(now.getTime() + expirationTime));
+    }
+    lockPersistence.update(lock,false);
+    return lock;
   }
-  lockPersistence.update(lock,false);
-  return lock;
+  finally {
+    if (lockListener != null) {
+      lockListener.onAfterLock(key);
+    }
+  }
 }

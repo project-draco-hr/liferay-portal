@@ -1,22 +1,33 @@
 {
-  Lock lock=lockFinder.fetchByC_K(className,key,LockMode.UPGRADE);
-  if (lock == null) {
-    long lockId=counterLocalService.increment();
-    lock=lockPersistence.create(lockId);
-    lock.setCreateDate(new Date());
-    lock.setClassName(className);
-    lock.setKey(key);
-    lock.setOwner(updatedOwner);
-    lockPersistence.update(lock,false);
-    lock.setNew(true);
+  LockListener lockListener=LockListenerRegistryUtil.getLockListener(className);
+  if (lockListener != null) {
+    lockListener.onBeforeLock(key);
   }
- else   if (Validator.equals(lock.getOwner(),expectedOwner)) {
-    lock.setCreateDate(new Date());
-    lock.setClassName(className);
-    lock.setKey(key);
-    lock.setOwner(updatedOwner);
-    lockPersistence.update(lock,false);
-    lock.setNew(true);
+  try {
+    Lock lock=lockFinder.fetchByC_K(className,key,LockMode.UPGRADE);
+    if (lock == null) {
+      long lockId=counterLocalService.increment();
+      lock=lockPersistence.create(lockId);
+      lock.setCreateDate(new Date());
+      lock.setClassName(className);
+      lock.setKey(key);
+      lock.setOwner(updatedOwner);
+      lockPersistence.update(lock,false);
+      lock.setNew(true);
+    }
+ else     if (Validator.equals(lock.getOwner(),expectedOwner)) {
+      lock.setCreateDate(new Date());
+      lock.setClassName(className);
+      lock.setKey(key);
+      lock.setOwner(updatedOwner);
+      lockPersistence.update(lock,false);
+      lock.setNew(true);
+    }
+    return lock;
   }
-  return lock;
+  finally {
+    if (lockListener != null) {
+      lockListener.onAfterLock(key);
+    }
+  }
 }

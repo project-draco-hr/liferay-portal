@@ -5,13 +5,25 @@
     throw new NoSuchLockException();
   }
   Lock lock=locks.get(0);
-  lock.setCreateDate(now);
-  if (expirationTime == 0) {
-    lock.setExpirationDate(null);
+  LockListener lockListener=LockListenerRegistryUtil.getLockListener(lock.getClassName());
+  String key=lock.getKey();
+  if (lockListener != null) {
+    lockListener.onBeforeRefresh(key);
   }
+  try {
+    lock.setCreateDate(now);
+    if (expirationTime == 0) {
+      lock.setExpirationDate(null);
+    }
  else {
-    lock.setExpirationDate(new Date(now.getTime() + expirationTime));
+      lock.setExpirationDate(new Date(now.getTime() + expirationTime));
+    }
+    lockPersistence.update(lock,false);
+    return lock;
   }
-  lockPersistence.update(lock,false);
-  return lock;
+  finally {
+    if (lockListener != null) {
+      lockListener.onAfterRefresh(key);
+    }
+  }
 }
