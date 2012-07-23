@@ -1,0 +1,44 @@
+{
+  PortletContext portletContext=getPortletContext();
+  String servletContextName=portletContext.getPortletContextName();
+  String resourcePath=servletContextName.concat(TemplateResource.SERVLET_SEPARATOR).concat(path);
+  boolean resourceExists=false;
+  try {
+    resourceExists=TemplateResourceLoaderUtil.hasTemplateResource(TemplateManager.FREEMARKER,resourcePath);
+  }
+ catch (  TemplateException te) {
+    throw new IOException(te);
+  }
+  if (!resourceExists) {
+    _log.error(path + " is not a valid include");
+  }
+ else {
+    try {
+      TemplateResource templateResource=TemplateResourceLoaderUtil.getTemplateResource(TemplateManager.FREEMARKER,resourcePath);
+      Template template=TemplateManagerUtil.getTemplate(TemplateManager.FREEMARKER,templateResource,TemplateContextType.CLASS_LOADER);
+      TemplateTaglibSupportProvider taglibSupportProvider=getTaglibSupportProvider();
+      if (taglibSupportProvider != null) {
+        taglibSupportProvider.addTaglibSupport(template,servletContextName,portletRequest,portletResponse);
+      }
+      template.put("portletContext",getPortletContext());
+      template.put("userInfo",portletRequest.getAttribute(PortletRequest.USER_INFO));
+      Writer writer=null;
+      if (portletResponse instanceof MimeResponse) {
+        MimeResponse mimeResponse=(MimeResponse)portletResponse;
+        writer=UnsyncPrintWriterPool.borrow(mimeResponse.getWriter());
+      }
+ else {
+        writer=new UnsyncStringWriter();
+      }
+      template.processTemplate(writer);
+    }
+ catch (    Exception e) {
+      throw new PortletException(e);
+    }
+  }
+  if (clearRequestParameters) {
+    if (lifecycle.equals(PortletRequest.RENDER_PHASE)) {
+      portletResponse.setProperty("clear-request-parameters","true");
+    }
+  }
+}
