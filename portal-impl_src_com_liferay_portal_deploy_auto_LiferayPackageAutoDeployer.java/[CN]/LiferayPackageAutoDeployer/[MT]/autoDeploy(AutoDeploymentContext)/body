@@ -4,10 +4,12 @@
     File file=autoDeploymentContext.getFile();
     zipFile=new ZipFile(file);
     Enumeration<? extends ZipEntry> enu=zipFile.entries();
+    String propertiesString=null;
+    List<String> fileNames=new ArrayList<String>(zipFile.size());
     while (enu.hasMoreElements()) {
       ZipEntry zipEntry=enu.nextElement();
       String zipEntryFileName=zipEntry.getName();
-      if (!zipEntryFileName.endsWith(".war") && !zipEntryFileName.endsWith(".xml") && !zipEntryFileName.endsWith(".zip")) {
+      if (!zipEntryFileName.endsWith(".war") && !zipEntryFileName.endsWith(".xml") && !zipEntryFileName.endsWith(".zip")&& !zipEntryFileName.equals("liferay-marketplace.properties")) {
         continue;
       }
       if (_log.isInfoEnabled()) {
@@ -16,11 +18,24 @@
       InputStream inputStream=null;
       try {
         inputStream=zipFile.getInputStream(zipEntry);
-        FileUtil.write(baseDir + StringPool.SLASH + zipEntryFileName,inputStream);
+        if (zipEntryFileName.equals("liferay-marketplace.properties")) {
+          inputStream=zipFile.getInputStream(zipEntry);
+          propertiesString=StringUtil.read(inputStream);
+        }
+ else {
+          fileNames.add(zipEntryFileName);
+          FileUtil.write(baseDir + StringPool.SLASH + zipEntryFileName,inputStream);
+        }
       }
   finally {
         StreamUtil.cleanUp(inputStream);
       }
+    }
+    if (propertiesString != null) {
+      Message message=new Message();
+      message.put("properties",propertiesString);
+      message.put("fileNames",StringUtil.merge(fileNames));
+      MessageBusUtil.sendMessage(DestinationNames.MARKETPLACE_HOT_DEPLOY,message);
     }
   }
  catch (  Exception e) {
