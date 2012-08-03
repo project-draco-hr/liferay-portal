@@ -1,0 +1,52 @@
+{
+  Group group=ServiceTestUtil.addGroup(ServiceTestUtil.randomString());
+  ServiceTestUtil.addLayout(group.getGroupId(),"Page1");
+  ServiceTestUtil.addLayout(group.getGroupId(),"Page2");
+  int initialPagesCount=LayoutLocalServiceUtil.getLayoutsCount(group,false);
+  JournalArticle article=addArticle(group.getGroupId(),"Title","content");
+  PollsQuestion question=addQuestion(group.getGroupId(),"Question","Description");
+  ServiceContext serviceContext=ServiceTestUtil.getServiceContext();
+  serviceContext.setAddGroupPermissions(true);
+  serviceContext.setAddGuestPermissions(true);
+  serviceContext.setScopeGroupId(group.getGroupId());
+  Map<String,String[]> parameters=StagingUtil.getStagingParameters();
+  parameters.put(PortletDataHandlerKeys.PORTLET_DATA_ALL,new String[]{String.valueOf(false)});
+  parameters.put(PortletDataHandlerKeys.PORTLET_DATA + "_" + PortletKeys.JOURNAL,new String[]{String.valueOf(stageJournal)});
+  parameters.put(PortletDataHandlerKeys.PORTLET_DATA + "_" + PortletKeys.POLLS,new String[]{String.valueOf(stagePolls)});
+  for (  String parameterName : parameters.keySet()) {
+    serviceContext.setAttribute(parameterName,parameters.get(parameterName)[0]);
+  }
+  serviceContext.setAttribute(StagingConstants.STAGED_PORTLET + PortletKeys.JOURNAL,stageJournal);
+  serviceContext.setAttribute(StagingConstants.STAGED_PORTLET + PortletKeys.POLLS,stagePolls);
+  StagingUtil.enableLocalStaging(TestPropsValues.getUserId(),group,group,false,false,serviceContext);
+  Group stagingGroup=group.getStagingGroup();
+  Assert.assertNotNull(stagingGroup);
+  Assert.assertEquals(LayoutLocalServiceUtil.getLayoutsCount(stagingGroup,false),initialPagesCount);
+  JournalArticle stagingArticle=JournalArticleLocalServiceUtil.getArticleByUrlTitle(stagingGroup.getGroupId(),article.getUrlTitle());
+  stagingArticle=updateArticle(stagingArticle,"Title2",stagingArticle.getContent());
+  PollsQuestion stagingQuestion=PollsQuestionLocalServiceUtil.getPollsQuestionByUuidAndGroupId(question.getUuid(),stagingGroup.getGroupId());
+  stagingQuestion=updateQuestion(stagingQuestion,"Question2","Description2");
+  StagingUtil.publishLayouts(TestPropsValues.getUserId(),stagingGroup.getGroupId(),group.getGroupId(),false,parameters,null,null);
+  article=JournalArticleLocalServiceUtil.getArticle(article.getId());
+  question=PollsQuestionLocalServiceUtil.getQuestion(question.getQuestionId());
+  if (stagePolls) {
+    for (    Locale locale : getLocales()) {
+      Assert.assertEquals(question.getTitle(locale),stagingQuestion.getTitle(locale));
+    }
+  }
+ else {
+    for (    Locale locale : getLocales()) {
+      Assert.assertFalse(question.getTitle(locale).equals(stagingQuestion.getTitle(locale)));
+    }
+  }
+  if (stageJournal) {
+    for (    Locale locale : getLocales()) {
+      Assert.assertEquals(article.getTitle(locale),stagingArticle.getTitle(locale));
+    }
+  }
+ else {
+    for (    Locale locale : getLocales()) {
+      Assert.assertFalse(article.getTitle(locale).equals(stagingArticle.getTitle(locale)));
+    }
+  }
+}
