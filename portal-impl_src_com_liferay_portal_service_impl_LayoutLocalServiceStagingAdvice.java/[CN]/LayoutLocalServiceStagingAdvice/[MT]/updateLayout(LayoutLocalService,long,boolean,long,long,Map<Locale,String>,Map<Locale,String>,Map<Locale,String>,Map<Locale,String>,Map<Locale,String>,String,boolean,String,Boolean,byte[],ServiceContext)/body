@@ -1,0 +1,51 @@
+{
+  parentLayoutId=helper.getParentLayoutId(groupId,privateLayout,parentLayoutId);
+  String name=nameMap.get(LocaleUtil.getDefault());
+  friendlyURL=helper.getFriendlyURL(groupId,privateLayout,layoutId,StringPool.BLANK,friendlyURL);
+  helper.validate(groupId,privateLayout,layoutId,parentLayoutId,name,type,hidden,friendlyURL);
+  helper.validateParentLayoutId(groupId,privateLayout,layoutId,parentLayoutId);
+  Layout originalLayout=LayoutUtil.findByG_P_L(groupId,privateLayout,layoutId);
+  Layout layout=wrapLayout(originalLayout);
+  LayoutRevision layoutRevision=LayoutStagingUtil.getLayoutRevision(layout);
+  if (layoutRevision == null) {
+    return target.updateLayout(groupId,privateLayout,layoutId,parentLayoutId,nameMap,titleMap,descriptionMap,keywordsMap,robotsMap,type,hidden,friendlyURL,iconImage,iconBytes,serviceContext);
+  }
+  if (parentLayoutId != originalLayout.getParentLayoutId()) {
+    int priority=helper.getNextPriority(groupId,privateLayout,parentLayoutId,originalLayout.getSourcePrototypeLayoutUuid(),-1);
+    originalLayout.setPriority(priority);
+  }
+  originalLayout.setParentLayoutId(parentLayoutId);
+  layoutRevision.setNameMap(nameMap);
+  layoutRevision.setTitleMap(titleMap);
+  layoutRevision.setDescriptionMap(descriptionMap);
+  layoutRevision.setKeywordsMap(keywordsMap);
+  layoutRevision.setRobotsMap(robotsMap);
+  originalLayout.setType(type);
+  originalLayout.setHidden(hidden);
+  originalLayout.setFriendlyURL(friendlyURL);
+  if (iconImage != null) {
+    originalLayout.setIconImage(iconImage.booleanValue());
+    if (iconImage.booleanValue()) {
+      long iconImageId=originalLayout.getIconImageId();
+      if (iconImageId <= 0) {
+        iconImageId=CounterLocalServiceUtil.increment();
+        originalLayout.setIconImageId(iconImageId);
+      }
+    }
+  }
+  boolean layoutPrototypeLinkEnabled=ParamUtil.getBoolean(serviceContext,"layoutPrototypeLinkEnabled",true);
+  originalLayout.setLayoutPrototypeLinkEnabled(layoutPrototypeLinkEnabled);
+  LayoutUtil.update(originalLayout,false);
+  boolean hasWorkflowTask=StagingUtil.hasWorkflowTask(serviceContext.getUserId(),layoutRevision);
+  serviceContext.setAttribute("revisionInProgress",hasWorkflowTask);
+  serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
+  LayoutRevisionLocalServiceUtil.updateLayoutRevision(serviceContext.getUserId(),layoutRevision.getLayoutRevisionId(),layoutRevision.getLayoutBranchId(),layoutRevision.getName(),layoutRevision.getTitle(),layoutRevision.getDescription(),layoutRevision.getKeywords(),layoutRevision.getRobots(),layoutRevision.getTypeSettings(),layoutRevision.getIconImage(),layoutRevision.getIconImageId(),layoutRevision.getThemeId(),layoutRevision.getColorSchemeId(),layoutRevision.getWapThemeId(),layoutRevision.getWapColorSchemeId(),layoutRevision.getCss(),serviceContext);
+  if (iconImage != null) {
+    if ((iconBytes != null) && (iconBytes.length > 0)) {
+      ImageLocalServiceUtil.updateImage(originalLayout.getIconImageId(),iconBytes);
+    }
+  }
+  ExpandoBridge expandoBridge=originalLayout.getExpandoBridge();
+  expandoBridge.setAttributes(serviceContext);
+  return layout;
+}
