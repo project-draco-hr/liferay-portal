@@ -2,7 +2,7 @@
   final AtomicLong contentLengthReference=new AtomicLong();
   final AtomicReference<String> locationReference=new AtomicReference<String>();
   final AtomicReference<String> messageReference=new AtomicReference<String>();
-  final AtomicInteger statusCode=new AtomicInteger();
+  final AtomicInteger statusReference=new AtomicInteger();
   StubHttpServletResponse stubHttpServletResponse=new StubHttpServletResponse(){
     @Override public void addHeader(    String name,    String value){
     }
@@ -11,11 +11,11 @@
     }
     @Override public void resetBuffer(){
     }
-    @Override public void sendError(    int status,    String errorMessage) throws IOException {
-      statusCode.set(status);
+    @Override public void sendError(    int status,    String errorMessage){
+      statusReference.set(status);
       messageReference.set(errorMessage);
     }
-    @Override public void sendRedirect(    String location) throws IOException {
+    @Override public void sendRedirect(    String location){
       locationReference.set(location);
     }
     @Override public void setCharacterEncoding(    String characterEncoding){
@@ -30,22 +30,22 @@
     @Override public void setLocale(    Locale locale){
     }
     @Override public void setStatus(    int status,    String message){
-      statusCode.set(status);
+      statusReference.set(status);
       messageReference.set(message);
     }
   }
 ;
   MetaInfoCacheServletResponse metaInfoCacheServletResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
   metaInfoCacheServletResponse.finishResponse();
-  MetaInfoCacheServletResponse innerResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
-  MetaInfoCacheServletResponse outterResponse=new MetaInfoCacheServletResponse(innerResponse);
-  innerResponse.addHeader("name1","value3");
-  innerResponse.addHeader("name2","value3");
-  outterResponse.addHeader("name1","value1");
-  outterResponse.addHeader("name1","value2");
-  outterResponse.addHeader("name2","value1");
-  outterResponse.finishResponse();
-  Map<String,Set<Header>> headers=innerResponse.getHeaders();
+  MetaInfoCacheServletResponse innerMetaInfoCacheServletResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
+  MetaInfoCacheServletResponse outerMetaInfoCacheServletResponse=new MetaInfoCacheServletResponse(innerMetaInfoCacheServletResponse);
+  innerMetaInfoCacheServletResponse.addHeader("name1","value3");
+  innerMetaInfoCacheServletResponse.addHeader("name2","value3");
+  outerMetaInfoCacheServletResponse.addHeader("name1","value1");
+  outerMetaInfoCacheServletResponse.addHeader("name1","value2");
+  outerMetaInfoCacheServletResponse.addHeader("name2","value1");
+  outerMetaInfoCacheServletResponse.finishResponse();
+  Map<String,Set<Header>> headers=innerMetaInfoCacheServletResponse.getHeaders();
   assertEquals(2,headers.size());
   Set<Header> headers1=headers.get("name1");
   assertEquals(2,headers1.size());
@@ -54,45 +54,45 @@
   Set<Header> headers2=headers.get("name2");
   assertEquals(1,headers2.size());
   assertTrue(headers2.contains(new Header("value1")));
-  MetaInfoCacheServletResponse fromResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
-  fromResponse.sendRedirect("testURL");
-  MetaInfoCacheServletResponse toResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
-  fromResponse.setResponse(toResponse);
+  MetaInfoCacheServletResponse fromMetaInfoCacheServletResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
+  fromMetaInfoCacheServletResponse.sendRedirect("testURL");
+  MetaInfoCacheServletResponse toMetaInfoCacheServletResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
+  fromMetaInfoCacheServletResponse.setResponse(toMetaInfoCacheServletResponse);
   locationReference.set(null);
-  fromResponse.finishResponse();
+  fromMetaInfoCacheServletResponse.finishResponse();
   assertEquals("testURL",locationReference.get());
-  fromResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
-  fromResponse.sendError(400,"Bad Page");
-  toResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
-  fromResponse.setResponse(toResponse);
-  statusCode.set(0);
+  fromMetaInfoCacheServletResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
+  fromMetaInfoCacheServletResponse.sendError(400,"Bad Page");
+  toMetaInfoCacheServletResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
+  fromMetaInfoCacheServletResponse.setResponse(toMetaInfoCacheServletResponse);
   messageReference.set(null);
-  fromResponse.finishResponse();
-  assertEquals(400,statusCode.get());
+  statusReference.set(0);
+  fromMetaInfoCacheServletResponse.finishResponse();
   assertEquals("Bad Page",messageReference.get());
-  fromResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
-  fromResponse.setContentType(ContentTypes.TEXT_HTML_UTF8);
-  fromResponse.setLocale(Locale.ENGLISH);
-  fromResponse.setContentLength(2048);
-  fromResponse.setStatus(302,"moved");
-  toResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
-  fromResponse.setResponse(toResponse);
+  assertEquals(400,statusReference.get());
+  fromMetaInfoCacheServletResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
+  fromMetaInfoCacheServletResponse.setContentLength(2048);
+  fromMetaInfoCacheServletResponse.setContentType(ContentTypes.TEXT_HTML_UTF8);
+  fromMetaInfoCacheServletResponse.setLocale(Locale.ENGLISH);
+  fromMetaInfoCacheServletResponse.setStatus(302,"moved");
+  toMetaInfoCacheServletResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
+  fromMetaInfoCacheServletResponse.setResponse(toMetaInfoCacheServletResponse);
   contentLengthReference.set(0);
-  statusCode.set(0);
   messageReference.set(null);
-  fromResponse.finishResponse();
-  assertEquals(StringPool.UTF8,toResponse.getCharacterEncoding());
-  assertEquals(ContentTypes.TEXT_HTML,toResponse.getContentType());
-  assertEquals(Locale.ENGLISH,toResponse.getLocale());
+  statusReference.set(0);
+  fromMetaInfoCacheServletResponse.finishResponse();
+  assertEquals(StringPool.UTF8,toMetaInfoCacheServletResponse.getCharacterEncoding());
+  assertEquals(ContentTypes.TEXT_HTML,toMetaInfoCacheServletResponse.getContentType());
+  assertEquals(Locale.ENGLISH,toMetaInfoCacheServletResponse.getLocale());
   assertEquals(2048,contentLengthReference.get());
-  assertEquals(302,statusCode.get());
   assertEquals("moved",messageReference.get());
-  fromResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
-  fromResponse.sendRedirect("testURL");
-  toResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
-  fromResponse.setResponse(toResponse);
+  assertEquals(302,statusReference.get());
+  fromMetaInfoCacheServletResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
+  fromMetaInfoCacheServletResponse.sendRedirect("testURL");
+  toMetaInfoCacheServletResponse=new MetaInfoCacheServletResponse(stubHttpServletResponse);
+  fromMetaInfoCacheServletResponse.setResponse(toMetaInfoCacheServletResponse);
   locationReference.set(null);
-  toResponse.flushBuffer();
-  fromResponse.finishResponse();
+  toMetaInfoCacheServletResponse.flushBuffer();
+  fromMetaInfoCacheServletResponse.finishResponse();
   assertNull(locationReference.get());
 }
