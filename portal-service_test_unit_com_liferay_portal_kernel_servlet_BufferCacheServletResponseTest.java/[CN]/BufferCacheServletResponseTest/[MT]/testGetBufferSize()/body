@@ -1,0 +1,47 @@
+{
+  StubHttpServletResponse stubHttpServletResponse=new StubHttpServletResponse(){
+    @Override public boolean isCommitted(){
+      return false;
+    }
+    @Override public void setCharacterEncoding(    String characterEncoding){
+    }
+  }
+;
+  BufferCacheServletResponse bufferCacheServletResponse=new BufferCacheServletResponse(stubHttpServletResponse);
+  assertEquals(0,bufferCacheServletResponse.getBufferSize());
+  bufferCacheServletResponse=new BufferCacheServletResponse(stubHttpServletResponse);
+  bufferCacheServletResponse.setByteBuffer(ByteBuffer.wrap(_TEST_BYTE_ARRAY));
+  assertEquals(_TEST_BYTE_ARRAY.length,bufferCacheServletResponse.getBufferSize());
+  bufferCacheServletResponse=new BufferCacheServletResponse(stubHttpServletResponse);
+  bufferCacheServletResponse.setCharacterEncoding(StringPool.UTF8);
+  bufferCacheServletResponse.setCharBuffer(CharBuffer.wrap(_TEST_STRING));
+  assertEquals(_TEST_STRING.length(),bufferCacheServletResponse.getBufferSize());
+  bufferCacheServletResponse=new BufferCacheServletResponse(stubHttpServletResponse);
+  ServletOutputStream servletOutputStream=bufferCacheServletResponse.getOutputStream();
+  servletOutputStream.write(_TEST_BYTE_ARRAY);
+  assertEquals(_TEST_BYTE_ARRAY.length,bufferCacheServletResponse.getBufferSize());
+  bufferCacheServletResponse=new BufferCacheServletResponse(stubHttpServletResponse);
+  bufferCacheServletResponse.setCharacterEncoding(StringPool.UTF8);
+  PrintWriter printWriter=bufferCacheServletResponse.getWriter();
+  printWriter.print(_TEST_STRING);
+  assertEquals(_TEST_STRING.length(),bufferCacheServletResponse.getBufferSize());
+  OutputStream failFlushOutputStream=new UnsyncByteArrayOutputStream(){
+    @Override public void flush() throws IOException {
+      throw new IOException("Failed to flush");
+    }
+  }
+;
+  bufferCacheServletResponse=new BufferCacheServletResponse(stubHttpServletResponse);
+  servletOutputStream=bufferCacheServletResponse.getOutputStream();
+  Field outputStreamField=ReflectionUtil.getDeclaredField(ServletOutputStreamAdapter.class,"outputStream");
+  outputStreamField.set(servletOutputStream,failFlushOutputStream);
+  try {
+    bufferCacheServletResponse.getBufferSize();
+    fail();
+  }
+ catch (  RuntimeException re) {
+    Throwable throwable=re.getCause();
+    assertTrue(throwable instanceof IOException);
+    assertEquals("Failed to flush",throwable.getMessage());
+  }
+}
