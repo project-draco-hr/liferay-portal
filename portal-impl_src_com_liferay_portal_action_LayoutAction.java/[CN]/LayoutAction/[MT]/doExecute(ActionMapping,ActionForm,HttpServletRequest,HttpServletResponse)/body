@@ -1,0 +1,59 @@
+{
+  Boolean layoutDefault=(Boolean)request.getAttribute(WebKeys.LAYOUT_DEFAULT);
+  if (Boolean.TRUE.equals(layoutDefault)) {
+    ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+    Layout requestedLayout=(Layout)request.getAttribute(WebKeys.REQUESTED_LAYOUT);
+    if (requestedLayout != null) {
+      String redirectParam="redirect";
+      if (Validator.isNotNull(PropsValues.AUTH_LOGIN_PORTLET_NAME)) {
+        redirectParam=PortalUtil.getPortletNamespace(PropsValues.AUTH_LOGIN_PORTLET_NAME) + redirectParam;
+      }
+      String authLoginURL=null;
+      if (PrefsPropsUtil.getBoolean(themeDisplay.getCompanyId(),PropsKeys.CAS_AUTH_ENABLED,PropsValues.CAS_AUTH_ENABLED) || PrefsPropsUtil.getBoolean(themeDisplay.getCompanyId(),PropsKeys.OPEN_SSO_AUTH_ENABLED,PropsValues.OPEN_SSO_AUTH_ENABLED)) {
+        authLoginURL=themeDisplay.getURLSignIn();
+      }
+      if (Validator.isNull(authLoginURL)) {
+        authLoginURL=PortalUtil.getSiteLoginURL(themeDisplay);
+      }
+      if (Validator.isNull(authLoginURL)) {
+        authLoginURL=PropsValues.AUTH_LOGIN_URL;
+      }
+      if (Validator.isNull(authLoginURL)) {
+        PortletURL loginURL=LoginUtil.getLoginURL(request,themeDisplay.getPlid());
+        authLoginURL=loginURL.toString();
+      }
+      authLoginURL=HttpUtil.setParameter(authLoginURL,"p_p_id",PropsValues.AUTH_LOGIN_PORTLET_NAME);
+      String currentURL=PortalUtil.getCurrentURL(request);
+      authLoginURL=HttpUtil.setParameter(authLoginURL,redirectParam,currentURL);
+      if (_log.isDebugEnabled()) {
+        _log.debug("Redirect requested layout to " + authLoginURL);
+      }
+      response.sendRedirect(authLoginURL);
+    }
+ else {
+      Layout layout=themeDisplay.getLayout();
+      String redirect=PortalUtil.getLayoutURL(layout,themeDisplay);
+      if (_log.isDebugEnabled()) {
+        _log.debug("Redirect default layout to " + redirect);
+      }
+      response.sendRedirect(redirect);
+    }
+    return null;
+  }
+  long plid=ParamUtil.getLong(request,"p_l_id");
+  if (_log.isDebugEnabled()) {
+    _log.debug("p_l_id is " + plid);
+  }
+  if (plid > 0) {
+    ActionForward actionForward=processLayout(mapping,request,response,plid);
+    return actionForward;
+  }
+  try {
+    forwardLayout(request);
+    return mapping.findForward(ActionConstants.COMMON_FORWARD_JSP);
+  }
+ catch (  Exception e) {
+    PortalUtil.sendError(e,request,response);
+    return null;
+  }
+}
