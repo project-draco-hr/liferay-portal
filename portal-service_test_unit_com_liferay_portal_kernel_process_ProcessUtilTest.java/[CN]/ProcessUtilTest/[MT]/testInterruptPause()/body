@@ -1,0 +1,36 @@
+{
+  String[] arguments=_buildArguments(Pause.class);
+  final Future<?> future=ProcessUtil.execute(new OutputProcessor<Void,Void>(){
+    public Void processStdErr(    InputStream stdErrInputStream) throws ProcessException {
+      return null;
+    }
+    public Void processStdOut(    InputStream stdOutInputStream) throws ProcessException {
+      return null;
+    }
+  }
+,arguments);
+  final Thread mainThread=Thread.currentThread();
+  Thread interruptThread=new Thread(){
+    public void run(){
+      try {
+        while (mainThread.getState() != State.WAITING)         ;
+        ExecutorService executorService=_getExecutorService();
+        executorService.shutdownNow();
+      }
+ catch (      Exception e) {
+        fail();
+      }
+    }
+  }
+;
+  interruptThread.start();
+  try {
+    future.get();
+    fail();
+  }
+ catch (  ExecutionException ee) {
+    Throwable throwable=ee.getCause();
+    assertEquals(ProcessException.class,throwable.getClass());
+    assertEquals("Forcibly killed subprocess on interruption",throwable.getMessage());
+  }
+}

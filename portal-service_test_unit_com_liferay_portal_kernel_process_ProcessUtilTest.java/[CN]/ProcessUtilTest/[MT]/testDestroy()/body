@@ -1,0 +1,44 @@
+{
+  ProcessUtil processUtil=new ProcessUtil();
+  processUtil.destroy();
+  assertNull(_getExecutorService());
+  ExecutorService executorService=_invokeGetExecutorService();
+  assertNotNull(executorService);
+  assertNotNull(_getExecutorService());
+  processUtil.destroy();
+  assertNull(_getExecutorService());
+  executorService=_invokeGetExecutorService();
+  assertNotNull(executorService);
+  assertNotNull(_getExecutorService());
+  DummyJob dummyJob=new DummyJob();
+  Future<Void> future=executorService.submit(dummyJob);
+  dummyJob.waitUntilStarted();
+  processUtil.destroy();
+  try {
+    future.get();
+    fail();
+  }
+ catch (  ExecutionException ee) {
+    Throwable throwable=ee.getCause();
+    assertTrue(throwable instanceof InterruptedException);
+  }
+  assertNull(_getExecutorService());
+  _invokeGetExecutorService();
+  final ProcessUtil referenceProcessUtil=processUtil;
+  Thread thread=new Thread(){
+    @Override public void run(){
+      referenceProcessUtil.destroy();
+    }
+  }
+;
+synchronized (ProcessUtil.class) {
+    thread.start();
+    while (thread.getState() != Thread.State.BLOCKED)     ;
+    processUtil.destroy();
+  }
+  thread.join();
+  _invokeGetExecutorService();
+  processUtil.destroy();
+  processUtil.destroy();
+  assertNull(_getExecutorService());
+}

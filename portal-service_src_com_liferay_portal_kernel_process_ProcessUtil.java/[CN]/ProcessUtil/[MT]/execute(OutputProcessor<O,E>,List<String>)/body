@@ -1,0 +1,25 @@
+{
+  if (outputProcessor == null) {
+    throw new NullPointerException("OutputProcessor is null");
+  }
+  if (arguments == null) {
+    throw new NullPointerException("Arguments is null");
+  }
+  ProcessBuilder processBuilder=new ProcessBuilder(arguments);
+  try {
+    Process process=processBuilder.start();
+    ExecutorService executorService=_getExecutorService();
+    try {
+      Future<O> stdoutFuture=executorService.submit(new ProcessStdOutCallable<O>(outputProcessor,process));
+      Future<E> stdErrFuture=executorService.submit(new ProcessStdErrCallable<E>(outputProcessor,process));
+      return new BindedFuture<O,E>(stdoutFuture,stdErrFuture,process);
+    }
+ catch (    RejectedExecutionException ree) {
+      process.destroy();
+      throw new ProcessException("Cancelled execution because of a concurrent destroy",ree);
+    }
+  }
+ catch (  IOException e) {
+    throw new ProcessException(e);
+  }
+}
