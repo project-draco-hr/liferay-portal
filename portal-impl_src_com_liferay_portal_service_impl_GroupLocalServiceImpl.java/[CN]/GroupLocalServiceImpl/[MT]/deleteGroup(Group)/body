@@ -8,15 +8,21 @@
   layoutSetBranchLocalService.deleteLayoutSetBranches(group.getGroupId(),true,true);
   layoutSetBranchLocalService.deleteLayoutSetBranches(group.getGroupId(),false,true);
   ServiceContext serviceContext=new ServiceContext();
-  try {
-    layoutSetLocalService.deleteLayoutSet(group.getGroupId(),true,serviceContext);
+  if (!group.isStagingGroup() && group.isOrganization() && group.isSite()) {
+    reInitializeLayout(group.getGroupId(),true,serviceContext);
+    reInitializeLayout(group.getGroupId(),false,serviceContext);
   }
- catch (  NoSuchLayoutSetException nslse) {
-  }
-  try {
-    layoutSetLocalService.deleteLayoutSet(group.getGroupId(),false,serviceContext);
-  }
- catch (  NoSuchLayoutSetException nslse) {
+ else {
+    try {
+      layoutSetLocalService.deleteLayoutSet(group.getGroupId(),true,serviceContext);
+    }
+ catch (    NoSuchLayoutSetException nslse) {
+    }
+    try {
+      layoutSetLocalService.deleteLayoutSet(group.getGroupId(),false,serviceContext);
+    }
+ catch (    NoSuchLayoutSetException nslse) {
+    }
   }
   userGroupRoleLocalService.deleteUserGroupRolesByGroupId(group.getGroupId());
   userGroupGroupRoleLocalService.deleteUserGroupGroupRolesByGroupId(group.getGroupId());
@@ -26,7 +32,14 @@
   teamLocalService.deleteTeams(group.getGroupId());
   unscheduleStaging(group);
   if (group.hasStagingGroup()) {
-    deleteGroup(group.getStagingGroup().getGroupId());
+    try {
+      StagingUtil.disableStaging(group,group,serviceContext);
+    }
+ catch (    Exception e) {
+      if (_log.isErrorEnabled()) {
+        _log.error("Unable to disable staging for group: " + group);
+      }
+    }
   }
   ThemeLoader themeLoader=ThemeLoaderFactory.getDefaultThemeLoader();
   if (themeLoader != null) {
@@ -67,7 +80,7 @@
   if (!group.isStagingGroup() && (group.isOrganization() || group.isRegularSite())) {
     resourceLocalService.deleteResource(group.getCompanyId(),Group.class.getName(),ResourceConstants.SCOPE_INDIVIDUAL,group.getGroupId());
   }
-  if (group.isOrganization() && group.isSite()) {
+  if (!group.isStagingGroup() && group.isOrganization() && group.isSite()) {
     group.setSite(false);
     groupPersistence.update(group,false);
   }
