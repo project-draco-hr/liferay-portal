@@ -1,0 +1,30 @@
+{
+  if (accessControlContext == null) {
+    throw new IllegalArgumentException("Access control context is null");
+  }
+  List<AuthVerifierConfiguration> authVerifierConfigurations=_getAuthVerifierConfigurations(accessControlContext);
+  for (  AuthVerifierConfiguration authVerifierConfiguration : authVerifierConfigurations) {
+    AuthVerifierResult authVerifierResult=null;
+    AuthVerifier authVerifier=authVerifierConfiguration.getAuthVerifier();
+    Properties properties=authVerifierConfiguration.getProperties();
+    try {
+      authVerifierResult=authVerifier.verify(accessControlContext,properties);
+    }
+ catch (    Exception e) {
+      Class<?> authVerifierClass=authVerifier.getClass();
+      _log.error("Skipping " + authVerifierClass.getName(),e);
+      continue;
+    }
+    if (authVerifierResult == null) {
+      Class<?> authVerifierClass=authVerifier.getClass();
+      _log.error("Auth verifier " + authVerifierClass.getName() + " did not return an auth verifier result");
+      continue;
+    }
+    if (authVerifierResult.getState() != AuthVerifierResult.State.NOT_APPLICABLE) {
+      Map<String,Object> settings=_mergeSettings(properties,authVerifierResult.getSettings());
+      authVerifierResult.setSettings(settings);
+      return authVerifierResult;
+    }
+  }
+  return _createGuestVerificationResult(accessControlContext);
+}
