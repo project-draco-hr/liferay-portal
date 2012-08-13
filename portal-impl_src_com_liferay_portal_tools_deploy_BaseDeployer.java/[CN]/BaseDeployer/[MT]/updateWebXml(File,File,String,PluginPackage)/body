@@ -15,12 +15,22 @@
   StringBundler sb=new StringBundler(5);
   sb.append("<listener>");
   sb.append("<listener-class>");
+  boolean hasCustomServletListener=false;
+  List<Element> listenerElements=rootElement.elements("listener");
+  for (  Element listenerElement : listenerElements) {
+    String listenerClass=GetterUtil.getString(listenerElement.elementText("listener-class"));
+    if (listenerClass.equals(SerializableSessionAttributeListener.class.getName()) || listenerClass.equals(SecurePluginContextListener.class.getName())) {
+      continue;
+    }
+    hasCustomServletListener=true;
+    break;
+  }
   boolean securityManagerEnabled=false;
   Properties properties=getPluginPackageProperties(srcFile);
   if (properties != null) {
     securityManagerEnabled=GetterUtil.getBoolean(properties.getProperty("security-manager-enabled"));
   }
-  if (securityManagerEnabled) {
+  if (hasCustomServletListener || securityManagerEnabled) {
     sb.append(SecurePluginContextListener.class.getName());
   }
  else {
@@ -36,9 +46,7 @@
   }
   String newContent=content.substring(0,pos) + pluginContextListenerContent + extraContent+ content.substring(pos);
   newContent=updateLiferayWebXml(webXmlVersion,srcFile,newContent);
-  if (securityManagerEnabled) {
-    newContent=secureWebXml(newContent);
-  }
+  newContent=secureWebXml(newContent,hasCustomServletListener,securityManagerEnabled);
   newContent=WebXMLBuilder.organizeWebXML(newContent);
   FileUtil.write(webXml,newContent,true);
   if (_log.isInfoEnabled()) {

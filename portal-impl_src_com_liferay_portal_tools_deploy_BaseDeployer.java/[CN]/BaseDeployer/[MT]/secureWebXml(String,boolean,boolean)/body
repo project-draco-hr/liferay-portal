@@ -1,4 +1,7 @@
 {
+  if (!hasCustomServletListener && !securityManagerEnabled) {
+    return content;
+  }
   Document document=SAXReaderUtil.read(content);
   Element rootElement=document.getRootElement();
   List<String> listenerClasses=new ArrayList<String>();
@@ -14,17 +17,19 @@
   Element contextParamElement=rootElement.addElement("context-param");
   DocUtil.add(contextParamElement,"param-name","portalListenerClasses");
   DocUtil.add(contextParamElement,"param-value",StringUtil.merge(listenerClasses));
-  List<Element> servletElements=rootElement.elements("servlet");
-  for (  Element servletElement : servletElements) {
-    Element servletClassElement=servletElement.element("servlet-class");
-    String servletClass=GetterUtil.getString(servletClassElement.getText());
-    if (servletClass.equals(PortalClassLoaderServlet.class.getName()) || servletClass.equals(PortletServlet.class.getName())) {
-      continue;
+  if (securityManagerEnabled) {
+    List<Element> servletElements=rootElement.elements("servlet");
+    for (    Element servletElement : servletElements) {
+      Element servletClassElement=servletElement.element("servlet-class");
+      String servletClass=GetterUtil.getString(servletClassElement.getText());
+      if (servletClass.equals(PortalClassLoaderServlet.class.getName()) || servletClass.equals(PortletServlet.class.getName())) {
+        continue;
+      }
+      servletClassElement.setText(SecureServlet.class.getName());
+      Element initParamElement=servletElement.addElement("init-param");
+      DocUtil.add(initParamElement,"param-name","servlet-class");
+      DocUtil.add(initParamElement,"param-value",servletClass);
     }
-    servletClassElement.setText(SecureServlet.class.getName());
-    Element initParamElement=servletElement.addElement("init-param");
-    DocUtil.add(initParamElement,"param-name","servlet-class");
-    DocUtil.add(initParamElement,"param-value",servletClass);
   }
   return document.compactString();
 }
