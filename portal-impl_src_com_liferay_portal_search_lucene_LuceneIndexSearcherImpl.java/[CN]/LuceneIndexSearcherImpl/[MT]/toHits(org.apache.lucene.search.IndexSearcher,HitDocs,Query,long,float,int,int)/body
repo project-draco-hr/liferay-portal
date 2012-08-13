@@ -4,7 +4,7 @@
     start=0;
     end=length;
   }
-  String[] queryTerms=getQueryTerms(query);
+  Set<String> queryTerms=new HashSet<String>();
   IndexReader indexReader=indexSearcher.getIndexReader();
   List<String> indexedFieldNames=new ArrayList<String>(indexReader.getFieldNames(IndexReader.FieldOption.INDEXED));
   org.apache.lucene.search.Query luceneQuery=(org.apache.lucene.search.Query)QueryTranslatorUtil.translate(query);
@@ -34,7 +34,15 @@
       Document subsetDocument=getDocument(document);
       String subsetSnippet=StringPool.BLANK;
       if (queryConfig.isHighlightEnabled()) {
-        subsetSnippet=getSnippet(document,query,Field.CONTENT,queryConfig.getLocale());
+        for (        String fieldName : Field.KEYWORDS) {
+          String lastSubsetSnippet=getSnippet(document,query,fieldName,queryConfig.getLocale(),queryTerms);
+          if (fieldName.equals(Field.CONTENT)) {
+            subsetSnippet=lastSubsetSnippet;
+          }
+        }
+      }
+ else {
+        queryTerms=getQueryTerms(query);
       }
       subsetDocument.addText(Field.SNIPPET,subsetSnippet);
       subsetSnippets.add(subsetSnippet);
@@ -56,7 +64,7 @@
     hits.setStart(startTime);
     hits.setSearchTime(searchTime);
     hits.setQuery(query);
-    hits.setQueryTerms(queryTerms);
+    hits.setQueryTerms(queryTerms.toArray(new String[queryTerms.size()]));
     hits.setDocs(subsetDocs.toArray(new Document[subsetDocs.size()]));
     hits.setLength(length);
     hits.setSnippets(subsetSnippets.toArray(new String[subsetSnippets.size()]));
