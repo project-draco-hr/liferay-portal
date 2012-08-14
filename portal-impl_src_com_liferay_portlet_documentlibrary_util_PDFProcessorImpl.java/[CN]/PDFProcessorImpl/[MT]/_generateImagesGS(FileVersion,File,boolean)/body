@@ -1,0 +1,69 @@
+{
+  String tempFileId=DLUtil.getTempFileId(fileVersion.getFileEntryId(),fileVersion.getVersion());
+  String type=getPreviewType(fileVersion);
+  List<String> args=new ArrayList<String>();
+  args.add("-sDEVICE=png16m");
+  if (thumbnail) {
+    args.add("-sOutputFile=" + getThumbnailTempFilePath(tempFileId));
+    args.add("-dFirstPage=1");
+    args.add("-dLastPage=1");
+  }
+ else {
+    String outputFile=getPreviewTempFilePath(tempFileId,-1).replace("." + type,"-%d." + type);
+    args.add("-sOutputFile=" + outputFile);
+  }
+  args.add("-dPDFFitPage");
+  args.add("-dTextAlphaBits=4");
+  args.add("-dGraphicsAlphaBits=4");
+  args.add("-r" + PropsValues.DL_FILE_ENTRY_PREVIEW_DOCUMENT_DPI + "x"+ PropsValues.DL_FILE_ENTRY_PREVIEW_DOCUMENT_DPI);
+  int width=PropsValues.DL_FILE_ENTRY_PREVIEW_DOCUMENT_MAX_WIDTH;
+  int height=PropsValues.DL_FILE_ENTRY_PREVIEW_DOCUMENT_MAX_HEIGHT;
+  if (height == 0) {
+    PDDocument pdDocument=null;
+    try {
+      pdDocument=PDDocument.load(new FileInputStream(file));
+      PDDocumentCatalog pdDocumentCatalog=pdDocument.getDocumentCatalog();
+      PDPage pdPage=(PDPage)pdDocumentCatalog.getAllPages().get(0);
+      float pdfWidth=pdPage.getMediaBox().getWidth();
+      float pdfHeight=(int)pdPage.getMediaBox().getHeight();
+      float ratio=pdfHeight / pdfWidth;
+      height=(int)(width * ratio);
+    }
+  finally {
+      if (pdDocument != null) {
+        pdDocument.close();
+      }
+    }
+  }
+  args.add("-g" + width + "x"+ height);
+  args.add(file.getPath());
+  if (!_ghostScriptInitialized) {
+    GhostScriptUtil.reset();
+    _ghostScriptInitialized=true;
+  }
+  Future future=GhostScriptUtil.convert(args);
+  String processIdentity=Long.toString(fileVersion.getFileVersionId());
+  managedProcesses.put(processIdentity,future);
+  future.get();
+  if (thumbnail) {
+    File thumbnailTempFile=getThumbnailTempFile(tempFileId);
+    try {
+      storeThumbnailImages(fileVersion,thumbnailTempFile);
+    }
+  finally {
+      FileUtil.delete(thumbnailTempFile);
+    }
+  }
+ else {
+    int total=getPreviewTempFileCount(fileVersion);
+    for (int i=0; i < total; i++) {
+      File previewTempFile=getPreviewTempFile(tempFileId,i + 2);
+      try {
+        addFileToStore(fileVersion.getCompanyId(),PREVIEW_PATH,getPreviewFilePath(fileVersion,i + 1),previewTempFile);
+      }
+  finally {
+        FileUtil.delete(previewTempFile);
+      }
+    }
+  }
+}
