@@ -1,16 +1,7 @@
 {
-  if (!PortalSecurityManagerThreadLocal.isEnabled()) {
+  if (!PACLPolicyManager.isActive() || !PortalSecurityManagerThreadLocal.isEnabled()) {
     try {
-      return methodInvocation.proceed();
-    }
- catch (    Throwable throwable) {
-      throw throwable;
-    }
-  }
-  if (!PACLPolicyManager.isActive()) {
-    ServiceBeanAopProxy.removeMethodInterceptor(methodInvocation,this);
-    try {
-      return methodInvocation.proceed();
+      return proceed(methodInvocation);
     }
  catch (    Throwable throwable) {
       throw throwable;
@@ -39,11 +30,8 @@
       }
     }
  else     if (methodName.equals("toString")) {
-      return method.invoke(thisObject,arguments);
+      return proceed(methodInvocation);
     }
-  }
-  if (!PACLPolicyManager.isActive()) {
-    return method.invoke(thisObject,arguments);
   }
   PACLPolicy paclPolicy=PACLClassUtil.getPACLPolicy(false,debug);
   if (debug) {
@@ -52,18 +40,18 @@
     }
   }
   if (paclPolicy == null) {
-    return methodInvocation.proceed();
+    return proceed(methodInvocation);
   }
   if (!paclPolicy.hasPortalService(thisObject,method,arguments)) {
     throw new SecurityException("Attempted to invoke " + method);
   }
   boolean checkSQL=PortalSecurityManagerThreadLocal.isCheckSQL();
   try {
-    Class<?> thisObjectClass=thisObject.getClass();
-    if (paclPolicy.getClassLoader() != PACLClassLoaderUtil.getClassLoader(thisObjectClass)) {
+    Class<?> clazz=thisObject.getClass();
+    if (paclPolicy.getClassLoader() != PACLClassLoaderUtil.getClassLoader(clazz)) {
       PortalSecurityManagerThreadLocal.setCheckSQL(false);
     }
-    return methodInvocation.proceed();
+    return proceed(methodInvocation);
   }
   finally {
     PortalSecurityManagerThreadLocal.setCheckSQL(checkSQL);
