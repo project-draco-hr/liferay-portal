@@ -1,0 +1,65 @@
+{
+  String layoutFullURL=serviceContext.getLayoutFullURL();
+  if (Validator.isNull(layoutFullURL)) {
+    return;
+  }
+  PortletPreferences preferences=ServiceContextUtil.getPortletPreferences(serviceContext);
+  if (preferences == null) {
+    long ownerId=entry.getGroupId();
+    int ownerType=PortletKeys.PREFS_OWNER_TYPE_GROUP;
+    long plid=PortletKeys.PREFS_PLID_SHARED;
+    String portletId=PortletKeys.BOOKMARKS;
+    String defaultPreferences=null;
+    preferences=portletPreferencesLocalService.getPreferences(entry.getCompanyId(),ownerId,ownerType,plid,portletId,defaultPreferences);
+  }
+  if (serviceContext.isCommandAdd() && !BookmarksUtil.getEmailEntryAddedEnabled(preferences) || (serviceContext.isCommandUpdate() && !BookmarksUtil.getEmailEntryUpdatedEnabled(preferences))) {
+    return;
+  }
+  String statusByUserName=StringPool.BLANK;
+  try {
+    User user=userLocalService.getUserById(serviceContext.getGuestOrUserId());
+    statusByUserName=user.getFullName();
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+  String entryURL=layoutFullURL + Portal.FRIENDLY_URL_SEPARATOR + "bookmarks"+ StringPool.SLASH+ entry.getEntryId();
+  String fromName=BookmarksUtil.getEmailFromName(preferences,entry.getCompanyId());
+  String fromAddress=BookmarksUtil.getEmailFromAddress(preferences,entry.getCompanyId());
+  Map<Locale,String> localizedSubjectMap=null;
+  Map<Locale,String> localizedBodyMap=null;
+  if (serviceContext.isCommandUpdate()) {
+    localizedSubjectMap=BookmarksUtil.getEmailEntryUpdatedSubjectMap(preferences);
+    localizedBodyMap=BookmarksUtil.getEmailEntryUpdatedBodyMap(preferences);
+  }
+ else {
+    localizedSubjectMap=BookmarksUtil.getEmailEntryAddedSubjectMap(preferences);
+    localizedBodyMap=BookmarksUtil.getEmailEntryAddedBodyMap(preferences);
+  }
+  SubscriptionSender subscriptionSender=new SubscriptionSender();
+  subscriptionSender.setCompanyId(entry.getCompanyId());
+  subscriptionSender.setContextAttributes("[$BOOKMARKS_ENTRY_STATUS_BY_USER_NAME$]",statusByUserName,"[$BOOKMARKS_ENTRY_URL$]",entryURL);
+  subscriptionSender.setContextUserPrefix("BOOKMARKS_ENTRY");
+  subscriptionSender.setFrom(fromAddress,fromName);
+  subscriptionSender.setHtmlFormat(true);
+  subscriptionSender.setLocalizedBodyMap(localizedBodyMap);
+  subscriptionSender.setLocalizedSubjectMap(localizedSubjectMap);
+  subscriptionSender.setMailId("bookmarks_entry",entry.getEntryId());
+  subscriptionSender.setPortletId(PortletKeys.BOOKMARKS);
+  subscriptionSender.setReplyToAddress(fromAddress);
+  subscriptionSender.setScopeGroupId(entry.getGroupId());
+  subscriptionSender.setServiceContext(serviceContext);
+  subscriptionSender.setUserId(entry.getUserId());
+  subscriptionSender.addPersistedSubscribers(BookmarksEntry.class.getName(),entry.getEntryId());
+  BookmarksFolder folder=entry.getFolder();
+  List<Long> folderIds=new ArrayList<Long>();
+  if (folder.getFolderId() != BookmarksFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+    folderIds.add(folder.getFolderId());
+    folderIds.addAll(folder.getAncestorFolderIds());
+  }
+  folderIds.add(folder.getGroupId());
+  for (  long folderId : folderIds) {
+    subscriptionSender.addPersistedSubscribers(BookmarksFolder.class.getName(),folderId);
+  }
+  subscriptionSender.flushNotificationsAsync();
+}
