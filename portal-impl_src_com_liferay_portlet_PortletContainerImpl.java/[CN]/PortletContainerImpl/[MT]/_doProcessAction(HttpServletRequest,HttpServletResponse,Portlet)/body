@@ -16,7 +16,7 @@
       url=String.valueOf(request.getRequestURI());
     }
     _log.error("Reject processAction for " + url + " on "+ portlet.getPortletId());
-    return;
+    return ActionResult.EMPTY_ACTION_RESULT;
   }
   Layout layout=(Layout)request.getAttribute(WebKeys.LAYOUT);
   WindowState windowState=WindowStateFactory.getWindowState(ParamUtil.getString(request,"p_p_state"));
@@ -68,15 +68,8 @@
     }
     RenderParametersPool.put(request,layout.getPlid(),portlet.getPortletId(),actionResponseImpl.getRenderParameterMap());
     List<Event> events=actionResponseImpl.getEvents();
-    if (!events.isEmpty()) {
-      processEvents(request,response,events);
-      actionRequestImpl.defineObjects(portletConfig,actionResponseImpl);
-    }
     String redirectLocation=actionResponseImpl.getRedirectLocation();
-    if (Validator.isNotNull(redirectLocation)) {
-      response.sendRedirect(redirectLocation);
-    }
- else     if (portlet.isActionURLRedirect()) {
+    if (Validator.isNull(redirectLocation) && portlet.isActionURLRedirect()) {
       PortletURL portletURL=new PortletURLImpl(actionRequestImpl,actionRequestImpl.getPortletName(),layout.getPlid(),PortletRequest.RENDER_PHASE);
       Map<String,String[]> renderParameters=actionResponseImpl.getRenderParameterMap();
       for (      Map.Entry<String,String[]> entry : renderParameters.entrySet()) {
@@ -84,8 +77,9 @@
         String[] value=entry.getValue();
         portletURL.setParameter(key,value);
       }
-      response.sendRedirect(portletURL.toString());
+      redirectLocation=portletURL.toString();
     }
+    return new ActionResult(events,redirectLocation);
   }
   finally {
     if (uploadServletRequest != null) {
