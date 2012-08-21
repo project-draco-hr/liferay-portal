@@ -7,6 +7,15 @@
     ClassLoader classLoader=PACLClassLoaderUtil.getPortalClassLoader();
     try {
       _store=(Store)classLoader.loadClass(PropsValues.DL_STORE_IMPL).newInstance();
+      if (_store instanceof DBStore) {
+        DB db=DBFactoryUtil.getDB();
+        if (db.getType().equals(DB.TYPE_POSTGRESQL)) {
+          MethodInterceptor transactionInterceptor=(MethodInterceptor)PortalBeanLocatorUtil.locate("transactionAdvice");
+          MethodInterceptor tempFileInterceptor=new TempFileMethodInterceptor();
+          List<MethodInterceptor> methodInterceptors=Arrays.asList(transactionInterceptor,tempFileInterceptor);
+          _store=(Store)ProxyUtil.newProxyInstance(classLoader,new Class<?>[]{Store.class},new MethodInterceptorInvocationHandler(_store,methodInterceptors));
+        }
+      }
     }
  catch (    Exception e) {
       _log.error(e,e);
