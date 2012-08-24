@@ -1,0 +1,89 @@
+{
+  portletId=JS.getSafeName(portletId);
+  Layout layout=getLayout();
+  Portlet portlet=null;
+  try {
+    portlet=PortletLocalServiceUtil.getPortletById(layout.getCompanyId(),portletId);
+    if (portlet == null) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Portlet " + portletId + " cannot be added because it is not registered");
+      }
+      return null;
+    }
+    PermissionChecker permissionChecker=PermissionThreadLocal.getPermissionChecker();
+    if (checkPermission && !PortletPermissionUtil.contains(permissionChecker,layout,portlet,ActionKeys.ADD_TO_PAGE)) {
+      return null;
+    }
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+  if (portlet.isSystem()) {
+    return null;
+  }
+  if (portlet.isInstanceable() && !PortletConstants.hasInstanceId(portletId)) {
+    portletId=PortletConstants.assemblePortletId(portletId,generateInstanceId());
+  }
+  if (hasPortletId(portletId,strictHasPortlet)) {
+    return null;
+  }
+  if (columnId == null) {
+    LayoutTemplate layoutTemplate=getLayoutTemplate();
+    List<String> columns=layoutTemplate.getColumns();
+    if (columns.size() > 0) {
+      columnId=columns.get(0);
+    }
+  }
+  if (columnId == null) {
+    return null;
+  }
+  if (isCustomizable()) {
+    if (isColumnDisabled(columnId)) {
+      return null;
+    }
+    if (PortletConstants.hasInstanceId(portletId) && hasUserPreferences()) {
+      portletId=PortletConstants.assemblePortletId(portletId,userId);
+    }
+  }
+  String columnValue=StringPool.BLANK;
+  if (hasUserPreferences()) {
+    columnValue=getUserPreference(columnId);
+  }
+ else {
+    columnValue=getTypeSettingsProperty(columnId);
+  }
+  if ((columnValue == null) && columnId.startsWith(_nestedPortletsNamespace)) {
+    addNestedColumn(columnId);
+  }
+  if (columnPos >= 0) {
+    List<String> portletIds=ListUtil.fromArray(StringUtil.split(columnValue));
+    if (columnPos <= portletIds.size()) {
+      portletIds.add(columnPos,portletId);
+    }
+ else {
+      portletIds.add(portletId);
+    }
+    columnValue=StringUtil.merge(portletIds);
+  }
+ else {
+    columnValue=StringUtil.add(columnValue,portletId);
+  }
+  if (hasUserPreferences()) {
+    setUserPreference(columnId,columnValue);
+  }
+ else {
+    setTypeSettingsProperty(columnId,columnValue);
+  }
+  try {
+    if (_enablePortletLayoutListener) {
+      PortletLayoutListener portletLayoutListener=portlet.getPortletLayoutListenerInstance();
+      if (portletLayoutListener != null) {
+        portletLayoutListener.onAddToLayout(portletId,layout.getPlid());
+      }
+    }
+  }
+ catch (  Exception e) {
+    _log.error("Unable to fire portlet layout listener event",e);
+  }
+  return portletId;
+}
