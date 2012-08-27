@@ -11,7 +11,8 @@
   Session session=null;
   try {
     session=openSession();
-    String sql=CustomSQLUtil.get(FIND_BY_C_G_F_C_A_V_T_D_C_T_S_T_D_S_R);
+    String table="JournalArticle";
+    String sql=CustomSQLUtil.get(COUNT_BY_C_G_F_C_A_V_T_D_C_T_S_T_D_S_R);
     if (groupId <= 0) {
       sql=StringUtil.replace(sql,"(groupId = ?) AND",StringPool.BLANK);
     }
@@ -19,8 +20,11 @@
     if ((version == null) || (version <= 0)) {
       sql=StringUtil.replace(sql,"(version = ?) [$AND_OR_CONNECTOR$]",StringPool.BLANK);
     }
-    if (folderId < 0) {
-      sql=StringUtil.replace(sql,"(folderId = ?) AND","");
+    if (folderIds.isEmpty()) {
+      sql=StringUtil.replace(sql,"([$FOLDER_ID$]) AND",StringPool.BLANK);
+    }
+ else {
+      sql=StringUtil.replace(sql,"[$FOLDER_ID$]",getFolderIds(folderIds,table));
     }
     sql=CustomSQLUtil.replaceKeywords(sql,"lower(title)",StringPool.LIKE,false,titles);
     sql=CustomSQLUtil.replaceKeywords(sql,"description",StringPool.LIKE,false,descriptions);
@@ -51,20 +55,19 @@
  else {
       sql=StringUtil.replace(sql,"[$GROUP_BY_CLAUSE$]","GROUP BY groupId, articleId");
     }
-    sql=CustomSQLUtil.replaceOrderBy(sql,orderByComparator);
     if (inlineSQLHelper) {
       sql=InlineSQLHelperUtil.replacePermissionCheck(sql,JournalArticle.class.getName(),"JournalArticle.resourcePrimKey",groupId);
       sql=StringUtil.replace(sql,"(companyId","(JournalArticle.companyId");
     }
     SQLQuery q=session.createSQLQuery(sql);
-    q.addEntity("JournalArticle",JournalArticleImpl.class);
+    q.addScalar(COUNT_COLUMN_NAME,Type.LONG);
     QueryPos qPos=QueryPos.getInstance(q);
     qPos.add(companyId);
     if (groupId > 0) {
       qPos.add(groupId);
     }
-    if (folderId >= 0) {
-      qPos.add(folderId);
+    for (int i=0; i < folderIds.size(); i++) {
+      qPos.add(folderIds.get(i));
     }
     qPos.add(classNameId);
     qPos.add(articleIds,2);
@@ -94,7 +97,14 @@
       qPos.add(templateIds,2);
     }
     qPos.add(companyId);
-    return (List<JournalArticle>)QueryUtil.list(q,getDialect(),start,end);
+    Iterator<Long> itr=q.iterate();
+    if (itr.hasNext()) {
+      Long count=itr.next();
+      if (count != null) {
+        return count.intValue();
+      }
+    }
+    return 0;
   }
  catch (  Exception e) {
     throw new SystemException(e);
