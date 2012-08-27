@@ -1,15 +1,33 @@
 {
   ClassLoader classLoader=getConfigurationClassLoader();
-  InputStream is=classLoader.getResourceAsStream(resource);
-  if (is == null) {
-    return;
+  if (!resource.startsWith("classpath*:")) {
+    InputStream is=classLoader.getResourceAsStream(resource);
+    readResource(configuration,resource,is);
   }
-  if (_hibernateConfigurationConverter != null) {
-    String configurationString=StringUtil.read(is);
-    is.close();
-    configurationString=_hibernateConfigurationConverter.convert(configurationString);
-    is=new UnsyncByteArrayInputStream(configurationString.getBytes());
+ else {
+    String resourceName=resource.substring("classpath*:".length());
+    try {
+      Enumeration<URL> resources=classLoader.getResources(resourceName);
+      if (_log.isDebugEnabled() && !resources.hasMoreElements()) {
+        _log.debug("No " + resourceName + " has been found");
+      }
+      while (resources.hasMoreElements()) {
+        URL resourceFullName=resources.nextElement();
+        try {
+          InputStream is=new UrlResource(resourceFullName).getInputStream();
+          readResource(configuration,resource,is);
+        }
+ catch (        Exception e2) {
+          if (_log.isWarnEnabled()) {
+            _log.warn("Problem while loading " + resource,e2);
+          }
+        }
+      }
+    }
+ catch (    Exception e2) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Problem while loading classLoader resources: " + resourceName,e2);
+      }
+    }
   }
-  configuration=configuration.addInputStream(is);
-  is.close();
 }

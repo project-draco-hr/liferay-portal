@@ -1,0 +1,106 @@
+{
+  if (is == null) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Cannot load " + source);
+    }
+    return;
+  }
+ else {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Loading " + source);
+    }
+  }
+  Document document=_saxReader.read(is);
+  Element rootElement=document.getRootElement();
+  List<Element> rootElements=rootElement.elements("hint-collection");
+  for (  Element hintCollectionElement : rootElements) {
+    String name=hintCollectionElement.attributeValue("name");
+    Map<String,String> hints=_hintCollections.get(name);
+    if (hints == null) {
+      hints=new HashMap<String,String>();
+      _hintCollections.put(name,hints);
+    }
+    List<Element> hintElements=hintCollectionElement.elements("hint");
+    for (    Element hintElement : hintElements) {
+      String hintName=hintElement.attributeValue("name");
+      String hintValue=hintElement.getText();
+      hints.put(hintName,hintValue);
+    }
+  }
+  rootElements=rootElement.elements("model");
+  for (  Element modelElement : rootElements) {
+    String name=modelElement.attributeValue("name");
+    if (classLoader != ModelHintsImpl.class.getClassLoader()) {
+      ClassNameLocalServiceUtil.getClassName(name);
+    }
+    Map<String,String> defaultHints=new HashMap<String,String>();
+    _defaultHints.put(name,defaultHints);
+    Element defaultHintsElement=modelElement.element("default-hints");
+    if (defaultHintsElement != null) {
+      List<Element> hintElements=defaultHintsElement.elements("hint");
+      for (      Element hintElement : hintElements) {
+        String hintName=hintElement.attributeValue("name");
+        String hintValue=hintElement.getText();
+        defaultHints.put(hintName,hintValue);
+      }
+    }
+    Map<String,Object> fields=(Map<String,Object>)_modelFields.get(name);
+    if (fields == null) {
+      fields=new LinkedHashMap<String,Object>();
+      _modelFields.put(name,fields);
+    }
+    _models.add(name);
+    List<Element> modelElements=modelElement.elements("field");
+    for (    Element fieldElement : modelElements) {
+      String fieldName=fieldElement.attributeValue("name");
+      String fieldType=fieldElement.attributeValue("type");
+      boolean fieldLocalized=GetterUtil.getBoolean(fieldElement.attributeValue("localized"));
+      Map<String,String> fieldHints=new HashMap<String,String>();
+      fieldHints.putAll(defaultHints);
+      List<Element> fieldElements=fieldElement.elements("hint-collection");
+      for (      Element hintCollectionElement : fieldElements) {
+        Map<String,String> hints=_hintCollections.get(hintCollectionElement.attributeValue("name"));
+        fieldHints.putAll(hints);
+      }
+      fieldElements=fieldElement.elements("hint");
+      for (      Element hintElement : fieldElements) {
+        String hintName=hintElement.attributeValue("name");
+        String hintValue=hintElement.getText();
+        fieldHints.put(hintName,hintValue);
+      }
+      Tuple fieldSanitize=null;
+      Element sanitizeElement=fieldElement.element("sanitize");
+      if (sanitizeElement != null) {
+        String contentType=sanitizeElement.attributeValue("content-type");
+        String modes=sanitizeElement.attributeValue("modes");
+        fieldSanitize=new Tuple(fieldName,contentType,modes);
+      }
+      Map<String,Tuple> fieldValidators=new TreeMap<String,Tuple>();
+      fieldElements=fieldElement.elements("validator");
+      for (      Element validatorElement : fieldElements) {
+        String validatorName=validatorElement.attributeValue("name");
+        if (Validator.isNull(validatorName)) {
+          continue;
+        }
+        String validatorErrorMessage=GetterUtil.getString(validatorElement.attributeValue("error-message"));
+        String validatorValue=GetterUtil.getString(validatorElement.getText());
+        boolean customValidator=isCustomValidator(validatorName);
+        if (customValidator) {
+          validatorName=buildCustomValidatorName(validatorName);
+        }
+        Tuple fieldValidator=new Tuple(fieldName,validatorName,validatorErrorMessage,validatorValue,customValidator);
+        fieldValidators.put(validatorName,fieldValidator);
+      }
+      fields.put(fieldName + _ELEMENTS_SUFFIX,fieldElement);
+      fields.put(fieldName + _TYPE_SUFFIX,fieldType);
+      fields.put(fieldName + _LOCALIZATION_SUFFIX,fieldLocalized);
+      fields.put(fieldName + _HINTS_SUFFIX,fieldHints);
+      if (fieldSanitize != null) {
+        fields.put(fieldName + _SANITIZE_SUFFIX,fieldSanitize);
+      }
+      if (!fieldValidators.isEmpty()) {
+        fields.put(fieldName + _VALIDATORS_SUFFIX,ListUtil.fromMapValues(fieldValidators));
+      }
+    }
+  }
+}
