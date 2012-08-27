@@ -20,32 +20,26 @@
   portletModel.setPortletName(portletName);
   portletModel.setDisplayName(GetterUtil.getString(portletElement.elementText("display-name"),portletModel.getDisplayName()));
   portletModel.setPortletClass(GetterUtil.getString(portletElement.elementText("portlet-class")));
-  Map<String,String> initParams=portletModel.getInitParams();
+  Map<String,String> initParams=new HashMap<String,String>();
   for (  Element initParamElement : portletElement.elements("init-param")) {
     initParams.put(initParamElement.elementText("name"),initParamElement.elementText("value"));
   }
+  portletModel.setInitParams(initParams);
   Element expirationCacheElement=portletElement.element("expiration-cache");
   if (expirationCacheElement != null) {
     portletModel.setExpCache(GetterUtil.getInteger(expirationCacheElement.getText()));
   }
+  Map<String,Set<String>> portletModes=new HashMap<String,Set<String>>();
+  Map<String,Set<String>> windowStates=new HashMap<String,Set<String>>();
   for (  Element supportsElement : portletElement.elements("supports")) {
-    Map<String,Set<String>> portletModes=portletModel.getPortletModes();
     String mimeType=supportsElement.elementText("mime-type");
-    Set<String> mimeTypePortletModes=portletModes.get(mimeType);
-    if (mimeTypePortletModes == null) {
-      mimeTypePortletModes=new HashSet<String>();
-      portletModes.put(mimeType,mimeTypePortletModes);
-    }
+    Set<String> mimeTypePortletModes=new HashSet<String>();
     mimeTypePortletModes.add(PortletMode.VIEW.toString().toLowerCase());
     for (    Element portletModeElement : supportsElement.elements("portlet-mode")) {
       mimeTypePortletModes.add(portletModeElement.getTextTrim().toLowerCase());
     }
-    Map<String,Set<String>> windowStates=portletModel.getWindowStates();
-    Set<String> mimeTypeWindowStates=windowStates.get(mimeType);
-    if (mimeTypeWindowStates == null) {
-      mimeTypeWindowStates=new HashSet<String>();
-      windowStates.put(mimeType,mimeTypeWindowStates);
-    }
+    portletModes.put(mimeType,mimeTypePortletModes);
+    Set<String> mimeTypeWindowStates=new HashSet<String>();
     mimeTypeWindowStates.add(WindowState.NORMAL.toString().toLowerCase());
     List<Element> windowStateElements=supportsElement.elements("window-state");
     if (windowStateElements.isEmpty()) {
@@ -57,12 +51,16 @@
     for (    Element windowStateElement : windowStateElements) {
       mimeTypeWindowStates.add(windowStateElement.getTextTrim().toLowerCase());
     }
+    windowStates.put(mimeType,mimeTypeWindowStates);
   }
-  Set<String> supportedLocales=portletModel.getSupportedLocales();
+  portletModel.setPortletModes(portletModes);
+  portletModel.setWindowStates(windowStates);
+  Set<String> supportedLocales=new HashSet<String>();
   for (  Element supportedLocaleElement : portletElement.elements("supported-locale")) {
     String supportedLocale=supportedLocaleElement.getText();
     supportedLocales.add(supportedLocale);
   }
+  portletModel.setSupportedLocales(supportedLocales);
   portletModel.setResourceBundle(portletElement.elementText("resource-bundle"));
   Element portletInfoElement=portletElement.element("portlet-info");
   String portletInfoTitle=null;
@@ -100,22 +98,28 @@
       }
     }
   }
-  Set<String> unlikedRoles=portletModel.getUnlinkedRoles();
+  Set<String> unlinkedRoles=new HashSet<String>();
   for (  Element roleElement : portletElement.elements("security-role-ref")) {
-    unlikedRoles.add(roleElement.elementText("role-name"));
+    unlinkedRoles.add(roleElement.elementText("role-name"));
   }
+  portletModel.setUnlinkedRoles(unlinkedRoles);
+  Set<QName> processingEvents=new HashSet<QName>();
   for (  Element supportedProcessingEventElement : portletElement.elements("supported-processing-event")) {
     Element qNameElement=supportedProcessingEventElement.element("qname");
     Element nameElement=supportedProcessingEventElement.element("name");
     QName qName=PortletQNameUtil.getQName(qNameElement,nameElement,portletApp.getDefaultNamespace());
-    portletModel.addProcessingEvent(qName);
+    processingEvents.add(qName);
   }
+  portletModel.setProcessingEvents(processingEvents);
+  Set<QName> publishingEvents=new HashSet<QName>();
   for (  Element supportedPublishingEventElement : portletElement.elements("supported-publishing-event")) {
     Element qNameElement=supportedPublishingEventElement.element("qname");
     Element nameElement=supportedPublishingEventElement.element("name");
     QName qName=PortletQNameUtil.getQName(qNameElement,nameElement,portletApp.getDefaultNamespace());
-    portletModel.addPublishingEvent(qName);
+    publishingEvents.add(qName);
   }
+  portletModel.setPublishingEvents(publishingEvents);
+  Set<PublicRenderParameter> publicRenderParameters=new HashSet<PublicRenderParameter>();
   for (  Element supportedPublicRenderParameter : portletElement.elements("supported-public-render-parameter")) {
     String identifier=supportedPublicRenderParameter.getTextTrim();
     PublicRenderParameter publicRenderParameter=portletApp.getPublicRenderParameter(identifier);
@@ -123,6 +127,7 @@
       _log.error("Supported public render parameter references " + "unnknown identifier " + identifier);
       continue;
     }
-    portletModel.addPublicRenderParameter(publicRenderParameter);
+    publicRenderParameters.add(publicRenderParameter);
   }
+  portletModel.setPublicRenderParameters(publicRenderParameters);
 }
