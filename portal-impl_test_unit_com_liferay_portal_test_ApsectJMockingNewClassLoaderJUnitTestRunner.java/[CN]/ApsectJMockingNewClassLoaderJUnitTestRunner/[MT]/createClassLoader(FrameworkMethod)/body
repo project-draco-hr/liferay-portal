@@ -1,0 +1,29 @@
+{
+  AdviseWith adviseWith=frameworkMethod.getAnnotation(AdviseWith.class);
+  if (adviseWith == null) {
+    return super.createClassLoader(frameworkMethod);
+  }
+  Class<?>[] adviceClasses=adviseWith.adviceClasses();
+  if ((adviceClasses == null) || (adviceClasses.length == 0)) {
+    return super.createClassLoader(frameworkMethod);
+  }
+  for (  Class<?> adviceClass : adviceClasses) {
+    Aspect aspect=adviceClass.getAnnotation(Aspect.class);
+    if (aspect == null) {
+      throw new IllegalArgumentException("Class " + adviceClass.getName() + " is not an Aspect");
+    }
+  }
+  String jvmClassPath=ClassPathUtil.getJVMClassPath(true);
+  URL[] urls=null;
+  try {
+    urls=ClassPathUtil.getClassPathURLs(jvmClassPath);
+  }
+ catch (  MalformedURLException murle) {
+    throw new RuntimeException(murle);
+  }
+  String baseDumpFolder=System.getProperty("junit.aspectj.dump");
+  Method method=frameworkMethod.getMethod();
+  Class<?> clazz=method.getDeclaringClass();
+  File dumpFolder=new File(baseDumpFolder,clazz.getName().concat(StringPool.PERIOD).concat(method.getName()));
+  return new WeavingClassLoader(urls,adviceClasses,dumpFolder);
+}
