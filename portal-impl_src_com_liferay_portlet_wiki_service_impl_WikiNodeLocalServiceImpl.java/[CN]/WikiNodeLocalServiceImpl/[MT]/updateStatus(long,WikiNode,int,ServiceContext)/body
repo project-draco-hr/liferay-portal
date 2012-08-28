@@ -1,0 +1,28 @@
+{
+  int oldStatus=node.getStatus();
+  User user=userPersistence.findByPrimaryKey(userId);
+  Date now=new Date();
+  node.setStatus(status);
+  node.setStatusByUserId(userId);
+  node.setStatusByUserName(user.getFullName());
+  node.setStatusDate(now);
+  wikiNodePersistence.update(node,false);
+  if (oldStatus == WorkflowConstants.STATUS_IN_TRASH) {
+    trashEntryLocalService.deleteEntry(WikiNode.class.getName(),node.getNodeId());
+  }
+ else   if (status == WorkflowConstants.STATUS_IN_TRASH) {
+    trashEntryLocalService.addTrashEntry(userId,node.getGroupId(),WikiNode.class.getName(),node.getNodeId(),oldStatus,null,null);
+  }
+  Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(WikiNode.class);
+  if (status == WorkflowConstants.STATUS_IN_TRASH) {
+    String oldName=node.getName();
+    node.setName(TrashUtil.stripTrashNamespace(oldName));
+    indexer.reindex(node);
+    node.setName(oldName);
+  }
+ else {
+    indexer.delete(node);
+  }
+  updateStatuses(userId,node,status,serviceContext);
+  return node;
+}
