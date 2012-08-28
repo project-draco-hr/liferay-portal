@@ -1,0 +1,24 @@
+{
+  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(WikiNode.class,PACLClassLoaderUtil.getPortalClassLoader());
+  Projection minEntryIdProjection=ProjectionFactoryUtil.min("nodeId");
+  Projection maxEntryIdProjection=ProjectionFactoryUtil.max("nodeId");
+  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
+  projectionList.add(minEntryIdProjection);
+  projectionList.add(maxEntryIdProjection);
+  dynamicQuery.setProjection(projectionList);
+  addReindexCriteria(dynamicQuery,companyId);
+  List<Object[]> results=WikiNodeLocalServiceUtil.dynamicQuery(dynamicQuery);
+  Object[] minAndMaxThreadIds=results.get(0);
+  if ((minAndMaxThreadIds[0] == null) || (minAndMaxThreadIds[1] == null)) {
+    return;
+  }
+  long minThreadId=(Long)minAndMaxThreadIds[0];
+  long maxThreadId=(Long)minAndMaxThreadIds[1];
+  long startThreadId=minThreadId;
+  long endThreadId=startThreadId + DEFAULT_INTERVAL;
+  while (startThreadId <= maxThreadId) {
+    reindexEntries(companyId,startThreadId,endThreadId);
+    startThreadId=endThreadId;
+    endThreadId+=DEFAULT_INTERVAL;
+  }
+}
