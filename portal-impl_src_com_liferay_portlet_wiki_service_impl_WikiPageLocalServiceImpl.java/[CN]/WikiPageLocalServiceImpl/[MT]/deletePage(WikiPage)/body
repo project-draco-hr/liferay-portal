@@ -3,12 +3,14 @@
   for (  WikiPage curPage : children) {
     deletePage(curPage);
   }
-  if (page.isInTrash()) {
-    page.setTitle(TrashUtil.stripTrashNamespace(page.getTitle()));
-    trashEntryLocalService.deleteEntry(WikiPage.class.getName(),page.getResourcePrimKey());
+  wikiPagePersistence.removeByN_T(page.getNodeId(),page.getTitle());
+  wikiPagePersistence.removeByN_R(page.getNodeId(),page.getTitle());
+  resourceLocalService.deleteResource(page.getCompanyId(),WikiPage.class.getName(),ResourceConstants.SCOPE_INDIVIDUAL,page.getResourcePrimKey());
+  try {
+    wikiPageResourceLocalService.deletePageResource(page.getNodeId(),page.getTitle());
   }
-  Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(WikiPage.class);
-  indexer.delete(page);
+ catch (  NoSuchPageResourceException nspre) {
+  }
   long companyId=page.getCompanyId();
   long repositoryId=CompanyConstants.SYSTEM;
   String dirName=page.getAttachmentsDir();
@@ -18,24 +20,22 @@
  catch (  NoSuchDirectoryException nsde) {
   }
   subscriptionLocalService.deleteSubscriptions(page.getCompanyId(),WikiPage.class.getName(),page.getResourcePrimKey());
-  mbMessageLocalService.deleteDiscussionMessages(WikiPage.class.getName(),page.getResourcePrimKey());
-  expandoValueLocalService.deleteValues(WikiPage.class.getName(),page.getResourcePrimKey());
   List<WikiPage> pageVersions=wikiPagePersistence.findByN_T(page.getNodeId(),page.getTitle());
   for (  WikiPage pageVersion : pageVersions) {
     assetEntryLocalService.deleteEntry(WikiPage.class.getName(),pageVersion.getPrimaryKey());
   }
   assetEntryLocalService.deleteEntry(WikiPage.class.getName(),page.getResourcePrimKey());
-  resourceLocalService.deleteResource(page.getCompanyId(),WikiPage.class.getName(),ResourceConstants.SCOPE_INDIVIDUAL,page.getResourcePrimKey());
-  try {
-    wikiPageResourceLocalService.deletePageResource(page.getNodeId(),page.getTitle());
+  expandoValueLocalService.deleteValues(WikiPage.class.getName(),page.getResourcePrimKey());
+  mbMessageLocalService.deleteDiscussionMessages(WikiPage.class.getName(),page.getResourcePrimKey());
+  if (page.isInTrash()) {
+    page.setTitle(TrashUtil.stripTrashNamespace(page.getTitle()));
+    trashEntryLocalService.deleteEntry(WikiPage.class.getName(),page.getResourcePrimKey());
   }
- catch (  NoSuchPageResourceException nspre) {
-  }
+  Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(WikiPage.class);
+  indexer.delete(page);
+  clearPageCache(page);
   List<WikiPage> pages=wikiPagePersistence.findByN_T(page.getNodeId(),page.getTitle());
   for (  WikiPage curPage : pages) {
     workflowInstanceLinkLocalService.deleteWorkflowInstanceLinks(curPage.getCompanyId(),curPage.getGroupId(),WikiPage.class.getName(),curPage.getPageId());
   }
-  wikiPagePersistence.removeByN_T(page.getNodeId(),page.getTitle());
-  wikiPagePersistence.removeByN_R(page.getNodeId(),page.getTitle());
-  clearPageCache(page);
 }
