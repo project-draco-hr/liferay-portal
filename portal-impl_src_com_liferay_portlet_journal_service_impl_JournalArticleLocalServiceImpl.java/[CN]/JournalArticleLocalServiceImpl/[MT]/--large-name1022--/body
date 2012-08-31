@@ -22,19 +22,33 @@
  catch (  IOException ioe) {
   }
   JournalArticle oldArticle=null;
-  double oldVersion=0;
   boolean incrementVersion=false;
+  double newVersion=-1;
+  double oldVersion=0;
   boolean imported=ParamUtil.getBoolean(serviceContext,"imported");
+  oldArticle=getLatestArticle(groupId,articleId,WorkflowConstants.STATUS_ANY);
+  oldVersion=oldArticle.getVersion();
   if (imported) {
-    oldArticle=getArticle(groupId,articleId,version);
-    oldVersion=version;
-    if (expired) {
-      return expireArticle(userId,groupId,articleId,version,articleURL,serviceContext);
+    newVersion=version;
+    if (oldVersion > version) {
+      JournalArticle sameRevision=null;
+      try {
+        sameRevision=getArticle(groupId,articleId,version);
+      }
+ catch (      NoSuchArticleException nsae) {
+      }
+      if (sameRevision != null) {
+        oldArticle=sameRevision;
+      }
+ else {
+        incrementVersion=true;
+      }
+    }
+ else     if (oldVersion < version) {
+      incrementVersion=true;
     }
   }
  else {
-    oldArticle=getLatestArticle(groupId,articleId,WorkflowConstants.STATUS_ANY);
-    oldVersion=oldArticle.getVersion();
     if ((version > 0) && (version != oldVersion)) {
       throw new ArticleVersionException();
     }
@@ -46,7 +60,9 @@
   validate(user.getCompanyId(),groupId,oldArticle.getClassNameId(),titleMap,content,type,structureId,templateId,smallImage,smallImageURL,smallImageFile,smallImageBytes);
   JournalArticle article=null;
   if (incrementVersion) {
-    double newVersion=MathUtil.format(oldVersion + 0.1,1,1);
+    if (newVersion < 0) {
+      newVersion=MathUtil.format(oldVersion + 0.1,1,1);
+    }
     long id=counterLocalService.increment();
     article=journalArticlePersistence.create(id);
     article.setResourcePrimKey(oldArticle.getResourcePrimKey());
@@ -108,6 +124,9 @@
   expandoBridge.setAttributes(serviceContext);
   saveImages(smallImage,article.getSmallImageId(),smallImageFile,smallImageBytes);
   PortletPreferences preferences=ServiceContextUtil.getPortletPreferences(serviceContext);
+  if (expired && imported) {
+    updateStatus(userId,article,article.getStatus(),articleURL,serviceContext);
+  }
   if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
     sendEmail(article,articleURL,preferences,"requested",serviceContext);
     WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),groupId,userId,JournalArticle.class.getName(),article.getId(),article,serviceContext);
