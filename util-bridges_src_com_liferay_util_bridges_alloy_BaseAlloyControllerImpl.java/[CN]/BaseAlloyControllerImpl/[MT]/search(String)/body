@@ -2,12 +2,24 @@
   if (indexer == null) {
     throw new Exception("No indexer found for " + controllerPath);
   }
-  SearchContainer searchContainer=new SearchContainer(portletRequest,portletURL,null,null);
+  List<BaseModel<?>> baseModels=new ArrayList<BaseModel<?>>();
+  SearchContainer<BaseModel<?>> searchContainer=new SearchContainer<BaseModel<?>>(portletRequest,portletURL,null,null);
   SearchContext searchContext=SearchContextFactory.getInstance(request);
   searchContext.setEnd(searchContainer.getEnd());
   if (Validator.isNotNull(keywords)) {
     searchContext.setKeywords(keywords);
   }
   searchContext.setStart(searchContainer.getStart());
-  return indexer.search(searchContext);
+  Hits hits=indexer.search(searchContext);
+  Document[] documents=hits.getDocs();
+  for (int i=0; i < documents.length; i++) {
+    Document document=hits.doc(i);
+    long entryClassPK=GetterUtil.getLong(document.get(Field.ENTRY_CLASS_PK));
+    BaseModel<?> baseModel=alloyServiceInvoker.fetchModel(entryClassPK);
+    if (baseModel == null) {
+      continue;
+    }
+    baseModels.add(baseModel);
+  }
+  return baseModels;
 }
