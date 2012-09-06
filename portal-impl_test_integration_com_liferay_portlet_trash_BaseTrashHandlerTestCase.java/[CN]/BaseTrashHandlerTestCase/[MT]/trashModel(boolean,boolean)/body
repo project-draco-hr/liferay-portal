@@ -1,0 +1,56 @@
+{
+  Group group=ServiceTestUtil.addGroup();
+  ServiceContext serviceContext=ServiceTestUtil.getServiceContext();
+  serviceContext.setScopeGroupId(group.getGroupId());
+  BaseModel<?> parentBaseModel=getParentBaseModel(group,serviceContext);
+  int initialBaseModelsCount=getBaseModelsNotInTrashCount(parentBaseModel);
+  int initialBaseModelsSearchCount=searchBaseModelsCount(getBaseModelClass(),group.getGroupId());
+  int initialTrashEntriesCount=getTrashEntriesCount(group.getGroupId());
+  int initialTrashEntriesSearchCount=searchTrashEntriesCount(getSearchKeywords(),serviceContext);
+  BaseModel<?> baseModel=addBaseModel(group,approved,serviceContext);
+  WorkflowedModel workflowedModel=(WorkflowedModel)baseModel;
+  int oldStatus=workflowedModel.getStatus();
+  Assert.assertEquals(approved,isAssetEntryVisible(baseModel));
+  Assert.assertEquals(initialBaseModelsCount + 1,getBaseModelsNotInTrashCount(parentBaseModel));
+  if (approved) {
+    Assert.assertEquals(initialBaseModelsSearchCount + 1,searchBaseModelsCount(getBaseModelClass(),group.getGroupId()));
+  }
+ else {
+    Assert.assertEquals(initialBaseModelsSearchCount,searchBaseModelsCount(getBaseModelClass(),group.getGroupId()));
+  }
+  Assert.assertEquals(initialTrashEntriesCount,getTrashEntriesCount(group.getGroupId()));
+  Assert.assertEquals(initialTrashEntriesSearchCount,searchTrashEntriesCount(getSearchKeywords(),serviceContext));
+  moveBaseModelToTrash((Long)baseModel.getPrimaryKeyObj());
+  TrashEntry trashEntry=TrashEntryLocalServiceUtil.getEntry(getBaseModelClassName(),(Long)baseModel.getPrimaryKeyObj());
+  Assert.assertEquals(baseModel.getPrimaryKeyObj(),Long.valueOf(trashEntry.getClassPK()));
+  Assert.assertEquals(WorkflowConstants.STATUS_IN_TRASH,workflowedModel.getStatus());
+  Assert.assertFalse(isAssetEntryVisible(baseModel));
+  Assert.assertEquals(initialBaseModelsCount,getBaseModelsNotInTrashCount(parentBaseModel));
+  Assert.assertEquals(initialBaseModelsSearchCount,searchBaseModelsCount(getBaseModelClass(),group.getGroupId()));
+  Assert.assertEquals(initialTrashEntriesCount + 1,getTrashEntriesCount(group.getGroupId()));
+  Assert.assertEquals(initialTrashEntriesSearchCount + 1,searchTrashEntriesCount(getSearchKeywords(),serviceContext));
+  TrashHandler trashHandler=TrashHandlerRegistryUtil.getTrashHandler(getBaseModelClassName());
+  if (delete) {
+    trashHandler.deleteTrashEntry((Long)baseModel.getPrimaryKeyObj());
+    Assert.assertNull(fetchAssetEntry(baseModel));
+    Assert.assertEquals(initialBaseModelsCount,getBaseModelsNotInTrashCount(parentBaseModel));
+    Assert.assertEquals(initialBaseModelsSearchCount,searchBaseModelsCount(getBaseModelClass(),group.getGroupId()));
+    Assert.assertEquals(initialTrashEntriesSearchCount,searchTrashEntriesCount(getSearchKeywords(),serviceContext));
+  }
+ else {
+    trashHandler.restoreTrashEntry((Long)baseModel.getPrimaryKeyObj());
+    baseModel=getBaseModel((Long)baseModel.getPrimaryKeyObj());
+    workflowedModel=(WorkflowedModel)baseModel;
+    Assert.assertEquals(oldStatus,workflowedModel.getStatus());
+    Assert.assertEquals(approved,isAssetEntryVisible(baseModel));
+    Assert.assertEquals(initialBaseModelsCount + 1,getBaseModelsNotInTrashCount(parentBaseModel));
+    if (approved) {
+      Assert.assertEquals(initialBaseModelsSearchCount + 1,searchBaseModelsCount(getBaseModelClass(),group.getGroupId()));
+    }
+ else {
+      Assert.assertEquals(initialBaseModelsSearchCount,searchBaseModelsCount(getBaseModelClass(),group.getGroupId()));
+    }
+    Assert.assertEquals(initialTrashEntriesSearchCount,searchTrashEntriesCount(getSearchKeywords(),serviceContext));
+    trashHandler.deleteTrashEntry((Long)baseModel.getPrimaryKeyObj());
+  }
+}
