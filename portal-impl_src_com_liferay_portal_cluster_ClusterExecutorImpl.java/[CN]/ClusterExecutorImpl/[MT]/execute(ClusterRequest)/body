@@ -8,17 +8,27 @@
     String uuid=clusterRequest.getUuid();
     _futureClusterResponses.put(uuid,futureClusterResponses);
   }
-  if (!clusterRequest.isSkipLocal() && _shortcutLocalMethod && addresses.remove(getLocalClusterNodeAddress())) {
-    ClusterNodeResponse clusterNodeResponse=runLocalMethod(clusterRequest.getMethodHandler());
-    clusterNodeResponse.setMulticast(clusterRequest.isMulticast());
-    clusterNodeResponse.setUuid(clusterRequest.getUuid());
-    futureClusterResponses.addClusterNodeResponse(clusterNodeResponse);
+  if (_shortcutLocalMethod && addresses.remove(getLocalClusterNodeAddress())) {
+    runLocalMethod(clusterRequest,futureClusterResponses);
   }
   if (clusterRequest.isMulticast()) {
-    sendMulticastRequest(clusterRequest);
+    try {
+      _controlJChannel.send(null,clusterRequest);
+    }
+ catch (    Exception e) {
+      throw new SystemException("Unable to send multicast request",e);
+    }
   }
  else {
-    sendUnicastRequest(clusterRequest,addresses);
+    for (    Address address : addresses) {
+      org.jgroups.Address jGroupsAddress=(org.jgroups.Address)address.getRealAddress();
+      try {
+        _controlJChannel.send(jGroupsAddress,clusterRequest);
+      }
+ catch (      Exception e) {
+        throw new SystemException("Unable to send unicast request",e);
+      }
+    }
   }
   return futureClusterResponses;
 }

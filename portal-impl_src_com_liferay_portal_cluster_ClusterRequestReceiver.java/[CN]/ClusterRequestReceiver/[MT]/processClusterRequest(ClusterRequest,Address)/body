@@ -1,0 +1,32 @@
+{
+  ClusterMessageType clusterMessageType=clusterRequest.getClusterMessageType();
+  if (clusterMessageType.equals(ClusterMessageType.NOTIFY) || clusterMessageType.equals(ClusterMessageType.UPDATE)) {
+    _clusterExecutorImpl.memberJoined(sourceAddress,clusterRequest.getOriginatingClusterNode());
+    if (clusterMessageType.equals(ClusterMessageType.NOTIFY)) {
+      handleResponse(sourceAddress,clusterRequest,null,null);
+    }
+    return;
+  }
+  MethodHandler methodHandler=clusterRequest.getMethodHandler();
+  Object returnValue=null;
+  Exception exception=null;
+  if (methodHandler != null) {
+    try {
+      ClusterInvokeThreadLocal.setEnabled(false);
+      returnValue=invoke(clusterRequest.getServletContextName(),clusterRequest.getBeanIdentifier(),methodHandler);
+    }
+ catch (    Exception e) {
+      exception=e;
+      _log.error("Failed to invoke method " + methodHandler,e);
+    }
+ finally {
+      ClusterInvokeThreadLocal.setEnabled(true);
+    }
+  }
+ else {
+    exception=new ClusterException("Payload is not of type " + MethodHandler.class.getName());
+  }
+  if (!clusterRequest.isFireAndForget()) {
+    handleResponse(sourceAddress,clusterRequest,returnValue,exception);
+  }
+}
