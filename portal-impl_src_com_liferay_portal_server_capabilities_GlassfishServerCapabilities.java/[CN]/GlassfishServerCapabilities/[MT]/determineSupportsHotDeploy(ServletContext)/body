@@ -1,43 +1,24 @@
 {
-  Class<?> servletContextClass=servletContext.getClass();
-  Field contextField=servletContextClass.getDeclaredField("context");
-  contextField.setAccessible(true);
-  Object applicationContext=contextField.get(servletContext);
-  Class<?> applicationContextClass=applicationContext.getClass();
-  contextField=applicationContextClass.getDeclaredField("context");
-  contextField.setAccessible(true);
-  Object webModule=contextField.get(applicationContext);
-  Class<?> containerBaseClass=webModule.getClass();
-  for (int i=0; i < 3; i++) {
-    containerBaseClass=containerBaseClass.getSuperclass();
+  DeepNamedValueScanner deepNamedValueScanner=new DeepNamedValueScanner("masterView");
+  deepNamedValueScanner.setIgnoredClassNames("org.apache.felix.");
+  deepNamedValueScanner.setSkipFirstCount(4);
+  deepNamedValueScanner.scan(servletContext);
+  if (!deepNamedValueScanner.isFounded()) {
+    _supportsHotDeploy=false;
+    return;
   }
-  Field parentField=containerBaseClass.getDeclaredField("parent");
-  parentField.setAccessible(true);
-  Object virtualServer=parentField.get(webModule);
-  Object webEngine=parentField.get(virtualServer);
-  Class<?> webEngineClass=webEngine.getClass();
-  Field webContainerField=webEngineClass.getDeclaredField("webContainer");
-  webContainerField.setAccessible(true);
-  Object webContainer=webContainerField.get(webEngine);
-  Class<?> webContainerClass=webContainer.getClass();
-  Field dasConfigField=webContainerClass.getDeclaredField("dasConfig");
-  dasConfigField.setAccessible(true);
-  Object dasConfigProxy=dasConfigField.get(webContainer);
-  Class<?> proxyClass=dasConfigProxy.getClass().getSuperclass();
-  Field hField=proxyClass.getDeclaredField("h");
-  hField.setAccessible(true);
-  Object translatedConfigView=hField.get(dasConfigProxy);
-  Class<?> translatedConfigViewClass=translatedConfigView.getClass();
-  Field masterViewField=translatedConfigViewClass.getDeclaredField("masterView");
-  masterViewField.setAccessible(true);
-  Object masterView=masterViewField.get(translatedConfigView);
-  Class<?> domClass=masterView.getClass();
-  for (int i=0; i < 2; i++) {
-    domClass=domClass.getSuperclass();
+  Object masterViewObject=deepNamedValueScanner.getMatchedValue();
+  deepNamedValueScanner=new DeepNamedValueScanner("autodeploy-enabled");
+  deepNamedValueScanner.setVisitMaps(true);
+  deepNamedValueScanner.setIgnoredClassNames("org.apache.felix.","CountStatisticImpl");
+  deepNamedValueScanner.setSkipFirstCount(2);
+  deepNamedValueScanner.scan(masterViewObject);
+  if (_log.isDebugEnabled()) {
+    _log.debug("HotDeploy founded: " + deepNamedValueScanner.isFounded() + " in "+ deepNamedValueScanner.getElapsed()+ "ms by "+ deepNamedValueScanner.getMatchingCount()+ " matches");
   }
-  Field attributesField=domClass.getDeclaredField("attributes");
-  attributesField.setAccessible(true);
-  Map<String,String> attributes=(Map<String,String>)attributesField.get(masterView);
-  boolean autoDeployEnabled=MapUtil.getBoolean(attributes,"autodeploy-enabled",true);
+  boolean autoDeployEnabled=true;
+  if (deepNamedValueScanner.isFounded()) {
+    autoDeployEnabled=Boolean.parseBoolean(deepNamedValueScanner.getMatchedValue().toString());
+  }
   _supportsHotDeploy=autoDeployEnabled;
 }
