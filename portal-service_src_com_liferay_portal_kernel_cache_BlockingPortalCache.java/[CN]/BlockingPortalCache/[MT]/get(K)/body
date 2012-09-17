@@ -1,0 +1,30 @@
+{
+  V value=_portalCache.get(key);
+  if (value != null) {
+    return value;
+  }
+  CompeteLatch lastCompeteLatch=_competeLatch.get();
+  if (lastCompeteLatch != null) {
+    lastCompeteLatch.done();
+    _competeLatch.set(null);
+  }
+  CompeteLatch currentCompeteLatch=_competeLatchMap.get(key);
+  if (currentCompeteLatch == null) {
+    CompeteLatch newCompeteLatch=new CompeteLatch();
+    currentCompeteLatch=_competeLatchMap.putIfAbsent(key,newCompeteLatch);
+    if (currentCompeteLatch == null) {
+      currentCompeteLatch=newCompeteLatch;
+    }
+  }
+  _competeLatch.set(currentCompeteLatch);
+  if (!currentCompeteLatch.compete()) {
+    try {
+      currentCompeteLatch.await();
+    }
+ catch (    InterruptedException ie) {
+    }
+    _competeLatch.set(null);
+    value=_portalCache.get(key);
+  }
+  return value;
+}
