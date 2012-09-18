@@ -1,0 +1,38 @@
+{
+  final long journalTemplateId=100;
+  String testId="testId";
+  JournalTemplate journalTemplate=(JournalTemplate)ProxyUtil.newProxyInstance(getClass().getClassLoader(),new Class<?>[]{JournalTemplate.class},new InvocationHandler(){
+    public Object invoke(    Object proxy,    Method method,    Object[] args) throws Throwable {
+      if (method.getName().equals("getId")) {
+        return journalTemplateId;
+      }
+ else {
+        throw new UnsupportedOperationException();
+      }
+    }
+  }
+);
+  JournalTemplateResource journalTemplateResource=new JournalTemplateResource(testId,journalTemplate);
+  UnsyncByteArrayOutputStream unsyncByteArrayOutputStream=new UnsyncByteArrayOutputStream();
+  ObjectOutput objectOutput=new MockObjectOutput(unsyncByteArrayOutputStream);
+  journalTemplateResource.writeExternal(objectOutput);
+  objectOutput.close();
+  byte[] externalizedData=unsyncByteArrayOutputStream.toByteArray();
+  DataInputStream dataInputStream=new DataInputStream(new UnsyncByteArrayInputStream(externalizedData));
+  Assert.assertEquals(testId,dataInputStream.readUTF());
+  Assert.assertEquals(journalTemplateId,dataInputStream.readLong());
+  JournalTemplateResource newJournalTemplateResource=new JournalTemplateResource();
+  MockObjectInput mockObjectInput=new MockObjectInput(new DataInputStream(new UnsyncByteArrayInputStream(externalizedData)));
+  UnsyncByteArrayOutputStream hijackedOutputStream=ConsoleTestUtil.hijackStdErr();
+  try {
+    newJournalTemplateResource.readExternal(mockObjectInput);
+    Assert.fail();
+  }
+ catch (  IOException ioe) {
+    Assert.assertEquals("Unable to retrieve JournalTemplate with id " + journalTemplateId,ioe.getMessage());
+  }
+ finally {
+    ConsoleTestUtil.restoreStdErr(hijackedOutputStream);
+  }
+  Assert.assertEquals(testId,newJournalTemplateResource.getTemplateId());
+}
