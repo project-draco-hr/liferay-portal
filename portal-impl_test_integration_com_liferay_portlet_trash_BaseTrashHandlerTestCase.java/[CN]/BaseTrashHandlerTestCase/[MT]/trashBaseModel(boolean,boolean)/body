@@ -7,18 +7,13 @@
   int initialBaseModelsSearchCount=0;
   int initialTrashEntriesCount=getTrashEntriesCount(group.getGroupId());
   int initialTrashEntriesSearchCount=0;
-  if (isIndexableModel()) {
+  if (isIndexableBaseModel()) {
     initialBaseModelsSearchCount=searchBaseModelsCount(getBaseModelClass(),group.getGroupId());
     initialTrashEntriesSearchCount=searchTrashEntriesCount(getSearchKeywords(),serviceContext);
   }
   BaseModel<?> baseModel=addBaseModel(parentBaseModel,approved,serviceContext);
-  WorkflowedModel workflowedModel=getWorkflowedModel(baseModel);
-  int oldStatus=workflowedModel.getStatus();
-  if (isAssetableModel()) {
-    Assert.assertEquals(approved,isAssetEntryVisible(baseModel));
-  }
   Assert.assertEquals(initialBaseModelsCount + 1,getBaseModelsNotInTrashCount(parentBaseModel));
-  if (isIndexableModel()) {
+  if (isIndexableBaseModel()) {
     if (approved) {
       Assert.assertEquals(initialBaseModelsSearchCount + 1,searchBaseModelsCount(getBaseModelClass(),group.getGroupId()));
     }
@@ -28,40 +23,39 @@
     Assert.assertEquals(initialTrashEntriesSearchCount,searchTrashEntriesCount(getSearchKeywords(),serviceContext));
   }
   Assert.assertEquals(initialTrashEntriesCount,getTrashEntriesCount(group.getGroupId()));
+  WorkflowedModel workflowedModel=getWorkflowedModel(baseModel);
+  int oldStatus=workflowedModel.getStatus();
+  if (isAssetableModel()) {
+    Assert.assertEquals(approved,isAssetEntryVisible(baseModel));
+  }
   moveBaseModelToTrash((Long)baseModel.getPrimaryKeyObj());
-  TrashEntry trashEntry=TrashEntryLocalServiceUtil.getEntry(getBaseModelClassName(),getTrashClassPK(baseModel));
+  Assert.assertEquals(initialBaseModelsCount,getBaseModelsNotInTrashCount(parentBaseModel));
+  Assert.assertEquals(initialTrashEntriesCount + 1,getTrashEntriesCount(group.getGroupId()));
+  if (isIndexableBaseModel()) {
+    Assert.assertEquals(initialBaseModelsSearchCount,searchBaseModelsCount(getBaseModelClass(),group.getGroupId()));
+    Assert.assertEquals(initialTrashEntriesSearchCount + 1,searchTrashEntriesCount(getSearchKeywords(),serviceContext));
+  }
+  TrashEntry trashEntry=TrashEntryLocalServiceUtil.getEntry(getBaseModelClassName(),getTrashEntryClassPK(baseModel));
+  Assert.assertEquals(getTrashEntryClassPK(baseModel),GetterUtil.getLong(trashEntry.getClassPK()));
   workflowedModel=getWorkflowedModel(getBaseModel((Long)baseModel.getPrimaryKeyObj()));
-  Assert.assertEquals(getTrashClassPK(baseModel),Long.valueOf(trashEntry.getClassPK()));
   Assert.assertEquals(WorkflowConstants.STATUS_IN_TRASH,workflowedModel.getStatus());
   if (isAssetableModel()) {
     Assert.assertFalse(isAssetEntryVisible(baseModel));
   }
-  Assert.assertEquals(initialBaseModelsCount,getBaseModelsNotInTrashCount(parentBaseModel));
-  if (isIndexableModel()) {
-    Assert.assertEquals(initialBaseModelsSearchCount,searchBaseModelsCount(getBaseModelClass(),group.getGroupId()));
-    Assert.assertEquals(initialTrashEntriesSearchCount + 1,searchTrashEntriesCount(getSearchKeywords(),serviceContext));
-  }
-  Assert.assertEquals(initialTrashEntriesCount + 1,getTrashEntriesCount(group.getGroupId()));
   TrashHandler trashHandler=TrashHandlerRegistryUtil.getTrashHandler(getBaseModelClassName());
   if (delete) {
-    trashHandler.deleteTrashEntry(getTrashClassPK(baseModel));
-    Assert.assertNull(fetchAssetEntry(baseModel));
+    trashHandler.deleteTrashEntry(getTrashEntryClassPK(baseModel));
     Assert.assertEquals(initialBaseModelsCount,getBaseModelsNotInTrashCount(parentBaseModel));
-    if (isIndexableModel()) {
+    if (isIndexableBaseModel()) {
       Assert.assertEquals(initialBaseModelsSearchCount,searchBaseModelsCount(getBaseModelClass(),group.getGroupId()));
       Assert.assertEquals(initialTrashEntriesSearchCount,searchTrashEntriesCount(getSearchKeywords(),serviceContext));
     }
+    Assert.assertNull(fetchAssetEntry(baseModel));
   }
  else {
-    trashHandler.restoreTrashEntry(getTrashClassPK(baseModel));
-    baseModel=getBaseModel((Long)baseModel.getPrimaryKeyObj());
-    workflowedModel=getWorkflowedModel(baseModel);
-    Assert.assertEquals(oldStatus,workflowedModel.getStatus());
-    if (isAssetableModel()) {
-      Assert.assertEquals(approved,isAssetEntryVisible(baseModel));
-    }
+    trashHandler.restoreTrashEntry(getTrashEntryClassPK(baseModel));
     Assert.assertEquals(initialBaseModelsCount + 1,getBaseModelsNotInTrashCount(parentBaseModel));
-    if (isIndexableModel()) {
+    if (isIndexableBaseModel()) {
       if (approved) {
         Assert.assertEquals(initialBaseModelsSearchCount + 1,searchBaseModelsCount(getBaseModelClass(),group.getGroupId()));
       }
@@ -69,6 +63,12 @@
         Assert.assertEquals(initialBaseModelsSearchCount,searchBaseModelsCount(getBaseModelClass(),group.getGroupId()));
       }
       Assert.assertEquals(initialTrashEntriesSearchCount,searchTrashEntriesCount(getSearchKeywords(),serviceContext));
+    }
+    baseModel=getBaseModel((Long)baseModel.getPrimaryKeyObj());
+    workflowedModel=getWorkflowedModel(baseModel);
+    Assert.assertEquals(oldStatus,workflowedModel.getStatus());
+    if (isAssetableModel()) {
+      Assert.assertEquals(approved,isAssetEntryVisible(baseModel));
     }
   }
 }
