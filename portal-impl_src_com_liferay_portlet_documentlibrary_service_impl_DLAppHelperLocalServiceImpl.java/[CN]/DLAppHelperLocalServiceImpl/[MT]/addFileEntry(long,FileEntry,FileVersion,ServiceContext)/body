@@ -1,13 +1,28 @@
 {
-  updateAsset(userId,fileEntry,fileVersion,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames(),serviceContext.getAssetLinkEntryIds());
-  if (PropsValues.DL_FILE_ENTRY_COMMENTS_ENABLED) {
-    mbMessageLocalService.addDiscussionMessage(fileEntry.getUserId(),fileEntry.getUserName(),fileEntry.getGroupId(),DLFileEntryConstants.getClassName(),fileEntry.getFileEntryId(),WorkflowConstants.ACTION_PUBLISH);
+  if (DLAppHelperThreadLocal.isEnabled()) {
+    updateAsset(userId,fileEntry,fileVersion,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames(),serviceContext.getAssetLinkEntryIds());
+    if (PropsValues.DL_FILE_ENTRY_COMMENTS_ENABLED) {
+      mbMessageLocalService.addDiscussionMessage(fileEntry.getUserId(),fileEntry.getUserName(),fileEntry.getGroupId(),DLFileEntryConstants.getClassName(),fileEntry.getFileEntryId(),WorkflowConstants.ACTION_PUBLISH);
+    }
   }
-  if (fileVersion instanceof LiferayFileVersion) {
-    DLFileVersion dlFileVersion=(DLFileVersion)fileVersion.getModel();
-    Map<String,Serializable> workflowContext=new HashMap<String,Serializable>();
-    workflowContext.put("event",DLSyncConstants.EVENT_ADD);
-    WorkflowHandlerRegistryUtil.startWorkflowInstance(dlFileVersion.getCompanyId(),dlFileVersion.getGroupId(),userId,DLFileEntryConstants.getClassName(),dlFileVersion.getFileVersionId(),dlFileVersion,serviceContext,workflowContext);
+  boolean previousEnable=WorkflowThreadLocal.isEnabled();
+  if (!DLAppHelperThreadLocal.isEnabled()) {
+    WorkflowThreadLocal.setEnabled(false);
   }
-  registerDLProcessorCallback(fileEntry,null);
+  try {
+    if (fileVersion instanceof LiferayFileVersion) {
+      DLFileVersion dlFileVersion=(DLFileVersion)fileVersion.getModel();
+      Map<String,Serializable> workflowContext=new HashMap<String,Serializable>();
+      workflowContext.put("event",DLSyncConstants.EVENT_ADD);
+      WorkflowHandlerRegistryUtil.startWorkflowInstance(dlFileVersion.getCompanyId(),dlFileVersion.getGroupId(),userId,DLFileEntryConstants.getClassName(),dlFileVersion.getFileVersionId(),dlFileVersion,serviceContext,workflowContext);
+    }
+  }
+  finally {
+    if (!DLAppHelperThreadLocal.isEnabled()) {
+      WorkflowThreadLocal.setEnabled(previousEnable);
+    }
+  }
+  if (DLAppHelperThreadLocal.isEnabled()) {
+    registerDLProcessorCallback(fileEntry,null);
+  }
 }
