@@ -182,7 +182,8 @@
         excluded=_lineLengthExclusionsProperties.getProperty(StringUtil.replace(fileName,"\\","/"));
       }
     }
-    String[] combinedLines=null;
+    Tuple combinedLines=null;
+    int lineLength=_getLineLength(line);
     if ((excluded == null) && !line.startsWith("import ") && !line.startsWith("package ")&& !line.matches("\\s*\\*.*")) {
       if (fileName.endsWith("Table.java") && line.contains("String TABLE_SQL_CREATE = ")) {
       }
@@ -191,7 +192,7 @@
  else       if (fileName.endsWith("Table.java") && line.contains(" index IX_")) {
       }
  else {
-        if (_getLineLength(line) > 80) {
+        if (lineLength > 80) {
           _sourceFormatterHelper.printError(fileName,"> 80: " + fileName + " "+ lineCount);
         }
  else {
@@ -204,15 +205,27 @@
         }
       }
     }
-    if (Validator.isNotNull(combinedLines)) {
-      previousLine=combinedLines[0];
-      if (combinedLines.length > 1) {
-        String addedToPreviousLine=combinedLines[1];
-        if (Validator.isNotNull(addedToPreviousLine)) {
-          sb.append(previousLine);
-          sb.append("\n");
-          previousLine=StringUtil.replaceFirst(line,addedToPreviousLine,StringPool.BLANK);
+    if (combinedLines != null) {
+      previousLine=(String)combinedLines.getObject(0);
+      if (combinedLines.getSize() > 1) {
+        String linePart=(String)combinedLines.getObject(1);
+        boolean addToPreviousLine=(Boolean)combinedLines.getObject(2);
+        if (addToPreviousLine) {
+          previousLine=previousLine + linePart;
+          line=StringUtil.replaceFirst(line,linePart,StringPool.BLANK);
         }
+ else {
+          if (((linePart.length() + lineLength) <= 80) && (line.endsWith(StringPool.OPEN_CURLY_BRACE) || line.endsWith(StringPool.SEMICOLON))) {
+            previousLine=StringUtil.replaceLast(previousLine,linePart,StringPool.BLANK);
+            line=StringUtil.replaceLast(line,StringPool.TAB,StringPool.TAB + linePart);
+          }
+ else {
+            _sourceFormatterHelper.printError(fileName,"line break: " + fileName + " "+ lineCount);
+          }
+        }
+        sb.append(previousLine);
+        sb.append("\n");
+        previousLine=line;
       }
  else       if (line.endsWith(StringPool.OPEN_CURLY_BRACE) && !previousLine.contains(" class ")) {
         lineToSkipIfEmpty=lineCount + 1;

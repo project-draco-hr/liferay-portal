@@ -4,23 +4,23 @@
   }
   if (line.startsWith("+ ") || line.startsWith("- ") || line.startsWith("|| ")|| line.startsWith("&& ")) {
     int pos=line.indexOf(StringPool.SPACE);
-    String addToPreviousLine=line.substring(0,pos);
-    return new String[]{previousLine + StringPool.SPACE + addToPreviousLine,addToPreviousLine};
+    String linePart=line.substring(0,pos);
+    return new Tuple(previousLine + StringPool.SPACE,linePart,true);
   }
   int previousLineLength=_getLineLength(previousLine);
   String trimmedPreviousLine=StringUtil.trimLeading(previousLine);
   if ((line.length() + previousLineLength) < 80) {
     if (trimmedPreviousLine.startsWith("for ") && previousLine.endsWith(StringPool.COLON) && line.endsWith(StringPool.OPEN_CURLY_BRACE)) {
-      return new String[]{previousLine + StringPool.SPACE + line};
+      return new Tuple(previousLine + StringPool.SPACE + line);
     }
     if ((previousLine.endsWith(StringPool.EQUAL) || trimmedPreviousLine.equals("return")) && line.endsWith(StringPool.SEMICOLON)) {
-      return new String[]{previousLine + StringPool.SPACE + line};
+      return new Tuple(previousLine + StringPool.SPACE + line);
     }
     if ((trimmedPreviousLine.startsWith("if ") || trimmedPreviousLine.startsWith("else ")) && (previousLine.endsWith("||") || previousLine.endsWith("&&")) && line.endsWith(StringPool.OPEN_CURLY_BRACE)) {
-      return new String[]{previousLine + StringPool.SPACE + line};
+      return new Tuple(previousLine + StringPool.SPACE + line);
     }
     if ((line.startsWith("extends ") || line.startsWith("implements ") || line.startsWith("throws")) && line.endsWith(StringPool.OPEN_CURLY_BRACE) && (lineTabCount == (previousLineTabCount + 1))) {
-      return new String[]{previousLine + StringPool.SPACE + line};
+      return new Tuple(previousLine + StringPool.SPACE + line);
     }
   }
   if (previousLine.endsWith(StringPool.EQUAL) && line.endsWith(StringPool.SEMICOLON)) {
@@ -57,11 +57,11 @@
       if (((x + 1) != y) && ((z == -1) || (z > x))) {
         char previousChar=line.charAt(x - 1);
         if ((previousChar != CharPool.CLOSE_PARENTHESIS) && (previousChar != CharPool.OPEN_PARENTHESIS) && (previousChar != CharPool.SPACE)&& (previousLineLength + 1 + x) < 80) {
-          String addToPreviousLine=line.substring(0,x + 1);
-          if (addToPreviousLine.contains(StringPool.SPACE) || (addToPreviousLine.startsWith(StringPool.OPEN_PARENTHESIS) && !addToPreviousLine.contains(StringPool.CLOSE_PARENTHESIS))) {
+          String linePart=line.substring(0,x + 1);
+          if (linePart.contains(StringPool.SPACE) || (linePart.startsWith(StringPool.OPEN_PARENTHESIS) && !linePart.contains(StringPool.CLOSE_PARENTHESIS))) {
             return null;
           }
-          return new String[]{previousLine + StringPool.SPACE + addToPreviousLine,addToPreviousLine};
+          return new Tuple(previousLine + StringPool.SPACE,linePart,true);
         }
       }
     }
@@ -70,13 +70,13 @@
     int x=line.indexOf(StringPool.COMMA);
     if (x != -1) {
       while ((previousLineLength + 1 + x) < 80) {
-        String addToPreviousLine=line.substring(0,x + 1);
-        if (_isValidJavaParameter(addToPreviousLine)) {
-          if (line.equals(addToPreviousLine)) {
-            return new String[]{previousLine + StringPool.SPACE + addToPreviousLine};
+        String linePart=line.substring(0,x + 1);
+        if (_isValidJavaParameter(linePart)) {
+          if (line.equals(linePart)) {
+            return new Tuple(previousLine + StringPool.SPACE + linePart);
           }
  else {
-            return new String[]{previousLine + StringPool.SPACE + addToPreviousLine,addToPreviousLine + StringPool.SPACE};
+            return new Tuple(previousLine + StringPool.SPACE,linePart + StringPool.SPACE,true);
           }
         }
         String partAfterComma=line.substring(x + 1);
@@ -88,20 +88,29 @@
       }
     }
  else     if (!line.endsWith(StringPool.OPEN_PARENTHESIS) && !line.endsWith(StringPool.PLUS) && !line.endsWith(StringPool.PERIOD)&& (!line.startsWith("new ") || !line.endsWith(StringPool.OPEN_CURLY_BRACE))&& ((line.length() + previousLineLength) < 80)) {
-      return new String[]{previousLine + StringPool.SPACE + line,StringPool.BLANK};
+      return new Tuple(previousLine + StringPool.SPACE + line);
     }
   }
   if (!previousLine.endsWith(StringPool.OPEN_PARENTHESIS)) {
     return null;
   }
+  if (StringUtil.count(previousLine,StringPool.OPEN_PARENTHESIS) > 1) {
+    int pos=trimmedPreviousLine.lastIndexOf(StringPool.OPEN_PARENTHESIS,trimmedPreviousLine.length() - 2);
+    if ((pos > 0) && Character.isLetterOrDigit(trimmedPreviousLine.charAt(pos - 1))) {
+      String filePart=trimmedPreviousLine.substring(pos + 1);
+      if (!filePart.contains(StringPool.CLOSE_PARENTHESIS) && !filePart.contains(StringPool.QUOTE)) {
+        return new Tuple(previousLine,filePart,false);
+      }
+    }
+  }
   if ((line.length() + previousLineLength) > 80) {
     return null;
   }
   if (line.endsWith(StringPool.SEMICOLON)) {
-    return new String[]{previousLine + line};
+    return new Tuple(previousLine + line);
   }
   if ((line.endsWith(StringPool.OPEN_CURLY_BRACE) || line.endsWith(StringPool.CLOSE_PARENTHESIS)) && (trimmedPreviousLine.startsWith("else ") || trimmedPreviousLine.startsWith("if ") || trimmedPreviousLine.startsWith("private ")|| trimmedPreviousLine.startsWith("protected ")|| trimmedPreviousLine.startsWith("public "))) {
-    return new String[]{previousLine + line};
+    return new Tuple(previousLine + line);
   }
   return null;
 }
