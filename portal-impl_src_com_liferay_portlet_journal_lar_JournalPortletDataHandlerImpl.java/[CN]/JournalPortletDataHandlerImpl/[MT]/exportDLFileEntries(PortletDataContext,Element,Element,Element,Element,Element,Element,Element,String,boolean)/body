@@ -9,10 +9,15 @@
   StringBuilder sb=new StringBuilder(content);
   int beginPos=content.length();
   int currentLocation=-1;
+  boolean isLegacyURL=true;
   while (true) {
     currentLocation=content.lastIndexOf("/c/document_library/get_file?",beginPos);
     if (currentLocation == -1) {
+      currentLocation=content.lastIndexOf("/image/image_gallery?",beginPos);
+    }
+    if (currentLocation == -1) {
       currentLocation=content.lastIndexOf("/documents/",beginPos);
+      isLegacyURL=false;
     }
     if (currentLocation == -1) {
       return sb.toString();
@@ -39,7 +44,7 @@
     if ((endPos == -1) || ((endPos5 != -1) && (endPos5 < endPos))) {
       endPos=endPos5;
     }
-    if ((endPos == -1) || ((endPos6 != -1) && (endPos6 < endPos))) {
+    if ((endPos == -1) || ((endPos6 != -1) && (endPos6 < endPos) && !isLegacyURL)) {
       endPos=endPos6;
     }
     if ((endPos == -1) || ((endPos7 != -1) && (endPos7 < endPos))) {
@@ -95,7 +100,7 @@
         }
         fileEntry=DLAppLocalServiceUtil.getFileEntryByUuidAndGroupId(uuid,groupId);
       }
- else {
+ else       if (isLegacyURL) {
         String folderIdString=MapUtil.getString(map,"folderId");
         if (Validator.isNotNull(folderIdString)) {
           long folderId=GetterUtil.getLong(folderIdString);
@@ -105,7 +110,28 @@
           if (groupIdString.equals("@group_id@")) {
             groupId=portletDataContext.getScopeGroupId();
           }
-          fileEntry=DLAppLocalServiceUtil.getFileEntry(groupId,folderId,name);
+          DLFileEntry dlFileEntry=DLFileEntryLocalServiceUtil.getFileEntryByName(groupId,folderId,name);
+          if (dlFileEntry != null) {
+            fileEntry=DLAppLocalServiceUtil.getFileEntry(dlFileEntry.getFileEntryId());
+          }
+        }
+ else         if (map.containsKey("image_id") || map.containsKey("img_id") || map.containsKey("i_id")) {
+          long imageId=MapUtil.getLong(map,"image_id");
+          if (imageId <= 0) {
+            imageId=MapUtil.getLong(map,"img_id");
+            if (imageId <= 0) {
+              imageId=MapUtil.getLong(map,"i_id");
+            }
+          }
+          try {
+            DLFileEntry dlFileEntry=DLFileEntryLocalServiceUtil.fetchFileEntryByAnyImageId(imageId);
+            if (dlFileEntry != null) {
+              fileEntry=DLAppLocalServiceUtil.getFileEntry(dlFileEntry.getFileEntryId());
+            }
+          }
+ catch (          SystemException e) {
+            _log.error("Unable to find DLFileEntry by imageId: " + imageId);
+          }
         }
       }
       if (fileEntry == null) {
