@@ -13,17 +13,37 @@
     dlFileEntry.setManualCheckInRequired(false);
     dlFileEntryPersistence.update(dlFileEntry,false);
   }
+  DLFileVersion dlLastFileVersion=dlFileVersionLocalService.getFileVersion(dlFileEntry.getFileEntryId(),dlFileEntry.getVersion());
+  DLFileVersion dlLatestFileVersion=dlFileVersionLocalService.getLatestFileVersion(fileEntryId,false);
+  if (isKeepFileVersionLabel(dlFileEntry,dlLastFileVersion,dlLatestFileVersion,serviceContext.getWorkflowAction())) {
+    if (dlLastFileVersion.getSize() == dlLatestFileVersion.getSize()) {
+      removeFileVersion(dlFileEntry,dlLatestFileVersion);
+      return;
+    }
+    dlLastFileVersion.setSize(dlLatestFileVersion.getSize());
+    dlFileVersionPersistence.update(dlLastFileVersion,false);
+    if (dlFileEntry.getFolderId() != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+      dlFolderLocalService.updateLastPostDate(dlFileEntry.getFolderId(),dlFileEntry.getModifiedDate());
+    }
+    try {
+      DLStoreUtil.deleteFile(user.getCompanyId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),dlLastFileVersion.getVersion());
+    }
+ catch (    NoSuchModelException nsme) {
+    }
+    DLStoreUtil.copyFileVersion(user.getCompanyId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION,dlLastFileVersion.getVersion());
+    removeFileVersion(dlFileEntry,dlLatestFileVersion);
+    return;
+  }
   String version=getNextVersion(dlFileEntry,majorVersion,serviceContext.getWorkflowAction());
-  DLFileVersion dlFileVersion=dlFileVersionLocalService.getLatestFileVersion(fileEntryId,false);
-  dlFileVersion.setVersion(version);
-  dlFileVersion.setChangeLog(changeLog);
-  dlFileVersionPersistence.update(dlFileVersion,false);
+  dlLatestFileVersion.setVersion(version);
+  dlLatestFileVersion.setChangeLog(changeLog);
+  dlFileVersionPersistence.update(dlLatestFileVersion,false);
   if (dlFileEntry.getFolderId() != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
     dlFolderLocalService.updateLastPostDate(dlFileEntry.getFolderId(),dlFileEntry.getModifiedDate());
   }
   DLStoreUtil.updateFileVersion(user.getCompanyId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION,version);
   if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
-    startWorkflowInstance(userId,serviceContext,dlFileVersion,DLSyncConstants.EVENT_UPDATE);
+    startWorkflowInstance(userId,serviceContext,dlLatestFileVersion,DLSyncConstants.EVENT_UPDATE);
   }
   lockLocalService.unlock(DLFileEntry.class.getName(),fileEntryId);
 }

@@ -1,0 +1,65 @@
+{
+  if (workflowAction == WorkflowConstants.ACTION_SAVE_DRAFT) {
+    return false;
+  }
+  if (PropsValues.DL_FILE_ENTRY_VERSION_POLICY != 1) {
+    return false;
+  }
+  if ((dlLastFileVersion.getFolderId() == dlLatestFileVersion.getFolderId()) && dlLastFileVersion.getExtension().equals(dlLatestFileVersion.getExtension()) && dlLastFileVersion.getMimeType().equals(dlLatestFileVersion.getMimeType())&& dlLastFileVersion.getTitle().equals(dlLatestFileVersion.getTitle())&& dlLastFileVersion.getDescription().equals(dlLatestFileVersion.getDescription())&& (dlLastFileVersion.getFileEntryTypeId() == dlLatestFileVersion.getFileEntryTypeId())) {
+    ExpandoBridge lastFileVersionExpandoBridge=dlLastFileVersion.getExpandoBridge();
+    ExpandoBridge latestFileVersionExpandoBridge=dlLatestFileVersion.getExpandoBridge();
+    if (!lastFileVersionExpandoBridge.equals(latestFileVersionExpandoBridge)) {
+      return false;
+    }
+    List<DLFileEntryMetadata> lastFileVersionFileEntryMetadatas=dlFileEntryMetadataLocalService.getFileVersionFileEntryMetadatas(dlLastFileVersion.getFileVersionId());
+    List<DLFileEntryMetadata> latestFileVersionFileEntryMetadatas=dlFileEntryMetadataLocalService.getFileVersionFileEntryMetadatas(dlLatestFileVersion.getFileVersionId());
+    for (    DLFileEntryMetadata lastFileVersionFileEntryMetadata : lastFileVersionFileEntryMetadatas) {
+      Fields lastFileVersionFields=StorageEngineUtil.getFields(lastFileVersionFileEntryMetadata.getDDMStorageId());
+      boolean found=false;
+      for (      DLFileEntryMetadata latestFileVersionFileEntryMetadata : latestFileVersionFileEntryMetadatas) {
+        Fields latestFileVersionFields=StorageEngineUtil.getFields(latestFileVersionFileEntryMetadata.getDDMStorageId());
+        if (lastFileVersionFields.equals(latestFileVersionFields)) {
+          found=true;
+          break;
+        }
+      }
+      if (!found) {
+        return false;
+      }
+    }
+    long lastFileVersionSize=dlLastFileVersion.getSize();
+    long latestFileVersionSize=dlLatestFileVersion.getSize();
+    if ((lastFileVersionSize == 0) && ((latestFileVersionSize == 0) || (latestFileVersionSize > 0))) {
+      return true;
+    }
+    if (lastFileVersionSize != latestFileVersionSize) {
+      return false;
+    }
+    InputStream lastFileVersionStream=null;
+    InputStream latestFileVersionStream=null;
+    try {
+      String lastFileVersionChecksum=dlLastFileVersion.getChecksum();
+      String latestFileVersionChecksum=null;
+      if (Validator.isNull(lastFileVersionChecksum)) {
+        lastFileVersionStream=DLStoreUtil.getFileAsStream(dlFileEntry.getCompanyId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),dlLastFileVersion.getVersion());
+        lastFileVersionChecksum=getChecksum(lastFileVersionStream);
+        dlLastFileVersion.setChecksum(lastFileVersionChecksum);
+        dlFileVersionPersistence.update(dlLastFileVersion,false);
+      }
+      latestFileVersionStream=DLStoreUtil.getFileAsStream(dlFileEntry.getCompanyId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),dlLatestFileVersion.getVersion());
+      latestFileVersionChecksum=getChecksum(latestFileVersionStream);
+      if (lastFileVersionChecksum.equals(latestFileVersionChecksum)) {
+        return true;
+      }
+      dlLatestFileVersion.setChecksum(latestFileVersionChecksum);
+      dlFileVersionPersistence.update(dlLatestFileVersion,false);
+    }
+ catch (    Exception e) {
+    }
+ finally {
+      StreamUtil.cleanUp(lastFileVersionStream);
+      StreamUtil.cleanUp(latestFileVersionStream);
+    }
+  }
+  return false;
+}
