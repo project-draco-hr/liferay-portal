@@ -1,0 +1,39 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  parentFolderId=getParentFolderId(groupId,parentFolderId);
+  Date now=new Date();
+  validateFolder(groupId,parentFolderId,name);
+  long folderId=counterLocalService.increment();
+  DLFolder dlFolder=dlFolderPersistence.create(folderId);
+  dlFolder.setUuid(serviceContext.getUuid());
+  dlFolder.setGroupId(groupId);
+  dlFolder.setCompanyId(user.getCompanyId());
+  dlFolder.setUserId(user.getUserId());
+  dlFolder.setCreateDate(serviceContext.getCreateDate(now));
+  dlFolder.setModifiedDate(serviceContext.getModifiedDate(now));
+  dlFolder.setRepositoryId(repositoryId);
+  dlFolder.setMountPoint(mountPoint);
+  dlFolder.setParentFolderId(parentFolderId);
+  dlFolder.setName(name);
+  dlFolder.setDescription(description);
+  dlFolder.setHidden(hidden);
+  dlFolder.setOverrideFileEntryTypes(false);
+  dlFolder.setExpandoBridgeAttributes(serviceContext);
+  dlFolderPersistence.update(dlFolder,false);
+  if (serviceContext.isAddGroupPermissions() || serviceContext.isAddGuestPermissions()) {
+    addFolderResources(dlFolder,serviceContext.isAddGroupPermissions(),serviceContext.isAddGuestPermissions());
+  }
+ else {
+    if (serviceContext.isDeriveDefaultPermissions()) {
+      serviceContext.deriveDefaultPermissions(repositoryId,DLFolderConstants.getClassName());
+    }
+    addFolderResources(dlFolder,serviceContext.getGroupPermissions(),serviceContext.getGuestPermissions());
+  }
+  if (parentFolderId != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+    DLFolder parentDLFolder=dlFolderPersistence.findByPrimaryKey(parentFolderId);
+    parentDLFolder.setLastPostDate(now);
+    dlFolderPersistence.update(parentDLFolder,false);
+  }
+  dlAppHelperLocalService.addFolder(new LiferayFolder(dlFolder),serviceContext);
+  return dlFolder;
+}
