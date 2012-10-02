@@ -1,0 +1,51 @@
+{
+  String[] oldValues=jxPreferences.getValues(key,null);
+  if (oldValues == null) {
+    return;
+  }
+  Map<Long,Long> primaryKeysMap=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(clazz);
+  String[] newValues=new String[oldValues.length];
+  for (int i=0; i < oldValues.length; i++) {
+    String oldValue=oldValues[i];
+    String newValue=oldValue;
+    String[] uuids=StringUtil.split(oldValue);
+    for (    String uuid : uuids) {
+      Long newPrimaryKey=null;
+      if (Validator.isNumber(uuid)) {
+        long oldPrimaryKey=GetterUtil.getLong(uuid);
+        newPrimaryKey=MapUtil.getLong(primaryKeysMap,oldPrimaryKey,oldPrimaryKey);
+      }
+ else {
+        String className=clazz.getName();
+        if (className.equals(AssetVocabulary.class.getName())) {
+          AssetVocabulary vocabulary=AssetVocabularyUtil.fetchByUUID_G(uuid,portletDataContext.getScopeGroupId());
+          if (vocabulary == null) {
+            vocabulary=AssetVocabularyUtil.fetchByUUID_G(uuid,companyGroupId);
+          }
+          if (vocabulary != null) {
+            newPrimaryKey=vocabulary.getVocabularyId();
+          }
+        }
+      }
+      if (Validator.isNull(newPrimaryKey)) {
+        if (_log.isWarnEnabled()) {
+          StringBundler sb=new StringBundler(8);
+          sb.append("Unable to get primary key for ");
+          sb.append(clazz);
+          sb.append(" with UUID ");
+          sb.append(uuid);
+          sb.append(" in company group ");
+          sb.append(companyGroupId);
+          sb.append(" or in group ");
+          sb.append(portletDataContext.getScopeGroupId());
+          _log.warn(sb.toString());
+        }
+      }
+ else {
+        newValue=StringUtil.replace(newValue,uuid,newPrimaryKey.toString());
+      }
+    }
+    newValues[i]=newValue;
+  }
+  jxPreferences.setValues(key,newValues);
+}
