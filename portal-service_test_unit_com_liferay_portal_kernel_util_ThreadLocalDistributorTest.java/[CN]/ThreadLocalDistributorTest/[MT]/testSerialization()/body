@@ -1,0 +1,28 @@
+{
+  ThreadLocalDistributor threadLocalDistributor=new ThreadLocalDistributor();
+  threadLocalDistributor.setClassLoader(getClass().getClassLoader());
+  threadLocalDistributor.setThreadLocalSources(keyValuePairs);
+  threadLocalDistributor.afterPropertiesSet();
+  String testValue="testValue";
+  TestClass._threadLocal.set(testValue);
+  threadLocalDistributor.capture();
+  Serializable[] threadLocalValues=_getThreadLocalValues(threadLocalDistributor);
+  Assert.assertEquals(1,threadLocalValues.length);
+  Assert.assertSame(testValue,threadLocalValues[0]);
+  UnsyncByteArrayOutputStream unsyncByteArrayOutputStream=new UnsyncByteArrayOutputStream();
+  ObjectOutputStream objectOutputStream=new ObjectOutputStream(unsyncByteArrayOutputStream);
+  threadLocalDistributor.writeExternal(objectOutputStream);
+  objectOutputStream.close();
+  byte[] data=unsyncByteArrayOutputStream.toByteArray();
+  UnsyncByteArrayInputStream unsyncByteArrayInputStream=new UnsyncByteArrayInputStream(data);
+  ObjectInputStream objectInputStream=new ObjectInputStream(unsyncByteArrayInputStream);
+  Assert.assertEquals(0,objectInputStream.readInt());
+  Assert.assertArrayEquals(threadLocalValues,(Serializable[])objectInputStream.readObject());
+  TestClass._threadLocal.remove();
+  unsyncByteArrayInputStream=new UnsyncByteArrayInputStream(data);
+  objectInputStream=new ObjectInputStream(unsyncByteArrayInputStream);
+  ThreadLocalDistributor newThreadLocalDistributor=new ThreadLocalDistributor();
+  newThreadLocalDistributor.readExternal(objectInputStream);
+  newThreadLocalDistributor.restore();
+  Assert.assertEquals(testValue,TestClass._threadLocal.get());
+}
