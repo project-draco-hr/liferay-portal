@@ -13,37 +13,37 @@
     dlFileEntry.setManualCheckInRequired(false);
     dlFileEntryPersistence.update(dlFileEntry,false);
   }
-  DLFileVersion dlLastFileVersion=dlFileVersionLocalService.getFileVersion(dlFileEntry.getFileEntryId(),dlFileEntry.getVersion());
-  DLFileVersion dlLatestFileVersion=dlFileVersionLocalService.getLatestFileVersion(fileEntryId,false);
-  if (isKeepFileVersionLabel(dlFileEntry,dlLastFileVersion,dlLatestFileVersion,serviceContext.getWorkflowAction())) {
-    if (dlLastFileVersion.getSize() == dlLatestFileVersion.getSize()) {
-      removeFileVersion(dlFileEntry,dlLatestFileVersion);
+  DLFileVersion lastDLFileVersion=dlFileVersionLocalService.getFileVersion(dlFileEntry.getFileEntryId(),dlFileEntry.getVersion());
+  DLFileVersion latestDLFileVersion=dlFileVersionLocalService.getLatestFileVersion(fileEntryId,false);
+  if (isKeepFileVersionLabel(dlFileEntry,lastDLFileVersion,latestDLFileVersion,serviceContext.getWorkflowAction())) {
+    if (lastDLFileVersion.getSize() == latestDLFileVersion.getSize()) {
+      removeFileVersion(dlFileEntry,latestDLFileVersion);
       return;
     }
-    dlLastFileVersion.setSize(dlLatestFileVersion.getSize());
-    dlFileVersionPersistence.update(dlLastFileVersion,false);
+    lastDLFileVersion.setSize(latestDLFileVersion.getSize());
+    dlFileVersionPersistence.update(lastDLFileVersion,false);
     if (dlFileEntry.getFolderId() != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
       dlFolderLocalService.updateLastPostDate(dlFileEntry.getFolderId(),dlFileEntry.getModifiedDate());
     }
     try {
-      DLStoreUtil.deleteFile(user.getCompanyId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),dlLastFileVersion.getVersion());
+      DLStoreUtil.deleteFile(user.getCompanyId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),lastDLFileVersion.getVersion());
     }
  catch (    NoSuchModelException nsme) {
     }
-    DLStoreUtil.copyFileVersion(user.getCompanyId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION,dlLastFileVersion.getVersion());
-    removeFileVersion(dlFileEntry,dlLatestFileVersion);
+    DLStoreUtil.copyFileVersion(user.getCompanyId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION,lastDLFileVersion.getVersion());
+    removeFileVersion(dlFileEntry,latestDLFileVersion);
     return;
   }
   String version=getNextVersion(dlFileEntry,majorVersion,serviceContext.getWorkflowAction());
-  dlLatestFileVersion.setVersion(version);
-  dlLatestFileVersion.setChangeLog(changeLog);
-  dlFileVersionPersistence.update(dlLatestFileVersion,false);
+  latestDLFileVersion.setVersion(version);
+  latestDLFileVersion.setChangeLog(changeLog);
+  dlFileVersionPersistence.update(latestDLFileVersion,false);
   if (dlFileEntry.getFolderId() != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
     dlFolderLocalService.updateLastPostDate(dlFileEntry.getFolderId(),dlFileEntry.getModifiedDate());
   }
   DLStoreUtil.updateFileVersion(user.getCompanyId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION,version);
   if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_PUBLISH) {
-    startWorkflowInstance(userId,serviceContext,dlLatestFileVersion,DLSyncConstants.EVENT_UPDATE);
+    startWorkflowInstance(userId,serviceContext,latestDLFileVersion,DLSyncConstants.EVENT_UPDATE);
   }
   lockLocalService.unlock(DLFileEntry.class.getName(),fileEntryId);
 }
