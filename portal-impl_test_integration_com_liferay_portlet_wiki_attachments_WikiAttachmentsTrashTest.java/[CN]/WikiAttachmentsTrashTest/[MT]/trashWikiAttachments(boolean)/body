@@ -1,42 +1,29 @@
 {
-  ServiceContext serviceContext=new ServiceContext();
-  serviceContext.setScopeGroupId(_group.getGroupId());
-  WikiNode wikiNode=WikiNodeLocalServiceUtil.addNode(TestPropsValues.getUserId(),ServiceTestUtil.randomString(),"",serviceContext);
-  WikiPage wikiPage=WikiPageLocalServiceUtil.addPage(TestPropsValues.getUserId(),wikiNode.getNodeId(),ServiceTestUtil.randomString(),null,WikiPageConstants.NEW,true,serviceContext);
-  String[] attachmentsFiles=wikiPage.getAttachmentsFiles();
-  int initialNotInTrashCount=attachmentsFiles.length;
-  String[] deletedAttachmentsFiles=wikiPage.getDeletedAttachmentsFiles();
-  int initialTrashEntriesCount=deletedAttachmentsFiles.length;
+  int initialNotInTrashCount=_wikiPage.getAttachmentsFilesCount();
+  int initialTrashEntriesCount=_wikiPage.getDeletedAttachmentsFilesCount();
   Class<?> clazz=getClass();
   byte[] fileBytes=FileUtil.getBytes(clazz.getResourceAsStream("dependencies/OSX_Test.docx"));
   File file=null;
   if ((fileBytes != null) && (fileBytes.length > 0)) {
     file=FileUtil.createTempFile(fileBytes);
   }
-  WikiPageLocalServiceUtil.addPageAttachment(TestPropsValues.getUserId(),wikiNode.getNodeId(),wikiPage.getTitle(),ServiceTestUtil.randomString() + ".txt",file);
-  attachmentsFiles=wikiPage.getAttachmentsFiles();
-  Assert.assertEquals(initialNotInTrashCount + 1,attachmentsFiles.length);
-  deletedAttachmentsFiles=wikiPage.getDeletedAttachmentsFiles();
-  Assert.assertEquals(initialTrashEntriesCount,deletedAttachmentsFiles.length);
-  String fileName=attachmentsFiles[0];
-  WikiPageLocalServiceUtil.movePageAttachmentToTrash(wikiNode.getNodeId(),wikiPage.getTitle(),fileName);
-  attachmentsFiles=wikiPage.getAttachmentsFiles();
-  Assert.assertEquals(initialNotInTrashCount,attachmentsFiles.length);
-  deletedAttachmentsFiles=wikiPage.getDeletedAttachmentsFiles();
-  Assert.assertEquals(initialTrashEntriesCount + 1,deletedAttachmentsFiles.length);
-  fileName=deletedAttachmentsFiles[0];
+  String fileName=ServiceTestUtil.randomString() + ".txt";
+  WikiPageLocalServiceUtil.addPageAttachment(TestPropsValues.getUserId(),_wikiNode.getNodeId(),_wikiPage.getTitle(),fileName,file);
+  Assert.assertEquals(initialNotInTrashCount + 1,_wikiPage.getAttachmentsFilesCount());
+  Assert.assertEquals(initialTrashEntriesCount,_wikiPage.getDeletedAttachmentsFilesCount());
+  long fileEntryId=WikiPageLocalServiceUtil.movePageAttachmentToTrash(TestPropsValues.getUserId(),_wikiPage.getNodeId(),_wikiPage.getTitle(),fileName);
+  DLFileEntry dlFileEntry=PortletFileRepositoryUtil.getPortletFileEntry(fileEntryId);
+  Assert.assertEquals(initialNotInTrashCount,_wikiPage.getAttachmentsFilesCount());
+  Assert.assertEquals(initialTrashEntriesCount + 1,_wikiPage.getDeletedAttachmentsFilesCount());
   if (restore) {
-    WikiPageLocalServiceUtil.movePageAttachmentFromTrash(wikiNode.getNodeId(),wikiPage.getTitle(),fileName);
-    attachmentsFiles=wikiPage.getAttachmentsFiles();
-    Assert.assertEquals(initialNotInTrashCount + 1,attachmentsFiles.length);
-    deletedAttachmentsFiles=wikiPage.getDeletedAttachmentsFiles();
-    Assert.assertEquals(initialTrashEntriesCount,deletedAttachmentsFiles.length);
+    WikiPageLocalServiceUtil.restorePageAttachmentFromTrash(TestPropsValues.getUserId(),_wikiPage.getNodeId(),_wikiPage.getTitle(),dlFileEntry.getTitle());
+    Assert.assertEquals(initialNotInTrashCount + 1,_wikiPage.getAttachmentsFilesCount());
+    Assert.assertEquals(initialTrashEntriesCount,_wikiPage.getDeletedAttachmentsFilesCount());
+    WikiPageLocalServiceUtil.deletePageAttachment(_wikiPage.getNodeId(),_wikiPage.getTitle(),fileName);
   }
  else {
-    WikiPageLocalServiceUtil.deletePageAttachment(wikiNode.getNodeId(),wikiPage.getTitle(),fileName);
-    attachmentsFiles=wikiPage.getAttachmentsFiles();
-    Assert.assertEquals(initialNotInTrashCount,attachmentsFiles.length);
-    deletedAttachmentsFiles=wikiPage.getDeletedAttachmentsFiles();
-    Assert.assertEquals(initialTrashEntriesCount,deletedAttachmentsFiles.length);
+    WikiPageLocalServiceUtil.deletePageAttachment(_wikiPage.getNodeId(),_wikiPage.getTitle(),dlFileEntry.getTitle());
+    Assert.assertEquals(initialNotInTrashCount,_wikiPage.getAttachmentsFilesCount());
+    Assert.assertEquals(initialTrashEntriesCount,_wikiPage.getDeletedAttachmentsFilesCount());
   }
 }
