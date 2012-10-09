@@ -1,0 +1,24 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  Date now=new Date();
+  TrashEntry trashEntry=trashEntryLocalService.getEntry(MBThread.class.getName(),threadId);
+  MBThread thread=getThread(threadId);
+  if (thread.getCategoryId() == MBCategoryConstants.DISCUSSION_CATEGORY_ID) {
+    return;
+  }
+  thread.setStatus(trashEntry.getStatus());
+  thread.setStatusByUserId(user.getUserId());
+  thread.setStatusByUserName(user.getFullName());
+  thread.setStatusDate(now);
+  mbThreadPersistence.update(thread,false);
+  restoreThreadMessagesFromTrash(thread);
+  if (thread.getCategoryId() != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) {
+    MBCategory category=mbCategoryPersistence.findByPrimaryKey(thread.getCategoryId());
+    category.setThreadCount(category.getThreadCount() + 1);
+    category.setMessageCount(category.getMessageCount() + thread.getMessageCount());
+    mbCategoryPersistence.update(category,false);
+  }
+  mbStatsUserLocalService.updateStatsUser(thread.getGroupId(),userId);
+  trashEntryLocalService.deleteEntry(MBThread.class.getName(),threadId);
+  socialActivityLocalService.addActivity(userId,trashEntry.getGroupId(),MBThread.class.getName(),threadId,SocialActivityConstants.TYPE_RESTORE_FROM_TRASH,StringPool.BLANK,0);
+}

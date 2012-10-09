@@ -1,0 +1,19 @@
+{
+  Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(MBMessage.class);
+  List<MBMessage> messages=mbMessageLocalService.getThreadMessages(thread.getThreadId(),WorkflowConstants.STATUS_ANY);
+  for (  MBMessage message : messages) {
+    if (message.getStatus() == WorkflowConstants.STATUS_APPROVED) {
+      assetEntryLocalService.updateVisible(MBMessage.class.getName(),message.getMessageId(),false);
+    }
+    socialActivityCounterLocalService.disableActivityCounters(MBMessage.class.getName(),message.getMessageId());
+    if (!message.isDiscussion()) {
+      indexer.delete(message);
+    }
+    if (message.getStatus() == WorkflowConstants.STATUS_PENDING) {
+      message.setStatus(WorkflowConstants.STATUS_DRAFT);
+      mbMessagePersistence.update(message,false);
+      WorkflowInstanceLink workflowInstanceLink=workflowInstanceLinkLocalService.getWorkflowInstanceLink(message.getCompanyId(),message.getGroupId(),MBMessage.class.getName(),message.getMessageId());
+      workflowInstanceLinkLocalService.deleteWorkflowInstanceLink(workflowInstanceLink.getWorkflowInstanceLinkId());
+    }
+  }
+}
