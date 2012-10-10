@@ -1,0 +1,45 @@
+{
+  JDKLoggerTestUtil.configureJDKLogger(ClusterBase.class.getName(),Level.FINE);
+  ClusterExecutorImpl clusterExecutorImpl=null;
+  try {
+    com.liferay.portal.kernel.util.PropsUtil.setProps(new PropsImpl());
+    PortalUUIDUtil portalUUIDUtil=new PortalUUIDUtil();
+    portalUUIDUtil.setPortalUUID(new PortalUUIDImpl());
+    PortalUtil portalUtil=new PortalUtil();
+    portalUtil.setPortal(new PortalImpl());
+    PortalExecutorManagerUtil portalExecutorManagerUtil=new PortalExecutorManagerUtil();
+    portalExecutorManagerUtil.setPortalExecutorManager(new ClusterExecutorImplTest.MockPortalExecutorManager());
+    List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(ClusterExecutorImpl.class.getName(),Level.SEVERE);
+    clusterExecutorImpl=new ClusterExecutorImpl();
+    clusterExecutorImpl.initSystemProperties();
+    clusterExecutorImpl.initChannels();
+    clusterExecutorImpl.initialize();
+    assertLogger(logRecords,"Unable to determine local network address",Exception.class);
+    clusterExecutorImpl.initBindAddress();
+    clusterExecutorImpl.initialize();
+    assertLogger(logRecords,"Unable to send notify message",Exception.class);
+    clusterExecutorImpl.portalPortConfigured(80);
+    assertLogger(logRecords,"Unable to determine configure node port",Exception.class);
+    ClusterRequest clusterRequest=ClusterRequest.createMulticastRequest(null);
+    try {
+      clusterExecutorImpl.execute(clusterRequest);
+      Assert.fail();
+    }
+ catch (    Exception e) {
+      Assert.assertEquals("Unable to send multicast request",e.getMessage());
+    }
+    clusterRequest=ClusterRequest.createUnicastRequest(null,new AddressImpl(new MockAddress()));
+    try {
+      clusterExecutorImpl.execute(clusterRequest);
+      Assert.fail();
+    }
+ catch (    Exception e) {
+      Assert.assertEquals("Unable to send unicast request",e.getMessage());
+    }
+  }
+  finally {
+    if (clusterExecutorImpl != null) {
+      clusterExecutorImpl.destroy();
+    }
+  }
+}

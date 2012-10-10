@@ -1,0 +1,31 @@
+{
+  ClusterExecutorImpl clusterExecutorImpl=null;
+  try {
+    clusterExecutorImpl=getClusterExecutorImpl(true,false);
+    MockClusterRequestReceiver mockClusterRequestReceiver=(MockClusterRequestReceiver)clusterExecutorImpl.getControlChannel().getReceiver();
+    ClusterRequest localClusterRequest=mockClusterRequestReceiver.waitLocalRequestMessage();
+    Assert.assertEquals(ClusterMessageType.NOTIFY,localClusterRequest.getClusterMessageType());
+    Address destAddress=clusterExecutorImpl.getLocalClusterNodeAddress();
+    String timestamp=Long.toString(System.currentTimeMillis());
+    MethodHandler methodHandler=new MethodHandler(_TEST_METHOD_KEY_1,timestamp);
+    ClusterRequest clusterRequest=ClusterRequest.createUnicastRequest(methodHandler,destAddress);
+    clusterExecutorImpl.setShortcutLocalMethod(false);
+    FutureClusterResponses futureClusterResponses=clusterExecutorImpl.execute(clusterRequest);
+    localClusterRequest=mockClusterRequestReceiver.waitLocalRequestMessage();
+    Assert.assertEquals(ClusterMessageType.EXECUTE,localClusterRequest.getClusterMessageType());
+    assertFutureClusterResponsesWithoutException(futureClusterResponses.get(),clusterRequest.getUuid(),timestamp,destAddress);
+    timestamp=Long.toString(System.currentTimeMillis());
+    methodHandler=new MethodHandler(_TEST_METHOD_KEY_1,timestamp);
+    clusterRequest=ClusterRequest.createUnicastRequest(methodHandler,destAddress);
+    clusterExecutorImpl.setShortcutLocalMethod(true);
+    futureClusterResponses=clusterExecutorImpl.execute(clusterRequest);
+    localClusterRequest=mockClusterRequestReceiver.waitLocalRequestMessage();
+    Assert.assertNull(localClusterRequest);
+    assertFutureClusterResponsesWithoutException(futureClusterResponses.get(),clusterRequest.getUuid(),timestamp,destAddress);
+  }
+  finally {
+    if (clusterExecutorImpl != null) {
+      clusterExecutorImpl.destroy();
+    }
+  }
+}

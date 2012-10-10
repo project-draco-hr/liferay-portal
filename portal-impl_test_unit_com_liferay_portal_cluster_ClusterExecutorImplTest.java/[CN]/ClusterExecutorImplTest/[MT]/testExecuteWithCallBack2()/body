@@ -1,0 +1,22 @@
+{
+  ClusterExecutorImpl clusterExecutorImpl=null;
+  try {
+    clusterExecutorImpl=getClusterExecutorImpl(false,false);
+    ClusterRequest clusterRequest=ClusterRequest.createUnicastRequest(null,new AddressImpl(new MockAddress()));
+    MockClusterResponseCallback mockClusterResponseCallback=new MockClusterResponseCallback();
+    clusterExecutorImpl.execute(clusterRequest,mockClusterResponseCallback,1000,TimeUnit.MILLISECONDS);
+    TimeoutException timeoutException=mockClusterResponseCallback.waitTimeoutException();
+    Assert.assertNotNull(timeoutException);
+    clusterExecutorImpl.execute(clusterRequest,mockClusterResponseCallback);
+    Field field=ReflectionUtil.getDeclaredField(ClusterExecutorImpl.class,"_executorService");
+    ExecutorService executorService=(ExecutorService)field.get(clusterExecutorImpl);
+    executorService.shutdownNow();
+    InterruptedException interruptedException=mockClusterResponseCallback.waitInterruptedException();
+    Assert.assertNotNull(interruptedException);
+  }
+  finally {
+    if (clusterExecutorImpl != null) {
+      clusterExecutorImpl.destroy();
+    }
+  }
+}
