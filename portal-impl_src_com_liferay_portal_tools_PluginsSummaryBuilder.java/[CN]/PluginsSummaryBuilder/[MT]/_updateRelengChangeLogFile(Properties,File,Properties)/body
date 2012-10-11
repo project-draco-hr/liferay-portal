@@ -1,0 +1,64 @@
+{
+  StringBundler sb=new StringBundler();
+  int changeLogVersion=0;
+  int moduleIncrementalVersion=GetterUtil.getInteger(pluginPackageProperties.getProperty("module-incremental-version"));
+  if (!relengChangeLogFile.exists()) {
+    FileUtil.write(relengChangeLogFile,"HEAD=");
+  }
+  String relengChangeLogContent=FileUtil.read(relengChangeLogFile);
+  String[] relengChangeLogEntries=StringUtil.split(relengChangeLogContent,"\n");
+  for (int i=0; i < relengChangeLogEntries.length; i++) {
+    String relengChangeLogEntry=relengChangeLogEntries[i];
+    if (Validator.isNull(relengChangeLogEntry) || relengChangeLogEntry.startsWith("#")) {
+      continue;
+    }
+    String[] relengChangeLogEntryParts=StringUtil.split(relengChangeLogEntry,"=");
+    String range=relengChangeLogEntryParts[0];
+    if (range.equals("HEAD")) {
+      changeLogVersion++;
+      sb.append(_getChangeLogEntry(changeLogVersion,range,StringPool.BLANK));
+      continue;
+    }
+    File webInfDir=relengChangeLogFile.getParentFile();
+    File docrootDir=webInfDir.getParentFile();
+    File pluginDir=docrootDir.getParentFile();
+    Set<String> ticketIds=_extractTicketIds(pluginDir,range);
+    String[] dependentApps=StringUtil.split(relengProperties.getProperty("dependent-apps"));
+    for (    String dependentApp : dependentApps) {
+      dependentApp=dependentApp.trim();
+      String dependentAppDirName=null;
+      if (dependentApp.endsWith("-hook")) {
+        dependentAppDirName="hooks";
+      }
+ else       if (dependentApp.endsWith("-layouttpl")) {
+        dependentAppDirName="layouttpl";
+      }
+ else       if (dependentApp.endsWith("-portlet")) {
+        dependentAppDirName="portlets";
+      }
+ else       if (dependentApp.endsWith("-theme")) {
+        dependentAppDirName="themes";
+      }
+ else       if (dependentApp.endsWith("-web")) {
+        dependentAppDirName="webs";
+      }
+      File dependentAppDir=new File(_pluginsDir,dependentAppDirName + "/" + dependentApp);
+      if (!dependentAppDir.exists()) {
+        throw new RuntimeException(dependentAppDir + " does not exist");
+      }
+      ticketIds.addAll(_extractTicketIds(dependentAppDir,range));
+    }
+    String ticketIdsString=StringUtil.merge(ticketIds.toArray(new String[ticketIds.size()])," ");
+    changeLogVersion++;
+    sb.append(_getChangeLogEntry(changeLogVersion,range,ticketIdsString));
+  }
+  if (moduleIncrementalVersion != changeLogVersion) {
+    StringBundler msgSB=new StringBundler(4);
+    msgSB.append("liferay-plugin-package.properties and ");
+    msgSB.append("liferay-releng.changelog in ");
+    msgSB.append(relengChangeLogFile.getParent());
+    msgSB.append(" do not have the same incremental version");
+    throw new RuntimeException(msgSB.toString());
+  }
+  FileUtil.write(relengChangeLogFile,sb.toString());
+}
