@@ -1,0 +1,142 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  long classNameId=PortalUtil.getClassNameId(className);
+  validate(groupId,className,categoryIds,tagNames);
+  AssetEntry entry=assetEntryPersistence.fetchByC_C(classNameId,classPK);
+  boolean oldVisible=false;
+  if (entry != null) {
+    oldVisible=entry.isVisible();
+  }
+  if (modifiedDate == null) {
+    modifiedDate=new Date();
+  }
+  if (entry == null) {
+    long entryId=counterLocalService.increment();
+    entry=assetEntryPersistence.create(entryId);
+    entry.setCompanyId(user.getCompanyId());
+    entry.setUserId(user.getUserId());
+    entry.setUserName(user.getFullName());
+    if (createDate == null) {
+      createDate=new Date();
+    }
+    entry.setCreateDate(createDate);
+    entry.setModifiedDate(modifiedDate);
+    entry.setClassNameId(classNameId);
+    entry.setClassPK(classPK);
+    entry.setClassUuid(classUuid);
+    entry.setVisible(visible);
+    entry.setExpirationDate(expirationDate);
+    if (priority == null) {
+      entry.setPriority(0);
+    }
+    entry.setViewCount(0);
+  }
+  entry.setGroupId(groupId);
+  entry.setModifiedDate(modifiedDate);
+  entry.setClassTypeId(classTypeId);
+  entry.setVisible(visible);
+  entry.setStartDate(startDate);
+  entry.setEndDate(endDate);
+  entry.setExpirationDate(expirationDate);
+  entry.setMimeType(mimeType);
+  entry.setTitle(title);
+  entry.setDescription(description);
+  entry.setSummary(summary);
+  entry.setUrl(url);
+  entry.setLayoutUuid(layoutUuid);
+  entry.setHeight(height);
+  entry.setWidth(width);
+  if (priority != null) {
+    entry.setPriority(priority.intValue());
+  }
+  if (categoryIds != null) {
+    assetEntryPersistence.setAssetCategories(entry.getEntryId(),categoryIds);
+  }
+  if (tagNames != null) {
+    long parentGroupId=PortalUtil.getParentGroupId(groupId);
+    List<AssetTag> tags=new ArrayList<AssetTag>(tagNames.length);
+    for (    String tagName : tagNames) {
+      AssetTag tag=null;
+      try {
+        tag=assetTagLocalService.getTag(parentGroupId,tagName);
+      }
+ catch (      NoSuchTagException nste) {
+        ServiceContext serviceContext=new ServiceContext();
+        serviceContext.setAddGroupPermissions(true);
+        serviceContext.setAddGuestPermissions(true);
+        serviceContext.setScopeGroupId(parentGroupId);
+        tag=assetTagLocalService.addTag(user.getUserId(),tagName,PropsValues.ASSET_TAG_PROPERTIES_DEFAULT,serviceContext);
+      }
+      if (tag != null) {
+        tags.add(tag);
+      }
+    }
+    List<AssetTag> oldTags=assetEntryPersistence.getAssetTags(entry.getEntryId());
+    assetEntryPersistence.setAssetTags(entry.getEntryId(),tags);
+    if (entry.isVisible()) {
+      boolean isNew=entry.isNew();
+      assetEntryPersistence.updateImpl(entry,false);
+      if (isNew) {
+        for (        AssetTag tag : tags) {
+          assetTagLocalService.incrementAssetCount(tag.getTagId(),classNameId);
+        }
+      }
+ else {
+        for (        AssetTag oldTag : oldTags) {
+          if (!tags.contains(oldTag)) {
+            assetTagLocalService.decrementAssetCount(oldTag.getTagId(),classNameId);
+          }
+        }
+        for (        AssetTag tag : tags) {
+          if (!oldTags.contains(tag)) {
+            assetTagLocalService.incrementAssetCount(tag.getTagId(),classNameId);
+          }
+        }
+      }
+    }
+ else     if (oldVisible) {
+      for (      AssetTag oldTag : oldTags) {
+        assetTagLocalService.decrementAssetCount(oldTag.getTagId(),classNameId);
+      }
+    }
+  }
+  assetEntryPersistence.update(entry,false);
+  if (!sync) {
+    return entry;
+  }
+  if (className.equals(BlogsEntry.class.getName())) {
+    BlogsEntry blogsEntry=blogsEntryPersistence.findByPrimaryKey(classPK);
+    blogsEntry.setTitle(title);
+    blogsEntryPersistence.update(blogsEntry,false);
+  }
+ else   if (className.equals(BookmarksEntry.class.getName())) {
+    BookmarksEntry bookmarksEntry=bookmarksEntryPersistence.findByPrimaryKey(classPK);
+    bookmarksEntry.setName(title);
+    bookmarksEntry.setDescription(description);
+    bookmarksEntry.setUrl(url);
+    bookmarksEntryPersistence.update(bookmarksEntry,false);
+  }
+ else   if (className.equals(DLFileEntry.class.getName())) {
+    DLFileEntry dlFileEntry=dlFileEntryPersistence.findByPrimaryKey(classPK);
+    dlFileEntry.setTitle(title);
+    dlFileEntry.setDescription(description);
+    dlFileEntryPersistence.update(dlFileEntry,false);
+  }
+ else   if (className.equals(JournalArticle.class.getName())) {
+    JournalArticle journalArticle=journalArticlePersistence.findByPrimaryKey(classPK);
+    journalArticle.setTitle(title);
+    journalArticle.setDescription(description);
+    journalArticlePersistence.update(journalArticle,false);
+  }
+ else   if (className.equals(MBMessage.class.getName())) {
+    MBMessage mbMessage=mbMessagePersistence.findByPrimaryKey(classPK);
+    mbMessage.setSubject(title);
+    mbMessagePersistence.update(mbMessage,false);
+  }
+ else   if (className.equals(WikiPage.class.getName())) {
+    WikiPage wikiPage=wikiPagePersistence.findByPrimaryKey(classPK);
+    wikiPage.setTitle(title);
+    wikiPagePersistence.update(wikiPage,false);
+  }
+  return entry;
+}
