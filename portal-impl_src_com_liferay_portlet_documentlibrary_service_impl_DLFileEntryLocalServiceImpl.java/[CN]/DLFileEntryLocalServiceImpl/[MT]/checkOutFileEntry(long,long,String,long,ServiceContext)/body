@@ -9,12 +9,14 @@
   }
   User user=userPersistence.findByPrimaryKey(userId);
   serviceContext.setCompanyId(user.getCompanyId());
+  DLFileVersion dlFileVersion=dlFileVersionLocalService.getLatestFileVersion(fileEntryId,false);
+  long dlFileVersionId=dlFileVersion.getFileVersionId();
+  ExpandoBridge expandoBridge=ExpandoBridgeFactoryUtil.getExpandoBridge(serviceContext.getCompanyId(),DLFileEntry.class.getName(),dlFileVersionId);
+  serviceContext.setExpandoBridgeAttributes(expandoBridge.getAttributes());
   serviceContext.setUserId(userId);
   boolean manualCheckinRequired=GetterUtil.getBoolean(serviceContext.getAttribute(DLUtil.MANUAL_CHECK_IN_REQUIRED));
   dlFileEntry.setManualCheckInRequired(manualCheckinRequired);
   dlFileEntryPersistence.update(dlFileEntry,false);
-  DLFileVersion dlFileVersion=dlFileVersionLocalService.getLatestFileVersion(fileEntryId,false);
-  long dlFileVersionId=dlFileVersion.getFileVersionId();
   String version=dlFileVersion.getVersion();
   if (!version.equals(DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION)) {
     long existingDLFileVersionId=ParamUtil.getLong(serviceContext,"existingDLFileVersionId");
@@ -23,7 +25,9 @@
       dlFileVersion=updateFileVersion(user,existingDLFileVersion,null,existingDLFileVersion.getExtension(),existingDLFileVersion.getMimeType(),existingDLFileVersion.getTitle(),existingDLFileVersion.getDescription(),existingDLFileVersion.getChangeLog(),existingDLFileVersion.getExtraSettings(),existingDLFileVersion.getFileEntryTypeId(),null,DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION,existingDLFileVersion.getSize(),WorkflowConstants.STATUS_DRAFT,new Date(),serviceContext);
     }
  else {
+      long oldDLFileVersionId=dlFileVersion.getFileVersionId();
       dlFileVersion=addFileVersion(user,dlFileEntry,new Date(),dlFileVersion.getExtension(),dlFileVersion.getMimeType(),dlFileVersion.getTitle(),dlFileVersion.getDescription(),dlFileVersion.getChangeLog(),dlFileVersion.getExtraSettings(),dlFileVersion.getFileEntryTypeId(),null,DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION,dlFileVersion.getSize(),WorkflowConstants.STATUS_DRAFT,serviceContext);
+      copyExpandoRowModifiedDate(dlFileEntry.getCompanyId(),oldDLFileVersionId,dlFileVersion.getFileVersionId());
     }
     try {
       DLStoreUtil.deleteFile(dlFileEntry.getCompanyId(),dlFileEntry.getDataRepositoryId(),dlFileEntry.getName(),DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION);
