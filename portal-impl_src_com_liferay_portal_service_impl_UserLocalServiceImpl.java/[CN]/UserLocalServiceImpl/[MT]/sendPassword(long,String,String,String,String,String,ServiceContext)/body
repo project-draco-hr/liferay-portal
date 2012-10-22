@@ -13,7 +13,7 @@
   String passwordResetURL=StringPool.BLANK;
   if (company.isSendPasswordResetLink()) {
     Date expirationDate=null;
-    if (passwordPolicy.getResetTicketMaxAge() > 0) {
+    if ((passwordPolicy != null) && (passwordPolicy.getResetTicketMaxAge() > 0)) {
       expirationDate=new Date(System.currentTimeMillis() + (passwordPolicy.getResetTicketMaxAge() * 1000));
     }
     Ticket ticket=ticketLocalService.addTicket(companyId,User.class.getName(),user.getUserId(),TicketConstants.TYPE_PASSWORD,null,expirationDate,serviceContext);
@@ -21,7 +21,14 @@
   }
  else {
     if (!PwdEncryptor.PASSWORDS_ENCRYPTION_ALGORITHM.equals(PwdEncryptor.TYPE_NONE)) {
-      newPassword=PwdToolkitUtil.generate(passwordPolicy);
+      if (LDAPSettingsUtil.isPasswordPolicyEnabled(user.getCompanyId())) {
+        _log.warn("When LDAP password policy is enabled, it's possible " + "that portal generated passwords will not match " + "the LDAP policy! Using RegExpToolkit to "+ "generate new password.");
+        RegExpToolkit regExpToolkit=new RegExpToolkit();
+        newPassword=regExpToolkit.generate(null);
+      }
+ else {
+        newPassword=PwdToolkitUtil.generate(passwordPolicy);
+      }
       boolean passwordReset=false;
       if (passwordPolicy.getChangeable() && passwordPolicy.getChangeRequired()) {
         passwordReset=true;
