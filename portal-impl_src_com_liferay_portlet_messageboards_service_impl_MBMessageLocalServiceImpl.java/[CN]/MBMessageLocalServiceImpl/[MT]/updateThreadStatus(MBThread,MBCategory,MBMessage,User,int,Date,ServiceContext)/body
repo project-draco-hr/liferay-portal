@@ -1,0 +1,47 @@
+{
+  int status=message.getStatus();
+  if ((thread.getCategoryId() != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) && (thread.getCategoryId() != MBCategoryConstants.DISCUSSION_CATEGORY_ID)) {
+    category=mbCategoryPersistence.findByPrimaryKey(thread.getCategoryId());
+  }
+  if ((thread.getRootMessageId() == message.getMessageId()) && (oldStatus != status)) {
+    thread.setStatus(status);
+    thread.setStatusByUserId(user.getUserId());
+    thread.setStatusByUserName(user.getFullName());
+    thread.setStatusDate(serviceContext.getModifiedDate(now));
+  }
+  if (status == WorkflowConstants.STATUS_APPROVED) {
+    if (oldStatus != WorkflowConstants.STATUS_APPROVED) {
+      if ((category != null) && (thread.getRootMessageId() == message.getMessageId())) {
+        category.setThreadCount(category.getThreadCount() + 1);
+        mbCategoryPersistence.update(category);
+      }
+      thread.setMessageCount(thread.getMessageCount() + 1);
+      if (message.isAnonymous()) {
+        thread.setLastPostByUserId(0);
+      }
+ else {
+        thread.setLastPostByUserId(message.getUserId());
+      }
+      thread.setLastPostDate(serviceContext.getModifiedDate(now));
+      if (category != null) {
+        category.setMessageCount(category.getMessageCount() + 1);
+        category.setLastPostDate(serviceContext.getModifiedDate(now));
+        mbCategoryPersistence.update(category);
+      }
+    }
+  }
+ else   if ((oldStatus == WorkflowConstants.STATUS_APPROVED) && (status != WorkflowConstants.STATUS_APPROVED)) {
+    if ((category != null) && (thread.getRootMessageId() == message.getMessageId())) {
+      category.setThreadCount(category.getThreadCount() - 1);
+      mbCategoryPersistence.update(category);
+    }
+    thread.setMessageCount(thread.getMessageCount() - 1);
+    if (category != null) {
+      category.setMessageCount(category.getMessageCount() - 1);
+      mbCategoryPersistence.update(category);
+    }
+  }
+  if (status != oldStatus) {
+    mbThreadPersistence.update(thread);
+  }
+}

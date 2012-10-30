@@ -1,5 +1,6 @@
 {
   MBMessage message=mbMessagePersistence.findByPrimaryKey(messageId);
+  int oldStatus=message.getStatus();
   subject=ModelHintsUtil.trimString(MBMessage.class.getName(),"subject",subject);
   body=SanitizerUtil.sanitize(message.getCompanyId(),message.getGroupId(),userId,MBMessage.class.getName(),messageId,"text/" + message.getFormat(),body);
   Date now=new Date();
@@ -14,11 +15,20 @@
   if (priority != MBThreadConstants.PRIORITY_NOT_GIVEN) {
     message.setPriority(priority);
   }
+  MBThread thread=mbThreadPersistence.findByPrimaryKey(message.getThreadId());
   if (serviceContext.getWorkflowAction() == WorkflowConstants.ACTION_SAVE_DRAFT) {
     if (message.isDraft() || message.isPending()) {
     }
  else {
       message.setStatus(WorkflowConstants.STATUS_DRAFT);
+      MBCategory category=null;
+      User user=userPersistence.findByPrimaryKey(userId);
+      updateThreadStatus(thread,category,message,user,oldStatus,now,serviceContext);
+      assetEntryLocalService.updateVisible(message.getWorkflowClassName(),message.getMessageId(),false);
+      if (!message.isDiscussion()) {
+        Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(MBMessage.class);
+        indexer.delete(message);
+      }
     }
   }
   long companyId=message.getCompanyId();
@@ -66,7 +76,6 @@
     }
   }
   mbMessagePersistence.update(message);
-  MBThread thread=mbThreadPersistence.findByPrimaryKey(message.getThreadId());
   if ((priority != MBThreadConstants.PRIORITY_NOT_GIVEN) && (thread.getPriority() != priority)) {
     thread.setPriority(priority);
     mbThreadPersistence.update(thread);
