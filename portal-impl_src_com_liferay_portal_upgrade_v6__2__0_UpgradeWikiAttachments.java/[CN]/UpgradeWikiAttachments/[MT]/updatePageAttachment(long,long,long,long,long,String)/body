@@ -1,0 +1,47 @@
+{
+  String dirName="wiki/" + resourcePrimKey;
+  String[] attachments=null;
+  try {
+    attachments=DLStoreUtil.getFileNames(companyId,CompanyConstants.SYSTEM,dirName);
+  }
+ catch (  NoSuchDirectoryException nsde) {
+  }
+  if ((attachments == null) || (attachments.length == 0)) {
+    return;
+  }
+  Date date=new Date();
+  Timestamp createDate=new Timestamp(date.getTime());
+  long classNameId=PortalUtil.getClassNameId(LiferayRepository.class.getName());
+  String portletId=PortletKeys.WIKI;
+  long repositoryId=getRepository(groupId,companyId,userId,userName,createDate,classNameId,portletId,portletId);
+  long repositoryFolderId=getFolder(groupId,companyId,userId,userName,createDate,repositoryId,DLFolderConstants.DEFAULT_PARENT_FOLDER_ID,portletId,false);
+  long nodeFolderId=getFolder(groupId,companyId,userId,userName,createDate,repositoryId,repositoryFolderId,String.valueOf(nodeId),false);
+  long pageFolderId=getFolder(groupId,companyId,userId,userName,createDate,repositoryId,nodeFolderId,String.valueOf(resourcePrimKey),false);
+  for (  String attachment : attachments) {
+    String name=String.valueOf(increment(DLFileEntry.class.getName()));
+    String title=FileUtil.getShortFileName(attachment);
+    long size=DLStoreUtil.getFileSize(companyId,CompanyConstants.SYSTEM,attachment);
+    String extension=FileUtil.getExtension(title);
+    String mimeType=MimeTypesUtil.getContentType(extension);
+    long fileEntryId=addDLFileEntry(groupId,companyId,userId,userName,createDate,repositoryId,pageFolderId,name,extension,mimeType,title,size);
+    addDLFileVersion(increment(),groupId,companyId,userId,userName,createDate,repositoryId,pageFolderId,fileEntryId,extension,mimeType,title,size);
+    byte[] bytes=DLStoreUtil.getFileAsBytes(companyId,CompanyConstants.SYSTEM,attachment);
+    DLStoreUtil.addFile(companyId,pageFolderId,name,false,bytes);
+    try {
+      DLStoreUtil.deleteFile(companyId,CompanyConstants.SYSTEM,attachment);
+    }
+ catch (    Exception e) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Can't not delete the attachment " + attachment,e);
+      }
+    }
+  }
+  try {
+    DLStoreUtil.deleteDirectory(companyId,CompanyConstants.SYSTEM,dirName);
+  }
+ catch (  Exception e) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Can't delete the directory " + dirName,e);
+    }
+  }
+}
