@@ -1,24 +1,16 @@
 {
-  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(User.class,PACLClassLoaderUtil.getPortalClassLoader());
-  Projection minUserIdProjection=ProjectionFactoryUtil.min("userId");
-  Projection maxUserIdProjection=ProjectionFactoryUtil.max("userId");
-  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
-  projectionList.add(minUserIdProjection);
-  projectionList.add(maxUserIdProjection);
-  dynamicQuery.setProjection(projectionList);
-  addReindexCriteria(dynamicQuery,companyId);
-  List<Object[]> results=UserLocalServiceUtil.dynamicQuery(dynamicQuery);
-  Object[] minAndMaxUserIds=results.get(0);
-  if ((minAndMaxUserIds[0] == null) || (minAndMaxUserIds[1] == null)) {
-    return;
+  final Collection<Document> documents=new ArrayList<Document>();
+  ActionableDynamicQuery actionableDynamicQuery=new UserActionableDynamicQuery(){
+    @Override protected void performAction(    Object object) throws PortalException {
+      User user=(User)object;
+      if (!user.isDefaultUser()) {
+        Document document=getDocument(user);
+        documents.add(document);
+      }
+    }
   }
-  long minUserId=(Long)minAndMaxUserIds[0];
-  long maxUserId=(Long)minAndMaxUserIds[1];
-  long startUserId=minUserId;
-  long endUserId=startUserId + DEFAULT_INTERVAL;
-  while (startUserId <= maxUserId) {
-    reindexUsers(companyId,startUserId,endUserId);
-    startUserId=endUserId;
-    endUserId+=DEFAULT_INTERVAL;
-  }
+;
+  actionableDynamicQuery.setCompanyId(companyId);
+  actionableDynamicQuery.performActions();
+  SearchEngineUtil.updateDocuments(getSearchEngineId(),companyId,documents);
 }
