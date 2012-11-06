@@ -1,24 +1,35 @@
 {
-  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(JournalArticle.class,PACLClassLoaderUtil.getPortalClassLoader());
-  Projection minIdProjection=ProjectionFactoryUtil.min("id");
-  Projection maxIdProjection=ProjectionFactoryUtil.max("id");
-  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
-  projectionList.add(minIdProjection);
-  projectionList.add(maxIdProjection);
-  dynamicQuery.setProjection(projectionList);
-  addReindexCriteria(dynamicQuery,companyId,WorkflowConstants.STATUS_APPROVED);
-  List<Object[]> results=JournalArticleLocalServiceUtil.dynamicQuery(dynamicQuery);
-  Object[] minAndMaxIds=results.get(0);
-  if ((minAndMaxIds[0] == null) || (minAndMaxIds[1] == null)) {
-    return;
+  final Collection<Document> documents=new ArrayList<Document>();
+  ActionableDynamicQuery actionableDynamicQuery=new JournalArticleActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      Junction junction=RestrictionsFactoryUtil.disjunction();
+      Junction approvedArticlesJunction=RestrictionsFactoryUtil.conjunction();
+      Property statusProperty=PropertyFactoryUtil.forName("status");
+      approvedArticlesJunction.add(statusProperty.eq(WorkflowConstants.STATUS_APPROVED));
+      junction.add(approvedArticlesJunction);
+      Junction draftArticlesJunction=RestrictionsFactoryUtil.conjunction();
+      Property versionProperty=PropertyFactoryUtil.forName("version");
+      draftArticlesJunction.add(versionProperty.eq(JournalArticleConstants.VERSION_DEFAULT));
+      draftArticlesJunction.add(statusProperty.eq(WorkflowConstants.STATUS_DRAFT));
+      junction.add(draftArticlesJunction);
+      dynamicQuery.add(junction);
+      Property indexableProperty=PropertyFactoryUtil.forName("indexable");
+      dynamicQuery.add(indexableProperty.eq(true));
+    }
+    @Override protected void performAction(    Object object) throws PortalException, SystemException {
+      JournalArticle article=(JournalArticle)object;
+      if (article.isApproved()) {
+        JournalArticle latestArticle=JournalArticleLocalServiceUtil.getLatestArticle(article.getResourcePrimKey(),WorkflowConstants.STATUS_APPROVED);
+        if (!latestArticle.isIndexable()) {
+          return;
+        }
+      }
+      Document document=getDocument(article);
+      documents.add(document);
+    }
   }
-  long minId=(Long)minAndMaxIds[0];
-  long maxId=(Long)minAndMaxIds[1];
-  long startId=minId;
-  long endId=startId + DEFAULT_INTERVAL;
-  while (startId <= maxId) {
-    reindexArticles(companyId,startId,endId);
-    startId=endId;
-    endId+=DEFAULT_INTERVAL;
-  }
+;
+  actionableDynamicQuery.setCompanyId(companyId);
+  actionableDynamicQuery.performActions();
+  SearchEngineUtil.updateDocuments(getSearchEngineId(),companyId,documents);
 }

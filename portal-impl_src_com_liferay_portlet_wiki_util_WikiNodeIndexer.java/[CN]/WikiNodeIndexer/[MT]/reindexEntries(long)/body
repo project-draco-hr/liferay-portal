@@ -1,24 +1,18 @@
 {
-  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(WikiNode.class,PACLClassLoaderUtil.getPortalClassLoader());
-  Projection minEntryIdProjection=ProjectionFactoryUtil.min("nodeId");
-  Projection maxEntryIdProjection=ProjectionFactoryUtil.max("nodeId");
-  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
-  projectionList.add(minEntryIdProjection);
-  projectionList.add(maxEntryIdProjection);
-  dynamicQuery.setProjection(projectionList);
-  addReindexCriteria(dynamicQuery,companyId);
-  List<Object[]> results=WikiNodeLocalServiceUtil.dynamicQuery(dynamicQuery);
-  Object[] minAndMaxNodeIds=results.get(0);
-  if ((minAndMaxNodeIds[0] == null) || (minAndMaxNodeIds[1] == null)) {
-    return;
+  final Collection<Document> documents=new ArrayList<Document>();
+  ActionableDynamicQuery actionableDynamicQuery=new WikiNodeActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      Property property=PropertyFactoryUtil.forName("status");
+      dynamicQuery.add(property.eq(WorkflowConstants.STATUS_IN_TRASH));
+    }
+    @Override protected void performAction(    Object object) throws PortalException {
+      WikiNode node=(WikiNode)object;
+      Document document=getDocument(node);
+      documents.add(document);
+    }
   }
-  long minNodeId=(Long)minAndMaxNodeIds[0];
-  long maxNodeId=(Long)minAndMaxNodeIds[1];
-  long startNodeId=minNodeId;
-  long endNodeId=startNodeId + DEFAULT_INTERVAL;
-  while (startNodeId <= maxNodeId) {
-    reindexEntries(companyId,startNodeId,endNodeId);
-    startNodeId=endNodeId;
-    endNodeId+=DEFAULT_INTERVAL;
-  }
+;
+  actionableDynamicQuery.setCompanyId(companyId);
+  actionableDynamicQuery.performActions();
+  SearchEngineUtil.updateDocuments(getSearchEngineId(),companyId,documents);
 }

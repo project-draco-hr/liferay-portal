@@ -1,24 +1,11 @@
 {
-  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(WikiNode.class,PACLClassLoaderUtil.getPortalClassLoader());
-  Projection minNodeIdProjection=ProjectionFactoryUtil.min("nodeId");
-  Projection maxNodeIdProjection=ProjectionFactoryUtil.max("nodeId");
-  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
-  projectionList.add(minNodeIdProjection);
-  projectionList.add(maxNodeIdProjection);
-  dynamicQuery.setProjection(projectionList);
-  addReindexCriteria(dynamicQuery,companyId);
-  List<Object[]> results=WikiNodeLocalServiceUtil.dynamicQuery(dynamicQuery);
-  Object[] minAndMaxNodeIds=results.get(0);
-  if ((minAndMaxNodeIds[0] == null) || (minAndMaxNodeIds[1] == null)) {
-    return;
+  ActionableDynamicQuery actionableDynamicQuery=new WikiNodeActionableDynamicQuery(){
+    @Override protected void performAction(    Object object) throws PortalException, SystemException {
+      WikiNode node=(WikiNode)object;
+      reindexPages(companyId,node.getGroupId(),node.getNodeId());
+    }
   }
-  long minNodeId=(Long)minAndMaxNodeIds[0];
-  long maxNodeId=(Long)minAndMaxNodeIds[1];
-  long startNodeId=minNodeId;
-  long endNodeId=startNodeId + DEFAULT_INTERVAL;
-  while (startNodeId <= maxNodeId) {
-    reindexNodes(companyId,startNodeId,endNodeId);
-    startNodeId=endNodeId;
-    endNodeId+=DEFAULT_INTERVAL;
-  }
+;
+  actionableDynamicQuery.setCompanyId(companyId);
+  actionableDynamicQuery.performActions();
 }

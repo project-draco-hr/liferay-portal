@@ -1,25 +1,21 @@
 {
-  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(DLFileEntry.class,PACLClassLoaderUtil.getPortalClassLoader());
-  Projection minFileEntryIdProjection=ProjectionFactoryUtil.min("fileEntryId");
-  Projection maxFileEntryIdProjection=ProjectionFactoryUtil.max("fileEntryId");
-  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
-  projectionList.add(minFileEntryIdProjection);
-  projectionList.add(maxFileEntryIdProjection);
-  dynamicQuery.setProjection(projectionList);
-  long folderId=DLFolderConstants.getFolderId(groupId,dataRepositoryId);
-  addReindexCriteria(dynamicQuery,groupId,folderId);
-  List<Object[]> results=DLFileEntryLocalServiceUtil.dynamicQuery(dynamicQuery);
-  Object[] minAndMaxFileEntryIds=results.get(0);
-  if ((minAndMaxFileEntryIds[0] == null) || (minAndMaxFileEntryIds[1] == null)) {
-    return;
+  final Collection<Document> documents=new ArrayList<Document>();
+  ActionableDynamicQuery actionableDynamicQuery=new DLFileEntryActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      Property property=PropertyFactoryUtil.forName("folderId");
+      long folderId=DLFolderConstants.getFolderId(groupId,dataRepositoryId);
+      dynamicQuery.add(property.eq(folderId));
+    }
+    @Override protected void performAction(    Object object) throws PortalException {
+      DLFileEntry dlFileEntry=(DLFileEntry)object;
+      Document document=getDocument(dlFileEntry);
+      if (document != null) {
+        documents.add(document);
+      }
+    }
   }
-  long minFileEntryId=(Long)minAndMaxFileEntryIds[0];
-  long maxFileEntryId=(Long)minAndMaxFileEntryIds[1];
-  long startFileEntryId=minFileEntryId;
-  long endFileEntryId=startFileEntryId + DEFAULT_INTERVAL;
-  while (startFileEntryId <= maxFileEntryId) {
-    reindexFileEntries(companyId,groupId,folderId,startFileEntryId,endFileEntryId);
-    startFileEntryId=endFileEntryId;
-    endFileEntryId+=DEFAULT_INTERVAL;
-  }
+;
+  actionableDynamicQuery.setGroupId(groupId);
+  actionableDynamicQuery.performActions();
+  SearchEngineUtil.updateDocuments(getSearchEngineId(),companyId,documents);
 }

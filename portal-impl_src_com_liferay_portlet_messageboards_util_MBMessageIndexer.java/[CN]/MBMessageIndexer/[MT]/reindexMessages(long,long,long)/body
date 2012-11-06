@@ -1,24 +1,20 @@
 {
-  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(MBMessage.class,PACLClassLoaderUtil.getPortalClassLoader());
-  Projection minMessageIdProjection=ProjectionFactoryUtil.min("messageId");
-  Projection maxMessageIdProjection=ProjectionFactoryUtil.max("messageId");
-  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
-  projectionList.add(minMessageIdProjection);
-  projectionList.add(maxMessageIdProjection);
-  dynamicQuery.setProjection(projectionList);
-  addReindexCriteria(dynamicQuery,groupId,categoryId);
-  List<Object[]> results=MBMessageLocalServiceUtil.dynamicQuery(dynamicQuery);
-  Object[] minAndMaxMessageIds=results.get(0);
-  if ((minAndMaxMessageIds[0] == null) || (minAndMaxMessageIds[1] == null)) {
-    return;
+  final Collection<Document> documents=new ArrayList<Document>();
+  ActionableDynamicQuery actionableDynamicQuery=new MBMessageActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      Property categoryIdProperty=PropertyFactoryUtil.forName("categoryId");
+      dynamicQuery.add(categoryIdProperty.eq(categoryId));
+      Property statusProperty=PropertyFactoryUtil.forName("status");
+      dynamicQuery.add(statusProperty.eq(WorkflowConstants.STATUS_APPROVED));
+    }
+    @Override protected void performAction(    Object object) throws PortalException {
+      MBMessage message=(MBMessage)object;
+      Document document=getDocument(message);
+      documents.add(document);
+    }
   }
-  long minMessageId=(Long)minAndMaxMessageIds[0];
-  long maxMessageId=(Long)minAndMaxMessageIds[1];
-  long startMessageId=minMessageId;
-  long endMessageId=startMessageId + DEFAULT_INTERVAL;
-  while (startMessageId <= maxMessageId) {
-    reindexMessages(companyId,groupId,categoryId,startMessageId,endMessageId);
-    startMessageId=endMessageId;
-    endMessageId+=DEFAULT_INTERVAL;
-  }
+;
+  actionableDynamicQuery.setGroupId(groupId);
+  actionableDynamicQuery.performActions();
+  SearchEngineUtil.updateDocuments(getSearchEngineId(),companyId,documents);
 }

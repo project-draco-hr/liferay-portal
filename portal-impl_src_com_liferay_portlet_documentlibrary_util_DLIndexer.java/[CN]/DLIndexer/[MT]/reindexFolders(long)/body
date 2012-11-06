@@ -1,24 +1,15 @@
 {
-  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(DLFolder.class,PACLClassLoaderUtil.getPortalClassLoader());
-  Projection minFolderIdProjection=ProjectionFactoryUtil.min("folderId");
-  Projection maxFolderIdProjection=ProjectionFactoryUtil.max("folderId");
-  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
-  projectionList.add(minFolderIdProjection);
-  projectionList.add(maxFolderIdProjection);
-  dynamicQuery.setProjection(projectionList);
-  addReindexCriteria(dynamicQuery,companyId);
-  List<Object[]> results=BookmarksFolderLocalServiceUtil.dynamicQuery(dynamicQuery);
-  Object[] minAndMaxFolderIds=results.get(0);
-  if ((minAndMaxFolderIds[0] == null) || (minAndMaxFolderIds[1] == null)) {
-    return;
+  ActionableDynamicQuery actionableDynamicQuery=new DLFolderActionableDynamicQuery(){
+    @Override protected void performAction(    Object object) throws PortalException {
+      DLFolder dlFolder=(DLFolder)object;
+      String portletId=PortletKeys.DOCUMENT_LIBRARY;
+      long groupId=dlFolder.getGroupId();
+      long folderId=dlFolder.getFolderId();
+      String[] newIds={String.valueOf(companyId),portletId,String.valueOf(groupId),String.valueOf(folderId)};
+      reindex(newIds);
+    }
   }
-  long minFolderId=(Long)minAndMaxFolderIds[0];
-  long maxFolderId=(Long)minAndMaxFolderIds[1];
-  long startFolderId=minFolderId;
-  long endFolderId=startFolderId + DEFAULT_INTERVAL;
-  while (startFolderId <= maxFolderId) {
-    reindexFolders(companyId,startFolderId,endFolderId);
-    startFolderId=endFolderId;
-    endFolderId+=DEFAULT_INTERVAL;
-  }
+;
+  actionableDynamicQuery.setCompanyId(companyId);
+  actionableDynamicQuery.performActions();
 }
