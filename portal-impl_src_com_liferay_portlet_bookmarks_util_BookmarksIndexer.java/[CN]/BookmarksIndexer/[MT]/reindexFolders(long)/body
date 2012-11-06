@@ -1,24 +1,17 @@
 {
-  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(BookmarksFolder.class,PACLClassLoaderUtil.getPortalClassLoader());
-  Projection minFolderIdProjection=ProjectionFactoryUtil.min("folderId");
-  Projection maxFolderIdProjection=ProjectionFactoryUtil.max("folderId");
-  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
-  projectionList.add(minFolderIdProjection);
-  projectionList.add(maxFolderIdProjection);
-  dynamicQuery.setProjection(projectionList);
-  addReindexCriteria(dynamicQuery,companyId);
-  List<Object[]> results=BookmarksFolderLocalServiceUtil.dynamicQuery(dynamicQuery);
-  Object[] minAndMaxFolderIds=results.get(0);
-  if ((minAndMaxFolderIds[0] == null) || (minAndMaxFolderIds[1] == null)) {
-    return;
+  ActionableDynamicQuery actionableDynamicQuery=new BaseActionableDynamicQuery(){
+    @Override protected void performAction(    Object object) throws PortalException, SystemException {
+      BookmarksFolder folder=(BookmarksFolder)object;
+      long groupId=folder.getGroupId();
+      long folderId=folder.getFolderId();
+      reindexEntries(companyId,groupId,folderId);
+    }
   }
-  long minFolderId=(Long)minAndMaxFolderIds[0];
-  long maxFolderId=(Long)minAndMaxFolderIds[1];
-  long startFolderId=minFolderId;
-  long endFolderId=startFolderId + DEFAULT_INTERVAL;
-  while (startFolderId <= maxFolderId) {
-    reindexFolders(companyId,startFolderId,endFolderId);
-    startFolderId=endFolderId;
-    endFolderId+=DEFAULT_INTERVAL;
-  }
+;
+  actionableDynamicQuery.setBaseLocalService(BookmarksFolderLocalServiceUtil.getService());
+  actionableDynamicQuery.setClass(BookmarksFolder.class);
+  actionableDynamicQuery.setClassLoader(PACLClassLoaderUtil.getPortalClassLoader());
+  actionableDynamicQuery.setCompanyId(companyId);
+  actionableDynamicQuery.setPrimaryKeyPropertyName("folderId");
+  actionableDynamicQuery.performActions();
 }

@@ -1,24 +1,22 @@
 {
-  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(BookmarksEntry.class,PACLClassLoaderUtil.getPortalClassLoader());
-  Projection minEntryIdProjection=ProjectionFactoryUtil.min("entryId");
-  Projection maxEntryIdProjection=ProjectionFactoryUtil.max("entryId");
-  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
-  projectionList.add(minEntryIdProjection);
-  projectionList.add(maxEntryIdProjection);
-  dynamicQuery.setProjection(projectionList);
-  addReindexCriteria(dynamicQuery,groupId,folderId);
-  List<Object[]> results=BookmarksEntryLocalServiceUtil.dynamicQuery(dynamicQuery);
-  Object[] minAndMaxEntryIds=results.get(0);
-  if ((minAndMaxEntryIds[0] == null) || (minAndMaxEntryIds[1] == null)) {
-    return;
+  final Collection<Document> documents=new ArrayList<Document>();
+  ActionableDynamicQuery actionableDynamicQuery=new BaseActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      Property property=PropertyFactoryUtil.forName("folderId");
+      dynamicQuery.add(property.eq(folderId));
+    }
+    @Override protected void performAction(    Object object) throws PortalException {
+      BookmarksEntry entry=(BookmarksEntry)object;
+      Document document=getDocument(entry);
+      documents.add(document);
+    }
   }
-  long minEntryId=(Long)minAndMaxEntryIds[0];
-  long maxEntryId=(Long)minAndMaxEntryIds[1];
-  long startEntryId=minEntryId;
-  long endEntryId=startEntryId + DEFAULT_INTERVAL;
-  while (startEntryId <= maxEntryId) {
-    reindexEntries(companyId,groupId,folderId,startEntryId,endEntryId);
-    startEntryId=endEntryId;
-    endEntryId+=DEFAULT_INTERVAL;
-  }
+;
+  actionableDynamicQuery.setBaseLocalService(BookmarksEntryLocalServiceUtil.getService());
+  actionableDynamicQuery.setClass(BookmarksEntry.class);
+  actionableDynamicQuery.setClassLoader(PACLClassLoaderUtil.getPortalClassLoader());
+  actionableDynamicQuery.setGroupId(groupId);
+  actionableDynamicQuery.setPrimaryKeyPropertyName("entryId");
+  actionableDynamicQuery.performActions();
+  SearchEngineUtil.updateDocuments(getSearchEngineId(),companyId,documents);
 }
