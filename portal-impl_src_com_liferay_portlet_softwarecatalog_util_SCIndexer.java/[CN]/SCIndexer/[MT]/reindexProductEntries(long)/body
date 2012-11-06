@@ -1,24 +1,18 @@
 {
-  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(SCProductEntry.class,PACLClassLoaderUtil.getPortalClassLoader());
-  Projection minProductEntryIdProjection=ProjectionFactoryUtil.min("productEntryId");
-  Projection maxProductEntryIdProjection=ProjectionFactoryUtil.max("productEntryId");
-  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
-  projectionList.add(minProductEntryIdProjection);
-  projectionList.add(maxProductEntryIdProjection);
-  dynamicQuery.setProjection(projectionList);
-  addReindexCriteria(dynamicQuery,companyId);
-  List<Object[]> results=SCProductEntryLocalServiceUtil.dynamicQuery(dynamicQuery);
-  Object[] minAndMaxProductEntryIds=results.get(0);
-  if ((minAndMaxProductEntryIds[0] == null) || (minAndMaxProductEntryIds[1] == null)) {
-    return;
+  final Collection<Document> documents=new ArrayList<Document>();
+  ActionableDynamicQuery actionableDynamicQuery=new BaseActionableDynamicQuery(){
+    @Override protected void performAction(    Object object) throws PortalException {
+      SCProductEntry productEntry=(SCProductEntry)object;
+      Document document=getDocument(productEntry);
+      documents.add(document);
+    }
   }
-  long minProductEntryId=(Long)minAndMaxProductEntryIds[0];
-  long maxProductEntryId=(Long)minAndMaxProductEntryIds[1];
-  long startProductEntryId=minProductEntryId;
-  long endProductEntryId=startProductEntryId + DEFAULT_INTERVAL;
-  while (startProductEntryId <= maxProductEntryId) {
-    reindexProductEntries(companyId,startProductEntryId,endProductEntryId);
-    startProductEntryId=endProductEntryId;
-    endProductEntryId+=DEFAULT_INTERVAL;
-  }
+;
+  actionableDynamicQuery.setBaseLocalService(SCProductEntryLocalServiceUtil.getService());
+  actionableDynamicQuery.setClass(SCProductEntry.class);
+  actionableDynamicQuery.setClassLoader(PACLClassLoaderUtil.getPortalClassLoader());
+  actionableDynamicQuery.setCompanyId(companyId);
+  actionableDynamicQuery.setPrimaryKeyPropertyName("productEntryId");
+  actionableDynamicQuery.performActions();
+  SearchEngineUtil.updateDocuments(getSearchEngineId(),companyId,documents);
 }

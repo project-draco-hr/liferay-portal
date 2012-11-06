@@ -1,24 +1,25 @@
 {
-  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(BlogsEntry.class,PACLClassLoaderUtil.getPortalClassLoader());
-  Projection minEntryIdProjection=ProjectionFactoryUtil.min("entryId");
-  Projection maxEntryIdProjection=ProjectionFactoryUtil.max("entryId");
-  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
-  projectionList.add(minEntryIdProjection);
-  projectionList.add(maxEntryIdProjection);
-  dynamicQuery.setProjection(projectionList);
-  addReindexCriteria(dynamicQuery,companyId);
-  List<Object[]> results=BlogsEntryLocalServiceUtil.dynamicQuery(dynamicQuery);
-  Object[] minAndMaxEntryIds=results.get(0);
-  if ((minAndMaxEntryIds[0] == null) || (minAndMaxEntryIds[1] == null)) {
-    return;
+  final Collection<Document> documents=new ArrayList<Document>();
+  ActionableDynamicQuery actionableDynamicQuery=new BaseActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      Property displayDateProperty=PropertyFactoryUtil.forName("displayDate");
+      dynamicQuery.add(displayDateProperty.lt(new Date()));
+      Property statusProperty=PropertyFactoryUtil.forName("status");
+      Integer[] statuses={WorkflowConstants.STATUS_APPROVED,WorkflowConstants.STATUS_IN_TRASH};
+      dynamicQuery.add(statusProperty.in(statuses));
+    }
+    @Override protected void performAction(    Object object) throws PortalException {
+      BlogsEntry entry=(BlogsEntry)object;
+      Document document=getDocument(entry);
+      documents.add(document);
+    }
   }
-  long minEntryId=(Long)minAndMaxEntryIds[0];
-  long maxEntryId=(Long)minAndMaxEntryIds[1];
-  long startEntryId=minEntryId;
-  long endEntryId=startEntryId + DEFAULT_INTERVAL;
-  while (startEntryId <= maxEntryId) {
-    reindexEntries(companyId,startEntryId,endEntryId);
-    startEntryId=endEntryId;
-    endEntryId+=DEFAULT_INTERVAL;
-  }
+;
+  actionableDynamicQuery.setBaseLocalService(BlogsEntryLocalServiceUtil.getService());
+  actionableDynamicQuery.setClass(BlogsEntry.class);
+  actionableDynamicQuery.setClassLoader(PACLClassLoaderUtil.getPortalClassLoader());
+  actionableDynamicQuery.setCompanyId(companyId);
+  actionableDynamicQuery.setPrimaryKeyPropertyName("entryId");
+  actionableDynamicQuery.performActions();
+  SearchEngineUtil.updateDocuments(getSearchEngineId(),companyId,documents);
 }

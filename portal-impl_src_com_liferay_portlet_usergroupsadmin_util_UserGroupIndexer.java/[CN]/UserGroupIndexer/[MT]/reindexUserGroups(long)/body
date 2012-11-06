@@ -1,24 +1,18 @@
 {
-  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(UserGroup.class,PACLClassLoaderUtil.getPortalClassLoader());
-  Projection minUserGroupIdProjection=ProjectionFactoryUtil.min("userGroupId");
-  Projection maxUserGroupIdProjection=ProjectionFactoryUtil.max("userGroupId");
-  ProjectionList projectionList=ProjectionFactoryUtil.projectionList();
-  projectionList.add(minUserGroupIdProjection);
-  projectionList.add(maxUserGroupIdProjection);
-  dynamicQuery.setProjection(projectionList);
-  addReindexCriteria(dynamicQuery,companyId);
-  List<Object[]> results=UserGroupLocalServiceUtil.dynamicQuery(dynamicQuery);
-  Object[] minAndMaxUserGroupIds=results.get(0);
-  if ((minAndMaxUserGroupIds[0] == null) || (minAndMaxUserGroupIds[1] == null)) {
-    return;
+  final Collection<Document> documents=new ArrayList<Document>();
+  ActionableDynamicQuery actionableDynamicQuery=new BaseActionableDynamicQuery(){
+    @Override protected void performAction(    Object object) throws PortalException {
+      UserGroup userGroup=(UserGroup)object;
+      Document document=getDocument(userGroup);
+      documents.add(document);
+    }
   }
-  long minUserGroupId=(Long)minAndMaxUserGroupIds[0];
-  long maxUserGroupId=(Long)minAndMaxUserGroupIds[1];
-  long startUserGroupId=minUserGroupId;
-  long endUserGroupId=startUserGroupId + DEFAULT_INTERVAL;
-  while (startUserGroupId <= maxUserGroupId) {
-    reindexUserGroups(companyId,startUserGroupId,endUserGroupId);
-    startUserGroupId=endUserGroupId;
-    endUserGroupId+=DEFAULT_INTERVAL;
-  }
+;
+  actionableDynamicQuery.setBaseLocalService(UserGroupLocalServiceUtil.getService());
+  actionableDynamicQuery.setClass(UserGroup.class);
+  actionableDynamicQuery.setClassLoader(PACLClassLoaderUtil.getPortalClassLoader());
+  actionableDynamicQuery.setCompanyId(companyId);
+  actionableDynamicQuery.setPrimaryKeyPropertyName("userGroupId");
+  actionableDynamicQuery.performActions();
+  SearchEngineUtil.updateDocuments(getSearchEngineId(),companyId,documents);
 }
