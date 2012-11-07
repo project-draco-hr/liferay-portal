@@ -1,0 +1,42 @@
+{
+  HttpServletRequest request=(HttpServletRequest)pageContext.getRequest();
+  String portletId=PortalUtil.getPortletId(request);
+  String portletNamespace=PortalUtil.getPortletNamespace(portletId);
+  Map<String,Object> freeMarkerContext=getFreeMarkerContext(fieldElement,locale);
+  freeMarkerContext.put("portletNamespace",portletNamespace);
+  freeMarkerContext.put("namespace",namespace);
+  if (fields != null) {
+    freeMarkerContext.put("fields",fields);
+  }
+  Map<String,Object> field=(Map<String,Object>)freeMarkerContext.get("fieldStructure");
+  String childrenHTML=getHTML(pageContext,fieldElement,fields,namespace,mode,readOnly,locale);
+  field.put("children",childrenHTML);
+  String fieldNamespace=fieldElement.attributeValue("fieldNamespace",_DEFAULT_NAMESPACE);
+  TemplateResource templateResource=_defaultTemplateResource;
+  boolean fieldReadOnly=GetterUtil.getBoolean(field.get("readOnly"));
+  if ((fieldReadOnly && Validator.isNotNull(mode) && mode.equalsIgnoreCase(DDMTemplateConstants.TEMPLATE_MODE_EDIT)) || readOnly) {
+    fieldNamespace=_DEFAULT_READ_ONLY_NAMESPACE;
+    templateResource=_defaultReadOnlyTemplateResource;
+  }
+  String type=fieldElement.attributeValue("type");
+  String templateName=StringUtil.replaceFirst(type,fieldNamespace.concat(StringPool.DASH),StringPool.BLANK);
+  StringBundler resourcePath=new StringBundler(5);
+  resourcePath.append(_TPL_PATH);
+  resourcePath.append(fieldNamespace.toLowerCase());
+  resourcePath.append(CharPool.SLASH);
+  resourcePath.append(templateName);
+  resourcePath.append(_TPL_EXT);
+  String resource=resourcePath.toString();
+  URL url=getResource(resource);
+  if (url != null) {
+    templateResource=new URLTemplateResource(resource,url);
+  }
+  if (templateResource == null) {
+    throw new Exception("Unable to load template resource " + resource);
+  }
+  Template template=TemplateManagerUtil.getTemplate(TemplateManager.FREEMARKER,templateResource,TemplateContextType.STANDARD);
+  for (  Map.Entry<String,Object> entry : freeMarkerContext.entrySet()) {
+    template.put(entry.getKey(),entry.getValue());
+  }
+  return processFTL(pageContext,template);
+}
