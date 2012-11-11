@@ -3,9 +3,16 @@
   Connection con=null;
   PreparedStatement ps=null;
   ResultSet rs=null;
+  String currentShard=ShardUtil.getCurrentShardName();
+  ShardDataSourceTargetSource shardDataSourceTargetSource=(ShardDataSourceTargetSource)InfrastructureUtil.getShardDataSourceTargetSource();
+  shardDataSourceTargetSource.setDataSource(PropsValues.SHARD_DEFAULT_NAME);
+  ShardSessionFactoryTargetSource shardSessionFactoryTargetSource=(ShardSessionFactoryTargetSource)InfrastructureUtil.getShardSessionFactoryTargetSource();
+  shardSessionFactoryTargetSource.setSessionFactory(PropsValues.SHARD_DEFAULT_NAME);
+  ShardUtil.pushCompanyService(PropsValues.SHARD_DEFAULT_NAME);
   try {
     con=DataAccess.getConnection();
     ps=con.prepareStatement(_GET_COMPANY_IDS);
+    ps.setString(1,currentShard);
     rs=ps.executeQuery();
     while (rs.next()) {
       long companyId=rs.getLong("companyId");
@@ -14,6 +21,9 @@
   }
   finally {
     DataAccess.cleanUp(con,ps,rs);
+    ShardUtil.popCompanyService();
+    shardSessionFactoryTargetSource.setSessionFactory(currentShard);
+    shardDataSourceTargetSource.setDataSource(currentShard);
   }
   return ArrayUtil.toArray(companyIds.toArray(new Long[companyIds.size()]));
 }
