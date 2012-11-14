@@ -6,13 +6,20 @@
   Session session=null;
   try {
     session=openSession();
-    String sql=null;
+    StringBundler sb=new StringBundler();
+    boolean doUnion=Validator.isNotNull(params.get("groupOrganization"));
+    if (doUnion) {
+      sb.append("(");
+      sb.append(CustomSQLUtil.get(COUNT_BY_GROUP_ID));
+      sb.append(") UNION ALL (");
+    }
     if (Validator.isNotNull(type)) {
-      sql=CustomSQLUtil.get(COUNT_BY_C_PO_N_L_S_C_Z_R_C);
+      sb.append(CustomSQLUtil.get(COUNT_BY_C_PO_N_L_S_C_Z_R_C));
     }
  else {
-      sql=CustomSQLUtil.get(COUNT_BY_C_PO_N_S_C_Z_R_C);
+      sb.append(CustomSQLUtil.get(COUNT_BY_C_PO_N_S_C_Z_R_C));
     }
+    String sql=sb.toString();
     sql=CustomSQLUtil.replaceKeywords(sql,"lower(Organization_.name)",StringPool.LIKE,false,names);
     sql=CustomSQLUtil.replaceKeywords(sql,"lower(Address.street1)",StringPool.LIKE,true,streets);
     sql=CustomSQLUtil.replaceKeywords(sql,"lower(Address.street2)",StringPool.LIKE,true,streets);
@@ -29,6 +36,9 @@
     sql=StringUtil.replace(sql,"[$WHERE$]",getWhere(params));
     sql=StringUtil.replace(sql,"[$PARENT_ORGANIZATION_ID_COMPARATOR$]",parentOrganizationIdComparator.equals(StringPool.EQUAL) ? StringPool.EQUAL : StringPool.NOT_EQUAL);
     sql=CustomSQLUtil.replaceAndOperator(sql,andOperator);
+    if (doUnion) {
+      sql=sql.concat(StringPool.CLOSE_PARENTHESIS);
+    }
     SQLQuery q=session.createSQLQuery(sql);
     q.addScalar(COUNT_COLUMN_NAME,Type.LONG);
     QueryPos qPos=QueryPos.getInstance(q);
@@ -50,14 +60,15 @@
     }
     qPos.add(cities,2);
     qPos.add(zips,2);
+    int count=0;
     Iterator<Long> itr=q.iterate();
-    if (itr.hasNext()) {
-      Long count=itr.next();
-      if (count != null) {
-        return count.intValue();
+    while (itr.hasNext()) {
+      Long l=itr.next();
+      if (l != null) {
+        count+=l.intValue();
       }
     }
-    return 0;
+    return count;
   }
  catch (  Exception e) {
     throw new SystemException(e);
