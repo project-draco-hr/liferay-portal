@@ -28,48 +28,26 @@
       }
     }
   }
-  long companyId=message.getCompanyId();
-  long repositoryId=CompanyConstants.SYSTEM;
-  String dirName=message.getAttachmentsDir();
   if (!inputStreamOVPs.isEmpty() || !existingFiles.isEmpty()) {
-    try {
-      DLStoreUtil.addDirectory(companyId,repositoryId,dirName);
-    }
- catch (    DuplicateDirectoryException dde) {
-    }
-    String[] fileNames=DLStoreUtil.getFileNames(companyId,repositoryId,dirName);
-    for (    String fileName : fileNames) {
-      if (!existingFiles.contains(fileName)) {
+    List<FileEntry> dlFileEntries=message.getAttachmentsFileEntries();
+    for (    FileEntry fileEntry : dlFileEntries) {
+      if (!existingFiles.contains(fileEntry.getTitle())) {
         if (!TrashUtil.isTrashEnabled(message.getGroupId())) {
-          deleteMessageAttachment(messageId,fileName);
+          deleteMessageAttachment(messageId,fileEntry.getTitle());
         }
  else {
-          moveMessageAttachmentToTrash(messageId,fileName);
+          moveMessageAttachmentToTrash(userId,messageId,fileEntry.getTitle());
         }
       }
     }
-    for (int i=0; i < inputStreamOVPs.size(); i++) {
-      ObjectValuePair<String,InputStream> inputStreamOVP=inputStreamOVPs.get(i);
-      String fileName=inputStreamOVP.getKey();
-      InputStream inputStream=inputStreamOVP.getValue();
-      try {
-        DLStoreUtil.addFile(companyId,repositoryId,dirName + "/" + fileName,inputStream);
-      }
- catch (      DuplicateFileException dfe) {
-      }
-    }
+    PortletFileRepositoryUtil.addPortletFileEntries(message.getGroupId(),userId,PortletKeys.MESSAGE_BOARDS,message.getAttachmentsFolderId(),inputStreamOVPs);
   }
  else {
-    try {
-      if (TrashUtil.isTrashEnabled(message.getGroupId())) {
-        String[] fileNames=DLStoreUtil.getFileNames(companyId,repositoryId,dirName);
-        for (        String fileName : fileNames) {
-          moveMessageAttachmentToTrash(messageId,fileName);
-        }
+    if (TrashUtil.isTrashEnabled(message.getGroupId())) {
+      List<FileEntry> fileEntries=message.getAttachmentsFileEntries();
+      for (      FileEntry fileEntry : fileEntries) {
+        moveMessageAttachmentToTrash(userId,messageId,fileEntry.getTitle());
       }
-      DLStoreUtil.deleteDirectory(companyId,repositoryId,dirName);
-    }
- catch (    NoSuchDirectoryException nsde) {
     }
   }
   mbMessagePersistence.update(message);
@@ -81,6 +59,6 @@
   updateAsset(userId,message,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames(),serviceContext.getAssetLinkEntryIds());
   ExpandoBridge expandoBridge=message.getExpandoBridge();
   expandoBridge.setAttributes(serviceContext);
-  WorkflowHandlerRegistryUtil.startWorkflowInstance(companyId,message.getGroupId(),userId,message.getWorkflowClassName(),message.getMessageId(),message,serviceContext);
+  WorkflowHandlerRegistryUtil.startWorkflowInstance(message.getCompanyId(),message.getGroupId(),userId,message.getWorkflowClassName(),message.getMessageId(),message,serviceContext);
   return message;
 }
