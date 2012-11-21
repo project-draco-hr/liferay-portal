@@ -2,36 +2,29 @@
   User user=TestPropsValues.getUser();
   ServiceContext serviceContext=new ServiceContext();
   serviceContext.setScopeGroupId(_group.getGroupId());
-  MBMessage message=MBMessageLocalServiceUtil.addMessage(user.getUserId(),user.getFullName(),_group.getGroupId(),MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID,"Subject","Body",MBMessageConstants.DEFAULT_FORMAT,getInputStreamOVPs("company_logo.png"),false,0,false,serviceContext);
-  String[] attachmentsFiles=message.getAttachmentsFiles();
-  int initialNotInTrashCount=attachmentsFiles.length;
-  String[] deletedAttachmentsFiles=message.getDeletedAttachmentsFiles();
-  int initialTrashEntriesCount=deletedAttachmentsFiles.length;
-  String[] existingAttachments=DLStoreUtil.getFileNames(message.getCompanyId(),CompanyConstants.SYSTEM,message.getAttachmentsDir());
+  int initialNotInTrashCount=_message.getAttachmentsFileEntriesCount();
+  int initialTrashEntriesCount=_message.getDeletedAttachmentsFileEntriesCount();
+  List<FileEntry> fileEntries=_message.getAttachmentsFileEntries();
   List<String> existingFiles=new ArrayList<String>();
-  for (int i=0; i < existingAttachments.length; i++) {
-    existingFiles.add(existingAttachments[i]);
+  for (  FileEntry fileEntry : fileEntries) {
+    existingFiles.add(fileEntry.getTitle());
   }
-  message=MBMessageLocalServiceUtil.updateMessage(user.getUserId(),message.getMessageId(),"Subject","Body",getInputStreamOVPs("OSX_Test.docx"),existingFiles,0,false,serviceContext);
-  attachmentsFiles=message.getAttachmentsFiles();
-  Assert.assertEquals(initialNotInTrashCount + 1,attachmentsFiles.length);
-  deletedAttachmentsFiles=message.getDeletedAttachmentsFiles();
-  Assert.assertEquals(initialTrashEntriesCount,deletedAttachmentsFiles.length);
-  String fileName=attachmentsFiles[0];
-  MBMessageLocalServiceUtil.moveMessageAttachmentToTrash(message.getMessageId(),fileName);
-  attachmentsFiles=message.getAttachmentsFiles();
-  Assert.assertEquals(initialNotInTrashCount,attachmentsFiles.length);
-  deletedAttachmentsFiles=message.getDeletedAttachmentsFiles();
-  Assert.assertEquals(initialTrashEntriesCount + 1,deletedAttachmentsFiles.length);
-  fileName=deletedAttachmentsFiles[0];
+  _message=MBMessageLocalServiceUtil.updateMessage(user.getUserId(),_message.getMessageId(),"Subject","Body",getInputStreamOVPs("OSX_Test.docx"),existingFiles,0,false,serviceContext);
+  Assert.assertEquals(initialNotInTrashCount + 1,_message.getAttachmentsFileEntriesCount());
+  Assert.assertEquals(initialTrashEntriesCount,_message.getDeletedAttachmentsFileEntriesCount());
+  FileEntry attachmentFileEntry=fileEntries.get(0);
+  MBMessageLocalServiceUtil.moveMessageAttachmentToTrash(user.getUserId(),_message.getMessageId(),attachmentFileEntry.getTitle());
+  Assert.assertEquals(initialNotInTrashCount,_message.getAttachmentsFileEntriesCount());
+  Assert.assertEquals(initialTrashEntriesCount + 1,_message.getDeletedAttachmentsFileEntriesCount());
+  List<FileEntry> deletedAttachmentsFileEntries=_message.getDeletedAttachmentsFileEntries(0,1);
+  FileEntry deleteAttachmentFileEntry=deletedAttachmentsFileEntries.get(0);
+  DLFileEntry dlFileEntry=(DLFileEntry)deleteAttachmentFileEntry.getModel();
   if (restore) {
-    MBMessageLocalServiceUtil.moveMessageAttachmentFromTrash(message.getMessageId(),fileName);
-    attachmentsFiles=message.getAttachmentsFiles();
-    Assert.assertEquals(initialNotInTrashCount + 1,attachmentsFiles.length);
-    deletedAttachmentsFiles=message.getDeletedAttachmentsFiles();
-    Assert.assertEquals(initialTrashEntriesCount,deletedAttachmentsFiles.length);
+    MBMessageLocalServiceUtil.restoreMessageAttachmentFromTrash(user.getUserId(),_message.getMessageId(),dlFileEntry.getTitle());
+    Assert.assertEquals(initialNotInTrashCount + 1,_message.getAttachmentsFileEntriesCount());
+    Assert.assertEquals(initialTrashEntriesCount,_message.getDeletedAttachmentsFileEntriesCount());
   }
  else {
-    MBMessageLocalServiceUtil.deleteMessageAttachment(message.getMessageId(),fileName);
+    MBMessageLocalServiceUtil.deleteMessageAttachment(_message.getMessageId(),dlFileEntry.getTitle());
   }
 }
