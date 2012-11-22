@@ -14,7 +14,6 @@
     StringBundler query=new StringBundler(3);
     query.append(_SQL_SELECT_MBTHREAD_WHERE);
     query.append(_FINDER_COLUMN_ROOTMESSAGEID_ROOTMESSAGEID_2);
-    query.append(MBThreadModelImpl.ORDER_BY_JPQL);
     String sql=query.toString();
     Session session=null;
     try {
@@ -23,36 +22,33 @@
       QueryPos qPos=QueryPos.getInstance(q);
       qPos.add(rootMessageId);
       List<MBThread> list=q.list();
-      result=list;
-      MBThread mbThread=null;
       if (list.isEmpty()) {
         FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_ROOTMESSAGEID,finderArgs,list);
       }
  else {
-        mbThread=list.get(0);
+        if ((list.size() > 1) && _log.isWarnEnabled()) {
+          _log.warn("MBThreadPersistenceImpl.fetchByRootMessageId(long, boolean) with parameters (" + StringUtil.merge(finderArgs) + ") yields a result set with more than 1 result. This violates the logical unique restriction. There is no order guarantee on which result is returned by this finder.");
+        }
+        MBThread mbThread=list.get(0);
+        result=mbThread;
         cacheResult(mbThread);
         if ((mbThread.getRootMessageId() != rootMessageId)) {
           FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_ROOTMESSAGEID,finderArgs,mbThread);
         }
       }
-      return mbThread;
     }
  catch (    Exception e) {
+      FinderCacheUtil.removeResult(FINDER_PATH_FETCH_BY_ROOTMESSAGEID,finderArgs);
       throw processException(e);
     }
  finally {
-      if (result == null) {
-        FinderCacheUtil.removeResult(FINDER_PATH_FETCH_BY_ROOTMESSAGEID,finderArgs);
-      }
       closeSession(session);
     }
   }
+  if (result instanceof List<?>) {
+    return null;
+  }
  else {
-    if (result instanceof List<?>) {
-      return null;
-    }
- else {
-      return (MBThread)result;
-    }
+    return (MBThread)result;
   }
 }

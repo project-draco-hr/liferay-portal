@@ -11,7 +11,7 @@
     }
   }
   if (result == null) {
-    StringBundler query=new StringBundler(2);
+    StringBundler query=new StringBundler(3);
     query.append(_SQL_SELECT_COMPANY_WHERE);
     query.append(_FINDER_COLUMN_LOGOID_LOGOID_2);
     String sql=query.toString();
@@ -22,36 +22,33 @@
       QueryPos qPos=QueryPos.getInstance(q);
       qPos.add(logoId);
       List<Company> list=q.list();
-      result=list;
-      Company company=null;
       if (list.isEmpty()) {
         FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_LOGOID,finderArgs,list);
       }
  else {
-        company=list.get(0);
+        if ((list.size() > 1) && _log.isWarnEnabled()) {
+          _log.warn("CompanyPersistenceImpl.fetchByLogoId(long, boolean) with parameters (" + StringUtil.merge(finderArgs) + ") yields a result set with more than 1 result. This violates the logical unique restriction. There is no order guarantee on which result is returned by this finder.");
+        }
+        Company company=list.get(0);
+        result=company;
         cacheResult(company);
         if ((company.getLogoId() != logoId)) {
           FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_LOGOID,finderArgs,company);
         }
       }
-      return company;
     }
  catch (    Exception e) {
+      FinderCacheUtil.removeResult(FINDER_PATH_FETCH_BY_LOGOID,finderArgs);
       throw processException(e);
     }
  finally {
-      if (result == null) {
-        FinderCacheUtil.removeResult(FINDER_PATH_FETCH_BY_LOGOID,finderArgs);
-      }
       closeSession(session);
     }
   }
+  if (result instanceof List<?>) {
+    return null;
+  }
  else {
-    if (result instanceof List<?>) {
-      return null;
-    }
- else {
-      return (Company)result;
-    }
+    return (Company)result;
   }
 }
