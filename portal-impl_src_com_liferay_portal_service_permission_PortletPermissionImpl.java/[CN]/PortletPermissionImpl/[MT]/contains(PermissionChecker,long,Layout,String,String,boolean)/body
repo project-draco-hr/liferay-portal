@@ -1,4 +1,30 @@
 {
-  Portlet portlet=PortletLocalServiceUtil.getPortletById(portletId);
-  return contains(permissionChecker,groupId,layout,portlet,actionId,strict);
+  String name=null;
+  String primKey=null;
+  if (layout == null) {
+    name=portletId;
+    primKey=portletId;
+    return permissionChecker.hasPermission(groupId,name,primKey,actionId);
+  }
+  Group group=layout.getGroup();
+  groupId=group.getGroupId();
+  name=PortletConstants.getRootPortletId(portletId);
+  primKey=getPrimaryKey(layout.getPlid(),portletId);
+  if (!actionId.equals(ActionKeys.VIEW) && (layout instanceof VirtualLayout)) {
+    return hasCustomizePermission(permissionChecker,layout,portletId,actionId);
+  }
+  if (!group.isLayoutSetPrototype() && !SitesUtil.isLayoutUpdateable(layout) && actionId.equals(ActionKeys.CONFIGURATION)) {
+    return false;
+  }
+  Boolean hasPermission=StagingPermissionUtil.hasPermission(permissionChecker,groupId,name,groupId,name,actionId);
+  if (hasPermission != null) {
+    return hasPermission.booleanValue();
+  }
+  if (strict) {
+    return permissionChecker.hasPermission(groupId,name,primKey,actionId);
+  }
+  if (hasConfigurePermission(permissionChecker,layout,portletId,actionId) || hasCustomizePermission(permissionChecker,layout,portletId,actionId)) {
+    return true;
+  }
+  return permissionChecker.hasPermission(groupId,name,primKey,actionId);
 }
