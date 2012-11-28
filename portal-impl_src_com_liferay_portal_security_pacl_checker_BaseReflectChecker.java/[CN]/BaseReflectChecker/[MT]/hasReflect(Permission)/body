@@ -1,8 +1,30 @@
 {
+  String name=permission.getName();
+  String actions=permission.getActions();
   if (isJSPCompiler(name,actions)) {
     return true;
   }
-  Class<?> callerClass9=Reflection.getCallerClass(9);
+  Class<?> callerClass9=null;
+  if (permission instanceof CheckMemberAccessPermission) {
+    CheckMemberAccessPermission memberAccessPermission=(CheckMemberAccessPermission)permission;
+    if (memberAccessPermission.getCaller() == ReferenceRegistry.class) {
+      Class<?> realCallerClass=memberAccessPermission.getCaller();
+      int depth=9;
+      while (realCallerClass == ReferenceRegistry.class) {
+        depth++;
+        realCallerClass=Reflection.getCallerClass(depth);
+      }
+      ClassLoader callerClassLoader=PACLClassLoaderUtil.getClassLoader(realCallerClass);
+      if (callerClassLoader == memberAccessPermission.getSubjectClassLoader()) {
+        logReflect(realCallerClass,depth);
+        return true;
+      }
+    }
+    callerClass9=memberAccessPermission.getCaller();
+  }
+ else {
+    callerClass9=Reflection.getCallerClass(9);
+  }
   if (isResinReflectionAnnotatedType(callerClass9)) {
     logReflect(callerClass9,9);
     return true;
@@ -23,8 +45,18 @@
     return true;
   }
   Class<?> callerClass7=Reflection.getCallerClass(7);
+  Class<?> callerClass8=null;
+  if (name.equals("suppressAccessChecks") && (callerClass7 == ReferenceEntry.class)) {
+    callerClass8=Reflection.getCallerClass(8);
+    if (callerClass8 == ReferenceRegistry.class) {
+      logReflect(callerClass7,7);
+      return true;
+    }
+  }
   if (JavaDetector.isIBM() || JavaDetector.isJDK7()) {
-    Class<?> callerClass8=Reflection.getCallerClass(8);
+    if (callerClass8 == null) {
+      callerClass8=Reflection.getCallerClass(8);
+    }
     if ((callerClass8.getEnclosingClass() == Class.class) && CheckerUtil.isAccessControllerDoPrivileged(9)) {
       logReflect(callerClass8,8);
       return true;
