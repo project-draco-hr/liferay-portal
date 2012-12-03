@@ -3,29 +3,50 @@
   int changeLogVersion=0;
   int moduleIncrementalVersion=GetterUtil.getInteger(pluginPackageProperties.getProperty("module-incremental-version"));
   if (!relengChangeLogFile.exists()) {
-    FileUtil.write(relengChangeLogFile,"HEAD=");
+    FileUtil.write(relengChangeLogFile,"TEMP=");
   }
   String relengChangeLogContent=FileUtil.read(relengChangeLogFile);
-  String[] relengChangeLogEntries=StringUtil.split(relengChangeLogContent,"\n");
-  for (int i=0; i < relengChangeLogEntries.length; i++) {
-    String relengChangeLogEntry=relengChangeLogEntries[i];
+  List<String> relengChangeLogEntries=new ArrayList<String>();
+  String[] relengChangeLogEntriesArray=StringUtil.split(relengChangeLogContent,"\n");
+  for (int i=0; i < relengChangeLogEntriesArray.length; i++) {
+    String relengChangeLogEntry=relengChangeLogEntriesArray[i];
     if (Validator.isNull(relengChangeLogEntry) || relengChangeLogEntry.startsWith("#")) {
       continue;
     }
+    relengChangeLogEntries.add(relengChangeLogEntry);
+    if (((i + 1) == relengChangeLogEntriesArray.length) && !relengChangeLogEntry.contains("HEAD=") && !relengChangeLogEntry.contains("TEMP=")&& !relengChangeLogEntry.contains(_latestHASH)&& !relengChangeLogEntries.isEmpty()) {
+      int x=relengChangeLogEntry.indexOf("..");
+      int y=relengChangeLogEntry.indexOf("=",x);
+      String range=relengChangeLogEntry.substring(x + 2,y) + "^.." + _latestHASH;
+      relengChangeLogEntries.add(range);
+      continue;
+    }
+  }
+  for (int i=0; i < relengChangeLogEntries.size(); i++) {
+    String relengChangeLogEntry=relengChangeLogEntries.get(i);
     String[] relengChangeLogEntryParts=StringUtil.split(relengChangeLogEntry,"=");
     String range=relengChangeLogEntryParts[0];
-    if (range.equals("HEAD")) {
+    if (range.equals("TEMP")) {
       changeLogVersion++;
       sb.append(_getChangeLogEntry(changeLogVersion,range,StringPool.BLANK));
-      continue;
+      break;
     }
     File webInfDir=relengChangeLogFile.getParentFile();
     File docrootDir=webInfDir.getParentFile();
     File pluginDir=docrootDir.getParentFile();
     Set<String> ticketIds=_extractTicketIds(pluginDir,range);
+    if (range.endsWith("^.." + _latestHASH) && ticketIds.isEmpty()) {
+      continue;
+    }
+    if (ticketIds.isEmpty()) {
+      System.out.println(pluginDir + " does not have changes for range " + range);
+    }
     String[] dependentApps=StringUtil.split(relengProperties.getProperty("dependent-apps"));
     for (    String dependentApp : dependentApps) {
       dependentApp=dependentApp.trim();
+      if (dependentApp.equals("resources-impoter-web")) {
+        continue;
+      }
       String dependentAppDirName=null;
       if (dependentApp.endsWith("-hook")) {
         dependentAppDirName="hooks";
