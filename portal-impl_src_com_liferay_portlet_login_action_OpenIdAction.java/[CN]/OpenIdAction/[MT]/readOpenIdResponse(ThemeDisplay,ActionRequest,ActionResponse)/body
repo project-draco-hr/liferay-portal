@@ -1,28 +1,28 @@
 {
   HttpServletRequest request=PortalUtil.getHttpServletRequest(actionRequest);
   HttpSession session=request.getSession();
-  ConsumerManager manager=OpenIdUtil.getConsumerManager();
-  ParameterList params=new ParameterList(actionRequest.getParameterMap());
-  DiscoveryInformation discovered=(DiscoveryInformation)session.getAttribute(WebKeys.OPEN_ID_DISCO);
-  if (discovered == null) {
+  ConsumerManager consumerManager=OpenIdUtil.getConsumerManager();
+  ParameterList parameterList=new ParameterList(actionRequest.getParameterMap());
+  DiscoveryInformation discoveryInformation=(DiscoveryInformation)session.getAttribute(WebKeys.OPEN_ID_DISCO);
+  if (discoveryInformation == null) {
     return null;
   }
-  String receivingUrl=ParamUtil.getString(actionRequest,"openid.return_to");
-  VerificationResult verification=manager.verify(receivingUrl,params,discovered);
-  Identifier verified=verification.getVerifiedId();
-  if (verified == null) {
+  String receivingURL=ParamUtil.getString(actionRequest,"openid.return_to");
+  VerificationResult verificationResult=consumerManager.verify(receivingURL,parameterList,discoveryInformation);
+  Identifier identifier=verificationResult.getVerifiedId();
+  if (identifier == null) {
     return null;
   }
-  AuthSuccess authSuccess=(AuthSuccess)verification.getAuthResponse();
+  AuthSuccess authSuccess=(AuthSuccess)verificationResult.getAuthResponse();
   String firstName=null;
   String lastName=null;
   String emailAddress=null;
   if (authSuccess.hasExtension(SRegMessage.OPENID_NS_SREG)) {
-    MessageExtension ext=authSuccess.getExtension(SRegMessage.OPENID_NS_SREG);
-    if (ext instanceof SRegResponse) {
-      SRegResponse sregResp=(SRegResponse)ext;
+    MessageExtension messageExtension=authSuccess.getExtension(SRegMessage.OPENID_NS_SREG);
+    if (messageExtension instanceof SRegResponse) {
+      SRegResponse sregResp=(SRegResponse)messageExtension;
       String fullName=GetterUtil.getString(sregResp.getAttributeValue(_OPEN_ID_SREG_ATTR_FULLNAME));
-      String[] names=splitName(fullName);
+      String[] names=splitFullName(fullName);
       if (names != null) {
         firstName=names[0];
         lastName=names[1];
@@ -31,26 +31,25 @@
     }
   }
   if (authSuccess.hasExtension(AxMessage.OPENID_NS_AX)) {
-    MessageExtension ext=authSuccess.getExtension(AxMessage.OPENID_NS_AX);
-    if (ext instanceof FetchResponse) {
-      FetchResponse fetchResp=(FetchResponse)ext;
-      URL endpoint=discovered.getOPEndpoint();
-      String openIdProvider=getOpenIdProvider(endpoint);
+    MessageExtension messageExtension=authSuccess.getExtension(AxMessage.OPENID_NS_AX);
+    if (messageExtension instanceof FetchResponse) {
+      FetchResponse fetchResponse=(FetchResponse)messageExtension;
+      String openIdProvider=getOpenIdProvider(discoveryInformation.getOPEndpoint());
       String[] openIdAXTypes=PropsUtil.getArray(PropsKeys.OPEN_ID_AX_SCHEMA,new Filter(openIdProvider));
       for (      String openIdAXType : openIdAXTypes) {
         if (openIdAXType.equals(_OPEN_ID_AX_ATTR_EMAIL)) {
           if (Validator.isNull(emailAddress)) {
-            emailAddress=getFirstValue(fetchResp.getAttributeValues(_OPEN_ID_AX_ATTR_EMAIL));
+            emailAddress=getFirstValue(fetchResponse.getAttributeValues(_OPEN_ID_AX_ATTR_EMAIL));
           }
         }
  else         if (openIdAXType.equals(_OPEN_ID_AX_ATTR_FIRST_NAME)) {
           if (Validator.isNull(firstName)) {
-            firstName=getFirstValue(fetchResp.getAttributeValues(_OPEN_ID_AX_ATTR_FIRST_NAME));
+            firstName=getFirstValue(fetchResponse.getAttributeValues(_OPEN_ID_AX_ATTR_FIRST_NAME));
           }
         }
  else         if (openIdAXType.equals(_OPEN_ID_AX_ATTR_FULL_NAME)) {
-          String fullName=fetchResp.getAttributeValue(_OPEN_ID_AX_ATTR_FULL_NAME);
-          String[] names=splitName(fullName);
+          String fullName=fetchResponse.getAttributeValue(_OPEN_ID_AX_ATTR_FULL_NAME);
+          String[] names=splitFullName(fullName);
           if (names != null) {
             if (Validator.isNull(firstName)) {
               firstName=names[0];
@@ -62,7 +61,7 @@
         }
  else         if (openIdAXType.equals(_OPEN_ID_AX_ATTR_LAST_NAME)) {
           if (Validator.isNull(lastName)) {
-            lastName=getFirstValue(fetchResp.getAttributeValues(_OPEN_ID_AX_ATTR_LAST_NAME));
+            lastName=getFirstValue(fetchResponse.getAttributeValues(_OPEN_ID_AX_ATTR_LAST_NAME));
           }
         }
       }
