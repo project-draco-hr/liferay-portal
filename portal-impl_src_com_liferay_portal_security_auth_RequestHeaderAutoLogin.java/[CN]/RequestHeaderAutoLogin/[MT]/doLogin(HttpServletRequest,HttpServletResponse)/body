@@ -1,0 +1,35 @@
+{
+  String remoteAddr=request.getRemoteAddr();
+  if (AuthSettingsUtil.isAccessAllowed(request,_hostsAllowed)) {
+    if (getLog().isDebugEnabled()) {
+      getLog().debug("Access allowed for " + remoteAddr);
+    }
+  }
+ else {
+    if (getLog().isWarnEnabled()) {
+      getLog().warn("Access denied for " + remoteAddr);
+    }
+    return null;
+  }
+  long companyId=PortalUtil.getCompanyId(request);
+  String screenName=request.getHeader(HttpHeaders.LIFERAY_SCREEN_NAME);
+  if (Validator.isNull(screenName)) {
+    return null;
+  }
+  User user=null;
+  if (PrefsPropsUtil.getBoolean(companyId,PropsKeys.REQUEST_HEADER_AUTH_IMPORT_FROM_LDAP,PropsValues.REQUEST_HEADER_AUTH_IMPORT_FROM_LDAP)) {
+    try {
+      user=PortalLDAPImporterUtil.importLDAPUser(companyId,StringPool.BLANK,screenName);
+    }
+ catch (    Exception e) {
+    }
+  }
+  if (user == null) {
+    user=UserLocalServiceUtil.getUserByScreenName(companyId,screenName);
+  }
+  String[] credentials=new String[3];
+  credentials[0]=String.valueOf(user.getUserId());
+  credentials[1]=user.getPassword();
+  credentials[2]=Boolean.TRUE.toString();
+  return credentials;
+}
