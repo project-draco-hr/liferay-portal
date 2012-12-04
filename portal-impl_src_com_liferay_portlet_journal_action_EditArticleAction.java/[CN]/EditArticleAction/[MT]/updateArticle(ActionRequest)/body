@@ -25,12 +25,18 @@
     description=ParamUtil.getString(uploadPortletRequest,"description_" + toLanguageId);
   }
   String content=ParamUtil.getString(uploadPortletRequest,"content");
+  ServiceContext serviceContext=ServiceContextFactory.getInstance(JournalArticle.class.getName(),actionRequest);
+  String structureId=ParamUtil.getString(uploadPortletRequest,"structureId");
+  if (Validator.isNotNull(structureId)) {
+    DDMStructure ddmStructure=DDMStructureLocalServiceUtil.fetchStructure(groupId,structureId);
+    Fields fields=DDMUtil.getFields(ddmStructure.getStructureId(),serviceContext);
+    content=DDMXMLUtil.getXML(fields);
+  }
   Boolean fileItemThresholdSizeExceeded=(Boolean)uploadPortletRequest.getAttribute(WebKeys.FILE_ITEM_THRESHOLD_SIZE_EXCEEDED);
   if ((fileItemThresholdSizeExceeded != null) && fileItemThresholdSizeExceeded.booleanValue()) {
     throw new ArticleContentSizeException();
   }
   String type=ParamUtil.getString(uploadPortletRequest,"type");
-  String structureId=ParamUtil.getString(uploadPortletRequest,"structureId");
   String templateId=ParamUtil.getString(uploadPortletRequest,"templateId");
   String layoutUuid=ParamUtil.getString(uploadPortletRequest,"layoutUuid");
   Layout targetLayout=LayoutLocalServiceUtil.fetchLayoutByUuidAndGroupId(layoutUuid,groupId);
@@ -72,7 +78,6 @@
   File smallFile=uploadPortletRequest.getFile("smallFile");
   Map<String,byte[]> images=getImages(uploadPortletRequest);
   String articleURL=ParamUtil.getString(uploadPortletRequest,"articleURL");
-  ServiceContext serviceContext=ServiceContextFactory.getInstance(JournalArticle.class.getName(),actionRequest);
   serviceContext.setAttribute("defaultLanguageId",defaultLanguageId);
   JournalArticle article=null;
   String oldUrlTitle=StringPool.BLANK;
@@ -99,14 +104,6 @@
  else {
           content=LocalizationUtil.updateLocalization(curContent,"static-content",content,defaultLanguageId,defaultLanguageId,true,localized);
         }
-      }
-    }
- else {
-      if (curArticle.isTemplateDriven()) {
-        JournalStructure structure=JournalStructureLocalServiceUtil.getStructure(groupId,structureId,true);
-        boolean translate=cmd.equals(Constants.TRANSLATE);
-        content=JournalUtil.mergeArticleContent(curArticle.getContent(),content,!translate);
-        content=JournalUtil.removeOldContent(content,structure.getMergedXsd());
       }
     }
     article=JournalArticleServiceUtil.getArticle(groupId,articleId,version);
