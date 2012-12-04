@@ -1,6 +1,7 @@
 {
   ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
   long groupId=ParamUtil.getLong(request,"groupId",themeDisplay.getScopeGroupId());
+  PermissionChecker permissionChecker=PermissionThreadLocal.getPermissionChecker();
   if (primaryKey > 0) {
     try {
       groupId=getGroupId(primaryKey);
@@ -16,7 +17,7 @@
       Layout layout=LayoutLocalServiceUtil.getLayout(plid);
       LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
       for (      String portletId : _portletIds) {
-        if (layoutTypePortlet.hasPortletId(portletId)) {
+        if (layoutTypePortlet.hasPortletId(portletId) && LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.VIEW)) {
           return new Object[]{plid,portletId};
         }
       }
@@ -28,15 +29,17 @@
     plid=PortalUtil.getPlidFromPortletId(groupId,portletId);
     if (plid != LayoutConstants.DEFAULT_PLID) {
       Layout layout=LayoutLocalServiceUtil.getLayout(plid);
-      LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
-      for (      String curPortletId : layoutTypePortlet.getPortletIds()) {
-        String curRootPortletId=PortletConstants.getRootPortletId(curPortletId);
-        if (portletId.equals(curRootPortletId)) {
-          portletId=curPortletId;
-          break;
+      if (LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.VIEW)) {
+        LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
+        for (        String curPortletId : layoutTypePortlet.getPortletIds()) {
+          String curRootPortletId=PortletConstants.getRootPortletId(curPortletId);
+          if (portletId.equals(curRootPortletId)) {
+            portletId=curPortletId;
+            break;
+          }
         }
+        return new Object[]{plid,portletId};
       }
-      return new Object[]{plid,portletId};
     }
   }
   throw new NoSuchLayoutException();
