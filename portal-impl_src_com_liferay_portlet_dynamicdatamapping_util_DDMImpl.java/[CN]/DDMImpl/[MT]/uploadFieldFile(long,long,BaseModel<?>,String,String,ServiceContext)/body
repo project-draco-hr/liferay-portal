@@ -1,33 +1,38 @@
 {
   HttpServletRequest request=serviceContext.getRequest();
   if (!(request instanceof UploadRequest)) {
-    return StringPool.BLANK;
+    return;
   }
+  DDMStructure ddmStructure=DDMStructureLocalServiceUtil.getDDMStructure(structureId);
+  JSONObject repeatabaleFields=getRepeatableFieldsJSON(serviceContext);
+  List<String> namespacedFieldNames=getNamespacedFieldNames(ddmStructure,fieldNamespace,fieldName,repeatabaleFields);
   UploadRequest uploadRequest=(UploadRequest)request;
-  String fileName=uploadRequest.getFileName(fieldNamespace + fieldName);
-  String fieldValue=StringPool.BLANK;
-  InputStream inputStream=null;
   Fields fields=StorageEngineUtil.getFields(storageId);
-  try {
-    inputStream=uploadRequest.getFileAsStream(fieldNamespace + fieldName,true);
-    if (inputStream != null) {
-      String filePath=storeFieldFile(baseModel,fieldName,inputStream,serviceContext);
-      JSONObject recordFileJSONObject=JSONFactoryUtil.createJSONObject();
-      recordFileJSONObject.put("name",fileName);
-      recordFileJSONObject.put("path",filePath);
-      recordFileJSONObject.put("className",baseModel.getModelClassName());
-      recordFileJSONObject.put("classPK",String.valueOf(baseModel.getPrimaryKeyObj()));
-      fieldValue=recordFileJSONObject.toString();
+  InputStream inputStream=null;
+  List<Serializable> fieldValues=new ArrayList<Serializable>();
+  for (  String namespacedFieldName : namespacedFieldNames) {
+    try {
+      String fileName=uploadRequest.getFileName(namespacedFieldName);
+      inputStream=uploadRequest.getFileAsStream(namespacedFieldName,true);
+      if (inputStream != null) {
+        String filePath=storeFieldFile(baseModel,namespacedFieldName,inputStream,serviceContext);
+        JSONObject recordFileJSONObject=JSONFactoryUtil.createJSONObject();
+        recordFileJSONObject.put("name",fileName);
+        recordFileJSONObject.put("path",filePath);
+        recordFileJSONObject.put("className",baseModel.getModelClassName());
+        recordFileJSONObject.put("classPK",String.valueOf(baseModel.getPrimaryKeyObj()));
+        String fieldValue=recordFileJSONObject.toString();
+        fieldValues.add(fieldValue);
+      }
+ else       if (fields.contains(fieldName)) {
+        continue;
+      }
     }
- else     if (fields.contains(fieldName)) {
-      return StringPool.BLANK;
-    }
-    Field field=new Field(structureId,fieldName,fieldValue);
-    fields.put(field);
-    StorageEngineUtil.update(storageId,fields,true,serviceContext);
-  }
   finally {
-    StreamUtil.cleanUp(inputStream);
+      StreamUtil.cleanUp(inputStream);
+    }
   }
-  return fieldValue;
+  Field field=new Field(structureId,fieldName,fieldValues);
+  fields.put(field);
+  StorageEngineUtil.update(storageId,fields,true,serviceContext);
 }
