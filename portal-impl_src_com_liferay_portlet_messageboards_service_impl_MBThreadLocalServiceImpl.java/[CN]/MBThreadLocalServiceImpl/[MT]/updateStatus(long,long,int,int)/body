@@ -1,0 +1,54 @@
+{
+  MBThread thread=mbThreadPersistence.findByPrimaryKey(threadId);
+  if (categoryStatus != WorkflowConstants.STATUS_IN_TRASH) {
+    User user=userPersistence.findByPrimaryKey(userId);
+    Date now=new Date();
+    int oldStatus=thread.getStatus();
+    if (oldStatus == WorkflowConstants.STATUS_PENDING) {
+      MBMessage rootMessage=mbMessageLocalService.getMBMessage(thread.getRootMessageId());
+      rootMessage.setStatus(WorkflowConstants.STATUS_DRAFT);
+      mbMessagePersistence.update(rootMessage);
+    }
+    thread.setStatus(status);
+    thread.setStatusByUserId(user.getUserId());
+    thread.setStatusByUserName(user.getFullName());
+    thread.setStatusDate(now);
+    mbThreadPersistence.update(thread);
+    if (status == WorkflowConstants.STATUS_IN_TRASH) {
+      moveThreadMessagesToTrash(thread);
+    }
+ else {
+      restoreThreadMessagesFromTrash(thread);
+    }
+    if (thread.getCategoryId() != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) {
+      MBCategory category=mbCategoryPersistence.findByPrimaryKey(thread.getCategoryId());
+      if (status == WorkflowConstants.STATUS_IN_TRASH) {
+        category.setThreadCount(category.getThreadCount() - 1);
+        category.setMessageCount(category.getMessageCount() - thread.getMessageCount());
+      }
+ else {
+        category.setThreadCount(category.getThreadCount() + 1);
+        category.setMessageCount(category.getMessageCount() + thread.getMessageCount());
+      }
+      mbCategoryPersistence.update(category);
+    }
+    mbStatsUserLocalService.updateStatsUser(thread.getGroupId(),userId);
+    if (status == WorkflowConstants.STATUS_IN_TRASH) {
+      socialActivityLocalService.addActivity(userId,thread.getGroupId(),MBThread.class.getName(),thread.getThreadId(),SocialActivityConstants.TYPE_MOVE_TO_TRASH,StringPool.BLANK,0);
+      trashEntryLocalService.addTrashEntry(userId,thread.getGroupId(),MBThread.class.getName(),thread.getThreadId(),oldStatus,null,null);
+    }
+ else {
+      socialActivityLocalService.addActivity(userId,thread.getGroupId(),MBThread.class.getName(),thread.getThreadId(),SocialActivityConstants.TYPE_RESTORE_FROM_TRASH,StringPool.BLANK,0);
+      trashEntryLocalService.deleteEntry(MBThread.class.getName(),thread.getThreadId());
+    }
+  }
+ else {
+    if (status == WorkflowConstants.STATUS_IN_TRASH) {
+      moveThreadMessagesToTrash(thread);
+    }
+ else {
+      restoreThreadMessagesFromTrash(thread);
+    }
+  }
+  return thread;
+}
