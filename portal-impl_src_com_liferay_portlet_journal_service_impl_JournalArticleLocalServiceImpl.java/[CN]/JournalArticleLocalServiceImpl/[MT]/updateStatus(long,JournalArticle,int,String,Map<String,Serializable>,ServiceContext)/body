@@ -2,6 +2,14 @@
   User user=userPersistence.findByPrimaryKey(userId);
   Date now=new Date();
   int oldStatus=article.getStatus();
+  int oldArticleVersionStatus=WorkflowConstants.STATUS_ANY;
+  List<ObjectValuePair<Long,Integer>> articleVersionStatusOVPs=new ArrayList<ObjectValuePair<Long,Integer>>();
+  List<JournalArticle> articleVersions=(List<JournalArticle>)workflowContext.get("articleVersions");
+  if ((articleVersions != null) && !articleVersions.isEmpty()) {
+    JournalArticle oldArticleVersion=articleVersions.get(0);
+    oldArticleVersionStatus=oldArticleVersion.getStatus();
+    articleVersionStatusOVPs=getArticleVersionStatuses(articleVersions);
+  }
   article.setModifiedDate(serviceContext.getModifiedDate(now));
   boolean neverExpire=false;
   if (status == WorkflowConstants.STATUS_APPROVED) {
@@ -46,14 +54,38 @@
         }
         assetEntryLocalService.updateEntry(JournalArticle.class.getName(),article.getResourcePrimKey(),displayDate,expirationDate,true);
       }
-      Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(JournalArticle.class);
-      indexer.reindex(article);
+      reindex(article);
     }
  else     if (oldStatus == WorkflowConstants.STATUS_APPROVED) {
       updatePreviousApprovedArticle(article);
     }
   }
-  if (article.getClassNameId() == JournalArticleConstants.CLASSNAME_ID_DEFAULT) {
+  if (oldStatus == WorkflowConstants.STATUS_IN_TRASH) {
+    List<TrashVersion> trashVersions=(List<TrashVersion>)workflowContext.get("trashVersions");
+    for (    TrashVersion trashVersion : trashVersions) {
+      JournalArticle trashArticleVersion=journalArticlePersistence.findByPrimaryKey(trashVersion.getClassPK());
+      trashArticleVersion.setStatus(trashVersion.getStatus());
+      journalArticlePersistence.update(trashArticleVersion);
+    }
+    trashEntryLocalService.deleteEntry(JournalArticle.class.getName(),article.getResourcePrimKey());
+    if (status == WorkflowConstants.STATUS_APPROVED) {
+      reindex(article);
+    }
+ else {
+      Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(JournalArticle.class);
+      indexer.delete(article);
+    }
+  }
+ else   if (status == WorkflowConstants.STATUS_IN_TRASH) {
+    assetEntryLocalService.updateVisible(JournalArticle.class.getName(),article.getResourcePrimKey(),false);
+    for (    JournalArticle curArticleVersion : articleVersions) {
+      curArticleVersion.setStatus(WorkflowConstants.STATUS_IN_TRASH);
+      journalArticlePersistence.update(curArticleVersion);
+    }
+    trashEntryLocalService.addTrashEntry(userId,article.getGroupId(),JournalArticle.class.getName(),article.getResourcePrimKey(),oldArticleVersionStatus,articleVersionStatusOVPs,null);
+    reindex(article);
+  }
+  if ((article.getClassNameId() == JournalArticleConstants.CLASSNAME_ID_DEFAULT) && (oldStatus != WorkflowConstants.STATUS_IN_TRASH) && (status != WorkflowConstants.STATUS_IN_TRASH)) {
     if ((oldStatus == WorkflowConstants.STATUS_PENDING) && ((status == WorkflowConstants.STATUS_APPROVED) || (status == WorkflowConstants.STATUS_DENIED))) {
       String msg="granted";
       if (status == WorkflowConstants.STATUS_DENIED) {
