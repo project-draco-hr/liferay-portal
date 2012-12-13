@@ -1,0 +1,29 @@
+{
+  List<MBMessage> messages=mbMessageLocalService.getThreadMessages(threadId,WorkflowConstants.STATUS_ANY);
+  for (  MBMessage message : messages) {
+    if (message.isDiscussion()) {
+      continue;
+    }
+    if (status == WorkflowConstants.STATUS_IN_TRASH) {
+      if (message.getStatus() == WorkflowConstants.STATUS_APPROVED) {
+        assetEntryLocalService.updateVisible(MBMessage.class.getName(),message.getMessageId(),false);
+      }
+      socialActivityCounterLocalService.disableActivityCounters(MBMessage.class.getName(),message.getMessageId());
+      Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(MBMessage.class);
+      indexer.reindex(message);
+      if (message.getStatus() == WorkflowConstants.STATUS_PENDING) {
+        message.setStatus(WorkflowConstants.STATUS_DRAFT);
+        mbMessagePersistence.update(message);
+        workflowInstanceLinkLocalService.deleteWorkflowInstanceLink(message.getCompanyId(),message.getGroupId(),MBMessage.class.getName(),message.getMessageId());
+      }
+    }
+ else {
+      if (message.getStatus() == WorkflowConstants.STATUS_APPROVED) {
+        assetEntryLocalService.updateVisible(MBMessage.class.getName(),message.getMessageId(),true);
+      }
+      socialActivityCounterLocalService.enableActivityCounters(MBMessage.class.getName(),message.getMessageId());
+      Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(MBMessage.class);
+      indexer.reindex(message);
+    }
+  }
+}
