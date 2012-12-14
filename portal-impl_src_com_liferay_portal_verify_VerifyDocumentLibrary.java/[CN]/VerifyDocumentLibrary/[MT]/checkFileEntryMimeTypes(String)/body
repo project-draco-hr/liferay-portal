@@ -1,19 +1,20 @@
 {
-  List<DLFileEntry> dlFileEntries=DLFileEntryLocalServiceUtil.getFileEntriesByMimeType(originalMimeType);
-  if (_log.isDebugEnabled()) {
-    _log.debug("Processing " + dlFileEntries.size() + " file entries with "+ originalMimeType);
-  }
-  for (  DLFileEntry dlFileEntry : dlFileEntries) {
-    InputStream inputStream=DLFileEntryLocalServiceUtil.getFileAsStream(dlFileEntry.getUserId(),dlFileEntry.getFileEntryId(),dlFileEntry.getVersion(),false);
-    String title=DLUtil.getTitleWithExtension(dlFileEntry.getTitle(),dlFileEntry.getExtension());
-    String mimeType=MimeTypesUtil.getContentType(inputStream,title);
-    if (mimeType.equals(originalMimeType)) {
-      continue;
+  ActionableDynamicQuery actionableDynamicQuery=new DLFileEntryActionableDynamicQuery(){
+    @Override protected void performAction(    Object object) throws PortalException, SystemException {
+      DLFileEntry dlFileEntry=(DLFileEntry)object;
+      InputStream inputStream=DLFileEntryLocalServiceUtil.getFileAsStream(dlFileEntry.getUserId(),dlFileEntry.getFileEntryId(),dlFileEntry.getVersion(),false);
+      String title=DLUtil.getTitleWithExtension(dlFileEntry.getTitle(),dlFileEntry.getExtension());
+      String mimeType=MimeTypesUtil.getContentType(inputStream,title);
+      if (mimeType.equals(originalMimeType)) {
+        return;
+      }
+      dlFileEntry.setMimeType(mimeType);
+      DLFileEntryLocalServiceUtil.updateDLFileEntry(dlFileEntry);
+      DLFileVersion dlFileVersion=dlFileEntry.getFileVersion();
+      dlFileVersion.setMimeType(mimeType);
+      DLFileVersionLocalServiceUtil.updateDLFileVersion(dlFileVersion);
     }
-    dlFileEntry.setMimeType(mimeType);
-    DLFileEntryLocalServiceUtil.updateDLFileEntry(dlFileEntry);
-    DLFileVersion dlFileVersion=dlFileEntry.getFileVersion();
-    dlFileVersion.setMimeType(mimeType);
-    DLFileVersionLocalServiceUtil.updateDLFileVersion(dlFileVersion);
   }
+;
+  actionableDynamicQuery.performActions();
 }
