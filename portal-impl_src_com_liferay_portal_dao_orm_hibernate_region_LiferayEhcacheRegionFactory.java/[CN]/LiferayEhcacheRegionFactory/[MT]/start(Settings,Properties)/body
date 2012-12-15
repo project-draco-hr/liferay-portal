@@ -16,14 +16,18 @@
       configuration=EhcacheConfigurationUtil.getConfiguration(configurationPath,true,_usingDefault);
     }
     manager=new CacheManager(configuration);
-    FailSafeTimer failSafeTimer=manager.getTimer();
-    failSafeTimer.cancel();
-    try {
-      Field cacheManagerTimerField=ReflectionUtil.getDeclaredField(CacheManager.class,"cacheManagerTimer");
-      cacheManagerTimerField.set(manager,null);
-    }
- catch (    Exception e) {
-      throw new RuntimeException(e);
+    boolean skipUpdateCheck=GetterUtil.getBoolean(SystemProperties.get("net.sf.ehcache.skipUpdateCheck"));
+    boolean tcActive=GetterUtil.getBoolean(SystemProperties.get("tc.active"));
+    if (skipUpdateCheck && !tcActive) {
+      FailSafeTimer failSafeTimer=manager.getTimer();
+      failSafeTimer.cancel();
+      try {
+        Field cacheManagerTimerField=ReflectionUtil.getDeclaredField(CacheManager.class,"cacheManagerTimer");
+        cacheManagerTimerField.set(manager,null);
+      }
+ catch (      Exception e) {
+        throw new RuntimeException(e);
+      }
     }
     mbeanRegistrationHelper.registerMBean(manager,properties);
     _mBeanRegisteringPortalLifecycle=new MBeanRegisteringPortalLifecycle(manager);
