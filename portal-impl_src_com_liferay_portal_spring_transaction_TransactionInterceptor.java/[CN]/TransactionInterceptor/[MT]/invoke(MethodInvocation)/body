@@ -10,19 +10,23 @@
     return methodInvocation.proceed();
   }
   TransactionStatus transactionStatus=_platformTransactionManager.getTransaction(transactionAttribute);
-  if (transactionStatus.isNewTransaction()) {
+  boolean newTransaction=transactionStatus.isNewTransaction();
+  if (newTransaction) {
     TransactionalPortalCacheHelper.begin();
     TransactionCommitCallbackUtil.pushCallbackList();
   }
   Object returnValue=null;
   try {
+    if (newTransaction) {
+      LastSessionRecorderUtil.syncLastSessionState();
+    }
     returnValue=methodInvocation.proceed();
   }
  catch (  Throwable throwable) {
     processThrowable(throwable,transactionAttribute,transactionStatus);
   }
   _platformTransactionManager.commit(transactionStatus);
-  if (transactionStatus.isNewTransaction()) {
+  if (newTransaction) {
     TransactionalPortalCacheHelper.commit();
     invokeCallbacks();
   }
