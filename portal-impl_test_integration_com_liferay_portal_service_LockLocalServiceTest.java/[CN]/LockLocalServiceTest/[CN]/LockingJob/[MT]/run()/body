@@ -1,26 +1,30 @@
 {
   int count=0;
-  while (true) {
+  Iteration:   while (true) {
     try {
       Lock lock=LockLocalServiceUtil.lock(_className,_key,_owner,false);
       if (lock.isNew()) {
-        LockLocalServiceUtil.unlock(_className,_key);
-        if (++count >= _requiredSuccessCount) {
-          break;
+        while (true) {
+          try {
+            LockLocalServiceUtil.unlock(_className,_key,_owner,false);
+            if (++count >= _requiredSuccessCount) {
+              break Iteration;
+            }
+            break;
+          }
+ catch (          SystemException se) {
+            if (isExpectedException(se)) {
+              continue;
+            }
+            _systemException=se;
+            break;
+          }
         }
       }
     }
  catch (    SystemException se) {
-      Throwable cause=se.getCause();
-      if (cause instanceof ORMException) {
-        cause=cause.getCause();
-        if (cause instanceof LockAcquisitionException) {
-          continue;
-        }
-        DB db=DBFactoryUtil.getDB();
-        if ((db instanceof PostgreSQLDB) && (cause instanceof ConstraintViolationException)) {
-          continue;
-        }
+      if (isExpectedException(se)) {
+        continue;
       }
       _systemException=se;
       break;
