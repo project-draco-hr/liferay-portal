@@ -1,0 +1,36 @@
+{
+  HttpServletRequest request=(HttpServletRequest)pageContext.getRequest();
+  ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+  String portletId=PortalUtil.getPortletId(request);
+  String portletNamespace=PortalUtil.getPortletNamespace(portletId);
+  Map<String,Object> freeMarkerContext=getFreeMarkerContext(element,locale);
+  freeMarkerContext.put("portletNamespace",portletNamespace);
+  freeMarkerContext.put("namespace",namespace);
+  Map<String,Object> fieldStructure=(Map<String,Object>)freeMarkerContext.get("fieldStructure");
+  int fieldRepetition=1;
+  FieldsCounter fieldsCounter=getFieldsCounter(pageContext,fields,portletNamespace,namespace);
+  if (fields != null) {
+    freeMarkerContext.put("fields",fields);
+    Field privateFieldsTree=fields.get(DDMImpl.PRIVATE_FIELDS_TREE);
+    if (privateFieldsTree != null) {
+      String[] fieldsTree=StringUtil.split((String)privateFieldsTree.getValue());
+      Map<String,Object> parentFieldStructure=(Map<String,Object>)freeMarkerContext.get("parentFieldStructure");
+      String parentFieldName=(String)parentFieldStructure.get("name");
+      int offset=fieldsCounter.get(DDMImpl.PRIVATE_FIELDS_TREE);
+      fieldRepetition=countFieldRepetition(fieldsTree,parentFieldName,offset);
+    }
+  }
+  String name=element.attributeValue("name");
+  StringBuffer sb=new StringBuffer(fieldRepetition);
+  while (fieldRepetition > 0) {
+    fieldStructure.put("fieldNamespace",PwdGenerator.getPassword(4));
+    fieldStructure.put("valueIndex",fieldsCounter.get(name));
+    fieldsCounter.incrementKey(name);
+    fieldsCounter.incrementKey(DDMImpl.PRIVATE_FIELDS_TREE);
+    String childrenHTML=getHTML(pageContext,element,fields,namespace,mode,readOnly,locale);
+    fieldStructure.put("children",childrenHTML);
+    sb.append(processFTL(pageContext,element,mode,readOnly,freeMarkerContext));
+    fieldRepetition--;
+  }
+  return sb.toString();
+}
