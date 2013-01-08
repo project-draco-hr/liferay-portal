@@ -1,0 +1,72 @@
+{
+  Session session=null;
+  try {
+    session=openSession();
+    StringBundler sb=new StringBundler(5);
+    sb.append("SELECT * FROM (");
+    String sql=null;
+    if (queryDefinition.getStatus() == WorkflowConstants.STATUS_ANY) {
+      sql=CustomSQLUtil.get(FIND_BF_BY_G_P);
+    }
+ else {
+      sql=CustomSQLUtil.get(FIND_BF_BY_G_P_S);
+      sql=replaceExcludeStatus(sql,queryDefinition);
+    }
+    if (inlineSQLHelper) {
+      sql=InlineSQLHelperUtil.replacePermissionCheck(sql,BookmarksFolder.class.getName(),"BookmarksFolder.folderId",groupId);
+    }
+    sb.append(sql);
+    sb.append(" UNION ALL ");
+    if (queryDefinition.getStatus() == WorkflowConstants.STATUS_ANY) {
+      sql=CustomSQLUtil.get(FIND_BE_BY_G_F);
+    }
+ else {
+      sql=CustomSQLUtil.get(FIND_BE_BY_G_F_S);
+      sql=replaceExcludeStatus(sql,queryDefinition);
+    }
+    if (inlineSQLHelper) {
+      sql=InlineSQLHelperUtil.replacePermissionCheck(sql,BookmarksEntry.class.getName(),"BookmarksEntry.fileEntryId",groupId);
+    }
+    sb.append(sql);
+    sb.append(") TEMP_TABLE ORDER BY modelName ASC");
+    sql=sb.toString();
+    SQLQuery q=session.createSQLQuery(sql);
+    q.addScalar("modelId",Type.LONG);
+    q.addScalar("modelName",Type.STRING);
+    q.addScalar("modelFolder",Type.LONG);
+    QueryPos qPos=QueryPos.getInstance(q);
+    qPos.add(groupId);
+    qPos.add(folderId);
+    if (queryDefinition.getStatus() != WorkflowConstants.STATUS_ANY) {
+      qPos.add(queryDefinition.getStatus());
+    }
+    qPos.add(groupId);
+    qPos.add(folderId);
+    if (queryDefinition.getStatus() != WorkflowConstants.STATUS_ANY) {
+      qPos.add(queryDefinition.getStatus());
+    }
+    List<Object> models=new ArrayList<Object>();
+    Iterator<Object[]> itr=(Iterator<Object[]>)QueryUtil.iterate(q,getDialect(),queryDefinition.getStart(),queryDefinition.getEnd());
+    while (itr.hasNext()) {
+      Object[] array=itr.next();
+      long modelId=(Long)array[0];
+      String name=(String)array[1];
+      long modelFolder=(Long)array[2];
+      Object obj=null;
+      if (modelFolder == 0) {
+        obj=BookmarksFolderUtil.findByPrimaryKey(modelId);
+      }
+ else {
+        obj=BookmarksEntryUtil.findByPrimaryKey(modelId);
+      }
+      models.add(obj);
+    }
+    return models;
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+}
