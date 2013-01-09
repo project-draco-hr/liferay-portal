@@ -1,10 +1,22 @@
 {
-  List<JournalContentSearch> contentSearches=JournalContentSearchLocalServiceUtil.getArticleContentSearches();
-  Set<String> portletIds=new HashSet<String>();
-  for (  JournalContentSearch contentSearch : contentSearches) {
-    portletIds.add(contentSearch.getPortletId());
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getUpgradeOptimizedConnection();
+    StringBundler sb=new StringBundler(3);
+    sb.append("select groupId, portletId from JournalContentSearch ");
+    sb.append("group by groupId, portletId ");
+    sb.append("having count(groupId) > 1 and count(portletId) > 1");
+    ps=con.prepareStatement(sb.toString());
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      long groupId=rs.getLong("groupId");
+      String portletId=rs.getString("portletId");
+      verifyContentSearch(groupId,portletId);
+    }
   }
-  for (  String portletId : portletIds) {
-    verifyContentSearch(portletId);
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
   }
 }

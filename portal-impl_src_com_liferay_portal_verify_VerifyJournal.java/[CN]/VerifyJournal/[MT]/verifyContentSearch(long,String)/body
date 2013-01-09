@@ -1,21 +1,23 @@
 {
-  List<JournalContentSearch> contentSearches=JournalContentSearchLocalServiceUtil.getPortletContentSearches(portletId);
-  if (contentSearches.size() <= 1) {
-    return;
-  }
   Connection con=null;
   PreparedStatement ps=null;
   ResultSet rs=null;
   try {
     con=DataAccess.getUpgradeOptimizedConnection();
-    ps=con.prepareStatement("select preferences from PortletPreferences where portletId " + "= ?");
-    ps.setString(1,portletId);
+    StringBundler sb=new StringBundler(3);
+    sb.append("select preferences from PortletPreferences ");
+    sb.append("inner join Layout on PortletPreferences.plid = ");
+    sb.append("Layout.plid where groupId = ? and portletId = ?");
+    ps=con.prepareStatement(sb.toString());
+    ps.setLong(1,groupId);
+    ps.setString(2,portletId);
     rs=ps.executeQuery();
     while (rs.next()) {
       String xml=rs.getString("preferences");
       PortletPreferences portletPreferences=PortletPreferencesFactoryUtil.fromDefaultXML(xml);
       String articleId=portletPreferences.getValue("articleId",null);
-      JournalContentSearch contentSearch=contentSearches.get(1);
+      List<JournalContentSearch> contentSearches=JournalContentSearchLocalServiceUtil.getArticleContentSearches(groupId,articleId);
+      JournalContentSearch contentSearch=contentSearches.get(0);
       JournalContentSearchLocalServiceUtil.updateContentSearch(contentSearch.getGroupId(),contentSearch.isPrivateLayout(),contentSearch.getLayoutId(),contentSearch.getPortletId(),articleId,true);
     }
   }
