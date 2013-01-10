@@ -3,24 +3,27 @@
   Document document=SAXReaderUtil.createDocument();
   Element rootElement=document.addElement("journal-data");
   rootElement.addAttribute("group-id",String.valueOf(portletDataContext.getScopeGroupId()));
-  Element structuresElement=rootElement.addElement("structures");
-  List<JournalStructure> structures=JournalStructureUtil.findByGroupId(portletDataContext.getScopeGroupId(),QueryUtil.ALL_POS,QueryUtil.ALL_POS,new StructurePKComparator(true));
-  for (  JournalStructure structure : structures) {
-    if (portletDataContext.isWithinDateRange(structure.getModifiedDate())) {
-      exportStructure(portletDataContext,structuresElement,structure);
+  Element ddmStructuresElement=rootElement.addElement("ddmStructures");
+  List<DDMStructure> ddmStructures=DDMStructureUtil.findByG_C(portletDataContext.getScopeGroupId(),PortalUtil.getClassNameId(JournalArticle.class),QueryUtil.ALL_POS,QueryUtil.ALL_POS,new StructurePKComparator(true));
+  List<DDMTemplate> ddmTemplates=new ArrayList<DDMTemplate>();
+  for (  DDMStructure ddmStructure : ddmStructures) {
+    if (portletDataContext.isWithinDateRange(ddmStructure.getModifiedDate())) {
+      String structurePath=getDDMStructurePath(portletDataContext,ddmStructure.getUuid());
+      DDMPortletDataHandlerImpl.exportStructure(portletDataContext,ddmStructuresElement,structurePath,ddmStructure);
     }
+    ddmTemplates.addAll(ddmStructure.getTemplates());
   }
-  Element templatesElement=rootElement.addElement("templates");
+  Element ddmTemplatesElement=rootElement.addElement("ddmTemplates");
   Element dlFileEntryTypesElement=rootElement.addElement("dl-file-entry-types");
   Element dlFoldersElement=rootElement.addElement("dl-folders");
   Element dlFilesElement=rootElement.addElement("dl-file-entries");
   Element dlFileRanksElement=rootElement.addElement("dl-file-ranks");
   Element dlRepositoriesElement=rootElement.addElement("dl-repositories");
   Element dlRepositoryEntriesElement=rootElement.addElement("dl-repository-entries");
-  List<JournalTemplate> templates=JournalTemplateUtil.findByGroupId(portletDataContext.getScopeGroupId());
-  for (  JournalTemplate template : templates) {
-    if (portletDataContext.isWithinDateRange(template.getModifiedDate())) {
-      exportTemplate(portletDataContext,templatesElement,dlFileEntryTypesElement,dlFoldersElement,dlFilesElement,dlFileRanksElement,dlRepositoriesElement,dlRepositoryEntriesElement,template);
+  for (  DDMTemplate ddmTemplate : ddmTemplates) {
+    if (portletDataContext.isWithinDateRange(ddmTemplate.getModifiedDate())) {
+      String templatePath=getDDMTemplatePath(portletDataContext,ddmTemplate);
+      DDMPortletDataHandlerImpl.exportTemplate(portletDataContext,ddmTemplatesElement,templatePath,ddmTemplate);
     }
   }
   Element feedsElement=rootElement.addElement("feeds");
@@ -35,12 +38,12 @@
   if (portletDataContext.getBooleanParameter(_NAMESPACE,"web-content")) {
     List<JournalFolder> folders=JournalFolderUtil.findByGroupId(portletDataContext.getScopeGroupId());
     for (    JournalFolder folder : folders) {
-      exportFolder(portletDataContext,foldersElement,articlesElement,structuresElement,templatesElement,dlFileEntryTypesElement,dlFoldersElement,dlFilesElement,dlFileRanksElement,dlRepositoriesElement,dlRepositoryEntriesElement,folder,true);
+      exportFolder(portletDataContext,foldersElement,articlesElement,ddmStructuresElement,ddmTemplatesElement,dlFileEntryTypesElement,dlFoldersElement,dlFilesElement,dlFileRanksElement,dlRepositoriesElement,dlRepositoryEntriesElement,folder,true);
     }
     List<JournalArticle> articles=JournalArticleUtil.findByG_F(portletDataContext.getScopeGroupId(),JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID,QueryUtil.ALL_POS,QueryUtil.ALL_POS,new ArticleIDComparator(true));
     for (    JournalArticle article : articles) {
       if (portletDataContext.getBooleanParameter(_NAMESPACE,"version-history") || JournalArticleLocalServiceUtil.isLatestVersion(article.getGroupId(),article.getArticleId(),article.getVersion(),WorkflowConstants.STATUS_APPROVED)) {
-        exportArticle(portletDataContext,articlesElement,structuresElement,templatesElement,dlFileEntryTypesElement,dlFoldersElement,dlFilesElement,dlFileRanksElement,dlRepositoriesElement,dlRepositoryEntriesElement,article,true);
+        exportArticle(portletDataContext,articlesElement,ddmStructuresElement,ddmTemplatesElement,dlFileEntryTypesElement,dlFoldersElement,dlFilesElement,dlFileRanksElement,dlRepositoriesElement,dlRepositoryEntriesElement,article,true);
       }
     }
   }
