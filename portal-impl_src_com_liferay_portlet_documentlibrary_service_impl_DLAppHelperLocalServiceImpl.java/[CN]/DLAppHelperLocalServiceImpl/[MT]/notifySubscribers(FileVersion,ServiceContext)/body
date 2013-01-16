@@ -1,0 +1,64 @@
+{
+  if (!fileVersion.isApproved()) {
+    return;
+  }
+  PortletPreferences preferences=ServiceContextUtil.getPortletPreferences(serviceContext);
+  if (preferences == null) {
+    long ownerId=fileVersion.getGroupId();
+    int ownerType=PortletKeys.PREFS_OWNER_TYPE_GROUP;
+    long plid=PortletKeys.PREFS_PLID_SHARED;
+    String portletId=PortletKeys.DOCUMENT_LIBRARY;
+    String defaultPreferences=null;
+    preferences=portletPreferencesLocalService.getPreferences(fileVersion.getCompanyId(),ownerId,ownerType,plid,portletId,defaultPreferences);
+  }
+  if (serviceContext.isCommandAdd() && DLUtil.getEmailFileEntryAddedEnabled(preferences)) {
+  }
+ else   if (serviceContext.isCommandUpdate() && DLUtil.getEmailFileEntryUpdatedEnabled(preferences)) {
+  }
+ else {
+    return;
+  }
+  String fromName=DLUtil.getEmailFromName(preferences,fileVersion.getCompanyId());
+  String fromAddress=DLUtil.getEmailFromAddress(preferences,fileVersion.getCompanyId());
+  Map<Locale,String> localizedSubjectMap=null;
+  Map<Locale,String> localizedBodyMap=null;
+  if (serviceContext.isCommandUpdate()) {
+    localizedSubjectMap=DLUtil.getEmailFileEntryUpdatedSubjectMap(preferences);
+    localizedBodyMap=DLUtil.getEmailFileEntryUpdatedBodyMap(preferences);
+  }
+ else {
+    localizedSubjectMap=DLUtil.getEmailFileEntryAddedSubjectMap(preferences);
+    localizedBodyMap=DLUtil.getEmailFileEntryAddedBodyMap(preferences);
+  }
+  Folder folder=null;
+  try {
+    FileEntry fileEntry=fileVersion.getFileEntry();
+    long folderId=fileEntry.getFolderId();
+    if (folderId != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+      folder=DLAppLocalServiceUtil.getFolder(folderId);
+    }
+  }
+ catch (  Exception e) {
+    return;
+  }
+  String folderName=LanguageUtil.get(serviceContext.getLocale(),"home");
+  if (folder != null) {
+    folderName=folder.getName();
+  }
+  SubscriptionSender subscriptionSender=new SubscriptionSender();
+  subscriptionSender.setCompanyId(fileVersion.getCompanyId());
+  subscriptionSender.setContextAttributes("[$DOCUMENT_STATUS_BY_USER_NAME$]",fileVersion.getStatusByUserName(),"[$DOCUMENT_TITLE$]",fileVersion.getTitle(),"[$FOLDER_NAME$]",folderName);
+  subscriptionSender.setContextUserPrefix("DOCUMENT");
+  subscriptionSender.setFrom(fromAddress,fromName);
+  subscriptionSender.setHtmlFormat(true);
+  subscriptionSender.setLocalizedBodyMap(localizedBodyMap);
+  subscriptionSender.setLocalizedSubjectMap(localizedSubjectMap);
+  subscriptionSender.setMailId("file_entry",fileVersion.getFileEntryId());
+  subscriptionSender.setPortletId(PortletKeys.DOCUMENT_LIBRARY);
+  subscriptionSender.setReplyToAddress(fromAddress);
+  subscriptionSender.setScopeGroupId(fileVersion.getGroupId());
+  subscriptionSender.setServiceContext(serviceContext);
+  subscriptionSender.setUserId(fileVersion.getUserId());
+  subscriptionSender.addPersistedSubscribers(Folder.class.getName(),(folder != null) ? folder.getFolderId() : fileVersion.getGroupId());
+  subscriptionSender.flushNotificationsAsync();
+}
