@@ -1,0 +1,58 @@
+{
+  int defaultStartLevel=PropsValues.MODULE_FRAMEWORK_BEGINNING_START_LEVEL;
+  boolean start=false;
+  int startLevel=defaultStartLevel;
+  int pos=location.lastIndexOf(StringPool.AT);
+  if (pos != -1) {
+    String[] attributes=StringUtil.split(location.substring(pos + 1),StringPool.COLON);
+    for (    String attribute : attributes) {
+      if (attribute.equals("start")) {
+        start=true;
+      }
+ else {
+        startLevel=GetterUtil.getInteger(attribute);
+      }
+    }
+    location=location.substring(0,pos);
+  }
+  InputStream inputStream=null;
+  try {
+    if (!location.startsWith("file:")) {
+      location="file:".concat(PropsValues.LIFERAY_LIB_PORTAL_DIR.concat(location));
+    }
+    URL initialBundleURL=new URL(location);
+    try {
+      inputStream=new BufferedInputStream(initialBundleURL.openStream());
+    }
+ catch (    IOException ioe) {
+      if (_log.isWarnEnabled()) {
+        _log.warn(ioe.getMessage());
+      }
+      return;
+    }
+    Bundle bundle=(Bundle)addBundle(initialBundleURL.toString(),inputStream,false);
+    if (bundle == null) {
+      return;
+    }
+    if (_hasLazyActivationPolicy(bundle)) {
+      lazyActivationBundles.add(bundle);
+      return;
+    }
+    if (((bundle.getState() & Bundle.UNINSTALLED) == 0) && (startLevel > 0)) {
+      BundleStartLevel bundleStartLevel=bundle.adapt(BundleStartLevel.class);
+      bundleStartLevel.setStartLevel(startLevel);
+    }
+    if (start) {
+      startBundles.add(bundle);
+    }
+    if ((bundle.getState() & Bundle.INSTALLED) != 0) {
+      refreshBundles.add(bundle);
+    }
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+ finally {
+    StreamUtil.cleanUp(inputStream);
+  }
+}
