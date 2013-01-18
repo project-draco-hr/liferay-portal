@@ -3,23 +3,33 @@
   if (bufferedIncrement == _nullBufferedIncrement) {
     return null;
   }
+  String configuration=bufferedIncrement.configuration();
+  BufferedIncrementConfiguration bufferedIncrementConfiguration=_configurationMap.get(configuration);
+  if (bufferedIncrementConfiguration == null) {
+    bufferedIncrementConfiguration=new BufferedIncrementConfiguration(configuration);
+    _configurationMap.put(configuration,bufferedIncrementConfiguration);
+  }
+  if (!bufferedIncrementConfiguration.isEnabled()) {
+    return nullResult;
+  }
+  Method method=methodInvocation.getMethod();
+  BufferedIncrementProcessor bufferedIncrementProcessor=_bufferedIncrementProcessorMap.get(method);
+  if (bufferedIncrementProcessor == null) {
+    bufferedIncrementProcessor=new BufferedIncrementProcessor(bufferedIncrementConfiguration,method);
+    BufferedIncrementProcessor previousBufferedIncrementProcessor=_bufferedIncrementProcessorMap.putIfAbsent(method,bufferedIncrementProcessor);
+    if (previousBufferedIncrementProcessor != null) {
+      bufferedIncrementProcessor=previousBufferedIncrementProcessor;
+    }
+  }
   Object[] arguments=methodInvocation.getArguments();
   Object value=arguments[arguments.length - 1];
   CacheKeyGenerator cacheKeyGenerator=CacheKeyGeneratorUtil.getCacheKeyGenerator(BufferedIncrementAdvice.class.getName());
-  cacheKeyGenerator.append(methodInvocation.toString());
   for (int i=0; i < arguments.length - 1; i++) {
     cacheKeyGenerator.append(StringUtil.toHexString(arguments[i]));
   }
   Serializable batchKey=cacheKeyGenerator.finish();
   Increment<?> increment=IncrementFactory.createIncrement(bufferedIncrement.incrementClass(),value);
   BufferedIncreasableEntry bufferedIncreasableEntry=new BufferedIncreasableEntry(methodInvocation,batchKey,increment);
-  if (_batchablePipe.put(bufferedIncreasableEntry)) {
-    if (bufferedIncrement.parallel()) {
-      MessageBusUtil.sendMessage(DestinationNames.BUFFERED_INCREMENT_PARALLEL,_batchablePipe);
-    }
- else {
-      MessageBusUtil.sendMessage(DestinationNames.BUFFERED_INCREMENT_SERIAL,_batchablePipe);
-    }
-  }
+  bufferedIncrementProcessor.process(bufferedIncreasableEntry);
   return nullResult;
 }
