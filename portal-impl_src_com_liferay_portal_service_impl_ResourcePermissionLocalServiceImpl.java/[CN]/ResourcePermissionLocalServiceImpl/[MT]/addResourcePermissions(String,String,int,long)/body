@@ -1,22 +1,57 @@
 {
   List<Role> roles=rolePersistence.findByName(roleName);
-  for (  Role role : roles) {
-    List<String> primKeys=resourcePermissionFinder.findByC_N_S(role.getCompanyId(),resourceName,scope);
-    for (    String primKey : primKeys) {
-      ResourcePermission resourcePermission=resourcePermissionPersistence.fetchByC_N_S_P_R(role.getCompanyId(),resourceName,scope,primKey,role.getRoleId());
-      if (resourcePermission == null) {
-        long resourcePermissionId=counterLocalService.increment(ResourcePermission.class.getName());
-        resourcePermission=resourcePermissionPersistence.create(resourcePermissionId);
-        resourcePermission.setCompanyId(role.getCompanyId());
-        resourcePermission.setName(resourceName);
-        resourcePermission.setScope(scope);
-        resourcePermission.setPrimKey(primKey);
-        resourcePermission.setRoleId(role.getRoleId());
-      }
-      long actionIdsLong=resourcePermission.getActionIds();
-      actionIdsLong|=resourceActionBitwiseValue;
-      resourcePermission.setActionIds(actionIdsLong);
-      resourcePermissionPersistence.update(resourcePermission);
+  if (roles.isEmpty()) {
+    return;
+  }
+  Session session=resourcePermissionPersistence.openSession();
+  try {
+    String sql=CustomSQLUtil.get(_UPDATE_ACTIONIDS);
+    String roleIds=ListUtil.toString(roles,Role.ROLE_ID_ACCESSOR);
+    sql=StringUtil.replace(sql,"[$ROLE_ID$]",roleIds);
+    SQLQuery sqlQuery=session.createSQLQuery(sql);
+    QueryPos qPos=QueryPos.getInstance(sqlQuery);
+    qPos.add(resourceActionBitwiseValue);
+    qPos.add(resourceActionBitwiseValue);
+    qPos.add(resourceName);
+    qPos.add(scope);
+    sqlQuery.executeUpdate();
+    sql=CustomSQLUtil.get(_FIND_MISSING_RESOURCEPERMISSIONS);
+    sqlQuery=session.createSQLQuery(sql);
+    sqlQuery.addScalar("temp.companyId",Type.LONG);
+    sqlQuery.addScalar("temp.name",Type.STRING);
+    sqlQuery.addScalar("temp.scope",Type.INTEGER);
+    sqlQuery.addScalar("temp.primKey",Type.STRING);
+    sqlQuery.addScalar("role.roleId",Type.LONG);
+    qPos=QueryPos.getInstance(sqlQuery);
+    qPos.add(resourceName);
+    qPos.add(scope);
+    qPos.add(roleName);
+    List<Object[]> resourcePermissionKeys=sqlQuery.list(true);
+    if (resourcePermissionKeys.isEmpty()) {
+      return;
     }
+    for (    Object[] resourcePermissionKey : resourcePermissionKeys) {
+      Long tempCompanyId=(Long)resourcePermissionKey[0];
+      String tempName=(String)resourcePermissionKey[1];
+      Integer tempScope=(Integer)resourcePermissionKey[2];
+      String tempPrimKey=(String)resourcePermissionKey[3];
+      Long tempRoleId=(Long)resourcePermissionKey[4];
+      long resourcePermissionId=counterLocalService.increment(ResourcePermission.class.getName());
+      ResourcePermission resourcePermission=resourcePermissionPersistence.create(resourcePermissionId);
+      resourcePermission.setCompanyId(tempCompanyId);
+      resourcePermission.setName(tempName);
+      resourcePermission.setScope(tempScope);
+      resourcePermission.setPrimKey(tempPrimKey);
+      resourcePermission.setRoleId(tempRoleId);
+      resourcePermission.setActionIds(resourceActionBitwiseValue);
+      session.save(resourcePermission);
+    }
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+ finally {
+    resourcePermissionPersistence.closeSession(session);
+    resourcePermissionPersistence.clearCache();
   }
 }
