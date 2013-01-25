@@ -2,12 +2,11 @@
   Connection con=null;
   PreparedStatement ps=null;
   ResultSet rs=null;
-  long newStructureId=0;
   try {
     con=DataAccess.getUpgradeOptimizedConnection();
     ps=con.prepareStatement("select * from JournalStructure where structureId = " + structureId);
     rs=ps.executeQuery();
-    while (rs.next()) {
+    if (rs.next()) {
       String uuid_=rs.getString("uuid_");
       long groupId=rs.getLong("groupId");
       long companyId=rs.getLong("companyId");
@@ -15,22 +14,21 @@
       String userName=rs.getString("userName");
       Date createDate=rs.getDate("createDate");
       Date modifiedDate=rs.getDate("modifiedDate");
-      String structureKey=rs.getString("structureId");
       String parentStructureId=rs.getString("parentStructureId");
       String name=rs.getString("name");
       String description=rs.getString("description");
       String xsd=rs.getString("xsd");
-      if (!_structureKeyStructureIdMap.containsKey(structureKey)) {
-        newStructureId=addDDMStructure(uuid_,groupId,companyId,userId,userName,createDate,modifiedDate,structureKey,parentStructureId,name,description,xsd);
-        _structureKeyStructureIdMap.put(structureKey,newStructureId);
+      Long ddmStructureId=_ddmStructureIds.get(groupId + "#" + structureId);
+      if (ddmStructureId != null) {
+        return ddmStructureId;
       }
- else {
-        newStructureId=_structureKeyStructureIdMap.get(structureKey);
-      }
+      ddmStructureId=increment();
+      addDDMStructure(uuid_,ddmStructureId,groupId,companyId,userId,userName,createDate,modifiedDate,parentStructureId,structureId,name,description,xsd);
+      _ddmStructureIds.put(groupId + "#" + structureId,ddmStructureId);
     }
+    return 0;
   }
   finally {
     DataAccess.cleanUp(con,ps,rs);
   }
-  return newStructureId;
 }
