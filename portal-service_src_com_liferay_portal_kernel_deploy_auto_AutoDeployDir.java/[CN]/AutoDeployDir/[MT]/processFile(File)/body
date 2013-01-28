@@ -8,24 +8,15 @@
     _log.error("Unable to write " + fileName);
     return;
   }
-  if (_blacklistFiles.contains(fileName)) {
+  long lastModified=file.lastModified();
+  if (_blacklistFiles.containsKey(fileName) && (_blacklistFiles.get(fileName) == lastModified)) {
     if (_log.isDebugEnabled()) {
-      _log.debug("Skip processing of " + fileName + " because it is "+ "blacklisted. You must restart the server to remove "+ "the file from the blacklist.");
+      _log.debug("Skip processing of " + fileName + " because it is "+ "blacklisted.");
     }
     return;
   }
-  IntegerWrapper attempt=_inProcessFiles.get(fileName);
-  if (attempt == null) {
-    attempt=new IntegerWrapper(1);
-    _inProcessFiles.put(fileName,attempt);
-    if (_log.isInfoEnabled()) {
-      _log.info("Processing " + fileName);
-    }
-  }
- else {
-    if (_log.isInfoEnabled()) {
-      _log.info("Processing " + fileName + ". This is attempt "+ attempt.getValue()+ ".");
-    }
+  if (_log.isInfoEnabled()) {
+    _log.info("Processing " + fileName);
   }
   try {
     AutoDeploymentContext autoDeploymentContext=buildAutoDeploymentContext(file);
@@ -33,24 +24,15 @@
       autoDeployListener.deploy(autoDeploymentContext);
     }
     if (file.delete()) {
-      _inProcessFiles.remove(fileName);
+      return;
     }
- else {
-      _log.error("Auto deploy failed to remove " + fileName);
-      if (_log.isInfoEnabled()) {
-        _log.info("Add " + fileName + " to the blacklist");
-      }
-      _blacklistFiles.add(fileName);
-    }
+    _log.error("Auto deploy failed to remove " + fileName);
   }
  catch (  Exception e) {
     _log.error(e,e);
-    attempt.increment();
-    if (attempt.getValue() >= _blacklistThreshold) {
-      if (_log.isInfoEnabled()) {
-        _log.info("Add " + fileName + " to the blacklist");
-      }
-      _blacklistFiles.add(fileName);
-    }
   }
+  if (_log.isInfoEnabled()) {
+    _log.info("Add " + fileName + " to the blacklist");
+  }
+  _blacklistFiles.put(fileName,lastModified);
 }
