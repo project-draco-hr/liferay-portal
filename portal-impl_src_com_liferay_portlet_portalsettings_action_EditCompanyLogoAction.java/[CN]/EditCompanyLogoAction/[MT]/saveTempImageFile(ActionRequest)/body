@@ -1,11 +1,9 @@
 {
-  String tempFilePath=getTempImageFilePath(actionRequest);
+  FileEntry tempFileEntry=null;
   InputStream tempImageStream=null;
   try {
-    tempImageStream=getTempImageStream(tempFilePath);
-    if (tempImageStream == null) {
-      throw new UploadException();
-    }
+    tempFileEntry=getTempImageFileEntry(actionRequest);
+    tempImageStream=tempFileEntry.getContentStream();
     ImageBag imageBag=ImageToolUtil.read(tempImageStream);
     RenderedImage renderedImage=imageBag.getRenderedImage();
     String cropRegionJSON=ParamUtil.getString(actionRequest,"cropRegion");
@@ -20,8 +18,13 @@
     byte[] bytes=ImageToolUtil.getBytes(renderedImage,imageBag.getType());
     saveTempImageFile(actionRequest,bytes);
   }
-  finally {
-    TempFileUtil.deleteTempFile(tempFilePath);
+ catch (  NoSuchFileEntryException nsfee) {
+    throw new UploadException(nsfee);
+  }
+ finally {
     StreamUtil.cleanUp(tempImageStream);
+    if (tempFileEntry != null) {
+      TempFileUtil.deleteTempFile(tempFileEntry.getFileEntryId());
+    }
   }
 }
