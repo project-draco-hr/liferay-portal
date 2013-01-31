@@ -1,0 +1,59 @@
+{
+  portletDataContext.addPermissions("com.liferay.portlet.journal",portletDataContext.getScopeGroupId());
+  String articleId=portletPreferences.getValue("articleId",null);
+  if (articleId == null) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("No article id found in preferences of portlet " + portletId);
+    }
+    return StringPool.BLANK;
+  }
+  long articleGroupId=GetterUtil.getLong(portletPreferences.getValue("groupId",StringPool.BLANK));
+  if (articleGroupId <= 0) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("No group id found in preferences of portlet " + portletId);
+    }
+    return StringPool.BLANK;
+  }
+  long previousScopeGroupId=portletDataContext.getScopeGroupId();
+  if (articleGroupId != portletDataContext.getScopeGroupId()) {
+    portletDataContext.setScopeGroupId(articleGroupId);
+  }
+  JournalArticle article=null;
+  try {
+    article=JournalArticleLocalServiceUtil.getLatestArticle(articleGroupId,articleId,WorkflowConstants.STATUS_APPROVED);
+  }
+ catch (  NoSuchArticleException nsae) {
+  }
+  if (article == null) {
+    try {
+      article=JournalArticleLocalServiceUtil.getLatestArticle(articleGroupId,articleId,WorkflowConstants.STATUS_EXPIRED);
+    }
+ catch (    NoSuchArticleException nsae) {
+    }
+  }
+  Document document=SAXReaderUtil.createDocument();
+  Element rootElement=document.addElement("journal-content-data");
+  if (article == null) {
+    portletDataContext.setScopeGroupId(previousScopeGroupId);
+    return document.formattedString();
+  }
+  String path=JournalPortletDataHandler.getArticlePath(portletDataContext,article);
+  Element articleElement=rootElement.addElement("article");
+  articleElement.addAttribute("path",path);
+  Element dlFileEntryTypesElement=rootElement.addElement("dl-file-entry-types");
+  Element dlFoldersElement=rootElement.addElement("dl-folders");
+  Element dlFilesElement=rootElement.addElement("dl-file-entries");
+  Element dlFileRanksElement=rootElement.addElement("dl-file-ranks");
+  Element dlRepositoriesElement=rootElement.addElement("dl-repositories");
+  Element dlRepositoryEntriesElement=rootElement.addElement("dl-repository-entries");
+  JournalPortletDataHandler.exportArticle(portletDataContext,rootElement,rootElement,rootElement,dlFileEntryTypesElement,dlFoldersElement,dlFilesElement,dlFileRanksElement,dlRepositoriesElement,dlRepositoryEntriesElement,article,false);
+  String defaultTemplateId=article.getTemplateId();
+  String preferenceTemplateId=portletPreferences.getValue("templateId",null);
+  if (Validator.isNotNull(defaultTemplateId) && Validator.isNotNull(preferenceTemplateId) && !defaultTemplateId.equals(preferenceTemplateId)) {
+    DDMTemplate ddmTemplate=DDMTemplateLocalServiceUtil.getTemplate(article.getGroupId(),preferenceTemplateId,true);
+    String ddmTemplatePath=JournalPortletDataHandler.getDDMTemplatePath(portletDataContext,ddmTemplate);
+    DDMPortletDataHandler.exportTemplate(portletDataContext,rootElement,dlFileEntryTypesElement,dlFoldersElement,dlFilesElement,dlFileRanksElement,dlRepositoriesElement,dlRepositoryEntriesElement,ddmTemplatePath,ddmTemplate);
+  }
+  portletDataContext.setScopeGroupId(previousScopeGroupId);
+  return document.formattedString();
+}

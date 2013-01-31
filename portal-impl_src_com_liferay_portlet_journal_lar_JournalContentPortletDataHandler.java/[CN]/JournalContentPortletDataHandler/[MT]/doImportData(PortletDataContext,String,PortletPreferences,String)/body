@@ -1,0 +1,53 @@
+{
+  portletDataContext.importPermissions("com.liferay.portlet.journal",portletDataContext.getSourceGroupId(),portletDataContext.getScopeGroupId());
+  if (Validator.isNull(data)) {
+    return null;
+  }
+  long previousScopeGroupId=portletDataContext.getScopeGroupId();
+  long importGroupId=GetterUtil.getLong(portletPreferences.getValue("groupId",null));
+  if (importGroupId == portletDataContext.getSourceGroupId()) {
+    portletDataContext.setScopeGroupId(portletDataContext.getGroupId());
+  }
+  Document document=SAXReaderUtil.read(data);
+  Element rootElement=document.getRootElement();
+  JournalPortletDataHandler.importReferencedData(portletDataContext,rootElement);
+  Element structureElement=rootElement.element("structure");
+  if (structureElement != null) {
+    DDMPortletDataHandler.importStructure(portletDataContext,structureElement);
+  }
+  List<Element> templateElements=rootElement.elements("template");
+  if (templateElements != null) {
+    for (    Element templateElement : templateElements) {
+      DDMPortletDataHandler.importTemplate(portletDataContext,templateElement);
+    }
+  }
+  Element articleElement=rootElement.element("article");
+  if (articleElement != null) {
+    JournalPortletDataHandler.importArticle(portletDataContext,articleElement);
+  }
+  String articleId=portletPreferences.getValue("articleId",null);
+  if (Validator.isNotNull(articleId) && (articleElement != null)) {
+    Map<String,String> articleIds=(Map<String,String>)portletDataContext.getNewPrimaryKeysMap(JournalArticle.class + ".articleId");
+    articleId=MapUtil.getString(articleIds,articleId,articleId);
+    portletPreferences.setValue("articleId",articleId);
+    String importedArticleGroupId=String.valueOf(portletDataContext.getScopeGroupId());
+    portletPreferences.setValue("groupId",importedArticleGroupId);
+    Layout layout=LayoutLocalServiceUtil.getLayout(portletDataContext.getPlid());
+    JournalContentSearchLocalServiceUtil.updateContentSearch(portletDataContext.getScopeGroupId(),layout.isPrivateLayout(),layout.getLayoutId(),portletId,articleId,true);
+  }
+ else {
+    portletPreferences.setValue("groupId",StringPool.BLANK);
+    portletPreferences.setValue("articleId",StringPool.BLANK);
+  }
+  String ddmTemplateKey=portletPreferences.getValue("ddmTemplateKey",null);
+  if (Validator.isNotNull(ddmTemplateKey)) {
+    Map<String,String> ddmTemplateKeys=(Map<String,String>)portletDataContext.getNewPrimaryKeysMap(DDMTemplate.class + ".ddmTemplateKey");
+    ddmTemplateKey=MapUtil.getString(ddmTemplateKeys,ddmTemplateKey,ddmTemplateKey);
+    portletPreferences.setValue("ddmTemplateKey",ddmTemplateKey);
+  }
+ else {
+    portletPreferences.setValue("ddmTemplateKey",StringPool.BLANK);
+  }
+  portletDataContext.setScopeGroupId(previousScopeGroupId);
+  return portletPreferences;
+}
