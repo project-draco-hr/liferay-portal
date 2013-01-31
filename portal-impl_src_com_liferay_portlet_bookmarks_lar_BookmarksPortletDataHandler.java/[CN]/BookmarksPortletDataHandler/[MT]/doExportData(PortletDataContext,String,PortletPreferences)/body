@@ -3,21 +3,31 @@
   Document document=SAXReaderUtil.createDocument();
   Element rootElement=document.addElement("bookmarks-data");
   rootElement.addAttribute("group-id",String.valueOf(portletDataContext.getScopeGroupId()));
-  Element foldersElement=rootElement.addElement("folders");
-  Element entriesElement=rootElement.addElement("entries");
-  List<BookmarksFolder> folders=BookmarksFolderUtil.findByGroupId(portletDataContext.getScopeGroupId());
-  for (  BookmarksFolder folder : folders) {
-    if (!portletDataContext.isWithinDateRange(folder.getModifiedDate())) {
-      continue;
+  final Element foldersElement=rootElement.addElement("folders");
+  ActionableDynamicQuery foldersActionableDynamicQuery=new BookmarksFolderActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
     }
-    StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,foldersElement,folder);
-  }
-  List<BookmarksEntry> entries=BookmarksEntryLocalServiceUtil.getGroupEntries(portletDataContext.getScopeGroupId(),QueryUtil.ALL_POS,QueryUtil.ALL_POS);
-  for (  BookmarksEntry entry : entries) {
-    if (!portletDataContext.isWithinDateRange(entry.getModifiedDate())) {
-      continue;
+    @Override protected void performAction(    Object object) throws PortalException {
+      BookmarksFolder folder=(BookmarksFolder)object;
+      StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,foldersElement,folder);
     }
-    StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,new Element[]{foldersElement,entriesElement},entry);
   }
+;
+  foldersActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
+  foldersActionableDynamicQuery.performActions();
+  final Element entriesElement=rootElement.addElement("entries");
+  ActionableDynamicQuery entriesActionableDynamicQuery=new BookmarksEntryActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
+    }
+    @Override protected void performAction(    Object object) throws PortalException {
+      BookmarksEntry entry=(BookmarksEntry)object;
+      StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,new Element[]{foldersElement,entriesElement},entry);
+    }
+  }
+;
+  entriesActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
+  entriesActionableDynamicQuery.performActions();
   return document.formattedString();
 }
