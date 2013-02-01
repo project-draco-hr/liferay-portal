@@ -61,43 +61,58 @@
       return;
     }
   }
-  boolean hasUpdateLayoutPermission=false;
-  if (layout != null) {
-    hasUpdateLayoutPermission=LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.UPDATE);
-  }
-  boolean hasPermission=true;
-  if (cmd.equals("publish_to_live")) {
+ else   if (cmd.equals("publish_to_live")) {
+    boolean hasUpdateLayoutPermission=false;
+    if (layout != null) {
+      hasUpdateLayoutPermission=LayoutPermissionUtil.contains(permissionChecker,layout,ActionKeys.UPDATE);
+    }
     if (group.isSite()) {
       boolean publishToLive=GroupPermissionUtil.contains(permissionChecker,group.getGroupId(),ActionKeys.PUBLISH_STAGING);
       if (!hasUpdateLayoutPermission && !publishToLive) {
-        hasPermission=false;
+        throw new PrincipalException();
+      }
+ else {
+        return;
       }
     }
  else     if (group.isOrganization()) {
       boolean publishToLive=OrganizationPermissionUtil.contains(permissionChecker,group.getOrganizationId(),ActionKeys.PUBLISH_STAGING);
       if (!hasUpdateLayoutPermission && !publishToLive) {
-        hasPermission=false;
+        throw new PrincipalException();
+      }
+ else {
+        return;
       }
     }
   }
-  if (group.isCompany()) {
-    if (!permissionChecker.isCompanyAdmin()) {
-      hasPermission=false;
+ else   if (cmd.equals(Constants.UPDATE)) {
+    if (group.isCompany()) {
+      if (!permissionChecker.isCompanyAdmin()) {
+        throw new PrincipalException();
+      }
+ else {
+        return;
+      }
+    }
+ else     if (group.isLayoutPrototype()) {
+      LayoutPrototypePermissionUtil.check(permissionChecker,group.getClassPK(),ActionKeys.UPDATE);
+      return;
+    }
+ else     if (group.isLayoutSetPrototype()) {
+      LayoutSetPrototypePermissionUtil.check(permissionChecker,group.getClassPK(),ActionKeys.UPDATE);
+      return;
+    }
+ else     if (group.isUser()) {
+      long groupUserId=group.getClassPK();
+      User groupUser=UserLocalServiceUtil.getUserById(groupUserId);
+      long[] organizationIds=groupUser.getOrganizationIds();
+      UserPermissionUtil.check(permissionChecker,groupUserId,organizationIds,ActionKeys.UPDATE);
+      return;
     }
   }
- else   if (group.isLayoutPrototype()) {
-    LayoutPrototypePermissionUtil.check(permissionChecker,group.getClassPK(),ActionKeys.UPDATE);
+  if (selPlid > 0) {
+    LayoutPermissionUtil.check(permissionChecker,layout,ActionKeys.VIEW);
+    return;
   }
- else   if (group.isLayoutSetPrototype()) {
-    LayoutSetPrototypePermissionUtil.check(permissionChecker,group.getClassPK(),ActionKeys.UPDATE);
-  }
- else   if (group.isUser()) {
-    long groupUserId=group.getClassPK();
-    User groupUser=UserLocalServiceUtil.getUserById(groupUserId);
-    long[] organizationIds=groupUser.getOrganizationIds();
-    UserPermissionUtil.check(permissionChecker,groupUserId,organizationIds,ActionKeys.UPDATE);
-  }
-  if (!hasPermission) {
-    throw new PrincipalException();
-  }
+  GroupPermissionUtil.check(permissionChecker,group,ActionKeys.VIEW);
 }
