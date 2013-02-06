@@ -1,34 +1,57 @@
 {
   List<UserGroupRole> oldUserGroupRoles=null;
   PermissionChecker permissionChecker=getPermissionChecker();
-  MembershipPolicy membershipPolicy=MembershipPolicyFactory.getInstance();
   User user=userPersistence.findByPrimaryKey(userId);
   if (userId != CompanyConstants.SYSTEM) {
-    Set<Role> mandatoryRoles=membershipPolicy.getMandatoryRoles(user.getGroup(),user);
+    Set<Role> mandatoryRoles=MembershipPolicyUtil.getMandatoryRoles(user.getGroup(),user);
+    List<Organization> organizations=organizationLocalService.getUserOrganizations(userId);
     oldUserGroupRoles=userGroupRoleLocalService.getUserGroupRoles(userId);
     for (    UserGroupRole oldUserGroupRole : oldUserGroupRoles) {
       Role role=oldUserGroupRole.getRole();
-      if (!userGroupRoles.contains(oldUserGroupRole) && !UserGroupRolePermissionUtil.contains(permissionChecker,oldUserGroupRole.getGroupId(),oldUserGroupRole.getRoleId()) || mandatoryRoles.contains(role)) {
-        userGroupRoles.add(oldUserGroupRole);
-      }
-    }
-  }
-  MembershipPolicyException membershipPolicyException=null;
-  for (  UserGroupRole userGroupRole : userGroupRoles) {
-    Role role=userGroupRole.getRole();
-    if ((oldUserGroupRoles == null) || !oldUserGroupRoles.contains(userGroupRole)) {
-      UserGroupRolePermissionUtil.check(permissionChecker,userGroupRole.getGroupId(),userGroupRole.getRoleId());
-      if (!membershipPolicy.isMembershipAllowed(role,user)) {
-        if (membershipPolicyException == null) {
-          membershipPolicyException=new MembershipPolicyException(MembershipPolicyException.ROLE_MEMBERSHIP_NOT_ALLOWED);
-          membershipPolicyException.addUser(user);
+      if (role.getType() == RoleConstants.TYPE_SITE) {
+        if (!userGroupRoles.contains(oldUserGroupRole) && !UserGroupRolePermissionUtil.contains(permissionChecker,oldUserGroupRole.getGroupId(),oldUserGroupRole.getRoleId()) || mandatoryRoles.contains(role)) {
+          userGroupRoles.add(oldUserGroupRole);
         }
-        membershipPolicyException.addRole(role);
+      }
+ else       if (role.getType() == RoleConstants.TYPE_ORGANIZATION) {
+        for (        Organization organization : organizations) {
+          Set<Role> mandatoryOrganizationRoles=MembershipPolicyUtil.getMandatoryRoles(organization,user);
+          if (!userGroupRoles.contains(oldUserGroupRole) && !UserGroupRolePermissionUtil.contains(permissionChecker,oldUserGroupRole.getGroupId(),oldUserGroupRole.getRoleId()) || mandatoryOrganizationRoles.contains(role)) {
+            userGroupRoles.add(oldUserGroupRole);
+          }
+        }
       }
     }
-  }
-  if (membershipPolicyException != null) {
-    throw membershipPolicyException;
+    MembershipPolicyException membershipPolicyException=null;
+    for (    UserGroupRole userGroupRole : userGroupRoles) {
+      Role role=userGroupRole.getRole();
+      if ((oldUserGroupRoles == null) || !oldUserGroupRoles.contains(userGroupRole)) {
+        UserGroupRolePermissionUtil.check(permissionChecker,userGroupRole.getGroupId(),userGroupRole.getRoleId());
+        if (role.getType() == RoleConstants.TYPE_SITE) {
+          if (!MembershipPolicyUtil.isMembershipAllowed(role,user,userGroupRole.getGroup())) {
+            if (membershipPolicyException == null) {
+              membershipPolicyException=new MembershipPolicyException(MembershipPolicyException.ROLE_MEMBERSHIP_NOT_ALLOWED);
+              membershipPolicyException.addUser(user);
+            }
+            membershipPolicyException.addRole(role);
+          }
+        }
+ else         if (role.getType() == RoleConstants.TYPE_ORGANIZATION) {
+          for (          Organization organization : organizations) {
+            if (!MembershipPolicyUtil.isMembershipAllowed(role,user,organization)) {
+              if (membershipPolicyException == null) {
+                membershipPolicyException=new MembershipPolicyException(MembershipPolicyException.ROLE_MEMBERSHIP_NOT_ALLOWED);
+                membershipPolicyException.addUser(user);
+              }
+              membershipPolicyException.addRole(role);
+            }
+          }
+        }
+      }
+    }
+    if (membershipPolicyException != null) {
+      throw membershipPolicyException;
+    }
   }
   return userGroupRoles;
 }
