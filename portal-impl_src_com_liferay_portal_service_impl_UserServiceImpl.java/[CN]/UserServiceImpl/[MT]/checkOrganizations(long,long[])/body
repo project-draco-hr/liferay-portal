@@ -4,17 +4,31 @@
   if (userId != CompanyConstants.SYSTEM) {
     List<Organization> oldOrganizations=organizationLocalService.getUserOrganizations(userId);
     oldOrganizationIds=new long[oldOrganizations.size()];
+    User user=userLocalService.fetchUser(userId);
+    Set<Organization> mandatoryOrganizations=MembershipPolicyUtil.getMandatoryOrganizations(user);
     for (int i=0; i < oldOrganizations.size(); i++) {
       Organization organization=oldOrganizations.get(i);
-      if (!ArrayUtil.contains(organizationIds,organization.getOrganizationId()) && !OrganizationPermissionUtil.contains(permissionChecker,organization.getOrganizationId(),ActionKeys.ASSIGN_MEMBERS)) {
+      if (!ArrayUtil.contains(organizationIds,organization.getOrganizationId()) && !OrganizationPermissionUtil.contains(permissionChecker,organization.getOrganizationId(),ActionKeys.ASSIGN_MEMBERS) || mandatoryOrganizations.contains(organization)) {
         organizationIds=ArrayUtil.append(organizationIds,organization.getOrganizationId());
       }
       oldOrganizationIds[i]=organization.getOrganizationId();
     }
-  }
-  for (  long organizationId : organizationIds) {
-    if ((oldOrganizationIds == null) || !ArrayUtil.contains(oldOrganizationIds,organizationId)) {
-      OrganizationPermissionUtil.check(permissionChecker,organizationId,ActionKeys.ASSIGN_MEMBERS);
+    MembershipPolicyException membershipPolicyException=null;
+    for (    long organizationId : organizationIds) {
+      Organization organization=organizationLocalService.fetchOrganization(organizationId);
+      if ((oldOrganizationIds == null) || !ArrayUtil.contains(oldOrganizationIds,organizationId)) {
+        OrganizationPermissionUtil.check(permissionChecker,organizationId,ActionKeys.ASSIGN_MEMBERS);
+        if (!MembershipPolicyUtil.isMembershipAllowed(organization,user)) {
+          if (membershipPolicyException == null) {
+            membershipPolicyException=new MembershipPolicyException(MembershipPolicyException.GROUP_MEMBERSHIP_NOT_ALLOWED);
+            membershipPolicyException.addUser(user);
+          }
+          membershipPolicyException.addOrganization(organization);
+        }
+      }
+    }
+    if (membershipPolicyException != null) {
+      throw membershipPolicyException;
     }
   }
   return organizationIds;
