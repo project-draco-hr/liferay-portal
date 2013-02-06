@@ -1,0 +1,30 @@
+{
+  Layout layout=LayoutLocalServiceUtil.getLayout(portletPreferences.getPlid());
+  PortletPreferences preferences=PortletPreferencesFactoryUtil.fromXML(layout.getCompanyId(),portletPreferences.getOwnerId(),portletPreferences.getOwnerType(),portletPreferences.getPlid(),portletPreferences.getPortletId(),portletPreferences.getPreferences());
+  if (!getEmailAssetEntryAddedEnabled(preferences)) {
+    return;
+  }
+  List<AssetEntry> assetEntries=AssetPublisherUtil.getAssetEntries(preferences,layout,layout.getGroupId(),false);
+  if (assetEntries.isEmpty()) {
+    return;
+  }
+  long[] lastNotifiedAssetEntryIds=GetterUtil.getLongValues(preferences.getValues("last-notified-asset-entry-ids",null));
+  List<AssetEntry> newAssetEntries=new ArrayList<AssetEntry>();
+  for (int i=0; i < assetEntries.size(); i++) {
+    AssetEntry assetEntry=assetEntries.get(i);
+    if (!ArrayUtil.contains(lastNotifiedAssetEntryIds,assetEntry.getEntryId())) {
+      newAssetEntries.add(assetEntry);
+    }
+  }
+  notifySubscribers(portletPreferences.getPlid(),portletPreferences.getPortletId(),newAssetEntries,preferences);
+  try {
+    preferences.setValues("last-notified-asset-entry-ids",StringUtil.split(ListUtil.toString(assetEntries,AssetEntry.ENTRY_ID_ACCESSOR)));
+    preferences.store();
+  }
+ catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+catch (  PortletException pe) {
+    throw new SystemException(pe);
+  }
+}
