@@ -1,33 +1,38 @@
 {
-  StringBundler sb=new StringBundler(3);
-  sb.append(PortletKeys.ASSET_PUBLISHER);
-  sb.append(PortletConstants.INSTANCE_SEPARATOR);
-  sb.append(StringPool.PERCENT);
-  List<com.liferay.portal.model.PortletPreferences> preferencesList=PortletPreferencesLocalServiceUtil.getPortletPreferencesByLikePortletId(sb.toString());
-  for (  com.liferay.portal.model.PortletPreferences curPreferences : preferencesList) {
-    Layout layout=LayoutLocalServiceUtil.getLayout(curPreferences.getPlid());
-    PortletPreferences preferences=PortletPreferencesFactoryUtil.fromXML(layout.getCompanyId(),curPreferences.getOwnerId(),curPreferences.getOwnerType(),curPreferences.getPlid(),curPreferences.getPortletId(),curPreferences.getPreferences());
-    if (!getEmailAssetEntryAddedEnabled(preferences)) {
-      continue;
+  ActionableDynamicQuery actionableDynamicQuery=new PortletPreferencesActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      Property property=PropertyFactoryUtil.forName("portletId");
+      String portletId=PortletKeys.ASSET_PUBLISHER + PortletConstants.INSTANCE_SEPARATOR + StringPool.PERCENT;
+      dynamicQuery.add(property.like(portletId));
     }
-    List<AssetEntry> assetEntries=AssetPublisherUtil.getAssetEntries(preferences,layout,layout.getGroupId(),false);
-    if (assetEntries.isEmpty()) {
-      continue;
-    }
-    long[] lastNotifiedAssetEntryIds=GetterUtil.getLongValues(preferences.getValues("last-notified-asset-entry-ids",null));
-    List<AssetEntry> newAssetEntries=new ArrayList<AssetEntry>();
-    for (int i=0; i < assetEntries.size(); i++) {
-      AssetEntry assetEntry=assetEntries.get(i);
-      if (!ArrayUtil.contains(lastNotifiedAssetEntryIds,assetEntry.getEntryId())) {
-        newAssetEntries.add(assetEntry);
+    @Override protected void performAction(    Object object) throws PortalException, SystemException {
+      com.liferay.portal.model.PortletPreferences portletPreferences=(com.liferay.portal.model.PortletPreferences)object;
+      Layout layout=LayoutLocalServiceUtil.getLayout(portletPreferences.getPlid());
+      PortletPreferences preferences=PortletPreferencesFactoryUtil.fromXML(layout.getCompanyId(),portletPreferences.getOwnerId(),portletPreferences.getOwnerType(),portletPreferences.getPlid(),portletPreferences.getPortletId(),portletPreferences.getPreferences());
+      if (!getEmailAssetEntryAddedEnabled(preferences)) {
+        return;
+      }
+      List<AssetEntry> assetEntries=AssetPublisherUtil.getAssetEntries(preferences,layout,layout.getGroupId(),false);
+      if (assetEntries.isEmpty()) {
+        return;
+      }
+      long[] lastNotifiedAssetEntryIds=GetterUtil.getLongValues(preferences.getValues("last-notified-asset-entry-ids",null));
+      List<AssetEntry> newAssetEntries=new ArrayList<AssetEntry>();
+      for (int i=0; i < assetEntries.size(); i++) {
+        AssetEntry assetEntry=assetEntries.get(i);
+        if (!ArrayUtil.contains(lastNotifiedAssetEntryIds,assetEntry.getEntryId())) {
+          newAssetEntries.add(assetEntry);
+        }
+      }
+      notifySubscribers(portletPreferences.getPlid(),portletPreferences.getPortletId(),newAssetEntries,preferences);
+      try {
+        preferences.setValues("last-notified-asset-entry-ids",StringUtil.split(ListUtil.toString(assetEntries,AssetEntry.ENTRY_ID_ACCESSOR)));
+        preferences.store();
+      }
+ catch (      Exception e) {
       }
     }
-    notifySubscribers(curPreferences.getPlid(),curPreferences.getPortletId(),newAssetEntries,preferences);
-    try {
-      preferences.setValues("last-notified-asset-entry-ids",StringUtil.split(ListUtil.toString(assetEntries,AssetEntry.ENTRY_ID_ACCESSOR)));
-      preferences.store();
-    }
- catch (    Exception e) {
-    }
   }
+;
+  actionableDynamicQuery.performActions();
 }
