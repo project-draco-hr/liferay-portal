@@ -1,21 +1,35 @@
 {
   long[] oldGroupIds=null;
   PermissionChecker permissionChecker=getPermissionChecker();
+  User user=userPersistence.findByPrimaryKey(userId);
   if (userId != CompanyConstants.SYSTEM) {
+    Set<Group> mandatoryGroups=MembershipPolicyUtil.getMandatoryGroups(user);
     List<Group> oldGroups=groupLocalService.getUserGroups(userId);
     oldGroupIds=new long[oldGroups.size()];
     for (int i=0; i < oldGroups.size(); i++) {
       Group group=oldGroups.get(i);
-      if (!ArrayUtil.contains(groupIds,group.getGroupId()) && !GroupPermissionUtil.contains(permissionChecker,group.getGroupId(),ActionKeys.ASSIGN_MEMBERS)) {
+      if (!ArrayUtil.contains(groupIds,group.getGroupId()) && (!GroupPermissionUtil.contains(permissionChecker,group.getGroupId(),ActionKeys.ASSIGN_MEMBERS) || mandatoryGroups.contains(group))) {
         groupIds=ArrayUtil.append(groupIds,group.getGroupId());
       }
       oldGroupIds[i]=group.getGroupId();
     }
   }
+  MembershipPolicyException membershipPolicyException=null;
   for (  long groupId : groupIds) {
     if ((oldGroupIds == null) || !ArrayUtil.contains(oldGroupIds,groupId)) {
-      GroupPermissionUtil.check(permissionChecker,groupId,ActionKeys.ASSIGN_MEMBERS);
+      Group group=groupPersistence.findByPrimaryKey(groupId);
+      GroupPermissionUtil.check(permissionChecker,group,ActionKeys.ASSIGN_MEMBERS);
+      if (!MembershipPolicyUtil.isMembershipAllowed(group,user)) {
+        if (membershipPolicyException == null) {
+          membershipPolicyException=new MembershipPolicyException(MembershipPolicyException.GROUP_MEMBERSHIP_NOT_ALLOWED);
+          membershipPolicyException.addUser(user);
+        }
+        membershipPolicyException.addGroup(group);
+      }
     }
+  }
+  if (membershipPolicyException != null) {
+    throw membershipPolicyException;
   }
   return groupIds;
 }
