@@ -1,0 +1,31 @@
+{
+  long targetGroupId=ParamUtil.getLong(actionRequest,"groupId");
+  boolean privateLayoutSet=ParamUtil.getBoolean(actionRequest,"privateLayoutSet");
+  long layoutSetPrototypeId=ParamUtil.getLong(actionRequest,"layoutSetPrototypeId");
+  boolean forceMergeNow=ParamUtil.getBoolean(actionRequest,"forceMergeNow");
+  LayoutSetPrototype layoutSetPrototype=LayoutSetPrototypeServiceUtil.getLayoutSetPrototype(layoutSetPrototypeId);
+  LayoutSet layoutSetPrototypeLayoutSet=layoutSetPrototype.getLayoutSet();
+  SitesUtil.setMergeFailCount(layoutSetPrototypeLayoutSet,0);
+  LayoutSetLocalServiceUtil.updateLayoutSet(layoutSetPrototypeLayoutSet);
+  if (_log.isDebugEnabled()) {
+    _log.debug("'merge-fail-count' was reset for layoutSetPrototype " + layoutSetPrototypeId);
+  }
+  if (forceMergeNow) {
+    LayoutSet targetGroupLayoutSet=LayoutSetLocalServiceUtil.getLayoutSet(targetGroupId,privateLayoutSet);
+    Group targetGroup=GroupLocalServiceUtil.getGroup(targetGroupId);
+    if (!targetGroupLayoutSet.isLayoutSetPrototypeLinkEnabled()) {
+      LayoutSetLocalServiceUtil.updateLayoutSetPrototypeLinkEnabled(targetGroupId,privateLayoutSet,true,layoutSetPrototype.getUuid());
+      targetGroupLayoutSet=LayoutSetLocalServiceUtil.getLayoutSet(targetGroupId,privateLayoutSet);
+    }
+    SitesUtil.resetPrototype(targetGroupLayoutSet);
+    SitesUtil.mergeLayoutSetPrototypeLayouts(targetGroup,targetGroupLayoutSet);
+    if (_log.isDebugEnabled()) {
+      _log.debug("Site template " + layoutSetPrototypeId + " was merged to group "+ targetGroupId);
+    }
+  }
+  layoutSetPrototype=LayoutSetPrototypeServiceUtil.getLayoutSetPrototype(layoutSetPrototypeId);
+  int mergeFailCountAfterMerge=SitesUtil.getMergeFailCount(layoutSetPrototype);
+  if (mergeFailCountAfterMerge > 0) {
+    SessionErrors.add(actionRequest,"templateMergeFailedSeeLogsForDetails");
+  }
+}
