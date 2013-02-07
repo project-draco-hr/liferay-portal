@@ -1,11 +1,11 @@
 {
   long[] oldOrganizationIds=null;
   PermissionChecker permissionChecker=getPermissionChecker();
+  User user=userPersistence.findByPrimaryKey(userId);
   if (userId != CompanyConstants.SYSTEM) {
+    Set<Organization> mandatoryOrganizations=MembershipPolicyUtil.getMandatoryOrganizations(user);
     List<Organization> oldOrganizations=organizationLocalService.getUserOrganizations(userId);
     oldOrganizationIds=new long[oldOrganizations.size()];
-    User user=userLocalService.fetchUser(userId);
-    Set<Organization> mandatoryOrganizations=MembershipPolicyUtil.getMandatoryOrganizations(user);
     for (int i=0; i < oldOrganizations.size(); i++) {
       Organization organization=oldOrganizations.get(i);
       if (!ArrayUtil.contains(organizationIds,organization.getOrganizationId()) && !OrganizationPermissionUtil.contains(permissionChecker,organization.getOrganizationId(),ActionKeys.ASSIGN_MEMBERS) || mandatoryOrganizations.contains(organization)) {
@@ -13,23 +13,23 @@
       }
       oldOrganizationIds[i]=organization.getOrganizationId();
     }
-    MembershipPolicyException membershipPolicyException=null;
-    for (    long organizationId : organizationIds) {
-      Organization organization=organizationLocalService.fetchOrganization(organizationId);
-      if ((oldOrganizationIds == null) || !ArrayUtil.contains(oldOrganizationIds,organizationId)) {
-        OrganizationPermissionUtil.check(permissionChecker,organizationId,ActionKeys.ASSIGN_MEMBERS);
-        if (!MembershipPolicyUtil.isMembershipAllowed(organization,user)) {
-          if (membershipPolicyException == null) {
-            membershipPolicyException=new MembershipPolicyException(MembershipPolicyException.GROUP_MEMBERSHIP_NOT_ALLOWED);
-            membershipPolicyException.addUser(user);
-          }
-          membershipPolicyException.addOrganization(organization);
+  }
+  MembershipPolicyException membershipPolicyException=null;
+  for (  long organizationId : organizationIds) {
+    Organization organization=organizationPersistence.findByPrimaryKey(organizationId);
+    if ((oldOrganizationIds == null) || !ArrayUtil.contains(oldOrganizationIds,organizationId)) {
+      OrganizationPermissionUtil.check(permissionChecker,organization,ActionKeys.ASSIGN_MEMBERS);
+      if (!MembershipPolicyUtil.isMembershipAllowed(organization,user)) {
+        if (membershipPolicyException == null) {
+          membershipPolicyException=new MembershipPolicyException(MembershipPolicyException.ORGANIZATION_MEMBERSHIP_NOT_ALLOWED);
+          membershipPolicyException.addUser(user);
         }
+        membershipPolicyException.addOrganization(organization);
       }
     }
-    if (membershipPolicyException != null) {
-      throw membershipPolicyException;
-    }
+  }
+  if (membershipPolicyException != null) {
+    throw membershipPolicyException;
   }
   return organizationIds;
 }
