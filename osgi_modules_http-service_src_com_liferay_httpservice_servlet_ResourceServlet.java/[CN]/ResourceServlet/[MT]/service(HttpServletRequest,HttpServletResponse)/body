@@ -1,0 +1,54 @@
+{
+  String requestURI=URLDecoder.decode(request.getRequestURI(),"UTF-8");
+  String contextPath=request.getContextPath();
+  if (!contextPath.equals(StringPool.SLASH)) {
+    requestURI=requestURI.substring(contextPath.length());
+  }
+  String fileName=requestURI;
+  int pos=fileName.lastIndexOf(StringPool.SLASH);
+  if (pos != -1) {
+    fileName=fileName.substring(pos + 1);
+  }
+  pos=requestURI.indexOf(_alias);
+  if (pos == 0) {
+    requestURI=requestURI.substring(_alias.length());
+  }
+  if (Validator.isNotNull(_name)) {
+    requestURI=_name.concat(requestURI);
+  }
+  try {
+    URL resourceURL=_httpContext.getResource(requestURI);
+    if (resourceURL == null) {
+      response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+      return;
+    }
+    URLConnection connection=resourceURL.openConnection();
+    long lastModified=connection.getLastModified();
+    if (lastModified > 0) {
+      long ifModifiedSince=request.getDateHeader(HttpHeaders.IF_MODIFIED_SINCE);
+      if ((ifModifiedSince > 0) && (ifModifiedSince == lastModified)) {
+        response.setDateHeader(HttpHeaders.LAST_MODIFIED,lastModified);
+        String ifNoneMatch=request.getHeader(HttpHeaders.IF_NONE_MATCH);
+        if (Validator.isNotNull(ifNoneMatch) && !ifNoneMatch.equals('0')) {
+          response.setHeader(HttpHeaders.ETAG,ifNoneMatch);
+        }
+        response.setStatus(HttpServletResponse.SC_NOT_MODIFIED);
+        response.setContentLength(0);
+        return;
+      }
+    }
+    if (lastModified > 0) {
+      response.setDateHeader(HttpHeaders.LAST_MODIFIED,lastModified);
+    }
+    String contentType=_httpContext.getMimeType(fileName);
+    if (isSupportsRangeHeader(contentType)) {
+      sendFileWithRangeHeader(request,response,fileName,connection.getInputStream(),connection.getContentLength(),contentType);
+    }
+ else {
+      ServletResponseUtil.sendFile(request,response,fileName,connection.getInputStream(),connection.getContentLength(),contentType);
+    }
+  }
+ catch (  Exception e) {
+    PortalUtil.sendError(HttpServletResponse.SC_NOT_FOUND,e,request,response);
+  }
+}
