@@ -7,34 +7,42 @@
   if (params == null) {
     params=_emptyLinkedHashMap;
   }
-  Long groupId=(Long)params.get("usersGroups");
+  Long[] groupIds=null;
+  if (params.get("usersGroups") instanceof Long) {
+    groupIds=new Long[]{(Long)params.get("usersGroups")};
+  }
+ else {
+    groupIds=(Long[])params.get("usersGroups");
+  }
   boolean inherit=GetterUtil.getBoolean(params.get("inherit"));
-  boolean doUnion=Validator.isNotNull(groupId) && inherit;
+  boolean doUnion=Validator.isNotNull(groupIds) && inherit;
   LinkedHashMap<String,Object> params1=params;
   LinkedHashMap<String,Object> params2=null;
   LinkedHashMap<String,Object> params3=null;
   if (doUnion) {
     params2=new LinkedHashMap<String,Object>(params1);
-    List<Long> organizationIds=new ArrayList<Long>();
-    Group group=GroupLocalServiceUtil.fetchGroup(groupId);
-    if ((group != null) && group.isOrganization()) {
-      organizationIds.add(group.getOrganizationId());
-    }
-    List<Organization> organizations=GroupUtil.getOrganizations(groupId);
-    for (    Organization organization : organizations) {
-      organizationIds.add(organization.getOrganizationId());
-    }
-    params2.remove("usersGroups");
-    params2.put("usersOrgs",organizationIds.toArray(new Long[organizationIds.size()]));
     params3=new LinkedHashMap<String,Object>(params1);
-    List<UserGroup> userGroups=GroupUtil.getUserGroups(groupId);
-    Long[] userGroupIds=new Long[userGroups.size()];
-    for (int i=0; i < userGroups.size(); i++) {
-      UserGroup userGroup=userGroups.get(i);
-      userGroupIds[i]=userGroup.getUserGroupId();
-    }
+    params2.remove("usersGroups");
     params3.remove("usersGroups");
-    params3.put("usersUserGroups",userGroupIds);
+    List<Long> organizationIds=new ArrayList<Long>();
+    List<Long> userGroupIds=new ArrayList<Long>();
+    for (    long groupId : groupIds) {
+      Group group=GroupLocalServiceUtil.fetchGroup(groupId);
+      if ((group != null) && group.isOrganization()) {
+        organizationIds.add(group.getOrganizationId());
+      }
+      List<Organization> organizations=GroupUtil.getOrganizations(groupId);
+      for (      Organization organization : organizations) {
+        organizationIds.add(organization.getOrganizationId());
+      }
+      List<UserGroup> userGroups=GroupUtil.getUserGroups(groupId);
+      for (int i=0; i < userGroups.size(); i++) {
+        UserGroup userGroup=userGroups.get(i);
+        userGroupIds.add(userGroup.getUserGroupId());
+      }
+    }
+    params2.put("usersOrgs",organizationIds.toArray(new Long[organizationIds.size()]));
+    params3.put("usersUserGroups",userGroupIds.toArray(new Long[userGroupIds.size()]));
   }
   Session session=null;
   try {
