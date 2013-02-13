@@ -1,0 +1,39 @@
+{
+  Group group=GroupTestUtil.addGroup();
+  Layout layout=LayoutTestUtil.addLayout(group.getGroupId(),ServiceTestUtil.randomString());
+  JournalArticle article=null;
+  DDMStructure ddmStructure=null;
+  DDMTemplate ddmTemplate=null;
+  if (structuredContent) {
+    ddmStructure=JournalTestUtil.addDDMStructure(group.getGroupId());
+    ddmTemplate=JournalTestUtil.addDDMTemplate(group.getGroupId(),ddmStructure.getStructureId());
+    String content=JournalTestUtil.getSampleStructuredContent();
+    article=JournalTestUtil.addArticleWithXMLContent(group.getGroupId(),content,ddmStructure.getStructureKey(),ddmTemplate.getTemplateKey());
+  }
+ else {
+    article=JournalTestUtil.addArticle(group.getGroupId(),ServiceTestUtil.randomString(),ServiceTestUtil.randomString());
+  }
+  String exportedResourceUuid=article.getArticleResourceUuid();
+  Map<String,String[]> parameterMap=getExportParameterMap(group.getGroupId(),layout.getPlid());
+  _larFile=LayoutLocalServiceUtil.exportPortletInfoAsFile(layout.getPlid(),group.getGroupId(),PortletKeys.JOURNAL,parameterMap,null,null);
+  GroupLocalServiceUtil.deleteGroup(group.getGroupId());
+  group=GroupTestUtil.addGroup();
+  layout=LayoutTestUtil.addLayout(group.getGroupId(),ServiceTestUtil.randomString());
+  int initialArticlesCount=JournalArticleLocalServiceUtil.getArticlesCount(group.getGroupId());
+  PortletImporter portletImporter=new PortletImporter();
+  parameterMap=getImportParameterMap(group.getGroupId(),layout.getPlid());
+  portletImporter.importPortletInfo(TestPropsValues.getUserId(),layout.getPlid(),group.getGroupId(),PortletKeys.JOURNAL,parameterMap,_larFile);
+  int articlesCount=JournalArticleLocalServiceUtil.getArticlesCount(group.getGroupId());
+  Assert.assertEquals(initialArticlesCount + 1,articlesCount);
+  JournalArticleResource importedJournalArticleResource=JournalArticleResourceLocalServiceUtil.fetchArticleResource(exportedResourceUuid,group.getGroupId());
+  Assert.assertNotNull(importedJournalArticleResource);
+  if (structuredContent) {
+    DDMStructure importedDDMStructure=DDMStructureLocalServiceUtil.fetchStructure(ddmStructure.getUuid(),group.getGroupId());
+    Assert.assertNotNull(importedDDMStructure);
+    DDMTemplate importedDDMTemplate=DDMTemplateLocalServiceUtil.fetchTemplate(ddmTemplate.getUuid(),group.getGroupId());
+    Assert.assertNotNull(importedDDMTemplate);
+    Assert.assertEquals(article.getStructureId(),importedDDMStructure.getStructureKey());
+    Assert.assertEquals(article.getTemplateId(),importedDDMTemplate.getTemplateKey());
+    Assert.assertEquals(importedDDMTemplate.getClassPK(),importedDDMStructure.getStructureId());
+  }
+}
