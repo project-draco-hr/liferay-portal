@@ -1,0 +1,39 @@
+{
+  Map<String,ServletDefinition> servlets=webXML.getServlets();
+  for (  Element servletMappingsEl : root.elements("servlet-mapping")) {
+    String servletName=servletMappingsEl.element("servlet-name").getTextTrim();
+    String urlPattern=servletMappingsEl.element("url-pattern").getTextTrim();
+    Map<String,String> namespaces=new TreeMap<String,String>();
+    namespaces.put("x",root.getNamespace().getText());
+    XPath xPath=SAXReaderUtil.createXPath("//x:servlet[x:servlet-name/text()='" + servletName + "']",namespaces);
+    Element servletElement=(Element)xPath.selectSingleNode(root);
+    if (servletElement == null) {
+      continue;
+    }
+    if (urlPattern.endsWith(_SLASH_STAR) && (urlPattern.length() > 2)) {
+      urlPattern=urlPattern.substring(0,urlPattern.length() - 2);
+    }
+    if (urlPattern.startsWith(StringPool.STAR)) {
+      urlPattern=StringPool.SLASH.concat(urlPattern);
+    }
+    String servletClass=servletElement.element("servlet-class").getTextTrim();
+    ServletDefinition servletDefinition=null;
+    try {
+      Class<?> clazz=bundle.loadClass(servletClass);
+      Servlet servletInstance=(Servlet)clazz.newInstance();
+      servletDefinition=new ServletDefinition();
+      servletDefinition.setServlet(servletInstance);
+      servletDefinition.setName(servletName);
+    }
+ catch (    Exception e) {
+      _log.error("Omitted servlet definition",e);
+      continue;
+    }
+    for (    Element initParam : servletElement.elements("init-param")) {
+      String initParamName=initParam.element("param-name").getTextTrim();
+      String initParamValue=initParam.element("param-value").getTextTrim();
+      servletDefinition.setInitParam(initParamName,initParamValue);
+    }
+    servlets.put(urlPattern,servletDefinition);
+  }
+}
