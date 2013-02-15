@@ -1,0 +1,49 @@
+{
+  String pathContext=PortalUtil.getPathContext();
+  String contextPath=getContextPath();
+  if (Validator.isNotNull(pathContext) && contextPath.startsWith(pathContext)) {
+    contextPath=contextPath.substring(pathContext.length());
+  }
+  if (path.startsWith(Portal.PATH_MODULE) && path.startsWith(contextPath)) {
+    path=path.substring(contextPath.length());
+  }
+  if (Validator.isNull(path)) {
+    path=StringPool.SLASH;
+  }
+  String alias=path;
+  if (!isValidPath(alias)) {
+    return null;
+  }
+  BundleFilterChain bundleFilterChain=getFilterChain(alias);
+  if (_servletsMap.containsKey(alias)) {
+    bundleFilterChain.setServlet(_servletsMap.get(alias));
+    return new BundleRequestDispatcher(alias,false,path,this,bundleFilterChain);
+  }
+  boolean isExtensionMapping=false;
+  String extensionMapping=FileUtil.getExtension(alias).toLowerCase();
+  if (Validator.isNotNull(extensionMapping)) {
+    extensionMapping=_EXTENSION_PREFIX.concat(extensionMapping);
+    isExtensionMapping=true;
+  }
+  alias=alias.substring(0,alias.lastIndexOf(StringPool.SLASH));
+  while (alias.length() != 0) {
+    if (_servletsMap.containsKey(alias)) {
+      bundleFilterChain.setServlet(_servletsMap.get(alias));
+      return new BundleRequestDispatcher(alias,false,path,this,bundleFilterChain);
+    }
+ else     if (_servletsMap.containsKey(alias.concat(extensionMapping))) {
+      bundleFilterChain.setServlet(_servletsMap.get(alias.concat(extensionMapping)));
+      return new BundleRequestDispatcher(alias.concat(extensionMapping),true,path,this,bundleFilterChain);
+    }
+    alias=alias.substring(0,alias.lastIndexOf(StringPool.SLASH));
+  }
+  if (_servletsMap.containsKey(StringPool.SLASH.concat(extensionMapping))) {
+    bundleFilterChain.setServlet(_servletsMap.get(StringPool.SLASH.concat(extensionMapping)));
+    return new BundleRequestDispatcher(StringPool.SLASH.concat(extensionMapping),isExtensionMapping,path,this,bundleFilterChain);
+  }
+  if (_servletsMap.containsKey(StringPool.SLASH)) {
+    bundleFilterChain.setServlet(_servletsMap.get(StringPool.SLASH));
+    return new BundleRequestDispatcher(StringPool.SLASH,false,path,this,bundleFilterChain);
+  }
+  return null;
+}
