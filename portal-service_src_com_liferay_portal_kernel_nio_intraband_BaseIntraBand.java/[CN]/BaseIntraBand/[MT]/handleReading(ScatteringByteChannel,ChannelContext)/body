@@ -1,0 +1,68 @@
+{
+  Datagram datagram=channelContext.getReadingDatagram();
+  if (datagram == null) {
+    datagram=Datagram.createReceiveDatagram();
+    channelContext.setReadingDatagram(datagram);
+  }
+  try {
+    if (datagram.readFrom(scatteringByteChannel)) {
+      channelContext.setReadingDatagram(Datagram.createReceiveDatagram());
+      if (datagram.isAckResponse()) {
+        Datagram requestDatagram=removeResponseWaitingDatagram(datagram);
+        if (requestDatagram == null) {
+          if (_log.isWarnEnabled()) {
+            _log.warn("Dropped ownerless ACK response " + datagram);
+          }
+        }
+ else {
+          requestDatagram.completionHandler.delivered(requestDatagram.attachment);
+        }
+      }
+ else       if (datagram.isResponse()) {
+        Datagram requestDatagram=removeResponseWaitingDatagram(datagram);
+        if (requestDatagram == null) {
+          if (_log.isWarnEnabled()) {
+            _log.warn("Dropped ownerless response " + datagram);
+          }
+        }
+ else         if (requestDatagram.completionTypes.contains(CompletionType.REPLIED)) {
+          requestDatagram.completionHandler.replied(requestDatagram.attachment,datagram);
+        }
+ else         if (_log.isWarnEnabled()) {
+          _log.warn("Dropped unconcerned response " + datagram);
+        }
+      }
+ else {
+        if (datagram.isAckRequest()) {
+          Datagram ackResponseDatagram=Datagram.createACKResponseDatagram(datagram.getSequenceId());
+          doSendDatagram(channelContext.getRegistrationReference(),ackResponseDatagram);
+        }
+        int index=((int)datagram.getType()) & 0xFF;
+        DatagramReceiveHandler datagramReceiveHandler=datagramReceiveHandlersReference.get()[index];
+        if (datagramReceiveHandler == null) {
+          if (_log.isWarnEnabled()) {
+            _log.warn("Dropped ownerless request " + datagram);
+          }
+        }
+ else {
+          try {
+            datagramReceiveHandler.receive(channelContext.getRegistrationReference(),datagram);
+          }
+ catch (          Throwable t) {
+            _log.error("Dispatching failure.",t);
+          }
+        }
+      }
+    }
+  }
+ catch (  IOException ioe) {
+    RegistrationReference registrationReference=channelContext.getRegistrationReference();
+    registrationReference.cancelRegistration();
+    if (_log.isDebugEnabled()) {
+      _log.debug("Broken read channel, unregister " + registrationReference,ioe);
+    }
+ else     if (_log.isInfoEnabled()) {
+      _log.info("Broken read channel, unregister " + registrationReference);
+    }
+  }
+}

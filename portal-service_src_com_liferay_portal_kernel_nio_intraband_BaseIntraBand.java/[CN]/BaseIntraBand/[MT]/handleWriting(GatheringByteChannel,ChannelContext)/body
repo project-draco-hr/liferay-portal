@@ -1,0 +1,34 @@
+{
+  Datagram datagram=channelContext.getWritingDatagram();
+  try {
+    if (datagram.writeTo(gatheringByteChannel)) {
+      channelContext.setWritingDatagram(null);
+      EnumSet<CompletionType> interestCompletionTypes=datagram.completionTypes;
+      if (interestCompletionTypes != null) {
+        if (interestCompletionTypes.contains(CompletionType.SUBMITTED)) {
+          Object attachment=datagram.attachment;
+          CompletionHandler<Object> completeHandler=datagram.completionHandler;
+          completeHandler.submitted(attachment);
+        }
+      }
+      return true;
+    }
+ else {
+      return false;
+    }
+  }
+ catch (  IOException ioe) {
+    RegistrationReference registrationReference=channelContext.getRegistrationReference();
+    registrationReference.cancelRegistration();
+    if (datagram.completionHandler != null) {
+      datagram.completionHandler.failed(datagram.attachment,ioe);
+    }
+    if (_log.isDebugEnabled()) {
+      _log.debug("Broken write channel, unregister " + registrationReference,ioe);
+    }
+ else     if (_log.isInfoEnabled()) {
+      _log.info("Broken write channel, unregister " + registrationReference);
+    }
+    return false;
+  }
+}
