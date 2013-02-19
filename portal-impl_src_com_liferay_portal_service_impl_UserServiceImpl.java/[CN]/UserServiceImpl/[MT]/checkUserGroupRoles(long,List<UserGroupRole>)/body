@@ -7,16 +7,16 @@
     oldUserGroupRoles=userGroupRoleLocalService.getUserGroupRoles(userId);
     for (    UserGroupRole oldUserGroupRole : oldUserGroupRoles) {
       Role role=oldUserGroupRole.getRole();
-      if (role.getType() == RoleConstants.TYPE_SITE) {
-        if (!userGroupRoles.contains(oldUserGroupRole) && (!UserGroupRolePermissionUtil.contains(permissionChecker,oldUserGroupRole.getGroupId(),oldUserGroupRole.getRoleId()) || GroupPermissionUtil.hasRoleProtected(getPermissionChecker(),oldUserGroupRole.getGroupId(),userId,role.getRoleId()) || mandatoryRoles.contains(role))) {
-          userGroupRoles.add(oldUserGroupRole);
-        }
-      }
- else       if (role.getType() == RoleConstants.TYPE_ORGANIZATION) {
+      if (role.getType() == RoleConstants.TYPE_ORGANIZATION) {
         Group group=oldUserGroupRole.getGroup();
         Organization organization=organizationPersistence.findByPrimaryKey(group.getOrganizationId());
         Set<Role> mandatoryOrganizationRoles=MembershipPolicyUtil.getMandatoryRoles(organization,user);
-        if (!userGroupRoles.contains(oldUserGroupRole) && (OrganizationPermissionUtil.hasRoleProtected(getPermissionChecker(),oldUserGroupRole.getGroupId(),userId,role.getRoleId()) || !UserGroupRolePermissionUtil.contains(permissionChecker,oldUserGroupRole.getGroupId(),oldUserGroupRole.getRoleId()) || mandatoryOrganizationRoles.contains(role))) {
+        if (!userGroupRoles.contains(oldUserGroupRole) && (!UserGroupRolePermissionUtil.contains(permissionChecker,oldUserGroupRole.getGroupId(),oldUserGroupRole.getRoleId()) || MembershipPolicyUtil.isMembershipProtected(getPermissionChecker(),oldUserGroupRole.getGroup(),role,user) || mandatoryOrganizationRoles.contains(role))) {
+          userGroupRoles.add(oldUserGroupRole);
+        }
+      }
+ else       if (role.getType() == RoleConstants.TYPE_SITE) {
+        if (!userGroupRoles.contains(oldUserGroupRole) && (!UserGroupRolePermissionUtil.contains(permissionChecker,oldUserGroupRole.getGroupId(),oldUserGroupRole.getRoleId()) || MembershipPolicyUtil.isMembershipProtected(getPermissionChecker(),oldUserGroupRole.getGroup(),role,user) || mandatoryRoles.contains(role))) {
           userGroupRoles.add(oldUserGroupRole);
         }
       }
@@ -27,8 +27,11 @@
     Role role=userGroupRole.getRole();
     if ((oldUserGroupRoles == null) || !oldUserGroupRoles.contains(userGroupRole)) {
       UserGroupRolePermissionUtil.check(permissionChecker,userGroupRole.getGroupId(),userGroupRole.getRoleId());
-      if (role.getType() == RoleConstants.TYPE_SITE) {
-        if (!MembershipPolicyUtil.isMembershipAllowed(userGroupRole.getGroup(),role,user)) {
+      if (role.getType() == RoleConstants.TYPE_ORGANIZATION) {
+        Group group=userGroupRole.getGroup();
+        long organizationId=group.getOrganizationId();
+        Organization organization=organizationPersistence.findByPrimaryKey(organizationId);
+        if (!MembershipPolicyUtil.isMembershipAllowed(organization,role,user)) {
           if (membershipPolicyException == null) {
             membershipPolicyException=new MembershipPolicyException(MembershipPolicyException.ROLE_MEMBERSHIP_NOT_ALLOWED);
             membershipPolicyException.addUser(user);
@@ -36,11 +39,8 @@
           membershipPolicyException.addRole(role);
         }
       }
- else       if (role.getType() == RoleConstants.TYPE_ORGANIZATION) {
-        Group group=userGroupRole.getGroup();
-        long organizationId=group.getOrganizationId();
-        Organization organization=organizationPersistence.findByPrimaryKey(organizationId);
-        if (!MembershipPolicyUtil.isMembershipAllowed(organization,role,user)) {
+ else       if (role.getType() == RoleConstants.TYPE_SITE) {
+        if (!MembershipPolicyUtil.isMembershipAllowed(userGroupRole.getGroup(),role,user)) {
           if (membershipPolicyException == null) {
             membershipPolicyException=new MembershipPolicyException(MembershipPolicyException.ROLE_MEMBERSHIP_NOT_ALLOWED);
             membershipPolicyException.addUser(user);

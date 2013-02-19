@@ -1,22 +1,19 @@
 {
-  long[] filteredRoles=roleIds;
+  long[] filteredRoleIds=roleIds;
+  Group group=groupPersistence.findByPrimaryKey(groupId);
+  User user=userPersistence.findByPrimaryKey(userId);
   for (  long roleId : roleIds) {
     UserGroupRolePermissionUtil.check(getPermissionChecker(),groupId,roleId);
     Role role=roleLocalService.getRole(roleId);
-    if (role.getType() == RoleConstants.TYPE_SITE) {
-      if (GroupPermissionUtil.hasRoleProtected(getPermissionChecker(),groupId,userId,role.getRoleId())) {
-        filteredRoles=ArrayUtil.remove(filteredRoles,roleId);
-      }
-    }
- else     if (role.getType() == RoleConstants.TYPE_ORGANIZATION) {
-      if (OrganizationPermissionUtil.hasRoleProtected(getPermissionChecker(),groupId,userId,role.getRoleId())) {
-        filteredRoles=ArrayUtil.remove(filteredRoles,roleId);
+    if ((role.getType() == RoleConstants.TYPE_ORGANIZATION) || (role.getType() == RoleConstants.TYPE_SITE)) {
+      if (MembershipPolicyUtil.isMembershipProtected(getPermissionChecker(),group,role,user)) {
+        filteredRoleIds=ArrayUtil.remove(filteredRoleIds,roleId);
       }
     }
   }
-  if (filteredRoles.length == 0) {
+  if (filteredRoleIds.length == 0) {
     return;
   }
-  checkDeleteUserGroupRolesMembershipPolicy(new long[]{userId},groupId,filteredRoles);
-  userGroupRoleLocalService.deleteUserGroupRoles(userId,groupId,filteredRoles);
+  checkDeleteUserGroupRolesMembershipPolicy(new long[]{userId},groupId,filteredRoleIds);
+  userGroupRoleLocalService.deleteUserGroupRoles(userId,groupId,filteredRoleIds);
 }
