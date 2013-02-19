@@ -5,9 +5,8 @@
   }
   WikiPageResource pageResource=WikiPageResourceLocalServiceUtil.getPageResource(activity.getClassPK());
   int activityType=activity.getType();
-  JSONObject extraDataJSONObject=JSONFactoryUtil.createJSONObject(activity.getExtraData());
   if (activityType == WikiActivityKeys.UPDATE_PAGE) {
-    double version=extraDataJSONObject.getDouble("version");
+    double version=GetterUtil.getDouble(activity.getExtraDataProperty("version"));
     WikiPage page=WikiPageLocalServiceUtil.getPage(pageResource.getNodeId(),pageResource.getTitle(),version);
     if (!page.isApproved() && !WikiPagePermission.contains(permissionChecker,activity.getClassPK(),ActionKeys.UPDATE)) {
       return null;
@@ -18,105 +17,9 @@
     groupName=getGroupName(activity.getGroupId(),themeDisplay);
   }
   String creatorUserName=getUserName(activity.getUserId(),themeDisplay);
-  String link=themeDisplay.getPortalURL() + themeDisplay.getPathMain() + "/wiki/find_page?pageResourcePrimKey="+ activity.getClassPK();
-  String titlePattern=null;
-  if (activityType == SocialActivityConstants.TYPE_ADD_ATTACHMENT) {
-    if (Validator.isNull(groupName)) {
-      titlePattern="activity-wiki-add-attachment";
-    }
- else {
-      titlePattern="activity-wiki-add-attachment-in";
-    }
-  }
- else   if (activityType == SocialActivityConstants.TYPE_MOVE_ATTACHMENT_TO_TRASH) {
-    if (Validator.isNull(groupName)) {
-      titlePattern="activity-wiki-remove-attachment";
-    }
- else {
-      titlePattern="activity-wiki-remove-attachment-in";
-    }
-  }
- else   if (activityType == SocialActivityConstants.TYPE_RESTORE_ATTACHMENT_FROM_TRASH) {
-    if (Validator.isNull(groupName)) {
-      titlePattern="activity-wiki-restore-attachment";
-    }
- else {
-      titlePattern="activity-wiki-restore-attachment-in";
-    }
-  }
- else   if ((activityType == SocialActivityConstants.TYPE_ADD_COMMENT) || (activityType == WikiActivityKeys.ADD_COMMENT)) {
-    if (Validator.isNull(groupName)) {
-      titlePattern="activity-wiki-add-comment";
-    }
- else {
-      titlePattern="activity-wiki-add-comment-in";
-    }
-  }
- else   if (activityType == WikiActivityKeys.ADD_PAGE) {
-    if (Validator.isNull(groupName)) {
-      titlePattern="activity-wiki-add-page";
-    }
- else {
-      titlePattern="activity-wiki-add-page-in";
-    }
-  }
- else   if (activityType == SocialActivityConstants.TYPE_MOVE_TO_TRASH) {
-    if (Validator.isNull(groupName)) {
-      titlePattern="activity-wiki-move-to-trash";
-    }
- else {
-      titlePattern="activity-wiki-move-to-trash-in";
-    }
-  }
- else   if (activityType == SocialActivityConstants.TYPE_RESTORE_FROM_TRASH) {
-    if (Validator.isNull(groupName)) {
-      titlePattern="activity-wiki-restore-from-trash";
-    }
- else {
-      titlePattern="activity-wiki-restore-from-trash-in";
-    }
-  }
- else   if (activityType == WikiActivityKeys.UPDATE_PAGE) {
-    if (Validator.isNull(groupName)) {
-      titlePattern="activity-wiki-update-page";
-    }
- else {
-      titlePattern="activity-wiki-update-page-in";
-    }
-  }
-  String pageTitle=wrapLink(link,HtmlUtil.escape(pageResource.getTitle()));
-  String attachmentTitle=null;
-  if ((activityType == SocialActivityConstants.TYPE_ADD_ATTACHMENT) || (activityType == SocialActivityConstants.TYPE_MOVE_ATTACHMENT_TO_TRASH) || (activityType == SocialActivityConstants.TYPE_RESTORE_ATTACHMENT_FROM_TRASH)) {
-    FileEntry fileEntry=null;
-    try {
-      fileEntry=PortletFileRepositoryUtil.getPortletFileEntry(extraDataJSONObject.getLong("fileEntryId"));
-    }
- catch (    NoSuchModelException nsme) {
-    }
-    FileVersion fileVersion=null;
-    if (fileEntry != null) {
-      fileVersion=fileEntry.getFileVersion();
-    }
-    String fileEntryTitle=extraDataJSONObject.getString("title");
-    if ((fileVersion != null) && !fileVersion.isInTrash()) {
-      StringBundler sb=new StringBundler(9);
-      sb.append(themeDisplay.getPathMain());
-      sb.append("/wiki/get_page_attachment?p_l_id=");
-      sb.append(themeDisplay.getPlid());
-      sb.append("&nodeId=");
-      sb.append(pageResource.getNodeId());
-      sb.append("&title=");
-      sb.append(HttpUtil.encodeURL(pageResource.getTitle()));
-      sb.append("&fileName=");
-      sb.append(fileEntryTitle);
-      attachmentTitle=wrapLink(sb.toString(),HtmlUtil.escape(fileEntryTitle));
-    }
- else {
-      attachmentTitle=HtmlUtil.escape(fileEntryTitle);
-    }
-  }
-  Object[] titleArguments=new Object[]{groupName,creatorUserName,pageTitle,attachmentTitle};
-  String title=themeDisplay.translate(titlePattern,titleArguments);
+  String link=getLink(pageResource,themeDisplay);
+  Object[] titleArguments=new Object[]{groupName,creatorUserName,wrapLink(link,HtmlUtil.escape(getTitle(pageResource))),getAttachmentTitle(activity,pageResource,themeDisplay)};
+  String title=themeDisplay.translate(getTitlePattern(groupName,activityType),titleArguments);
   String body=StringPool.BLANK;
   return new SocialActivityFeedEntry(link,title,body);
 }
