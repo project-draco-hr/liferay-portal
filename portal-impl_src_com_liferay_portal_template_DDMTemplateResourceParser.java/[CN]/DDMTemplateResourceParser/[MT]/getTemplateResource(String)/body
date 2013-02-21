@@ -1,7 +1,10 @@
 {
-  int pos=templateId.indexOf(TemplateConstants.JOURNAL_SEPARATOR + StringPool.SLASH);
+  int pos=templateId.indexOf(TemplateConstants.TEMPLATE_SEPARATOR + StringPool.SLASH);
   if (pos == -1) {
-    return null;
+    pos=templateId.indexOf(TemplateConstants.JOURNAL_SEPARATOR + StringPool.SLASH);
+    if (pos == -1) {
+      return null;
+    }
   }
   try {
     int x=templateId.indexOf(CharPool.SLASH,pos);
@@ -9,17 +12,32 @@
     int z=templateId.indexOf(CharPool.SLASH,y + 1);
     long companyId=GetterUtil.getLong(templateId.substring(x + 1,y));
     long groupId=GetterUtil.getLong(templateId.substring(y + 1,z));
-    String journalTemplateId=templateId.substring(z + 1);
+    String ddmTemplateKey=templateId.substring(z + 1);
     if (_log.isDebugEnabled()) {
-      _log.debug("Loading {companyId=" + companyId + ", groupId="+ groupId+ ", templateId="+ journalTemplateId+ "}");
+      _log.debug("Loading {companyId=" + companyId + ", groupId="+ groupId+ ", ddmTemplateKey="+ ddmTemplateKey+ "}");
     }
-    JournalTemplate journalTemplate=JournalTemplateLocalServiceUtil.getTemplate(groupId,journalTemplateId);
-    return new JournalTemplateResource(journalTemplateId,journalTemplate);
+    long classNameId=0;
+    DDMTemplate ddmTemplate=DDMTemplateLocalServiceUtil.fetchTemplate(groupId,classNameId,ddmTemplateKey);
+    if (ddmTemplate == null) {
+      Group companyGroup=GroupLocalServiceUtil.getCompanyGroup(companyId);
+      long companyGroupId=companyGroup.getGroupId();
+      ddmTemplate=DDMTemplateLocalServiceUtil.fetchTemplate(companyGroupId,classNameId,ddmTemplateKey);
+      if (ddmTemplate == null) {
+        classNameId=PortalUtil.getClassNameId(DDMStructure.class);
+        ddmTemplate=DDMTemplateLocalServiceUtil.fetchTemplate(groupId,classNameId,ddmTemplateKey);
+      }
+      if (ddmTemplate == null) {
+        ddmTemplate=DDMTemplateLocalServiceUtil.fetchTemplate(companyGroupId,classNameId,ddmTemplateKey);
+      }
+    }
+    if (ddmTemplate == null) {
+      return null;
+    }
+ else {
+      return new DDMTemplateResource(ddmTemplate.getTemplateKey(),ddmTemplate);
+    }
   }
- catch (  NoSuchTemplateException nste) {
-    return null;
-  }
-catch (  Exception e) {
+ catch (  Exception e) {
     throw new TemplateException("Unable to find template " + templateId,e);
   }
 }
