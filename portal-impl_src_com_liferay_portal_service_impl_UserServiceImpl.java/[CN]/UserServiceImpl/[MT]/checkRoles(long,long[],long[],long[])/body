@@ -1,0 +1,27 @@
+{
+  long[] oldRoleIds=null;
+  PermissionChecker permissionChecker=getPermissionChecker();
+  User user=null;
+  if (userId != CompanyConstants.SYSTEM) {
+    user=userPersistence.findByPrimaryKey(userId);
+    List<Role> oldRoles=roleLocalService.getUserRoles(userId);
+    oldRoleIds=new long[oldRoles.size()];
+    for (int i=0; i < oldRoles.size(); i++) {
+      Role role=oldRoles.get(i);
+      if (!ArrayUtil.contains(roleIds,role.getRoleId()) && (!RolePermissionUtil.contains(permissionChecker,role.getRoleId(),ActionKeys.ASSIGN_MEMBERS)) || RoleMembershipPolicyUtil.isRoleRequired(userId,role.getRoleId())) {
+        roleIds=ArrayUtil.append(roleIds,role.getRoleId());
+      }
+      oldRoleIds[i]=role.getRoleId();
+    }
+  }
+  for (  long roleId : roleIds) {
+    if ((oldRoleIds != null) && ArrayUtil.contains(oldRoleIds,roleId)) {
+      continue;
+    }
+    RolePermissionUtil.check(permissionChecker,roleId,ActionKeys.ASSIGN_MEMBERS);
+  }
+  if ((addRoleIds != null) || (removeRoleIds != null)) {
+    RoleMembershipPolicyUtil.checkRoles(new long[]{userId},addRoleIds,removeRoleIds);
+  }
+  return roleIds;
+}

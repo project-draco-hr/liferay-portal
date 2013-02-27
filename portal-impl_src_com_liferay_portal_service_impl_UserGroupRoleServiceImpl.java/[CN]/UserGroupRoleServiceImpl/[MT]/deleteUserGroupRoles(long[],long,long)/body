@@ -1,12 +1,34 @@
 {
   UserGroupRolePermissionUtil.check(getPermissionChecker(),groupId,roleId);
+  List<UserGroupRole> filteredUserGroupRoles=new ArrayList<UserGroupRole>();
   Role role=roleLocalService.getRole(roleId);
-  if ((role.getType() == RoleConstants.TYPE_ORGANIZATION) || (role.getType() == RoleConstants.TYPE_SITE)) {
-    userIds=UsersAdminUtil.filterDeleteGroupRoleUserIds(getPermissionChecker(),groupId,role.getRoleId(),userIds);
+  for (  long userId : userIds) {
+    UserGroupRolePK userGroupRolePK=new UserGroupRolePK(userId,groupId,roleId);
+    UserGroupRole userGroupRole=userGroupRoleLocalService.createUserGroupRole(userGroupRolePK);
+    if (role.getType() == RoleConstants.TYPE_ORGANIZATION) {
+      Group group=groupLocalService.getGroup(groupId);
+      if (!OrganizationMembershipPolicyUtil.isRoleProtected(getPermissionChecker(),userId,group.getOrganizationId(),roleId)) {
+        filteredUserGroupRoles.add(userGroupRole);
+      }
+    }
+ else     if ((role.getType() == RoleConstants.TYPE_SITE) && (!SiteMembershipPolicyUtil.isRoleProtected(getPermissionChecker(),userId,groupId,roleId))) {
+      filteredUserGroupRoles.add(userGroupRole);
+    }
   }
-  if (userIds.length == 0) {
+  if (filteredUserGroupRoles.isEmpty()) {
     return;
   }
-  checkDeleteUserGroupRolesMembershipPolicy(userIds,groupId,new long[]{roleId});
+  if (role.getType() == RoleConstants.TYPE_SITE) {
+    SiteMembershipPolicyUtil.checkRoles(null,filteredUserGroupRoles);
+  }
+ else   if (role.getType() == RoleConstants.TYPE_ORGANIZATION) {
+    OrganizationMembershipPolicyUtil.checkRoles(null,filteredUserGroupRoles);
+  }
   userGroupRoleLocalService.deleteUserGroupRoles(userIds,groupId,roleId);
+  if (role.getType() == RoleConstants.TYPE_SITE) {
+    SiteMembershipPolicyUtil.propagateRoles(null,filteredUserGroupRoles);
+  }
+ else   if (role.getType() == RoleConstants.TYPE_ORGANIZATION) {
+    OrganizationMembershipPolicyUtil.propagateRoles(null,filteredUserGroupRoles);
+  }
 }

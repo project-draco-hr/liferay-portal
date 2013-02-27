@@ -1,0 +1,28 @@
+{
+  long[] oldGroupIds=null;
+  PermissionChecker permissionChecker=getPermissionChecker();
+  User user=null;
+  if (userId != CompanyConstants.SYSTEM) {
+    user=userPersistence.findByPrimaryKey(userId);
+    List<Group> oldGroups=groupLocalService.getUserGroups(userId);
+    oldGroupIds=new long[oldGroups.size()];
+    for (int i=0; i < oldGroups.size(); i++) {
+      Group group=oldGroups.get(i);
+      if (!ArrayUtil.contains(groupIds,group.getGroupId()) && (!GroupPermissionUtil.contains(permissionChecker,group.getGroupId(),ActionKeys.ASSIGN_MEMBERS) || SiteMembershipPolicyUtil.isMembershipProtected(permissionChecker,user.getUserId(),group.getGroupId()) || SiteMembershipPolicyUtil.isMembershipRequired(userId,group.getGroupId()))) {
+        groupIds=ArrayUtil.append(groupIds,group.getGroupId());
+      }
+      oldGroupIds[i]=group.getGroupId();
+    }
+  }
+  for (  long groupId : groupIds) {
+    if ((oldGroupIds != null) && ArrayUtil.contains(oldGroupIds,groupId)) {
+      continue;
+    }
+    Group group=groupPersistence.findByPrimaryKey(groupId);
+    GroupPermissionUtil.check(permissionChecker,group,ActionKeys.ASSIGN_MEMBERS);
+  }
+  if ((addGroupIds != null) || (removeGroupIds != null)) {
+    SiteMembershipPolicyUtil.checkMembership(new long[]{userId},addGroupIds,removeGroupIds);
+  }
+  return groupIds;
+}

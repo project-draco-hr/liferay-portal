@@ -1,0 +1,37 @@
+{
+  List<UserGroupRole> oldUserGroupRoles=null;
+  PermissionChecker permissionChecker=getPermissionChecker();
+  if (userId != CompanyConstants.SYSTEM) {
+    oldUserGroupRoles=userGroupRoleLocalService.getUserGroupRoles(userId);
+    for (    UserGroupRole oldUserGroupRole : oldUserGroupRoles) {
+      Role role=oldUserGroupRole.getRole();
+      Group group=oldUserGroupRole.getGroup();
+      if (userGroupRoles.contains(oldUserGroupRole)) {
+        continue;
+      }
+      if (role.getType() == RoleConstants.TYPE_ORGANIZATION) {
+        Organization organization=organizationPersistence.findByPrimaryKey(group.getOrganizationId());
+        if (!UserGroupRolePermissionUtil.contains(permissionChecker,oldUserGroupRole.getGroupId(),oldUserGroupRole.getRoleId()) || OrganizationMembershipPolicyUtil.isRoleProtected(getPermissionChecker(),userId,organization.getOrganizationId(),role.getRoleId()) || OrganizationMembershipPolicyUtil.isRoleRequired(userId,group.getGroupId(),role.getRoleId())) {
+          userGroupRoles.add(oldUserGroupRole);
+        }
+      }
+ else       if (role.getType() == RoleConstants.TYPE_SITE) {
+        if (!userGroupRoles.contains(oldUserGroupRole) && (!UserGroupRolePermissionUtil.contains(permissionChecker,oldUserGroupRole.getGroupId(),oldUserGroupRole.getRoleId()) || SiteMembershipPolicyUtil.isRoleProtected(getPermissionChecker(),userId,group.getGroupId(),role.getRoleId()) || SiteMembershipPolicyUtil.isRoleRequired(userId,group.getGroupId(),role.getRoleId()))) {
+          userGroupRoles.add(oldUserGroupRole);
+        }
+      }
+    }
+  }
+  for (  UserGroupRole userGroupRole : userGroupRoles) {
+    if ((oldUserGroupRoles == null) || !oldUserGroupRoles.contains(userGroupRole)) {
+      UserGroupRolePermissionUtil.check(permissionChecker,userGroupRole.getGroupId(),userGroupRole.getRoleId());
+    }
+  }
+  if (!addSiteUserGroupRoles.isEmpty() || !removeSiteUserGroupRoles.isEmpty()) {
+    SiteMembershipPolicyUtil.checkRoles(addSiteUserGroupRoles,removeSiteUserGroupRoles);
+  }
+  if (!addOrganizationUserGroupRoles.isEmpty() || !removeOrganizationUserGroupRoles.isEmpty()) {
+    OrganizationMembershipPolicyUtil.checkRoles(addOrganizationUserGroupRoles,removeOrganizationUserGroupRoles);
+  }
+  return userGroupRoles;
+}

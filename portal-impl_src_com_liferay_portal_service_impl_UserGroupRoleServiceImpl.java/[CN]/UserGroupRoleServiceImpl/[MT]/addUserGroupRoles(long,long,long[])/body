@@ -1,7 +1,29 @@
 {
+  List<UserGroupRole> userGroupRoles=new ArrayList<UserGroupRole>();
+  List<UserGroupRole> userOrganizationRoles=new ArrayList<UserGroupRole>();
   for (  long roleId : roleIds) {
     UserGroupRolePermissionUtil.check(getPermissionChecker(),groupId,roleId);
+    UserGroupRolePK userGroupRolePK=new UserGroupRolePK(userId,groupId,roleId);
+    UserGroupRole userGroupRole=userGroupRoleLocalService.createUserGroupRole(userGroupRolePK);
+    Role role=roleLocalService.getRole(roleId);
+    if (role.getType() == RoleConstants.TYPE_ORGANIZATION) {
+      userOrganizationRoles.add(userGroupRole);
+    }
+ else     if (role.getType() == RoleConstants.TYPE_SITE) {
+      userGroupRoles.add(userGroupRole);
+    }
   }
-  checkAddUserGroupRolesMembershipPolicy(new long[]{userId},groupId,roleIds);
+  if (!userGroupRoles.isEmpty()) {
+    SiteMembershipPolicyUtil.checkRoles(userGroupRoles,null);
+  }
+  if (!userOrganizationRoles.isEmpty()) {
+    OrganizationMembershipPolicyUtil.checkRoles(userOrganizationRoles,null);
+  }
   userGroupRoleLocalService.addUserGroupRoles(userId,groupId,roleIds);
+  if (!userGroupRoles.isEmpty()) {
+    SiteMembershipPolicyUtil.propagateRoles(userGroupRoles,null);
+  }
+  if (!userOrganizationRoles.isEmpty()) {
+    OrganizationMembershipPolicyUtil.propagateRoles(userOrganizationRoles,null);
+  }
 }
