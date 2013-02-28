@@ -51,8 +51,43 @@
   }
  else {
     Template template=getTemplate(themeDisplay,tokens,languageId,xml,script,langType);
-    TemplateParser templateParser=new TemplateParser();
-    output=templateParser.transform(themeDisplay,tokens,viewMode,languageId,xml,template);
+    UnsyncStringWriter unsyncStringWriter=new UnsyncStringWriter();
+    boolean load=false;
+    try {
+      if (Validator.isNotNull(xml)) {
+        Document document=SAXReaderUtil.read(xml);
+        Element rootElement=document.getRootElement();
+        List<TemplateNode> templateNodes=getTemplateNodes(themeDisplay,rootElement);
+        if (templateNodes != null) {
+          for (          TemplateNode templateNode : templateNodes) {
+            template.put(templateNode.getName(),templateNode);
+          }
+        }
+        Element requestElement=rootElement.element("request");
+        template.put("request",insertRequestVariables(requestElement));
+        template.put("xmlRequest",requestElement.asXML());
+      }
+      populateTemplateContext(template,themeDisplay,tokens,languageId,viewMode);
+      load=mergeTemplate(template,unsyncStringWriter);
+    }
+ catch (    Exception e) {
+      if (e instanceof DocumentException) {
+        throw new TransformException("Unable to read XML document",e);
+      }
+ else       if (e instanceof IOException) {
+        throw new TransformException("Error reading template",e);
+      }
+ else       if (e instanceof TransformException) {
+        throw (TransformException)e;
+      }
+ else {
+        throw new TransformException("Unhandled exception",e);
+      }
+    }
+    if (!load) {
+      throw new TransformException("Unable to dynamically load transform script");
+    }
+    output=unsyncStringWriter.toString();
   }
   for (  TransformerListener transformerListener : transformerListeners) {
     if (_logOutputBeforeListener.isDebugEnabled()) {
