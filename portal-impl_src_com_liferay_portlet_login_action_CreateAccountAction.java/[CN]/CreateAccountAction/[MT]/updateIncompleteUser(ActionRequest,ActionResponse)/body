@@ -7,7 +7,6 @@
   boolean autoScreenName=false;
   String screenName=ParamUtil.getString(actionRequest,"screenName");
   String emailAddress=ParamUtil.getString(actionRequest,"emailAddress");
-  long facebookId=ParamUtil.getLong(actionRequest,"facebookId");
   String openId=ParamUtil.getString(actionRequest,"openId");
   String firstName=ParamUtil.getString(actionRequest,"firstName");
   String middleName=ParamUtil.getString(actionRequest,"middleName");
@@ -21,8 +20,33 @@
   String jobTitle=ParamUtil.getString(actionRequest,"jobTitle");
   boolean updateUserInformation=true;
   boolean sendEmail=true;
+  HttpSession session=request.getSession();
+  long facebookId=GetterUtil.getLong(session.getAttribute(WebKeys.FACEBOOK_INCOMPLETE_USER_ID));
+  if (facebookId > 0) {
+    password1=PwdGenerator.getPassword();
+    password2=password1;
+  }
   ServiceContext serviceContext=ServiceContextFactory.getInstance(User.class.getName(),actionRequest);
   User user=UserServiceUtil.updateIncompleteUser(themeDisplay.getCompanyId(),autoPassword,password1,password2,autoScreenName,screenName,emailAddress,facebookId,openId,themeDisplay.getLocale(),firstName,middleName,lastName,prefixId,suffixId,male,birthdayMonth,birthdayDay,birthdayYear,jobTitle,sendEmail,updateUserInformation,serviceContext);
+  if (facebookId > 0) {
+    UserLocalServiceUtil.updateLastLogin(user.getUserId(),user.getLoginIP());
+    UserLocalServiceUtil.updatePasswordReset(user.getUserId(),false);
+    UserLocalServiceUtil.updateEmailAddressVerified(user.getUserId(),true);
+    session.removeAttribute(WebKeys.FACEBOOK_INCOMPLETE_USER_ID);
+    Company company=themeDisplay.getCompany();
+    String login=null;
+    if (company.getAuthType().equals(CompanyConstants.AUTH_TYPE_ID)) {
+      login=String.valueOf(user.getUserId());
+    }
+ else     if (company.getAuthType().equals(CompanyConstants.AUTH_TYPE_SN)) {
+      login=user.getScreenName();
+    }
+ else {
+      login=user.getEmailAddress();
+    }
+    sendRedirect(actionRequest,actionResponse,themeDisplay,login,password1);
+    return;
+  }
   if (user.getStatus() == WorkflowConstants.STATUS_APPROVED) {
     SessionMessages.add(request,"userAdded",user.getEmailAddress());
     SessionMessages.add(request,"userAddedPassword",user.getPasswordUnencrypted());
