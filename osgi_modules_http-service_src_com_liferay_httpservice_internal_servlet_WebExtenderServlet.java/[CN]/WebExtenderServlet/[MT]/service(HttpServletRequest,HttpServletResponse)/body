@@ -1,0 +1,46 @@
+{
+  _printDebugHeaderInfo(request);
+  String portletId=(String)request.getAttribute(WebKeys.PORTLET_ID);
+  String requestURI=request.getRequestURI();
+  Portlet portlet=null;
+  if (Validator.isNotNull(portletId)) {
+    try {
+      String rootPortletId=PortletConstants.getRootPortletId(portletId);
+      portlet=PortletLocalServiceUtil.getPortletById(rootPortletId);
+    }
+ catch (    Exception e) {
+      _log.debug(e,e);
+    }
+  }
+  String servletContextName=null;
+  if (portlet != null) {
+    servletContextName=portlet.getPortletApp().getServletContextName();
+  }
+ else {
+    if (requestURI != null) {
+      String pathContext=PortalUtil.getPathContext();
+      String requestURITemp=requestURI;
+      if (Validator.isNotNull(pathContext) && requestURITemp.startsWith(pathContext)) {
+        requestURITemp=requestURITemp.substring(pathContext.length());
+      }
+      if (requestURITemp.startsWith(Portal.PATH_MODULE)) {
+        requestURITemp=requestURITemp.substring(Portal.PATH_MODULE.length());
+      }
+      servletContextName=requestURITemp;
+      if (servletContextName.startsWith(StringPool.SLASH)) {
+        servletContextName=servletContextName.substring(1);
+      }
+      int index=servletContextName.indexOf(StringPool.SLASH);
+      if (index != -1) {
+        requestURITemp=servletContextName.substring(index,servletContextName.length());
+        servletContextName=servletContextName.substring(0,index);
+      }
+    }
+  }
+  ServletContext servletContext=ServletContextPool.get(servletContextName);
+  if (servletContext == null) {
+    PortalUtil.sendError(HttpServletResponse.SC_NOT_FOUND,new IllegalArgumentException("No application mapped to this path"),request,response);
+    return;
+  }
+  service(request,response,servletContext,portletId,requestURI);
+}
