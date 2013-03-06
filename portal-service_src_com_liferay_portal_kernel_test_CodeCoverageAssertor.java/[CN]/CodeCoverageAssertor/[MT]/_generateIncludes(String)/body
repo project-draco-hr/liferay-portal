@@ -1,0 +1,26 @@
+{
+  String jvmClassPath=ClassPathUtil.getJVMClassPath(false);
+  URL[] urls=ClassPathUtil.getClassPathURLs(jvmClassPath);
+  ClassLoader classLoader=new URLClassLoader(urls,null);
+  List<Class<?>> assertClasses=new ArrayList<Class<?>>();
+  Class<?> mainClass=classLoader.loadClass(mainClassName);
+  assertClasses.add(mainClass);
+  if (_includeInnerClasses) {
+    assertClasses.addAll(Arrays.asList(mainClass.getDeclaredClasses()));
+  }
+  if (getClass() != CodeCoverageAssertor.class) {
+    Class<?> reloadedClass=classLoader.loadClass(getClass().getName());
+    Method appendAssertClassesMethod=reloadedClass.getMethod("appendAssertClasses",List.class);
+    appendAssertClassesMethod.setAccessible(true);
+    Constructor<?> constructor=reloadedClass.getDeclaredConstructor();
+    constructor.setAccessible(true);
+    Object reloadedObject=constructor.newInstance();
+    appendAssertClassesMethod.invoke(reloadedObject,assertClasses);
+  }
+  String[] includes=new String[assertClasses.size()];
+  for (int i=0; i < assertClasses.size(); i++) {
+    Class<?> assertClass=assertClasses.get(i);
+    includes[i]=StringUtil.replace(assertClass.getName(),new String[]{".","$"},new String[]{"/","\\$"});
+  }
+  return includes;
+}

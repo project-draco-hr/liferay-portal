@@ -2,16 +2,37 @@
   if (!_dynamicallyInstrumented) {
     return;
   }
-  File dataFile=CoverageDataFileHandler.getDefaultDataFile();
-  ProjectData projectData=ProjectDataUtil.captureProjectData(dataFile,_lockFile);
-  for (  Class<?> clazz : classes) {
-    ClassData classData=projectData.getClassData(clazz.getName());
-    _assertClassDataCoverage(clazz,classData);
-    Class<?>[] declaredClasses=clazz.getDeclaredClasses();
-    for (    Class<?> declaredClass : declaredClasses) {
-      classData=projectData.getClassData(declaredClass.getName());
-      _assertClassDataCoverage(declaredClass,classData);
+  try {
+    File dataFile=CoverageDataFileHandler.getDefaultDataFile();
+    ProjectData projectData=ProjectDataUtil.captureProjectData(dataFile,_lockFile);
+    for (    Class<?> clazz : classes) {
+      ClassData classData=projectData.getClassData(clazz.getName());
+      _assertClassDataCoverage(clazz,classData);
+      Class<?>[] declaredClasses=clazz.getDeclaredClasses();
+      for (      Class<?> declaredClass : declaredClasses) {
+        classData=projectData.getClassData(declaredClass.getName());
+        _assertClassDataCoverage(declaredClass,classData);
+      }
     }
   }
-  System.clearProperty("junit.code.coverage");
+  finally {
+    System.clearProperty("parent.dynamically.instrument");
+    System.clearProperty("junit.code.coverage");
+    _dynamicallyInstrumented=false;
+    _instrumentation.removeTransformer(_coberturaClassFileTransformer);
+    if (_originalClassDefinitions == null) {
+      return;
+    }
+    try {
+      ClassDefinition[] classDefinitions=new ClassDefinition[_originalClassDefinitions.size()];
+      for (int i=0; i < _originalClassDefinitions.size(); i++) {
+        classDefinitions[i]=_originalClassDefinitions.get(i).toClassDefinition();
+      }
+      _originalClassDefinitions=null;
+      _instrumentation.redefineClasses(classDefinitions);
+    }
+ catch (    Exception e) {
+      throw new RuntimeException("Failed to uninstrument classes",e);
+    }
+  }
 }
