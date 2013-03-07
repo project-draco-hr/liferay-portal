@@ -1,35 +1,35 @@
 {
-  List<UserGroupRole> filteredUserGroupRoles=new ArrayList<UserGroupRole>();
-  List<UserGroupRole> filteredUserOrganizationRoles=new ArrayList<UserGroupRole>();
+  List<UserGroupRole> filteredOrganizationUserGroupRoles=new ArrayList<UserGroupRole>();
+  List<UserGroupRole> filteredSiteUserGroupRoles=new ArrayList<UserGroupRole>();
   for (  long roleId : roleIds) {
     UserGroupRolePermissionUtil.check(getPermissionChecker(),groupId,roleId);
     Role role=roleLocalService.getRole(roleId);
     UserGroupRolePK userGroupRolePK=new UserGroupRolePK(userId,groupId,roleId);
-    UserGroupRole userGroupRole=userGroupRoleLocalService.createUserGroupRole(userGroupRolePK);
+    UserGroupRole userGroupRole=userGroupRolePersistence.create(userGroupRolePK);
     if (role.getType() == RoleConstants.TYPE_ORGANIZATION) {
-      Group group=groupLocalService.getGroup(groupId);
+      Group group=groupPersistence.findByPrimaryKey(groupId);
       if (!OrganizationMembershipPolicyUtil.isRoleProtected(getPermissionChecker(),userId,group.getOrganizationId(),roleId)) {
-        filteredUserOrganizationRoles.add(userGroupRole);
+        filteredOrganizationUserGroupRoles.add(userGroupRole);
       }
     }
  else     if ((role.getType() == RoleConstants.TYPE_SITE) && !SiteMembershipPolicyUtil.isRoleProtected(getPermissionChecker(),userId,groupId,roleId)) {
-      filteredUserGroupRoles.add(userGroupRole);
+      filteredSiteUserGroupRoles.add(userGroupRole);
     }
   }
-  if (filteredUserGroupRoles.isEmpty() && filteredUserOrganizationRoles.isEmpty()) {
+  if (filteredOrganizationUserGroupRoles.isEmpty() && filteredSiteUserGroupRoles.isEmpty()) {
     return;
   }
-  if (!filteredUserGroupRoles.isEmpty()) {
-    SiteMembershipPolicyUtil.checkRoles(null,filteredUserGroupRoles);
+  if (!filteredOrganizationUserGroupRoles.isEmpty()) {
+    OrganizationMembershipPolicyUtil.checkRoles(null,filteredSiteUserGroupRoles);
   }
-  if (!filteredUserOrganizationRoles.isEmpty()) {
-    OrganizationMembershipPolicyUtil.checkRoles(null,filteredUserGroupRoles);
+  if (!filteredSiteUserGroupRoles.isEmpty()) {
+    SiteMembershipPolicyUtil.checkRoles(null,filteredSiteUserGroupRoles);
   }
   userGroupRoleLocalService.deleteUserGroupRoles(userId,groupId,roleIds);
-  if (!filteredUserGroupRoles.isEmpty()) {
-    SiteMembershipPolicyUtil.propagateRoles(null,filteredUserGroupRoles);
+  if (!filteredOrganizationUserGroupRoles.isEmpty()) {
+    OrganizationMembershipPolicyUtil.propagateRoles(null,filteredOrganizationUserGroupRoles);
   }
-  if (!filteredUserOrganizationRoles.isEmpty()) {
-    OrganizationMembershipPolicyUtil.propagateRoles(null,filteredUserOrganizationRoles);
+  if (!filteredSiteUserGroupRoles.isEmpty()) {
+    SiteMembershipPolicyUtil.propagateRoles(null,filteredSiteUserGroupRoles);
   }
 }
