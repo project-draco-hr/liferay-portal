@@ -5,6 +5,8 @@
   if (!hasFileEntryLock(userId,fileEntryId)) {
     lockFileEntry(userId,fileEntryId);
   }
+  DLFileEntry dlFileEntry=null;
+  boolean isLatestVersion=false;
   try {
     DLFileVersion dlFileVersion=dlFileVersionPersistence.findByF_V(fileEntryId,version);
     if (!dlFileVersion.isApproved()) {
@@ -18,8 +20,9 @@
     }
     dlFileVersionPersistence.remove(dlFileVersion);
     expandoValueLocalService.deleteValues(DLFileVersion.class.getName(),dlFileVersion.getFileVersionId());
-    DLFileEntry dlFileEntry=dlFileEntryPersistence.findByPrimaryKey(fileEntryId);
-    if (version.equals(dlFileEntry.getVersion())) {
+    dlFileEntry=dlFileEntryPersistence.findByPrimaryKey(fileEntryId);
+    isLatestVersion=version.equals(dlFileEntry.getVersion());
+    if (isLatestVersion) {
       try {
         DLFileVersion dlLatestFileVersion=dlFileVersionLocalService.getLatestFileVersion(dlFileEntry.getFileEntryId(),true);
         dlFileEntry.setVersionUserId(dlLatestFileVersion.getUserId());
@@ -33,8 +36,7 @@
         dlFileEntry.setFileEntryTypeId(dlLatestFileVersion.getFileEntryTypeId());
         dlFileEntry.setVersion(dlLatestFileVersion.getVersion());
         dlFileEntry.setSize(dlLatestFileVersion.getSize());
-        dlFileEntryPersistence.update(dlFileEntry);
-        return dlFileEntry;
+        dlFileEntry=dlFileEntryPersistence.update(dlFileEntry);
       }
  catch (      NoSuchFileVersionException nsfve) {
       }
@@ -47,6 +49,9 @@
   }
   finally {
     unlockFileEntry(fileEntryId);
+  }
+  if (isLatestVersion) {
+    return dlFileEntry;
   }
   return null;
 }
