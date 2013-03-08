@@ -1,0 +1,77 @@
+{
+  try {
+    _mockIntraBand.sendSyncDatagram(null,null);
+    Assert.fail();
+  }
+ catch (  NullPointerException npe) {
+    Assert.assertEquals("RegistrationReference is null",npe.getMessage());
+  }
+  RegistrationReference registrationReference=new MockRegistrationReference(_mockIntraBand);
+  registrationReference.cancelRegistration();
+  try {
+    _mockIntraBand.sendSyncDatagram(registrationReference,null);
+    Assert.fail();
+  }
+ catch (  IllegalArgumentException iae) {
+    Assert.assertEquals("RegistrationReference is not valid",iae.getMessage());
+  }
+  registrationReference=new MockRegistrationReference(_mockIntraBand);
+  try {
+    _mockIntraBand.sendSyncDatagram(registrationReference,null);
+    Assert.fail();
+  }
+ catch (  NullPointerException npe) {
+    Assert.assertEquals("Datagram is null",npe.getMessage());
+  }
+  try {
+    _mockIntraBand.sendSyncDatagram(registrationReference,Datagram.createRequestDatagram(_type,_dataContent),1000,null);
+    Assert.fail();
+  }
+ catch (  NullPointerException npe) {
+    Assert.assertEquals("TimeUnit is null",npe.getMessage());
+  }
+  Datagram requestDatagram=Datagram.createRequestDatagram(_type,_dataContent);
+  try {
+    _mockIntraBand.sendSyncDatagram(registrationReference,requestDatagram,0,TimeUnit.MILLISECONDS);
+    Assert.fail();
+  }
+ catch (  TimeoutException te) {
+    Assert.assertEquals("Result waiting timeout",te.getMessage());
+  }
+  Assert.assertEquals(DEFAULT_TIMEOUT,_mockIntraBand.getDatagram().timeout);
+  try {
+    _mockIntraBand.sendSyncDatagram(registrationReference,requestDatagram,2,TimeUnit.SECONDS);
+    Assert.fail();
+  }
+ catch (  TimeoutException te) {
+    Assert.assertEquals("Result waiting timeout",te.getMessage());
+  }
+  Assert.assertEquals(2000,requestDatagram.timeout);
+  final IOException expectedIOException=new IOException("Force to fail");
+  IntraBand intraBand=new MockIntraBand(DEFAULT_TIMEOUT){
+    @Override protected void doSendDatagram(    RegistrationReference registrationReference,    Datagram datagram){
+      datagram.completionHandler.failed(null,expectedIOException);
+    }
+  }
+;
+  try {
+    intraBand.sendSyncDatagram(registrationReference,requestDatagram);
+    Assert.fail();
+  }
+ catch (  IOException ioe) {
+    Assert.assertSame(expectedIOException,ioe);
+  }
+  final Datagram expectedDatagram=Datagram.createResponseDatagram(requestDatagram,_dataContent);
+  intraBand=new MockIntraBand(DEFAULT_TIMEOUT){
+    @Override protected void doSendDatagram(    RegistrationReference registrationReference,    Datagram datagram){
+      datagram.completionHandler.replied(null,expectedDatagram);
+    }
+  }
+;
+  Datagram responseDatagram=intraBand.sendSyncDatagram(registrationReference,requestDatagram);
+  Assert.assertSame(expectedDatagram,responseDatagram);
+  SendSyncDatagramCompletionHandler sendSyncDatagramCompletionHandler=new SendSyncDatagramCompletionHandler();
+  sendSyncDatagramCompletionHandler.delivered(null);
+  sendSyncDatagramCompletionHandler.submitted(null);
+  sendSyncDatagramCompletionHandler.timeouted(null);
+}
