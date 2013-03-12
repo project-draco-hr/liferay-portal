@@ -1,3 +1,37 @@
 {
-  return;
+  if (!portletDataContext.isWithinDateRange(message.getModifiedDate())) {
+    return;
+  }
+  if (message.getStatus() != WorkflowConstants.STATUS_APPROVED) {
+    return;
+  }
+  exportParentCategory(portletDataContext,categoriesElement,message.getCategoryId());
+  String path=getMessagePath(portletDataContext,message);
+  if (!portletDataContext.isPathNotProcessed(path)) {
+    return;
+  }
+  Element messageElement=messagesElement.addElement("message");
+  message.setPriority(message.getPriority());
+  MBThread thread=message.getThread();
+  messageElement.addAttribute("question",String.valueOf(thread.isQuestion()));
+  boolean hasAttachmentsFileEntries=message.getAttachmentsFileEntriesCount() > 0;
+  messageElement.addAttribute("hasAttachmentsFileEntries",String.valueOf(hasAttachmentsFileEntries));
+  if (portletDataContext.getBooleanParameter(NAMESPACE,"attachments") && hasAttachmentsFileEntries) {
+    for (    FileEntry fileEntry : message.getAttachmentsFileEntries()) {
+      String name=fileEntry.getTitle();
+      String binPath=getMessageAttachementBinPath(portletDataContext,message,name);
+      Element attachmentElement=messageElement.addElement("attachment");
+      attachmentElement.addAttribute("name",name);
+      attachmentElement.addAttribute("bin-path",binPath);
+      portletDataContext.addZipEntry(binPath,fileEntry.getContentStream());
+    }
+    message.setAttachmentsFolderId(message.getAttachmentsFolderId());
+  }
+  if (portletDataContext.getBooleanParameter(NAMESPACE,"thread-flags")) {
+    List<MBThreadFlag> threadFlags=MBThreadFlagUtil.findByThreadId(message.getThreadId());
+    for (    MBThreadFlag threadFlag : threadFlags) {
+      exportThreadFlag(portletDataContext,threadFlagsElement,threadFlag);
+    }
+  }
+  portletDataContext.addClassedModel(messageElement,path,message,NAMESPACE);
 }

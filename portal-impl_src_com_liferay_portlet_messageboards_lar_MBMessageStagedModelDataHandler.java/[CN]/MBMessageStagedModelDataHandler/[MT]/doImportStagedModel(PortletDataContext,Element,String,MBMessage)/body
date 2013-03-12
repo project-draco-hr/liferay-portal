@@ -1,3 +1,45 @@
 {
-  return;
+  long userId=portletDataContext.getUserId(message.getUserUuid());
+  String userName=message.getUserName();
+  Map<Long,Long> categoryIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(MBCategory.class);
+  long categoryId=MapUtil.getLong(categoryIds,message.getCategoryId(),message.getCategoryId());
+  Map<Long,Long> threadIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(MBThread.class);
+  long threadId=MapUtil.getLong(threadIds,message.getThreadId(),0);
+  Map<Long,Long> messageIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(MBMessage.class);
+  long parentMessageId=MapUtil.getLong(messageIds,message.getParentMessageId(),message.getParentMessageId());
+  List<String> existingFiles=new ArrayList<String>();
+  List<ObjectValuePair<String,InputStream>> inputStreamOVPs=getAttachments(portletDataContext,messageElement,message);
+  try {
+    ServiceContext serviceContext=portletDataContext.createServiceContext(messageElement,message,NAMESPACE);
+    if (message.getStatus() != WorkflowConstants.STATUS_APPROVED) {
+      serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
+    }
+    categoryId=getCategoryId(portletDataContext,message,categoryIds,categoryId);
+    MBMessage importedMessage=null;
+    if (portletDataContext.isDataStrategyMirror()) {
+      MBMessage existingMessage=MBMessageUtil.fetchByUUID_G(message.getUuid(),portletDataContext.getScopeGroupId());
+      if (existingMessage == null) {
+        serviceContext.setUuid(message.getUuid());
+        importedMessage=MBMessageLocalServiceUtil.addMessage(userId,userName,portletDataContext.getScopeGroupId(),categoryId,threadId,parentMessageId,message.getSubject(),message.getBody(),message.getFormat(),inputStreamOVPs,message.getAnonymous(),message.getPriority(),message.getAllowPingbacks(),serviceContext);
+      }
+ else {
+        importedMessage=MBMessageLocalServiceUtil.updateMessage(userId,existingMessage.getMessageId(),message.getSubject(),message.getBody(),inputStreamOVPs,existingFiles,message.getPriority(),message.getAllowPingbacks(),serviceContext);
+      }
+    }
+ else {
+      importedMessage=MBMessageLocalServiceUtil.addMessage(userId,userName,portletDataContext.getScopeGroupId(),categoryId,threadId,parentMessageId,message.getSubject(),message.getBody(),message.getFormat(),inputStreamOVPs,message.getAnonymous(),message.getPriority(),message.getAllowPingbacks(),serviceContext);
+    }
+    importedMessage.setAnswer(message.getAnswer());
+    if (importedMessage.isRoot()) {
+      MBThreadLocalServiceUtil.updateQuestion(importedMessage.getThreadId(),GetterUtil.getBoolean(messageElement.attributeValue("question")));
+    }
+    threadIds.put(message.getThreadId(),importedMessage.getThreadId());
+    portletDataContext.importClassedModel(message,importedMessage,NAMESPACE);
+  }
+  finally {
+    for (    ObjectValuePair<String,InputStream> inputStreamOVP : inputStreamOVPs) {
+      InputStream inputStream=inputStreamOVP.getValue();
+      StreamUtil.cleanUp(inputStream);
+    }
+  }
 }
