@@ -1,24 +1,63 @@
 {
   portletDataContext.addPermissions("com.liferay.portlet.messageboards",portletDataContext.getScopeGroupId());
-  Element rootElement=addExportRootElement();
+  Element rootElement=addExportDataRootElement(portletDataContext);
   rootElement.addAttribute("group-id",String.valueOf(portletDataContext.getScopeGroupId()));
-  Element categoriesElement=rootElement.addElement("categories");
-  Element messagesElement=rootElement.addElement("messages");
-  Element threadFlagsElement=rootElement.addElement("thread-flags");
-  Element userBansElement=rootElement.addElement("user-bans");
-  List<MBCategory> categories=MBCategoryUtil.findByGroupId(portletDataContext.getScopeGroupId());
-  for (  MBCategory category : categories) {
-    exportCategory(portletDataContext,categoriesElement,messagesElement,threadFlagsElement,category);
-  }
-  List<MBMessage> messages=MBMessageUtil.findByG_C(portletDataContext.getScopeGroupId(),MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID);
-  for (  MBMessage message : messages) {
-    exportMessage(portletDataContext,categoriesElement,messagesElement,threadFlagsElement,message);
-  }
-  if (portletDataContext.getBooleanParameter(NAMESPACE,"user-bans")) {
-    List<MBBan> bans=MBBanUtil.findByGroupId(portletDataContext.getScopeGroupId());
-    for (    MBBan ban : bans) {
-      exportBan(portletDataContext,userBansElement,ban);
+  final Element categoriesElement=rootElement.addElement("categories");
+  ActionableDynamicQuery categoriesActionableDynamicQuery=new MBCategoryActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
+    }
+    @Override protected void performAction(    Object object) throws PortalException {
+      MBCategory category=(MBCategory)object;
+      StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,categoriesElement,category);
     }
   }
+;
+  categoriesActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
+  categoriesActionableDynamicQuery.performActions();
+  final Element messagesElement=rootElement.addElement("messages");
+  ActionableDynamicQuery messagesActionableDynamicQuery=new MBMessageActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
+    }
+    @Override protected void performAction(    Object object) throws PortalException {
+      MBMessage message=(MBMessage)object;
+      StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,new Element[]{messagesElement,categoriesElement},message);
+    }
+  }
+;
+  messagesActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
+  messagesActionableDynamicQuery.performActions();
+  final Element threadFlagsElement=rootElement.addElement("thread-flags");
+  if (portletDataContext.getBooleanParameter(MBPortletDataHandler.NAMESPACE,"thread-flags")) {
+    ActionableDynamicQuery threadFlagsActionableDynamicQuery=new MBThreadFlagActionableDynamicQuery(){
+      @Override protected void addCriteria(      DynamicQuery dynamicQuery){
+        portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
+      }
+      @Override protected void performAction(      Object object) throws PortalException {
+        MBThreadFlag message=(MBThreadFlag)object;
+        StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,new Element[]{messagesElement,categoriesElement,threadFlagsElement},message);
+      }
+    }
+;
+    threadFlagsActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
+    threadFlagsActionableDynamicQuery.performActions();
+  }
+  final Element userBansElement=rootElement.addElement("user-bans");
+  if (!portletDataContext.getBooleanParameter(NAMESPACE,"user-bans")) {
+    return rootElement.formattedString();
+  }
+  ActionableDynamicQuery userBansActionableDynamicQuery=new MBBanActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
+    }
+    @Override protected void performAction(    Object object) throws PortalException {
+      MBBan userBan=(MBBan)object;
+      StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,userBansElement,userBan);
+    }
+  }
+;
+  userBansActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
+  userBansActionableDynamicQuery.performActions();
   return getExportDataRootElementString(rootElement);
 }
