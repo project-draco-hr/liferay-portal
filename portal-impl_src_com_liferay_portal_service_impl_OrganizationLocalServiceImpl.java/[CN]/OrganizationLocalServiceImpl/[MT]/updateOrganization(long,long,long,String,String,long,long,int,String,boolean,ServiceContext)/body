@@ -1,0 +1,55 @@
+{
+  parentOrganizationId=getParentOrganizationId(companyId,parentOrganizationId);
+  validate(companyId,organizationId,parentOrganizationId,name,type,countryId,statusId);
+  Organization organization=organizationPersistence.findByPrimaryKey(organizationId);
+  long oldParentOrganizationId=organization.getParentOrganizationId();
+  String oldName=organization.getName();
+  organization.setParentOrganizationId(parentOrganizationId);
+  String treePath=organization.buildTreePath();
+  organization.setTreePath(treePath);
+  organization.setName(name);
+  organization.setType(type);
+  organization.setRecursable(true);
+  organization.setRegionId(regionId);
+  organization.setCountryId(countryId);
+  organization.setStatusId(statusId);
+  organization.setComments(comments);
+  organization.setExpandoBridgeAttributes(serviceContext);
+  organizationPersistence.update(organization);
+  Group group=organization.getGroup();
+  long parentGroupId=group.getParentGroupId();
+  boolean organizationGroup=isOrganizationGroup(oldParentOrganizationId,group.getParentGroupId());
+  if (organizationGroup) {
+    if (parentOrganizationId != OrganizationConstants.DEFAULT_PARENT_ORGANIZATION_ID) {
+      Organization parentOrganization=organizationPersistence.fetchByPrimaryKey(parentOrganizationId);
+      Group parentGroup=parentOrganization.getGroup();
+      if (site && parentGroup.isSite()) {
+        parentGroupId=parentOrganization.getGroupId();
+      }
+ else {
+        parentGroupId=GroupConstants.DEFAULT_PARENT_GROUP_ID;
+      }
+    }
+ else {
+      parentGroupId=GroupConstants.DEFAULT_PARENT_GROUP_ID;
+    }
+  }
+  if (!oldName.equals(name) || organizationGroup) {
+    groupLocalService.updateGroup(group.getGroupId(),parentGroupId,name,group.getDescription(),group.getType(),group.getFriendlyURL(),group.isActive(),null);
+  }
+  if (group.isSite() != site) {
+    groupLocalService.updateSite(group.getGroupId(),site);
+  }
+  if (serviceContext != null) {
+    updateAsset(serviceContext.getUserId(),organization,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
+  }
+  Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(Organization.class);
+  if (oldParentOrganizationId != parentOrganizationId) {
+    long[] organizationIds=getReindexOrganizationIds(organization);
+    indexer.reindex(organizationIds);
+  }
+ else {
+    indexer.reindex(organization);
+  }
+  return organization;
+}
