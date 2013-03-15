@@ -1,36 +1,18 @@
 {
-  if (templateId == null) {
-    throw new IllegalArgumentException("Argument \"name\" cannot be null");
-  }
-  if (locale == null) {
-    throw new IllegalArgumentException("Argument \"locale\" cannot be null");
-  }
-  if (encoding == null) {
-    throw new IllegalArgumentException("Argument \"encoding\" cannot be null");
-  }
-  TemplateResource templateResource=null;
-  if (templateId.startsWith(TemplateConstants.TEMPLATE_RESOURCE_UUID_PREFIX)) {
-    templateResource=TemplateResourceThreadLocal.getTemplateResource(TemplateConstants.LANG_TYPE_FTL);
-  }
- else {
-    try {
-      templateId=(String)_normalizeNameMethod.invoke(this,templateId);
-      templateResource=TemplateResourceLoaderUtil.getTemplateResource(TemplateConstants.LANG_TYPE_FTL,templateId);
+  String[] macroTemplateIds=PropsUtil.getArray(PropsKeys.FREEMARKER_ENGINE_MACRO_LIBRARY);
+  for (  String macroTemplateId : macroTemplateIds) {
+    int pos=macroTemplateId.indexOf(" as ");
+    if (pos != -1) {
+      macroTemplateId=macroTemplateId.substring(0,pos);
     }
- catch (    Exception e) {
-      templateResource=null;
+    if (templateId.equals(macroTemplateId)) {
+      try {
+        return AccessController.doPrivileged(new TemplateAction(macroTemplateId,locale,encoding,parse));
+      }
+ catch (      PrivilegedActionException e) {
+        throw (IOException)e.getException();
+      }
     }
   }
-  if (templateResource == null) {
-    throw new IOException("Unable to find FreeMarker template with ID " + templateId);
-  }
-  Object object=_portalCache.get(templateResource);
-  if ((object != null) && (object instanceof Template)) {
-    return (Template)object;
-  }
-  Template template=new Template(templateResource.getTemplateId(),templateResource.getReader(),_configuration,TemplateConstants.DEFAUT_ENCODING);
-  if (PropsValues.FREEMARKER_ENGINE_RESOURCE_MODIFICATION_CHECK_INTERVAL != 0) {
-    _portalCache.put(templateResource,template);
-  }
-  return template;
+  return doGetTemplate(templateId,locale,encoding,parse);
 }
