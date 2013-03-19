@@ -1,0 +1,49 @@
+{
+  long userId=portletDataContext.getUserId(message.getUserUuid());
+  String userName=message.getUserName();
+  Map<Long,Long> categoryIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(MBCategory.class);
+  long parentCategoryId=MapUtil.getLong(categoryIds,message.getCategoryId(),message.getCategoryId());
+  Map<Long,Long> threadIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(MBThread.class);
+  long threadId=MapUtil.getLong(threadIds,message.getThreadId(),0);
+  Map<Long,Long> messageIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(MBMessage.class);
+  long parentMessageId=MapUtil.getLong(messageIds,message.getParentMessageId(),message.getParentMessageId());
+  List<ObjectValuePair<String,InputStream>> inputStreamOVPs=getAttachments(portletDataContext,element,message);
+  try {
+    ServiceContext serviceContext=portletDataContext.createServiceContext(element,message,MBPortletDataHandler.NAMESPACE);
+    if (message.getStatus() != WorkflowConstants.STATUS_APPROVED) {
+      serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
+    }
+    if ((parentCategoryId != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) && (parentCategoryId != MBCategoryConstants.DISCUSSION_CATEGORY_ID) && (parentCategoryId == message.getCategoryId())) {
+      String categoryPath=StagedModelPathUtil.getPath(portletDataContext,MBCategory.class.getName(),parentCategoryId);
+      MBCategory category=(MBCategory)portletDataContext.getZipEntryAsObject(categoryPath);
+      StagedModelDataHandlerUtil.importStagedModel(portletDataContext,element,category);
+      parentCategoryId=MapUtil.getLong(categoryIds,message.getCategoryId(),message.getCategoryId());
+    }
+    MBMessage importedMessage=null;
+    if (portletDataContext.isDataStrategyMirror()) {
+      MBMessage existingMessage=MBMessageUtil.fetchByUUID_G(message.getUuid(),portletDataContext.getScopeGroupId());
+      if (existingMessage == null) {
+        serviceContext.setUuid(message.getUuid());
+        importedMessage=MBMessageLocalServiceUtil.addMessage(userId,userName,portletDataContext.getScopeGroupId(),parentCategoryId,threadId,parentMessageId,message.getSubject(),message.getBody(),message.getFormat(),inputStreamOVPs,message.getAnonymous(),message.getPriority(),message.getAllowPingbacks(),serviceContext);
+      }
+ else {
+        importedMessage=MBMessageLocalServiceUtil.updateMessage(userId,existingMessage.getMessageId(),message.getSubject(),message.getBody(),inputStreamOVPs,new ArrayList<String>(),message.getPriority(),message.getAllowPingbacks(),serviceContext);
+      }
+    }
+ else {
+      importedMessage=MBMessageLocalServiceUtil.addMessage(userId,userName,portletDataContext.getScopeGroupId(),parentCategoryId,threadId,parentMessageId,message.getSubject(),message.getBody(),message.getFormat(),inputStreamOVPs,message.getAnonymous(),message.getPriority(),message.getAllowPingbacks(),serviceContext);
+    }
+    importedMessage.setAnswer(message.getAnswer());
+    if (importedMessage.isRoot()) {
+      MBThreadLocalServiceUtil.updateQuestion(importedMessage.getThreadId(),GetterUtil.getBoolean(element.attributeValue("question")));
+    }
+    threadIds.put(message.getThreadId(),importedMessage.getThreadId());
+    portletDataContext.importClassedModel(message,importedMessage,MBPortletDataHandler.NAMESPACE);
+  }
+  finally {
+    for (    ObjectValuePair<String,InputStream> inputStreamOVP : inputStreamOVPs) {
+      InputStream inputStream=inputStreamOVP.getValue();
+      StreamUtil.cleanUp(inputStream);
+    }
+  }
+}
