@@ -1,0 +1,53 @@
+{
+  CallbackPreferringPlatformTransactionManager callbackPreferringPlatformTransactionManager=(CallbackPreferringPlatformTransactionManager)_platformTransactionManager;
+  Object result=callbackPreferringPlatformTransactionManager.execute(transactionAttribute,new TransactionCallback<Object>(){
+    public Object doInTransaction(    TransactionStatus transactionStatus){
+      boolean newTransaction=transactionStatus.isNewTransaction();
+      if (newTransaction) {
+        TransactionalPortalCacheHelper.begin();
+        TransactionCommitCallbackUtil.pushCallbackList();
+      }
+      boolean rollback=false;
+      try {
+        if (newTransaction) {
+          LastSessionRecorderUtil.syncLastSessionState();
+        }
+        return methodInvocation.proceed();
+      }
+ catch (      Throwable throwable) {
+        if (transactionAttribute.rollbackOn(throwable)) {
+          if (newTransaction) {
+            TransactionalPortalCacheHelper.rollback();
+            TransactionCommitCallbackUtil.popCallbackList();
+            EntityCacheUtil.clearLocalCache();
+            FinderCacheUtil.clearLocalCache();
+            rollback=true;
+          }
+          if (throwable instanceof RuntimeException) {
+            throw (RuntimeException)throwable;
+          }
+ else {
+            throw new RuntimeException(throwable);
+          }
+        }
+ else {
+          return new ThrowableHolder(throwable);
+        }
+      }
+ finally {
+        if (newTransaction && !rollback) {
+          TransactionalPortalCacheHelper.commit();
+          invokeCallbacks();
+        }
+      }
+    }
+  }
+);
+  if (result instanceof ThrowableHolder) {
+    ThrowableHolder throwableHolder=(ThrowableHolder)result;
+    throw throwableHolder.getThrowable();
+  }
+ else {
+    return result;
+  }
+}
