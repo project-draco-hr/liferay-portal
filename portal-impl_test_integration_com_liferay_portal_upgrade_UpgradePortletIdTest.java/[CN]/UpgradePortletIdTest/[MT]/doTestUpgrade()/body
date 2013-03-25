@@ -1,0 +1,49 @@
+{
+  String oldPortletId=StringPool.BLANK;
+  String oldRootPortletId=StringPool.BLANK;
+  if (_testUninstanceable) {
+    oldPortletId=_UNINSTANCEABLE_PORTLET_ID;
+    oldRootPortletId=_UNINSTANCEABLE_PORTLET_ID;
+  }
+ else {
+    oldPortletId=_OLD_PORTLET_ID;
+    oldRootPortletId=_OLD_ROOT_PORTLET_ID;
+  }
+  Layout layout=addLayout();
+  LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
+  layoutTypePortlet.addPortletId(TestPropsValues.getUserId(),oldPortletId);
+  LayoutLocalServiceUtil.updateLayout(layout.getGroupId(),layout.isPrivateLayout(),layout.getLayoutId(),layout.getTypeSettings());
+  addPortletPreferences(layout,oldPortletId);
+  Map<Long,String[]> roleIdsToActionIds=new HashMap<Long,String[]>();
+  Role role=RoleLocalServiceUtil.getRole(TestPropsValues.getCompanyId(),RoleConstants.GUEST);
+  roleIdsToActionIds.put(role.getRoleId(),new String[]{ActionKeys.CONFIGURATION});
+  ResourcePermissionServiceUtil.setIndividualResourcePermissions(layout.getGroupId(),TestPropsValues.getCompanyId(),oldRootPortletId,oldPortletId,roleIdsToActionIds);
+  Portlet portlet=PortletLocalServiceUtil.getPortletById(oldRootPortletId);
+  PortletLocalServiceUtil.destroyPortlet(portlet);
+  doUpgrade();
+  CacheRegistryUtil.clear();
+  layout=LayoutLocalServiceUtil.getLayout(layout.getPlid());
+  layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
+  String newPortletId=StringPool.BLANK;
+  String newRootPortletId=StringPool.BLANK;
+  if (_testUninstanceable) {
+    newPortletId=getNewPortletId(layoutTypePortlet,oldPortletId);
+    newRootPortletId=oldPortletId;
+    Assert.assertTrue(newPortletId.contains(PortletConstants.INSTANCE_SEPARATOR));
+  }
+ else {
+    newPortletId=_NEW_PORTLET_ID;
+    newRootPortletId=_NEW_ROOT_PORTLET_ID;
+  }
+  portlet.setCompanyId(TestPropsValues.getCompanyId());
+  portlet.setPortletId(newRootPortletId);
+  List<String> portletActions=ResourceActionsUtil.getPortletResourceActions(portlet.getPortletId());
+  ResourceActionLocalServiceUtil.checkResourceActions(portlet.getPortletId(),portletActions);
+  PortletLocalServiceUtil.checkPortlet(portlet);
+  Assert.assertTrue(layoutTypePortlet.hasPortletId(newPortletId));
+  boolean hasViewPermission=ResourcePermissionLocalServiceUtil.hasResourcePermission(TestPropsValues.getCompanyId(),newRootPortletId,ResourceConstants.SCOPE_INDIVIDUAL,newPortletId,role.getRoleId(),ActionKeys.VIEW);
+  Assert.assertFalse(hasViewPermission);
+  boolean hasConfigurationPermission=ResourcePermissionLocalServiceUtil.hasResourcePermission(TestPropsValues.getCompanyId(),newRootPortletId,ResourceConstants.SCOPE_INDIVIDUAL,newPortletId,role.getRoleId(),ActionKeys.CONFIGURATION);
+  Assert.assertTrue(hasConfigurationPermission);
+  GroupLocalServiceUtil.deleteGroup(layout.getGroup());
+}
