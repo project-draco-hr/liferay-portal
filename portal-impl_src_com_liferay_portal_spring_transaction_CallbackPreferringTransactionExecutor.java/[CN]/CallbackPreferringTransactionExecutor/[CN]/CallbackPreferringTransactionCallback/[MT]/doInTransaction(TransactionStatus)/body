@@ -1,0 +1,40 @@
+{
+  boolean newTransaction=transactionStatus.isNewTransaction();
+  if (newTransaction) {
+    TransactionalPortalCacheHelper.begin();
+    TransactionCommitCallbackUtil.pushCallbackList();
+  }
+  boolean rollback=false;
+  try {
+    if (newTransaction) {
+      LastSessionRecorderUtil.syncLastSessionState();
+    }
+    return _methodInvocation.proceed();
+  }
+ catch (  Throwable throwable) {
+    if (_transactionAttribute.rollbackOn(throwable)) {
+      if (newTransaction) {
+        TransactionalPortalCacheHelper.rollback();
+        TransactionCommitCallbackUtil.popCallbackList();
+        EntityCacheUtil.clearLocalCache();
+        FinderCacheUtil.clearLocalCache();
+        rollback=true;
+      }
+      if (throwable instanceof RuntimeException) {
+        throw (RuntimeException)throwable;
+      }
+ else {
+        throw new RuntimeException(throwable);
+      }
+    }
+ else {
+      return new ThrowableHolder(throwable);
+    }
+  }
+ finally {
+    if (newTransaction && !rollback) {
+      TransactionalPortalCacheHelper.commit();
+      invokeCallbacks();
+    }
+  }
+}
