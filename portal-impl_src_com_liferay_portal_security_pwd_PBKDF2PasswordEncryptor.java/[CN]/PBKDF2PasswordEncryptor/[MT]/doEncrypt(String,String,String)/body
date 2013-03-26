@@ -1,24 +1,25 @@
 {
   try {
     PBKDF2EncryptionConfiguration pbkdf2EncryptionConfiguration=new PBKDF2EncryptionConfiguration();
-    pbkdf2EncryptionConfiguration.configure(algorithm,currentEncryptedPassword);
+    pbkdf2EncryptionConfiguration.configure(algorithm,encryptedPassword);
     byte[] saltBytes=pbkdf2EncryptionConfiguration.getSaltBytes();
-    PBEKeySpec keySpec=new PBEKeySpec(clearTextPassword.toCharArray(),saltBytes,pbkdf2EncryptionConfiguration.getRounds(),pbkdf2EncryptionConfiguration.getKeySize());
+    PBEKeySpec pbeKeySpec=new PBEKeySpec(plainTextPassword.toCharArray(),saltBytes,pbkdf2EncryptionConfiguration.getRounds(),pbkdf2EncryptionConfiguration.getKeySize());
     String algorithmName=algorithm;
-    int slashIndex=algorithm.indexOf(CharPool.SLASH);
-    if (slashIndex > -1) {
-      algorithmName=algorithm.substring(0,slashIndex);
+    int index=algorithm.indexOf(CharPool.SLASH);
+    if (index > -1) {
+      algorithmName=algorithm.substring(0,index);
     }
-    SecretKeyFactory keyFactory=SecretKeyFactory.getInstance(algorithmName);
-    byte[] key=keyFactory.generateSecret(keySpec).getEncoded();
-    ByteBuffer result=ByteBuffer.allocate(2 * 4 + saltBytes.length + key.length);
-    result.putInt(pbkdf2EncryptionConfiguration.getKeySize());
-    result.putInt(pbkdf2EncryptionConfiguration.getRounds());
-    result.put(saltBytes);
-    result.put(key);
-    return Base64.encode(result.array());
+    SecretKeyFactory secretKeyFactory=SecretKeyFactory.getInstance(algorithmName);
+    SecretKey secretKey=secretKeyFactory.generateSecret(pbeKeySpec);
+    byte[] secretKeyBytes=secretKey.getEncoded();
+    ByteBuffer byteBuffer=ByteBuffer.allocate(2 * 4 + saltBytes.length + secretKeyBytes.length);
+    byteBuffer.putInt(pbkdf2EncryptionConfiguration.getKeySize());
+    byteBuffer.putInt(pbkdf2EncryptionConfiguration.getRounds());
+    byteBuffer.put(saltBytes);
+    byteBuffer.put(secretKeyBytes);
+    return Base64.encode(byteBuffer.array());
   }
  catch (  Exception e) {
-    throw new PwdEncryptorException("Unable to generate hash: " + e.getMessage(),e);
+    throw new PwdEncryptorException(e.getMessage(),e);
   }
 }

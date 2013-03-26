@@ -1,46 +1,52 @@
 {
   if (Validator.isNull(PropsValues.PASSWORDS_ENCRYPTION_ALGORITHM_LEGACY)) {
     if (_log.isDebugEnabled()) {
-      _log.debug("Skipping passwords upgrade scheme, " + PropsKeys.PASSWORDS_ENCRYPTION_ALGORITHM_LEGACY + " is null.");
+      _log.debug("Skipping passwords upgrade scheme because " + PropsKeys.PASSWORDS_ENCRYPTION_ALGORITHM_LEGACY + " is blank");
     }
-    return _parentPasswordEncryptor.encrypt(algorithm,clearTextPassword,currentEncryptedPassword);
+    return _parentPasswordEncryptor.encrypt(algorithm,plainTextPassword,encryptedPassword);
   }
   if (_log.isDebugEnabled()) {
-    boolean isCEPNull=Validator.isNull(currentEncryptedPassword);
-    _log.debug("Using legacy detection scheme for algorithm " + algorithm + " with current password "+ (isCEPNull ? "empty" : "provided"));
+    String message="Using legacy detection scheme for algorithm " + algorithm + " with current password ";
+    if (Validator.isNull(encryptedPassword)) {
+      message+="empty";
+    }
+ else {
+      message+="provided";
+    }
+    _log.debug(message);
   }
   boolean prependAlgorithm=true;
-  if (Validator.isNotNull(currentEncryptedPassword) && (currentEncryptedPassword.charAt(0) != CharPool.OPEN_CURLY_BRACE)) {
+  if (Validator.isNotNull(encryptedPassword) && (encryptedPassword.charAt(0) != CharPool.OPEN_CURLY_BRACE)) {
     algorithm=PropsValues.PASSWORDS_ENCRYPTION_ALGORITHM_LEGACY;
     prependAlgorithm=false;
     if (_log.isDebugEnabled()) {
       _log.debug("Using legacy algorithm " + algorithm);
     }
   }
- else   if (Validator.isNotNull(currentEncryptedPassword) && (currentEncryptedPassword.charAt(0) == CharPool.OPEN_CURLY_BRACE)) {
-    int endPos=currentEncryptedPassword.indexOf(CharPool.CLOSE_CURLY_BRACE);
-    if (endPos > 0) {
-      algorithm=currentEncryptedPassword.substring(1,endPos);
-      currentEncryptedPassword=currentEncryptedPassword.substring(endPos + 1);
+ else   if (Validator.isNotNull(encryptedPassword) && (encryptedPassword.charAt(0) == CharPool.OPEN_CURLY_BRACE)) {
+    int index=encryptedPassword.indexOf(CharPool.CLOSE_CURLY_BRACE);
+    if (index > 0) {
+      algorithm=encryptedPassword.substring(1,index);
+      encryptedPassword=encryptedPassword.substring(index + 1);
     }
     if (_log.isDebugEnabled()) {
-      _log.debug("Upgraded password, using new algorithm " + algorithm);
+      _log.debug("Upgraded password to use algorithm " + algorithm);
     }
   }
-  String encryptedPassword=_parentPasswordEncryptor.encrypt(algorithm,clearTextPassword,currentEncryptedPassword);
+  String newEncryptedPassword=_parentPasswordEncryptor.encrypt(algorithm,plainTextPassword,encryptedPassword);
   if (!prependAlgorithm) {
     if (_log.isDebugEnabled()) {
       _log.debug("Generated password without algorithm prefix using " + algorithm);
     }
-    return encryptedPassword;
+    return newEncryptedPassword;
   }
   if (_log.isDebugEnabled()) {
     _log.debug("Generated password with algorithm prefix using " + algorithm);
   }
-  StringBuilder result=new StringBuilder(4);
-  result.append(StringPool.OPEN_CURLY_BRACE);
-  result.append(getAlgorithmName(algorithm));
-  result.append(StringPool.CLOSE_CURLY_BRACE);
-  result.append(encryptedPassword);
-  return result.toString();
+  StringBundler sb=new StringBundler(4);
+  sb.append(StringPool.OPEN_CURLY_BRACE);
+  sb.append(getAlgorithmName(algorithm));
+  sb.append(StringPool.CLOSE_CURLY_BRACE);
+  sb.append(newEncryptedPassword);
+  return sb.toString();
 }
