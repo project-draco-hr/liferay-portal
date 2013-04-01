@@ -1,9 +1,33 @@
 {
-  BufferCacheServletResponse bufferCacheServletResponse=new BufferCacheServletResponse(response);
+  final int[] statusCode={HttpServletResponse.SC_OK};
+  BufferCacheServletResponse bufferCacheServletResponse=new BufferCacheServletResponse(response){
+    @Override public void sendError(    int status) throws IOException {
+      super.sendError(status);
+      statusCode[0]=status;
+    }
+    @Override public void sendError(    int status,    String errorMessage) throws IOException {
+      super.sendError(status,errorMessage);
+      statusCode[0]=status;
+    }
+    @Override public void setStatus(    int status){
+      super.setStatus(status);
+      statusCode[0]=status;
+    }
+    @Override public void setStatus(    int status,    String statusMessage){
+      super.setStatus(status,statusMessage);
+      statusCode[0]=status;
+    }
+  }
+;
   processFilter(ETagFilter.class,request,bufferCacheServletResponse,filterChain);
   ByteBuffer byteBuffer=bufferCacheServletResponse.getByteBuffer();
-  if (!ETagUtil.processETag(request,response,byteBuffer)) {
+  if (isEligibleForEtag(statusCode[0])) {
+    if (!ETagUtil.processETag(request,response,byteBuffer)) {
+      bufferCacheServletResponse.finishResponse();
+      bufferCacheServletResponse.outputBuffer();
+    }
+  }
+ else {
     bufferCacheServletResponse.finishResponse();
-    bufferCacheServletResponse.outputBuffer();
   }
 }
