@@ -1,0 +1,83 @@
+{
+  AtomicReference<DatagramReceiveHandler[]> datagramReceiveHandlersReference=_mockIntraBand.datagramReceiveHandlersReference;
+  DatagramReceiveHandler[] datagramReceiveHandlers=datagramReceiveHandlersReference.get();
+  Assert.assertEquals(256,datagramReceiveHandlers.length);
+  DatagramReceiveHandler[] newDatagramReceiveHandlers=_mockIntraBand.getDatagramReceiveHandlers();
+  Assert.assertNotSame(datagramReceiveHandlers,newDatagramReceiveHandlers);
+  DatagramReceiveHandler datagramReceiveHandler1=new RecordDatagramReceiveHandler();
+  DatagramReceiveHandler oldDatagramReceiveHandler=_mockIntraBand.registerDatagramReceiveHandler(_type,datagramReceiveHandler1);
+  Assert.assertNull(oldDatagramReceiveHandler);
+  Assert.assertSame(datagramReceiveHandler1,_mockIntraBand.getDatagramReceiveHandlers()[_type]);
+  DatagramReceiveHandler datagramReceiveHandler2=new RecordDatagramReceiveHandler();
+  oldDatagramReceiveHandler=_mockIntraBand.registerDatagramReceiveHandler(_type,datagramReceiveHandler2);
+  Assert.assertSame(datagramReceiveHandler1,oldDatagramReceiveHandler);
+  Assert.assertSame(datagramReceiveHandler2,_mockIntraBand.getDatagramReceiveHandlers()[_type]);
+  DatagramReceiveHandler removedDatagramReceiveHandler=_mockIntraBand.unregisterDatagramReceiveHandler(_type);
+  Assert.assertSame(datagramReceiveHandler2,removedDatagramReceiveHandler);
+  Assert.assertNull(_mockIntraBand.getDatagramReceiveHandlers()[_type]);
+  final int handlerCount=10240;
+  final int threadCount=10;
+  final DatagramReceiveHandler[] standardDatagramReceiveHandlers=new DatagramReceiveHandler[handlerCount];
+  for (int i=0; i < handlerCount; i++) {
+    standardDatagramReceiveHandlers[i]=new RecordDatagramReceiveHandler();
+  }
+  final Queue<DatagramReceiveHandler> oldDatagramReceiveHandlers=new ConcurrentLinkedQueue<DatagramReceiveHandler>();
+class RegisterJob implements Callable<Void> {
+    public RegisterJob(    int offset){
+      int groupSize=handlerCount / threadCount;
+      _start=offset * groupSize;
+      if ((_start + groupSize) > handlerCount) {
+        _end=handlerCount;
+      }
+ else {
+        _end=_start + groupSize;
+      }
+    }
+    public Void call(){
+      for (int i=_start; i < _end; i++) {
+        DatagramReceiveHandler oldDatagramReceiveHandler=_mockIntraBand.registerDatagramReceiveHandler(_type,standardDatagramReceiveHandlers[i]);
+        if (oldDatagramReceiveHandler != null) {
+          oldDatagramReceiveHandlers.offer(oldDatagramReceiveHandler);
+        }
+      }
+      return null;
+    }
+    private final int _end;
+    private final int _start;
+  }
+  List<RegisterJob> registerJobs=new ArrayList<RegisterJob>(threadCount);
+  for (int i=0; i < threadCount; i++) {
+    registerJobs.add(new RegisterJob(i));
+  }
+  ExecutorService executorService=Executors.newFixedThreadPool(threadCount);
+  List<Future<Void>> futures=executorService.invokeAll(registerJobs);
+  for (  Future<Void> future : futures) {
+    future.get();
+  }
+  executorService.shutdownNow();
+  oldDatagramReceiveHandlers.offer(_mockIntraBand.getDatagramReceiveHandlers()[_type]);
+  Assert.assertEquals(handlerCount,oldDatagramReceiveHandlers.size());
+  for (  DatagramReceiveHandler datagramReceiveHandler : standardDatagramReceiveHandlers) {
+    Assert.assertTrue(oldDatagramReceiveHandlers.contains(datagramReceiveHandler));
+  }
+  _mockIntraBand.close();
+  Assert.assertNull(datagramReceiveHandlersReference.get());
+  try {
+    _mockIntraBand.getDatagramReceiveHandlers();
+    Assert.fail();
+  }
+ catch (  ClosedIntraBandException cibe) {
+  }
+  try {
+    _mockIntraBand.registerDatagramReceiveHandler(_type,new RecordDatagramReceiveHandler());
+    Assert.fail();
+  }
+ catch (  ClosedIntraBandException cibe) {
+  }
+  try {
+    _mockIntraBand.unregisterDatagramReceiveHandler(_type);
+    Assert.fail();
+  }
+ catch (  ClosedIntraBandException cibe) {
+  }
+}
