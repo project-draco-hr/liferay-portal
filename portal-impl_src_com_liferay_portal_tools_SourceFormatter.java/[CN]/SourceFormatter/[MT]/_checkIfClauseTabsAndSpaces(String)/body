@@ -1,0 +1,51 @@
+{
+  if (ifClause.contains("!(") || ifClause.contains(StringPool.TAB + "//")) {
+    return ifClause;
+  }
+  UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new UnsyncStringReader(ifClause));
+  String line=null;
+  String previousLine=null;
+  int previousLineLeadingWhiteSpace=0;
+  int lastCriteriumLineLeadingWhiteSpace=0;
+  int closeParenthesesCount=0;
+  int openParenthesesCount=0;
+  while ((line=unsyncBufferedReader.readLine()) != null) {
+    String originalLine=line;
+    line=StringUtil.replace(line,StringPool.TAB,StringPool.FOUR_SPACES);
+    int leadingWhiteSpace=line.length() - StringUtil.trimLeading(line).length();
+    if (Validator.isNull(previousLine)) {
+      lastCriteriumLineLeadingWhiteSpace=line.indexOf(StringPool.OPEN_PARENTHESIS);
+    }
+ else     if (previousLine.endsWith("||") || previousLine.endsWith("&&")) {
+      int expectedLeadingWhiteSpace=lastCriteriumLineLeadingWhiteSpace + openParenthesesCount - closeParenthesesCount;
+      if (leadingWhiteSpace != expectedLeadingWhiteSpace) {
+        return _fixIfClause(ifClause,originalLine,leadingWhiteSpace - expectedLeadingWhiteSpace);
+      }
+      lastCriteriumLineLeadingWhiteSpace=leadingWhiteSpace;
+      closeParenthesesCount=0;
+      openParenthesesCount=0;
+    }
+ else {
+      int expectedLeadingWhiteSpace=0;
+      if (previousLine.contains(StringPool.TAB + "if (")) {
+        expectedLeadingWhiteSpace=previousLineLeadingWhiteSpace + 8;
+      }
+ else       if (previousLine.contains(StringPool.TAB + "else if (") || previousLine.contains(StringPool.TAB + "while (")) {
+        expectedLeadingWhiteSpace=previousLineLeadingWhiteSpace + 12;
+      }
+      if ((expectedLeadingWhiteSpace != 0) && (leadingWhiteSpace != expectedLeadingWhiteSpace)) {
+        return _fixIfClause(ifClause,originalLine,leadingWhiteSpace - expectedLeadingWhiteSpace);
+      }
+    }
+    if (line.endsWith(") {")) {
+      return ifClause;
+    }
+    line=_stripQuotes(line,StringPool.QUOTE);
+    line=_stripQuotes(line,StringPool.APOSTROPHE);
+    closeParenthesesCount+=StringUtil.count(line,StringPool.CLOSE_PARENTHESIS);
+    openParenthesesCount+=StringUtil.count(line,StringPool.OPEN_PARENTHESIS);
+    previousLine=originalLine;
+    previousLineLeadingWhiteSpace=leadingWhiteSpace;
+  }
+  return ifClause;
+}
