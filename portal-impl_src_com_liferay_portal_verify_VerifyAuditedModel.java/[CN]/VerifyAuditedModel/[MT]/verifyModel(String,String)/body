@@ -1,0 +1,31 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getUpgradeOptimizedConnection();
+    ps=con.prepareStatement("select " + pkColumnName + ", companyId from "+ modelName+ " where userName is null order by companyId");
+    rs=ps.executeQuery();
+    Timestamp createDate=new Timestamp(System.currentTimeMillis());
+    Object[] defaultUserArray=null;
+    long previousCompanyId=0;
+    while (rs.next()) {
+      long companyId=rs.getLong("companyId");
+      long tablePrimaryKey=rs.getLong(pkColumnName);
+      if ((previousCompanyId != companyId) || (defaultUserArray == null)) {
+        defaultUserArray=getDefaultUserArray(con,companyId);
+      }
+      ps=con.prepareStatement("update " + modelName + " set userId = ?, userName = ?, "+ "createDate = ?, modifiedDate = ? where "+ pkColumnName+ " = ?");
+      ps.setLong(1,(Long)defaultUserArray[0]);
+      ps.setString(2,(String)defaultUserArray[1]);
+      ps.setTimestamp(3,createDate);
+      ps.setTimestamp(4,createDate);
+      ps.setLong(5,tablePrimaryKey);
+      ps.executeUpdate();
+      previousCompanyId=companyId;
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}
