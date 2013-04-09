@@ -1,0 +1,44 @@
+{
+  String constantsClassBinaryName=getClassBinaryName(constantsClass);
+  String constantsBeanClassBinaryName=constantsClassBinaryName + "Bean";
+  String objectClassBinaryName=getClassBinaryName(Object.class);
+  ClassWriter classWriter=new ClassWriter(0);
+  classWriter.visit(Opcodes.V1_5,Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER,constantsBeanClassBinaryName,null,objectClassBinaryName,null);
+  MethodVisitor methodVisitor=classWriter.visitMethod(Opcodes.ACC_PUBLIC,"<init>","()V",null,null);
+  methodVisitor.visitCode();
+  methodVisitor.visitVarInsn(Opcodes.ALOAD,0);
+  methodVisitor.visitMethodInsn(Opcodes.INVOKESPECIAL,objectClassBinaryName,"<init>","()V");
+  methodVisitor.visitInsn(Opcodes.RETURN);
+  methodVisitor.visitMaxs(1,1);
+  methodVisitor.visitEnd();
+  Field[] fields=constantsClass.getFields();
+  for (  Field field : fields) {
+    if (Modifier.isStatic(field.getModifiers())) {
+      Class<?> fieldClass=field.getType();
+      Type fieldType=Type.getType(fieldClass);
+      methodVisitor=classWriter.visitMethod(Opcodes.ACC_PUBLIC,"get" + field.getName(),"()" + fieldType.getDescriptor(),null,null);
+      methodVisitor.visitCode();
+      methodVisitor.visitFieldInsn(Opcodes.GETSTATIC,constantsClassBinaryName,field.getName(),fieldType.getDescriptor());
+      int returnOpcode=Opcodes.ARETURN;
+      if (fieldClass.isPrimitive()) {
+        if (fieldClass == Float.TYPE) {
+          returnOpcode=Opcodes.FRETURN;
+        }
+ else         if (fieldClass == Double.TYPE) {
+          returnOpcode=Opcodes.DRETURN;
+        }
+ else         if (fieldClass == Long.TYPE) {
+          returnOpcode=Opcodes.LRETURN;
+        }
+ else {
+          returnOpcode=Opcodes.IRETURN;
+        }
+      }
+      methodVisitor.visitInsn(returnOpcode);
+      methodVisitor.visitMaxs(fieldType.getSize(),1);
+      methodVisitor.visitEnd();
+    }
+  }
+  classWriter.visitEnd();
+  return classWriter.toByteArray();
+}
