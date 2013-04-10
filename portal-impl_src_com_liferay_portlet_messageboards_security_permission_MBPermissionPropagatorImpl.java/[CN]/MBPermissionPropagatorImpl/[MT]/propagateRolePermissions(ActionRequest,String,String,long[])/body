@@ -1,3 +1,43 @@
 {
-  if (!Validator.equals(className,MBCategory.class.getName()) && !Validator.equals(className,_mbModelResource))   return;
+  if (!Validator.equals(className,MBCategory.class.getName()) && !Validator.equals(className,_mbModelResource)) {
+    return;
+  }
+  long parentPrimKey=GetterUtil.getLong(primKey);
+  List<MBCategory> categories=null;
+  List<MBMessage> messages=null;
+  if (className.equals(_mbModelResource)) {
+    categories=MBCategoryLocalServiceUtil.getMBCategories(QueryUtil.ALL_POS,QueryUtil.ALL_POS);
+    messages=MBMessageLocalServiceUtil.getGroupMessages(parentPrimKey,WorkflowConstants.STATUS_ANY,QueryUtil.ALL_POS,QueryUtil.ALL_POS);
+  }
+ else {
+    MBCategory category=MBCategoryLocalServiceUtil.getCategory(parentPrimKey);
+    long groupId=category.getGroupId();
+    List<Object> categoriesAndThreads=MBCategoryLocalServiceUtil.getCategoriesAndThreads(groupId,parentPrimKey);
+    categories=new ArrayList<MBCategory>();
+    messages=new ArrayList<MBMessage>();
+    for (    Object categoryOrThread : categoriesAndThreads) {
+      if (categoryOrThread instanceof MBThread) {
+        long threadId=((MBThread)categoryOrThread).getThreadId();
+        List<MBMessage> threadMessages=MBMessageLocalServiceUtil.getThreadMessages(threadId,WorkflowConstants.STATUS_ANY);
+        messages.addAll(threadMessages);
+      }
+ else {
+        long categoryId=((MBCategory)categoryOrThread).getCategoryId();
+        List<Long> categoryIds=ListUtil.toList(new long[]{categoryId});
+        List<Long> addCategoryIds=MBCategoryLocalServiceUtil.getSubcategoryIds(categoryIds,groupId,categoryId);
+        for (        Long addCategoryId : addCategoryIds) {
+          categories.add(MBCategoryLocalServiceUtil.getCategory(addCategoryId));
+          messages.addAll(MBMessageLocalServiceUtil.getCategoryMessages(groupId,addCategoryId,WorkflowConstants.STATUS_ANY,QueryUtil.ALL_POS,QueryUtil.ALL_POS));
+        }
+      }
+    }
+  }
+  for (  long roleId : roleIds) {
+    for (    MBCategory category : categories) {
+      propagateRolePermissions(actionRequest,roleId,className,parentPrimKey,MBCategory.class.getName(),category.getPrimaryKey());
+    }
+    for (    MBMessage message : messages) {
+      propagateRolePermissions(actionRequest,roleId,className,parentPrimKey,MBMessage.class.getName(),message.getPrimaryKey());
+    }
+  }
 }
