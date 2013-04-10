@@ -2,42 +2,41 @@
   if (!className.equals(MBCategory.class.getName()) && !className.equals(_mbModelResource)) {
     return;
   }
-  long parentPrimKey=GetterUtil.getLong(primKey);
+  long primaryKey=GetterUtil.getLong(primKey);
   List<MBCategory> categories=null;
   List<MBMessage> messages=null;
   if (className.equals(_mbModelResource)) {
-    categories=MBCategoryLocalServiceUtil.getCategories(parentPrimKey);
-    messages=MBMessageLocalServiceUtil.getGroupMessages(parentPrimKey,WorkflowConstants.STATUS_ANY,QueryUtil.ALL_POS,QueryUtil.ALL_POS);
+    categories=MBCategoryLocalServiceUtil.getCategories(primaryKey);
+    messages=MBMessageLocalServiceUtil.getGroupMessages(primaryKey,WorkflowConstants.STATUS_ANY,QueryUtil.ALL_POS,QueryUtil.ALL_POS);
   }
  else {
-    MBCategory category=MBCategoryLocalServiceUtil.getCategory(parentPrimKey);
-    long groupId=category.getGroupId();
-    List<Object> categoriesAndThreads=MBCategoryLocalServiceUtil.getCategoriesAndThreads(groupId,parentPrimKey);
+    MBCategory category=MBCategoryLocalServiceUtil.getCategory(primaryKey);
+    List<Object> categoriesAndThreads=MBCategoryLocalServiceUtil.getCategoriesAndThreads(category.getGroupId(),primaryKey);
     categories=new ArrayList<MBCategory>();
-    messages=new ArrayList<MBMessage>();
     for (    Object categoryOrThread : categoriesAndThreads) {
       if (categoryOrThread instanceof MBThread) {
-        long threadId=((MBThread)categoryOrThread).getThreadId();
-        List<MBMessage> threadMessages=MBMessageLocalServiceUtil.getThreadMessages(threadId,WorkflowConstants.STATUS_ANY);
-        messages.addAll(threadMessages);
+        MBThread thread=(MBThread)categoryOrThread;
+        messages=MBMessageLocalServiceUtil.getThreadMessages(thread.getThreadId(),WorkflowConstants.STATUS_ANY);
       }
  else {
-        long categoryId=((MBCategory)categoryOrThread).getCategoryId();
-        List<Long> categoryIds=ListUtil.toList(new long[]{categoryId});
-        List<Long> addCategoryIds=MBCategoryLocalServiceUtil.getSubcategoryIds(categoryIds,groupId,categoryId);
-        for (        Long addCategoryId : addCategoryIds) {
+        category=(MBCategory)categoryOrThread;
+        List<Long> categoryIds=new ArrayList<Long>();
+        categoryIds.add(category.getCategoryId());
+        categoryIds=MBCategoryLocalServiceUtil.getSubcategoryIds(categoryIds,category.getGroupId(),category.getCategoryId());
+        messages=new ArrayList<MBMessage>();
+        for (        Long addCategoryId : categoryIds) {
           categories.add(MBCategoryLocalServiceUtil.getCategory(addCategoryId));
-          messages.addAll(MBMessageLocalServiceUtil.getCategoryMessages(groupId,addCategoryId,WorkflowConstants.STATUS_ANY,QueryUtil.ALL_POS,QueryUtil.ALL_POS));
+          messages.addAll(MBMessageLocalServiceUtil.getCategoryMessages(category.getGroupId(),addCategoryId,WorkflowConstants.STATUS_ANY,QueryUtil.ALL_POS,QueryUtil.ALL_POS));
         }
       }
     }
   }
   for (  long roleId : roleIds) {
     for (    MBCategory category : categories) {
-      propagateRolePermissions(actionRequest,roleId,className,parentPrimKey,MBCategory.class.getName(),category.getPrimaryKey());
+      propagateRolePermissions(actionRequest,roleId,className,primaryKey,MBCategory.class.getName(),category.getPrimaryKey());
     }
     for (    MBMessage message : messages) {
-      propagateRolePermissions(actionRequest,roleId,className,parentPrimKey,MBMessage.class.getName(),message.getPrimaryKey());
+      propagateRolePermissions(actionRequest,roleId,className,primaryKey,MBMessage.class.getName(),message.getPrimaryKey());
     }
   }
 }
