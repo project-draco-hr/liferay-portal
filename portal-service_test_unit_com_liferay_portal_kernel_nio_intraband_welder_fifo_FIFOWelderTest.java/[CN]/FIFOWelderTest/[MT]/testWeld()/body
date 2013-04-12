@@ -1,0 +1,46 @@
+{
+  final FIFOWelder serverFifoWelder=new FIFOWelder();
+  final FIFOWelder clientFIFOWelder=WelderTestUtil.transform(serverFifoWelder);
+  FutureTask<MockRegistrationReference> serverWeldingTask=new FutureTask<MockRegistrationReference>(new Callable<MockRegistrationReference>(){
+    public MockRegistrationReference call() throws Exception {
+      return (MockRegistrationReference)serverFifoWelder.weld(new MockIntraBand());
+    }
+  }
+);
+  new Thread(serverWeldingTask).start();
+  FutureTask<MockRegistrationReference> clientWeldingTask=new FutureTask<MockRegistrationReference>(new Callable<MockRegistrationReference>(){
+    public MockRegistrationReference call() throws Exception {
+      return (MockRegistrationReference)clientFIFOWelder.weld(new MockIntraBand());
+    }
+  }
+);
+  new Thread(clientWeldingTask).start();
+  MockRegistrationReference serverMockRegistrationReference=serverWeldingTask.get();
+  MockRegistrationReference clientMockRegistrationReference=clientWeldingTask.get();
+  WelderTestUtil.assertConnectted(serverMockRegistrationReference.getScatteringByteChannel(),clientMockRegistrationReference.getGatheringByteChannel());
+  WelderTestUtil.assertConnectted(clientMockRegistrationReference.getScatteringByteChannel(),serverMockRegistrationReference.getGatheringByteChannel());
+  serverFifoWelder.destroy();
+  clientFIFOWelder.destroy();
+  try {
+    serverFifoWelder.weld(new MockIntraBand());
+    Assert.fail();
+  }
+ catch (  IllegalStateException ise) {
+    Assert.assertEquals("Unable to weld a welder with state DESTROYED",ise.getMessage());
+  }
+ finally {
+    serverFifoWelder.inputFIFOFile.delete();
+    serverFifoWelder.outputFIFOFile.delete();
+  }
+  try {
+    clientFIFOWelder.weld(new MockIntraBand());
+    Assert.fail();
+  }
+ catch (  IllegalStateException ise) {
+    Assert.assertEquals("Unable to weld a welder with state DESTROYED",ise.getMessage());
+  }
+ finally {
+    serverFifoWelder.inputFIFOFile.delete();
+    serverFifoWelder.outputFIFOFile.delete();
+  }
+}
