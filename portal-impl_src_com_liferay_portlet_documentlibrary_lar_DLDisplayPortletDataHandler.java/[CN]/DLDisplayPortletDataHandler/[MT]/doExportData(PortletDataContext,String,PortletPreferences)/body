@@ -2,29 +2,61 @@
   portletDataContext.addPermissions("com.liferay.portlet.documentlibrary",portletDataContext.getScopeGroupId());
   Element rootElement=addExportDataRootElement(portletDataContext);
   rootElement.addAttribute("group-id",String.valueOf(portletDataContext.getScopeGroupId()));
-  Element fileEntryTypesElement=rootElement.addElement("file-entry-types");
-  Element foldersElement=rootElement.addElement("folders");
-  Element fileEntriesElement=rootElement.addElement("file-entries");
-  Element fileShortcutsElement=rootElement.addElement("file-shortcuts");
-  Element fileRanksElement=rootElement.addElement("file-ranks");
-  Element repositoriesElement=rootElement.addElement("repositories");
-  Element repositoryEntriesElement=rootElement.addElement("repository-entries");
   long rootFolderId=GetterUtil.getLong(portletPreferences.getValue("rootFolderId",null));
   if (rootFolderId == DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
-    List<Folder> folders=FolderUtil.findByRepositoryId(portletDataContext.getScopeGroupId());
-    for (    Folder folder : folders) {
-      DLPortletDataHandler.exportFolder(portletDataContext,fileEntryTypesElement,foldersElement,fileEntriesElement,fileShortcutsElement,fileRanksElement,repositoriesElement,repositoryEntriesElement,folder,false);
+    ActionableDynamicQuery folderActionableDynamicQuery=new DLFolderActionableDynamicQuery(){
+      @Override protected void addCriteria(      DynamicQuery dynamicQuery){
+        portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
+      }
+      @Override protected void performAction(      Object object) throws PortalException, SystemException {
+        DLFolder dlFolder=(DLFolder)object;
+        Folder folder=DLAppLocalServiceUtil.getFolder(dlFolder.getFolderId());
+        StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,folder);
+      }
     }
-    List<FileEntry> fileEntries=FileEntryUtil.findByR_F(portletDataContext.getScopeGroupId(),DLFolderConstants.DEFAULT_PARENT_FOLDER_ID);
-    for (    FileEntry fileEntry : fileEntries) {
-      DLPortletDataHandler.exportFileEntry(portletDataContext,fileEntryTypesElement,foldersElement,fileEntriesElement,fileRanksElement,repositoriesElement,repositoryEntriesElement,fileEntry,true);
+;
+    folderActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
+    folderActionableDynamicQuery.performActions();
+    ActionableDynamicQuery fileEntryActionableDynamicQuery=new DLFileEntryActionableDynamicQuery(){
+      @Override protected void addCriteria(      DynamicQuery dynamicQuery){
+        portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
+      }
+      @Override protected void performAction(      Object object) throws PortalException, SystemException {
+        DLFileEntry dlFileEntry=(DLFileEntry)object;
+        FileEntry fileEntry=DLAppLocalServiceUtil.getFileEntry(dlFileEntry.getFileEntryId());
+        StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,fileEntry);
+      }
+    }
+;
+    fileEntryActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
+    fileEntryActionableDynamicQuery.performActions();
+    return getExportDataRootElementString(rootElement);
+  }
+  List<Long> folderIds=getDescendantFolderIds(portletDataContext.getScopeGroupId(),rootFolderId);
+  folderIds.add(rootFolderId);
+  for (  Long folderId : folderIds) {
+    Folder folder=DLAppLocalServiceUtil.getFolder(folderId);
+    StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,folder);
+  }
+  final List<Long> fileEntryParentFolderIds=new ArrayList<Long>(folderIds);
+  ActionableDynamicQuery fileEntryActionableDynamicQuery=new DLFileEntryActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
+      Property property=PropertyFactoryUtil.forName("folderId");
+      Long[] folderIds=ArrayUtil.toArray(ArrayUtil.toLongArray(fileEntryParentFolderIds));
+      dynamicQuery.add(property.in(folderIds));
+    }
+    @Override protected void performAction(    Object object) throws PortalException, SystemException {
+      DLFileEntry dlFileEntry=(DLFileEntry)object;
+      FileEntry fileEntry=DLAppLocalServiceUtil.getFileEntry(dlFileEntry.getFileEntryId());
+      StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,fileEntry);
     }
   }
- else {
-    Folder folder=DLAppLocalServiceUtil.getFolder(rootFolderId);
-    rootElement.addAttribute("root-folder-id",String.valueOf(folder.getFolderId()));
-    rootElement.addAttribute("default-repository",String.valueOf(folder.isDefaultRepository()));
-    DLPortletDataHandler.exportFolder(portletDataContext,fileEntryTypesElement,foldersElement,fileEntriesElement,fileShortcutsElement,fileRanksElement,repositoriesElement,repositoryEntriesElement,folder,true);
-  }
+;
+  fileEntryActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
+  fileEntryActionableDynamicQuery.performActions();
+  Folder rootFolder=DLAppLocalServiceUtil.getFolder(rootFolderId);
+  rootElement.addAttribute("root-folder-id",String.valueOf(rootFolder.getFolderId()));
+  rootElement.addAttribute("default-repository",String.valueOf(rootFolder.isDefaultRepository()));
   return getExportDataRootElementString(rootElement);
 }
