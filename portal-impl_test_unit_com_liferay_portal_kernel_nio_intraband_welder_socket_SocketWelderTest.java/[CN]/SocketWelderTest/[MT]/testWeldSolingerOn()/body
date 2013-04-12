@@ -1,0 +1,40 @@
+{
+  final SocketWelder serverSocketWelder=new SocketWelder();
+  final SocketWelder clientSocketWelder=WelderTestUtil.transform(serverSocketWelder);
+  FutureTask<MockRegistrationReference> serverWeldingTask=new FutureTask<MockRegistrationReference>(new Callable<MockRegistrationReference>(){
+    public MockRegistrationReference call() throws Exception {
+      return (MockRegistrationReference)serverSocketWelder.weld(new MockIntraBand());
+    }
+  }
+);
+  Thread serverWeldingThread=new Thread(serverWeldingTask);
+  serverWeldingThread.start();
+  FutureTask<MockRegistrationReference> clientWeldingTask=new FutureTask<MockRegistrationReference>(new Callable<MockRegistrationReference>(){
+    public MockRegistrationReference call() throws Exception {
+      return (MockRegistrationReference)clientSocketWelder.weld(new MockIntraBand());
+    }
+  }
+);
+  Thread clientWeldingThread=new Thread(clientWeldingTask);
+  clientWeldingThread.start();
+  MockRegistrationReference serverMockRegistrationReference=serverWeldingTask.get();
+  MockRegistrationReference clientMockRegistrationReference=clientWeldingTask.get();
+  WelderTestUtil.assertConnectted(serverMockRegistrationReference.getScatteringByteChannel(),clientMockRegistrationReference.getGatheringByteChannel());
+  WelderTestUtil.assertConnectted(clientMockRegistrationReference.getScatteringByteChannel(),serverMockRegistrationReference.getGatheringByteChannel());
+  serverSocketWelder.destroy();
+  clientSocketWelder.destroy();
+  try {
+    serverSocketWelder.weld(new MockIntraBand());
+    Assert.fail();
+  }
+ catch (  IllegalStateException ise) {
+    Assert.assertEquals("Unable to weld a welder with state DESTROYED",ise.getMessage());
+  }
+  try {
+    clientSocketWelder.weld(new MockIntraBand());
+    Assert.fail();
+  }
+ catch (  IllegalStateException ise) {
+    Assert.assertEquals("Unable to weld a welder with state DESTROYED",ise.getMessage());
+  }
+}
