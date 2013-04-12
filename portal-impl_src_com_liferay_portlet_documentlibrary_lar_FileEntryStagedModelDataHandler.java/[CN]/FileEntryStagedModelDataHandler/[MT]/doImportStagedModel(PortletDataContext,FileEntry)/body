@@ -1,17 +1,34 @@
 {
-  FileEntry fileEntry=(FileEntry)portletDataContext.getZipEntryAsObject(path);
+  String path=ExportImportPathUtil.getModelPath(portletDataContext,FileEntry.class.getName(),fileEntry.getFileEntryId());
+  Element fileEntryElement=portletDataContext.getImportDataStagedModelElement(FileEntry.class.getSimpleName(),"path",path);
+  Element referencesElement=fileEntryElement.element("references");
+  if (referencesElement != null) {
+    List<Element> refElements=referencesElement.elements();
+    for (    Element refElement : refElements) {
+      String className=refElement.attributeValue("class-name");
+      String classPk=refElement.attributeValue("class-pk");
+      String refPath=ExportImportPathUtil.getModelPath(portletDataContext,className,Long.valueOf(classPk));
+      StagedModel referencedStagedModel=(StagedModel)portletDataContext.getZipEntryAsObject(refPath);
+      StagedModelDataHandlerUtil.importStagedModel(portletDataContext,referencedStagedModel);
+    }
+  }
   long userId=portletDataContext.getUserId(fileEntry.getUserUuid());
-  Map<Long,Long> folderIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(DLFolder.class);
+  if ((fileEntry.getFolderId() != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) && (fileEntry.getFolderId() == fileEntry.getFolderId())) {
+    String folderPath=ExportImportPathUtil.getModelPath(portletDataContext,Folder.class.getName(),fileEntry.getFolderId());
+    Folder folder=(Folder)portletDataContext.getZipEntryAsObject(folderPath);
+    StagedModelDataHandlerUtil.importStagedModel(portletDataContext,folder);
+  }
+  Map<Long,Long> folderIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(Folder.class);
   long folderId=MapUtil.getLong(folderIds,fileEntry.getFolderId(),fileEntry.getFolderId());
   long[] assetCategoryIds=null;
   String[] assetTagNames=null;
-  if (portletDataContext.getBooleanParameter(NAMESPACE,"categories")) {
+  if (portletDataContext.getBooleanParameter(DLPortletDataHandler.NAMESPACE,"categories")) {
     assetCategoryIds=portletDataContext.getAssetCategoryIds(DLFileEntry.class,fileEntry.getFileEntryId());
   }
-  if (portletDataContext.getBooleanParameter(NAMESPACE,"tags")) {
+  if (portletDataContext.getBooleanParameter(DLPortletDataHandler.NAMESPACE,"tags")) {
     assetTagNames=portletDataContext.getAssetTagNames(DLFileEntry.class,fileEntry.getFileEntryId());
   }
-  ServiceContext serviceContext=portletDataContext.createServiceContext(fileEntryElement,fileEntry,NAMESPACE);
+  ServiceContext serviceContext=portletDataContext.createServiceContext(fileEntry,DLPortletDataHandler.NAMESPACE);
   serviceContext.setAttribute("sourceFileName","A." + fileEntry.getExtension());
   serviceContext.setUserId(userId);
   String binPath=fileEntryElement.attributeValue("bin-path");
@@ -31,15 +48,6 @@
       _log.warn("No file found for file entry " + fileEntry.getFileEntryId());
     }
     return;
-  }
-  if ((folderId != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) && (folderId == fileEntry.getFolderId())) {
-    String folderPath=getImportFolderPath(portletDataContext,folderId);
-    Folder folder=(Folder)portletDataContext.getZipEntryAsObject(folderPath);
-    Document document=fileEntryElement.getDocument();
-    Element rootElement=document.getRootElement();
-    Element folderElement=(Element)rootElement.selectSingleNode("//folder[@path='".concat(folderPath).concat("']"));
-    importFolder(portletDataContext,folderPath,folderElement,folder);
-    folderId=MapUtil.getLong(folderIds,fileEntry.getFolderId(),fileEntry.getFolderId());
   }
   importMetaData(portletDataContext,fileEntryElement,serviceContext);
   FileEntry importedFileEntry=null;
@@ -130,10 +138,10 @@
       importedFileEntry=DLAppLocalServiceUtil.addFileEntry(userId,portletDataContext.getScopeGroupId(),folderId,title,fileEntry.getMimeType(),title,fileEntry.getDescription(),null,is,fileEntry.getSize(),serviceContext);
     }
   }
-  if (portletDataContext.getBooleanParameter(NAMESPACE,"previews-and-thumbnails")) {
+  if (portletDataContext.getBooleanParameter(DLPortletDataHandler.NAMESPACE,"previews-and-thumbnails")) {
     DLProcessorRegistryUtil.importGeneratedFiles(portletDataContext,fileEntry,importedFileEntry,fileEntryElement);
   }
   Map<String,String> fileEntryTitles=(Map<String,String>)portletDataContext.getNewPrimaryKeysMap(DLFileEntry.class.getName() + ".title");
   fileEntryTitles.put(fileEntry.getTitle(),importedFileEntry.getTitle());
-  portletDataContext.importClassedModel(fileEntry,importedFileEntry,NAMESPACE);
+  portletDataContext.importClassedModel(fileEntry,importedFileEntry,DLPortletDataHandler.NAMESPACE);
 }

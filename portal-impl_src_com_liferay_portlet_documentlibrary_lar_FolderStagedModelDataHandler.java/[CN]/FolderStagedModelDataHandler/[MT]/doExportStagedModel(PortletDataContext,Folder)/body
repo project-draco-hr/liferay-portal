@@ -1,37 +1,18 @@
 {
-  if (!portletDataContext.isWithinDateRange(folder.getLastPostDate())) {
-    return;
-  }
+  Element folderGroupElement=portletDataContext.getExportDataGroupElement(Folder.class);
+  Element folderElement=folderGroupElement.addElement("staged-model");
+  String folderPath=ExportImportPathUtil.getModelPath(folder.getGroupId(),Folder.class.getName(),folder.getFolderId());
   if (folder.isMountPoint()) {
     Repository repository=RepositoryUtil.findByPrimaryKey(folder.getRepositoryId());
-    exportRepository(portletDataContext,repositoriesElement,repositoryEntriesElement,repository);
-    return;
+    StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,repository);
+    portletDataContext.addReferenceElement(folderElement,repository);
   }
  else   if (!folder.isDefaultRepository()) {
     return;
   }
-  exportParentFolder(portletDataContext,fileEntryTypesElement,foldersElement,repositoriesElement,repositoryEntriesElement,folder.getParentFolderId());
-  String path=getFolderPath(portletDataContext,folder);
-  if (!portletDataContext.isPathNotProcessed(path)) {
-    return;
+  if (folder.getParentFolderId() != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+    StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,folder.getParentFolder());
   }
-  Element folderElement=foldersElement.addElement("folder");
-  exportFolderFileEntryTypes(portletDataContext,folder,fileEntryTypesElement,folderElement);
-  portletDataContext.addClassedModel(folderElement,path,folder,NAMESPACE);
-  if (recurse) {
-    List<Folder> folders=FolderUtil.findByR_P(folder.getRepositoryId(),folder.getFolderId());
-    for (    Folder curFolder : folders) {
-      exportFolder(portletDataContext,fileEntryTypesElement,foldersElement,fileEntriesElement,fileShortcutsElement,fileRanksElement,repositoriesElement,repositoryEntriesElement,curFolder,recurse);
-    }
-  }
-  List<FileEntry> fileEntries=FileEntryUtil.findByR_F(folder.getRepositoryId(),folder.getFolderId());
-  for (  FileEntry fileEntry : fileEntries) {
-    exportFileEntry(portletDataContext,fileEntryTypesElement,foldersElement,fileEntriesElement,fileRanksElement,repositoriesElement,repositoryEntriesElement,fileEntry,true);
-  }
-  if (portletDataContext.getBooleanParameter(NAMESPACE,"shortcuts")) {
-    List<DLFileShortcut> fileShortcuts=DLFileShortcutUtil.findByG_F_A(folder.getRepositoryId(),folder.getFolderId(),true);
-    for (    DLFileShortcut fileShortcut : fileShortcuts) {
-      exportFileShortcut(portletDataContext,fileEntryTypesElement,foldersElement,fileShortcutsElement,repositoriesElement,repositoryEntriesElement,fileShortcut);
-    }
-  }
+  exportFolderFileEntryTypes(portletDataContext,folder,folderElement);
+  portletDataContext.addClassedModel(folderElement,folderPath,folder,DLPortletDataHandler.NAMESPACE);
 }

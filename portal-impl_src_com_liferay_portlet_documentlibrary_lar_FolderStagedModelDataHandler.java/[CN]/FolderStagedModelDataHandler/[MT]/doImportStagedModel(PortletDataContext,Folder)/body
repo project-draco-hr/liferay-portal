@@ -1,14 +1,30 @@
 {
-  long userId=portletDataContext.getUserId(folder.getUserUuid());
-  Map<Long,Long> folderIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(DLFolder.class);
-  long parentFolderId=MapUtil.getLong(folderIds,folder.getParentFolderId(),folder.getParentFolderId());
-  ServiceContext serviceContext=portletDataContext.createServiceContext(folderPath,folder,NAMESPACE);
-  if ((parentFolderId != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) && (parentFolderId == folder.getParentFolderId())) {
-    String path=getImportFolderPath(portletDataContext,parentFolderId);
-    Folder parentFolder=(Folder)portletDataContext.getZipEntryAsObject(path);
-    importFolder(portletDataContext,path,folderElement,parentFolder);
-    parentFolderId=MapUtil.getLong(folderIds,folder.getParentFolderId(),folder.getParentFolderId());
+  String path=ExportImportPathUtil.getModelPath(portletDataContext,Folder.class.getName(),folder.getFolderId());
+  Element folderElement=portletDataContext.getImportDataStagedModelElement(Folder.class.getSimpleName(),"path",path);
+  Element folderReferencesElement=folderElement.element("references");
+  if (folderReferencesElement != null) {
+    List<Element> refElements=folderReferencesElement.elements();
+    for (    Element refElement : refElements) {
+      String className=refElement.attributeValue("class-name");
+      if (!className.equals(Repository.class.getSimpleName())) {
+        continue;
+      }
+      String classPk=refElement.attributeValue("class-pk");
+      String refPath=ExportImportPathUtil.getModelPath(portletDataContext,className,Long.valueOf(classPk));
+      StagedModel referencedStagedModel=(StagedModel)portletDataContext.getZipEntryAsObject(refPath);
+      StagedModelDataHandlerUtil.importStagedModel(portletDataContext,referencedStagedModel);
+    }
   }
+  long userId=portletDataContext.getUserId(folder.getUserUuid());
+  if (folder.getParentFolderId() != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+    String parentFolderPath=ExportImportPathUtil.getModelPath(portletDataContext,Folder.class.getName(),folder.getParentFolderId());
+    Folder parentFolder=(Folder)portletDataContext.getZipEntryAsObject(parentFolderPath);
+    StagedModelDataHandlerUtil.importStagedModel(portletDataContext,parentFolder);
+  }
+  Map<Long,Long> folderIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(Folder.class);
+  long parentFolderId=MapUtil.getLong(folderIds,folder.getParentFolderId(),folder.getParentFolderId());
+  ServiceContext serviceContext=portletDataContext.createServiceContext(folder,DLPortletDataHandler.NAMESPACE);
+  serviceContext.setUserId(userId);
   Folder importedFolder=null;
   if (portletDataContext.isDataStrategyMirror()) {
     Folder existingFolder=FolderUtil.fetchByUUID_R(folder.getUuid(),portletDataContext.getScopeGroupId());
@@ -27,6 +43,6 @@
     importedFolder=DLAppLocalServiceUtil.addFolder(userId,portletDataContext.getScopeGroupId(),parentFolderId,name,folder.getDescription(),serviceContext);
   }
   folderIds.put(folder.getFolderId(),importedFolder.getFolderId());
-  importFolderFileEntryTypes(portletDataContext,folderElement,importedFolder,serviceContext);
-  portletDataContext.importClassedModel(folder,importedFolder,NAMESPACE);
+  importFolderFileEntryTypes(portletDataContext,folderElement,folder,serviceContext);
+  portletDataContext.importClassedModel(folder,importedFolder,DLPortletDataHandler.NAMESPACE);
 }

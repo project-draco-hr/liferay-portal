@@ -1,26 +1,21 @@
 {
-  if (checkDateRange && !portletDataContext.isWithinDateRange(fileEntry.getModifiedDate())) {
-    return;
-  }
+  Element fileEntryGroupElement=portletDataContext.getExportDataGroupElement(FileEntry.class);
+  Element fileEntryElement=fileEntryGroupElement.addElement("staged-model");
+  String fileEntryPath=ExportImportPathUtil.getModelPath(fileEntry.getGroupId(),FileEntry.class.getName(),fileEntry.getFileEntryId());
   if (!fileEntry.isDefaultRepository()) {
     Repository repository=RepositoryUtil.findByPrimaryKey(fileEntry.getRepositoryId());
-    exportRepository(portletDataContext,repositoriesElement,repositoryEntriesElement,repository);
-    return;
+    StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,repository);
+    portletDataContext.addReferenceElement(fileEntryElement,repository);
   }
   FileVersion fileVersion=fileEntry.getFileVersion();
   if (!fileVersion.isApproved() && !fileVersion.isInTrash()) {
     return;
   }
-  String path=getFileEntryPath(portletDataContext,fileEntry);
-  if (!portletDataContext.isPathNotProcessed(path)) {
-    return;
+  if (fileEntry.getFolderId() != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+    StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,fileEntry.getFolder());
   }
   LiferayFileEntry liferayFileEntry=(LiferayFileEntry)fileEntry;
   liferayFileEntry.setCachedFileVersion(fileVersion);
-  Element fileEntryElement=fileEntriesElement.addElement("file-entry");
-  if (foldersElement != null) {
-    exportParentFolder(portletDataContext,fileEntryTypesElement,foldersElement,repositoriesElement,repositoryEntriesElement,fileEntry.getFolderId());
-  }
   if (!portletDataContext.isPerformDirectBinaryImport()) {
     InputStream is=null;
     try {
@@ -36,7 +31,7 @@
       return;
     }
     try {
-      String binPath=getFileEntryBinPath(portletDataContext,fileEntry);
+      String binPath=ExportImportPathUtil.getModelPath(fileEntry,fileEntry.getVersion());
       portletDataContext.addZipEntry(binPath,is);
       fileEntryElement.addAttribute("bin-path",binPath);
     }
@@ -49,15 +44,16 @@
       }
     }
   }
-  if (portletDataContext.getBooleanParameter(NAMESPACE,"ranks")) {
+  if (portletDataContext.getBooleanParameter(DLPortletDataHandler.NAMESPACE,"ranks")) {
     List<DLFileRank> fileRanks=DLFileRankUtil.findByFileEntryId(fileEntry.getFileEntryId());
     for (    DLFileRank fileRank : fileRanks) {
-      exportFileRank(portletDataContext,fileRanksElement,fileRank);
+      StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,fileRank);
+      portletDataContext.addReferenceElement(fileEntryElement,fileRank);
     }
   }
-  if (portletDataContext.getBooleanParameter(NAMESPACE,"previews-and-thumbnails")) {
+  if (portletDataContext.getBooleanParameter(DLPortletDataHandler.NAMESPACE,"previews-and-thumbnails")) {
     DLProcessorRegistryUtil.exportGeneratedFiles(portletDataContext,fileEntry,fileEntryElement);
   }
-  exportMetaData(portletDataContext,fileEntryTypesElement,fileEntryElement,fileEntry);
-  portletDataContext.addClassedModel(fileEntryElement,path,fileEntry,NAMESPACE);
+  exportMetaData(portletDataContext,fileEntryElement,fileEntry);
+  portletDataContext.addClassedModel(fileEntryElement,fileEntryPath,fileEntry,DLPortletDataHandler.NAMESPACE);
 }
