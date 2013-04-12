@@ -1,0 +1,50 @@
+{
+  names=CustomSQLUtil.keywords(names);
+  if (params == null) {
+    params=_emptyLinkedHashMap;
+  }
+  LinkedHashMap<String,Object> params1=params;
+  Session session=null;
+  try {
+    session=openSession();
+    String sql=null;
+    if (params1.size() > 0) {
+      String sqlKey=_buildSQLKey(params1);
+      sql=_countByG_NCache.get(sqlKey);
+    }
+    if (sql == null) {
+      String countByG_N=CustomSQLUtil.get(COUNT_BY_G_N);
+      StringBundler sb=new StringBundler();
+      sb.append(StringPool.OPEN_PARENTHESIS);
+      sb.append(replaceGroupIdComparator(countByG_N,params1));
+      sb.append(StringPool.CLOSE_PARENTHESIS);
+      if (params1.size() > 0) {
+        String sqlKey=_buildSQLKey(params1);
+        _countByG_NCache.put(sqlKey,sb.toString());
+      }
+      sql=sb.toString();
+    }
+    sql=CustomSQLUtil.replaceKeywords(sql,"lower(name)",StringPool.LIKE,true,names);
+    sql=CustomSQLUtil.replaceAndOperator(sql,false);
+    SQLQuery q=session.createSQLQuery(sql);
+    q.addScalar(COUNT_COLUMN_NAME,Type.LONG);
+    QueryPos qPos=QueryPos.getInstance(q);
+    qPos.add(groupId);
+    setParameterValues(qPos,params1);
+    qPos.add(names,2);
+    Iterator<Long> itr=q.iterate();
+    if (itr.hasNext()) {
+      Long count=itr.next();
+      if (count != null) {
+        return count.intValue();
+      }
+    }
+    return 0;
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+}
