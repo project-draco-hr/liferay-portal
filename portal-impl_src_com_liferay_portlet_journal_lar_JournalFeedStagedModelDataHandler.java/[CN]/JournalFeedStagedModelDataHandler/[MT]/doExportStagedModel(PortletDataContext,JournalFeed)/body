@@ -1,13 +1,36 @@
 {
-  if (!portletDataContext.isWithinDateRange(feed.getModifiedDate())) {
-    return;
+  Element feedElement=portletDataContext.getExportDataElement(feed);
+  DDMStructure ddmStructure=DDMStructureLocalServiceUtil.fetchStructure(feed.getGroupId(),PortalUtil.getClassNameId(JournalArticle.class),feed.getStructureId(),true);
+  if (ddmStructure != null) {
+    StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,ddmStructure);
+    portletDataContext.addReferenceElement(feedElement,ddmStructure);
   }
-  String path=getFeedPath(portletDataContext,feed);
-  if (!portletDataContext.isPathNotProcessed(path)) {
-    return;
+ else {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Unable to find structure with key " + feed.getStructureId());
+    }
   }
-  feed=(JournalFeed)feed.clone();
-  Element feedElement=feedsElement.addElement("feed");
+  DDMTemplate ddmTemplate=DDMTemplateLocalServiceUtil.fetchTemplate(feed.getGroupId(),PortalUtil.getClassNameId(DDMStructure.class),feed.getTemplateId());
+  if (ddmTemplate != null) {
+    StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,ddmTemplate);
+    portletDataContext.addReferenceElement(feedElement,ddmTemplate);
+  }
+ else {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Unable to find template with key " + feed.getTemplateId());
+    }
+  }
+  DDMTemplate renderTemplate=DDMTemplateLocalServiceUtil.fetchTemplate(feed.getGroupId(),PortalUtil.getClassNameId(DDMStructure.class),feed.getRendererTemplateId());
+  if (renderTemplate != null) {
+    StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,renderTemplate);
+    Element renderTemplateElement=portletDataContext.addReferenceElement(feedElement,renderTemplate);
+    renderTemplateElement.addAttribute("renderTemplate","true");
+  }
+ else {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Unable to find template with key " + feed.getRendererTemplateId());
+    }
+  }
   Group group=GroupLocalServiceUtil.getGroup(portletDataContext.getScopeGroupId());
   String newGroupFriendlyURL=group.getFriendlyURL().substring(1);
   String[] friendlyUrlParts=StringUtil.split(feed.getTargetLayoutFriendlyUrl(),'/');
@@ -16,5 +39,5 @@
     String targetLayoutFriendlyUrl=StringUtil.replaceFirst(feed.getTargetLayoutFriendlyUrl(),StringPool.SLASH + newGroupFriendlyURL + StringPool.SLASH,"/@data_handler_group_friendly_url@/");
     feed.setTargetLayoutFriendlyUrl(targetLayoutFriendlyUrl);
   }
-  portletDataContext.addClassedModel(feedElement,path,feed,NAMESPACE);
+  portletDataContext.addClassedModel(feedElement,ExportImportPathUtil.getModelPath(feed),feed,JournalPortletDataHandler.NAMESPACE);
 }

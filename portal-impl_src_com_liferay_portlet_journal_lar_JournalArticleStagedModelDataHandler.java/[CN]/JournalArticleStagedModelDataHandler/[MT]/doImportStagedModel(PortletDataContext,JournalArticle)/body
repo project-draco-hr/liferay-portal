@@ -1,9 +1,4 @@
 {
-  String path=articleElement.attributeValue("path");
-  if (!portletDataContext.isPathNotProcessed(path)) {
-    return;
-  }
-  JournalArticle article=(JournalArticle)portletDataContext.getZipEntryAsObject(articleElement,path);
   prepareLanguagesForImport(article);
   long userId=portletDataContext.getUserId(article.getUserUuid());
   JournalCreationStrategy creationStrategy=JournalCreationStrategyFactory.getInstance();
@@ -13,13 +8,12 @@
   }
   User user=UserLocalServiceUtil.getUser(userId);
   Map<Long,Long> folderIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(JournalFolder.class);
-  long folderId=MapUtil.getLong(folderIds,article.getFolderId(),article.getFolderId());
-  if ((folderId != JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID) && (folderId == article.getFolderId())) {
-    String folderPath=getImportFolderPath(portletDataContext,folderId);
+  if (article.getFolderId() != JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+    String folderPath=ExportImportPathUtil.getModelPath(portletDataContext,JournalFolder.class.getName(),article.getFolderId());
     JournalFolder folder=(JournalFolder)portletDataContext.getZipEntryAsObject(folderPath);
-    importFolder(portletDataContext,folderPath,folder);
-    folderId=MapUtil.getLong(folderIds,article.getFolderId(),article.getFolderId());
+    StagedModelDataHandlerUtil.importStagedModel(portletDataContext,folder);
   }
+  long folderId=MapUtil.getLong(folderIds,article.getFolderId(),article.getFolderId());
   String articleId=article.getArticleId();
   boolean autoArticleId=false;
   if (Validator.isNumber(articleId) || (JournalArticleUtil.fetchByG_A_V(portletDataContext.getScopeGroupId(),articleId,JournalArticleConstants.VERSION_DEFAULT) != null)) {
@@ -32,16 +26,13 @@
     autoArticleId=false;
   }
   String content=article.getContent();
-  content=importReferencedContent(portletDataContext,articleElement,content);
+  Element articleElement=portletDataContext.getImportDataStagedModelElement(article);
+  content=JournalPortletDataHandler.importReferencedContent(portletDataContext,articleElement,content);
   article.setContent(content);
   String newContent=creationStrategy.getTransformedContent(portletDataContext,article);
   if (newContent != JournalCreationStrategy.ARTICLE_CONTENT_UNCHANGED) {
     article.setContent(newContent);
   }
-  Map<String,String> ddmStructureKeys=(Map<String,String>)portletDataContext.getNewPrimaryKeysMap(DDMStructure.class);
-  String parentDDMStructureKey=MapUtil.getString(ddmStructureKeys,article.getStructureId(),article.getStructureId());
-  Map<String,String> ddmTemplateKeys=(Map<String,String>)portletDataContext.getNewPrimaryKeysMap(DDMTemplate.class);
-  String parentDDMTemplateKey=MapUtil.getString(ddmTemplateKeys,article.getTemplateId(),article.getTemplateId());
   Date displayDate=article.getDisplayDate();
   int displayDateMonth=0;
   int displayDateDay=0;
@@ -100,61 +91,66 @@
       reviewDateHour+=12;
     }
   }
+  Group companyGroup=GroupLocalServiceUtil.getCompanyGroup(portletDataContext.getCompanyId());
+  long companyGroupId=companyGroup.getGroupId();
+  String parentDDMStructureKey=StringPool.BLANK;
   long ddmStructureId=0;
-  if (Validator.isNotNull(article.getStructureId())) {
-    String ddmStructureUuid=articleElement.attributeValue("ddm-structure-uuid");
-    DDMStructure existingDDMStructure=DDMStructureUtil.fetchByUUID_G(ddmStructureUuid,portletDataContext.getScopeGroupId());
+  List<Element> structureElements=portletDataContext.getReferencedDataElements(article,DDMStructure.class);
+  if (!structureElements.isEmpty()) {
+    Element structureElement=structureElements.get(0);
+    String structurePath=structureElement.attributeValue("path");
+    DDMStructure ddmStructure=(DDMStructure)portletDataContext.getZipEntryAsObject(structurePath);
+    DDMStructure existingDDMStructure=DDMStructureUtil.fetchByUUID_G(ddmStructure.getUuid(),portletDataContext.getScopeGroupId());
     if (existingDDMStructure == null) {
-      Group companyGroup=GroupLocalServiceUtil.getCompanyGroup(portletDataContext.getCompanyId());
-      long companyGroupId=companyGroup.getGroupId();
-      existingDDMStructure=DDMStructureUtil.fetchByUUID_G(ddmStructureUuid,companyGroupId);
+      existingDDMStructure=DDMStructureUtil.fetchByUUID_G(ddmStructure.getUuid(),companyGroupId);
     }
     if (existingDDMStructure == null) {
-      String newStructureId=ddmStructureKeys.get(article.getStructureId());
-      if (Validator.isNotNull(newStructureId)) {
-        existingDDMStructure=DDMStructureUtil.fetchByG_C_S(portletDataContext.getScopeGroupId(),PortalUtil.getClassNameId(JournalArticle.class),String.valueOf(newStructureId));
-      }
-      if (existingDDMStructure == null) {
-        if (_log.isWarnEnabled()) {
-          StringBundler sb=new StringBundler();
-          sb.append("Structure ");
-          sb.append(article.getStructureId());
-          sb.append(" is missing for article ");
-          sb.append(article.getArticleId());
-          sb.append(", skipping this article.");
-          _log.warn(sb.toString());
-        }
-        return;
-      }
+      StagedModelDataHandlerUtil.importStagedModel(portletDataContext,ddmStructure);
+      Map<Long,Long> ddmStructureIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(DDMStructure.class);
+      ddmStructureId=MapUtil.getLong(ddmStructureIds,ddmStructure.getStructureId(),ddmStructure.getStructureId());
+      existingDDMStructure=DDMStructureLocalServiceUtil.getDDMStructure(ddmStructureId);
     }
-    ddmStructureId=existingDDMStructure.getStructureId();
+    if (existingDDMStructure == null) {
+      if (_log.isWarnEnabled()) {
+        StringBundler sb=new StringBundler();
+        sb.append("Structure ");
+        sb.append(article.getStructureId());
+        sb.append(" is missing for article ");
+        sb.append(article.getArticleId());
+        sb.append(", skipping this article.");
+        _log.warn(sb.toString());
+      }
+      return;
+    }
     parentDDMStructureKey=existingDDMStructure.getStructureKey();
   }
-  if (Validator.isNotNull(article.getTemplateId())) {
-    String ddmTemplateUuid=articleElement.attributeValue("ddm-template-uuid");
-    DDMTemplate existingDDMTemplate=DDMTemplateUtil.fetchByUUID_G(ddmTemplateUuid,portletDataContext.getScopeGroupId());
+  String parentDDMTemplateKey=StringPool.BLANK;
+  List<Element> ddmTemplateElements=portletDataContext.getReferencedDataElements(article,DDMTemplate.class);
+  if (!ddmTemplateElements.isEmpty()) {
+    Element templateElement=ddmTemplateElements.get(0);
+    String ddmTemplatePath=templateElement.attributeValue("path");
+    DDMTemplate ddmTemplate=(DDMTemplate)portletDataContext.getZipEntryAsObject(ddmTemplatePath);
+    DDMTemplate existingDDMTemplate=DDMTemplateUtil.fetchByUUID_G(ddmTemplate.getUuid(),portletDataContext.getScopeGroupId());
     if (existingDDMTemplate == null) {
-      Group companyGroup=GroupLocalServiceUtil.getCompanyGroup(portletDataContext.getCompanyId());
-      long companyGroupId=companyGroup.getGroupId();
-      existingDDMTemplate=DDMTemplateUtil.fetchByUUID_G(ddmTemplateUuid,companyGroupId);
+      existingDDMTemplate=DDMTemplateUtil.fetchByUUID_G(ddmTemplate.getUuid(),companyGroupId);
     }
     if (existingDDMTemplate == null) {
-      String newTemplateId=ddmTemplateKeys.get(article.getTemplateId());
-      if (Validator.isNotNull(newTemplateId)) {
-        existingDDMTemplate=DDMTemplateUtil.fetchByG_C_T(portletDataContext.getScopeGroupId(),PortalUtil.getClassNameId(DDMStructure.class),newTemplateId);
+      StagedModelDataHandlerUtil.importStagedModel(portletDataContext,ddmTemplate);
+      Map<Long,Long> ddmTemplateIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(DDMTemplate.class);
+      long ddmTemplateId=MapUtil.getLong(ddmTemplateIds,ddmTemplate.getTemplateId(),ddmTemplate.getTemplateId());
+      existingDDMTemplate=DDMTemplateLocalServiceUtil.getDDMTemplate(ddmTemplateId);
+    }
+    if (existingDDMTemplate == null) {
+      if (_log.isWarnEnabled()) {
+        StringBundler sb=new StringBundler();
+        sb.append("Template ");
+        sb.append(article.getTemplateId());
+        sb.append(" is missing for article ");
+        sb.append(article.getArticleId());
+        sb.append(", skipping this article.");
+        _log.warn(sb.toString());
       }
-      if (existingDDMTemplate == null) {
-        if (_log.isWarnEnabled()) {
-          StringBundler sb=new StringBundler();
-          sb.append("Template ");
-          sb.append(article.getTemplateId());
-          sb.append(" is missing for article ");
-          sb.append(article.getArticleId());
-          sb.append(", skipping this article.");
-          _log.warn(sb.toString());
-        }
-        return;
-      }
+      return;
     }
     parentDDMTemplateKey=existingDDMTemplate.getTemplateKey();
   }
@@ -162,7 +158,7 @@
   if (article.isSmallImage()) {
     String smallImagePath=articleElement.attributeValue("small-image-path");
     if (Validator.isNotNull(article.getSmallImageURL())) {
-      String smallImageURL=importReferencedContent(portletDataContext,articleElement,article.getSmallImageURL());
+      String smallImageURL=JournalPortletDataHandler.importReferencedContent(portletDataContext,articleElement,article.getSmallImageURL());
       article.setSmallImageURL(smallImageURL);
     }
  else     if (Validator.isNotNull(smallImagePath)) {
@@ -174,28 +170,18 @@
     }
   }
   Map<String,byte[]> images=new HashMap<String,byte[]>();
-  String imagePath=articleElement.attributeValue("image-path");
-  if (portletDataContext.getBooleanParameter(NAMESPACE,"images") && Validator.isNotNull(imagePath)) {
-    List<String> imageFiles=portletDataContext.getZipFolderEntries(imagePath);
-    for (    String imageFile : imageFiles) {
-      String fileName=imageFile;
-      if (fileName.contains(StringPool.SLASH)) {
-        fileName=fileName.substring(fileName.lastIndexOf(CharPool.SLASH) + 1);
-      }
-      if (fileName.endsWith(".xml")) {
-        continue;
-      }
-      int pos=fileName.lastIndexOf(CharPool.PERIOD);
-      if (pos != -1) {
-        fileName=fileName.substring(0,pos);
-      }
-      images.put(fileName,portletDataContext.getZipEntryAsByteArray(imageFile));
+  if (portletDataContext.getBooleanParameter(JournalPortletDataHandler.NAMESPACE,"images")) {
+    List<Element> imagesElements=portletDataContext.getReferencedDataElements(article,Image.class);
+    for (    Element imageElement : imagesElements) {
+      String imagePath=imageElement.attributeValue("path");
+      String fileName=imageElement.attributeValue("file-name");
+      images.put(fileName,portletDataContext.getZipEntryAsByteArray(imagePath));
     }
   }
   String articleURL=null;
   boolean addGroupPermissions=creationStrategy.addGroupPermissions(portletDataContext,article);
   boolean addGuestPermissions=creationStrategy.addGuestPermissions(portletDataContext,article);
-  ServiceContext serviceContext=portletDataContext.createServiceContext(articleElement,article,NAMESPACE);
+  ServiceContext serviceContext=portletDataContext.createServiceContext(article,JournalPortletDataHandler.NAMESPACE);
   serviceContext.setAddGroupPermissions(addGroupPermissions);
   serviceContext.setAddGuestPermissions(addGuestPermissions);
   if (article.getStatus() != WorkflowConstants.STATUS_APPROVED) {
@@ -206,8 +192,6 @@
   if (portletDataContext.isDataStrategyMirror()) {
     JournalArticleResource articleResource=JournalArticleResourceUtil.fetchByUUID_G(articleResourceUuid,portletDataContext.getScopeGroupId());
     if (articleResource == null) {
-      Group companyGroup=GroupLocalServiceUtil.getCompanyGroup(portletDataContext.getCompanyId());
-      long companyGroupId=companyGroup.getGroupId();
       articleResource=JournalArticleResourceUtil.fetchByUUID_G(articleResourceUuid,companyGroupId);
     }
     serviceContext.setUuid(articleResourceUuid);
@@ -236,7 +220,7 @@
   if (smallFile != null) {
     smallFile.delete();
   }
-  portletDataContext.importClassedModel(article,importedArticle,NAMESPACE);
+  portletDataContext.importClassedModel(article,importedArticle,JournalPortletDataHandler.NAMESPACE);
   if (Validator.isNull(newArticleId)) {
     articleIds.put(article.getArticleId(),importedArticle.getArticleId());
   }
