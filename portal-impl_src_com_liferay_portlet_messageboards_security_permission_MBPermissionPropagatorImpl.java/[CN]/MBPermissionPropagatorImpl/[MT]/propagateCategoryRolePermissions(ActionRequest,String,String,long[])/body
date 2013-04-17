@@ -1,5 +1,5 @@
 {
-  long categoryId=GetterUtil.getLong(primKey);
+  final long categoryId=GetterUtil.getLong(primKey);
   MBCategory category=MBCategoryLocalServiceUtil.getCategory(categoryId);
   List<Object> categoriesAndThreads=MBCategoryLocalServiceUtil.getCategoriesAndThreads(category.getGroupId(),categoryId);
   for (  Object categoryOrThread : categoriesAndThreads) {
@@ -15,12 +15,21 @@
       List<Long> categoryIds=new ArrayList<Long>();
       categoryIds.add(category.getCategoryId());
       categoryIds=MBCategoryLocalServiceUtil.getSubcategoryIds(categoryIds,category.getGroupId(),category.getCategoryId());
-      for (      long addCategoryId : categoryIds) {
+      for (      final long addCategoryId : categoryIds) {
         propagateCategoryRolePermissions(actionRequest,className,categoryId,addCategoryId,roleIds);
-        List<MBMessage> messages=MBMessageLocalServiceUtil.getCategoryMessages(category.getGroupId(),addCategoryId,WorkflowConstants.STATUS_ANY,QueryUtil.ALL_POS,QueryUtil.ALL_POS);
-        for (        MBMessage message : messages) {
-          propagateMessageRolePermissions(actionRequest,className,categoryId,message.getMessageId(),roleIds);
+        ActionableDynamicQuery actionableDynamicQuery=new MBMessageActionableDynamicQuery(){
+          @Override protected void addCriteria(          DynamicQuery dynamicQuery){
+            Property categoryIdProperty=PropertyFactoryUtil.forName("categoryId");
+            dynamicQuery.add(categoryIdProperty.eq(addCategoryId));
+          }
+          @Override protected void performAction(          Object object) throws PortalException, SystemException {
+            MBMessage message=(MBMessage)object;
+            propagateMessageRolePermissions(actionRequest,className,categoryId,message.getMessageId(),roleIds);
+          }
         }
+;
+        actionableDynamicQuery.setGroupId(category.getGroupId());
+        actionableDynamicQuery.performActions();
       }
     }
   }
