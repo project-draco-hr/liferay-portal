@@ -1,0 +1,45 @@
+{
+  Deserializer deserializer=new Deserializer(datagram.getDataByteBuffer());
+  PortalCacheActionType actionType=PortalCacheActionType.values()[deserializer.readInt()];
+  PortalCacheManager<Serializable,Serializable> portalCacheManager=IntraBandPortalCacheManager.getPortalCacheManager();
+  if (actionType == PortalCacheActionType.RECONFIGURE) {
+    portalCacheManager.reconfigureCaches(new URL(deserializer.readString()));
+    return;
+  }
+  PortalCache<Serializable,Serializable> portalCache=portalCacheManager.getCache(deserializer.readString());
+switch (actionType) {
+case DESTROY:
+    portalCache.destroy();
+  break;
+case GET_BULK:
+Collection<Serializable> keys=(Collection<Serializable>)deserializer.readObject();
+Collection<Serializable> values=portalCache.get(keys);
+_sendResponse(registrationReference,datagram,(Serializable)values);
+break;
+case GET:
+Serializable key=deserializer.readObject();
+Serializable value=portalCache.get(key);
+_sendResponse(registrationReference,datagram,value);
+break;
+case PUT:
+key=deserializer.readObject();
+value=deserializer.readObject();
+portalCache.put(key,value);
+break;
+case PUT_TTL:
+key=deserializer.readObject();
+value=deserializer.readObject();
+int ttl=deserializer.readInt();
+portalCache.put(key,value,ttl);
+break;
+case REMOVE:
+key=deserializer.readObject();
+portalCache.remove(key);
+break;
+case REMOVE_ALL:
+portalCache.removeAll();
+break;
+default :
+throw new PortalCacheException("Unsupported portal cache action type " + actionType);
+}
+}
