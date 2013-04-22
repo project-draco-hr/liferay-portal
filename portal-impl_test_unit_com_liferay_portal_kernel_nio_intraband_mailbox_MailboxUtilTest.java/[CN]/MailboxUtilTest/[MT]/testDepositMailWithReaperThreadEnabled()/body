@@ -1,0 +1,25 @@
+{
+  PropsUtilAdvice.setProps(PropsKeys.INTRABAND_MAILBOX_REAPER_THREAD_ENABLED,Boolean.toString(true));
+  PropsUtilAdvice.setProps(PropsKeys.INTRABAND_MAILBOX_STORAGE_LIFE,Integer.toString(0));
+  Assert.assertEquals(0,MailboxUtil.depositMail(ByteBuffer.allocate(0)));
+  Assert.assertEquals(1,MailboxUtil.depositMail(ByteBuffer.allocate(0)));
+  Assert.assertEquals(2,MailboxUtil.depositMail(ByteBuffer.allocate(0)));
+  Assert.assertEquals(3,MailboxUtil.depositMail(ByteBuffer.allocate(0)));
+  Thread reaperThread=null;
+  for (  Thread thread : ThreadUtil.getThreads()) {
+    if ((thread != null) && thread.getName().equals(MailboxUtil.class.getName())) {
+      reaperThread=thread;
+      break;
+    }
+  }
+  Assert.assertNotNull(reaperThread);
+  reaperThread.interrupt();
+  while (reaperThread.isInterrupted())   ;
+  Assert.assertTrue(reaperThread.isAlive());
+  BlockingQueue<Object> overdueMailQueue=getOverdueMailQueue();
+  while (!overdueMailQueue.isEmpty())   ;
+  ReceiptStubAdvice._throwException=true;
+  overdueMailQueue.offer(createReceiptStub());
+  reaperThread.join(1000);
+  Assert.assertFalse(reaperThread.isAlive());
+}
