@@ -1,0 +1,88 @@
+{
+  Pipe pipe=Pipe.open();
+  SourceChannel sourceChannel=pipe.source();
+  SinkChannel sinkChannel=pipe.sink();
+  BlockingQueue<Datagram> sendingQueue=new SynchronousQueue<Datagram>();
+  ChannelContext channelContext=new ChannelContext(sendingQueue);
+  channelContext.setRegistrationReference(new MockRegistrationReference(_executorIntraBand));
+  WritingCallable writingCallable=_executorIntraBand.new WritingCallable(sinkChannel,channelContext);
+  writingCallable.openLatch();
+  FutureTask<Void> futureTask=new FutureTask<Void>(writingCallable);
+  Thread writingThread=new Thread(futureTask);
+  writingThread.start();
+  Datagram datagram1=Datagram.createRequestDatagram(_type,_data);
+  sendingQueue.put(datagram1);
+  Datagram datagram2=Datagram.createRequestDatagram(_type,_data);
+  sendingQueue.put(datagram2);
+  Assert.assertTrue(DatagramHelper.readFrom(DatagramHelper.createReceiveDatagram(),sourceChannel));
+  Assert.assertTrue(DatagramHelper.readFrom(DatagramHelper.createReceiveDatagram(),sourceChannel));
+  while (writingThread.getState() != Thread.State.WAITING)   ;
+  writingThread.interrupt();
+  Void result=futureTask.get();
+  Assert.assertNull(result);
+  writingThread.join();
+  sourceChannel.close();
+  sinkChannel.close();
+  pipe=Pipe.open();
+  sourceChannel=pipe.source();
+  sinkChannel=pipe.sink();
+  writingCallable=_executorIntraBand.new WritingCallable(sinkChannel,channelContext);
+  writingCallable.openLatch();
+  futureTask=new FutureTask<Void>(writingCallable);
+  writingThread=new Thread(futureTask);
+  writingThread.start();
+  int counter=0;
+  while (sendingQueue.offer(Datagram.createRequestDatagram(_type,_data),1,TimeUnit.SECONDS)) {
+    counter++;
+  }
+  Assert.assertTrue(counter > 0);
+  writingThread.interrupt();
+  result=futureTask.get();
+  Assert.assertNull(result);
+  writingThread.join();
+  sourceChannel.close();
+  sinkChannel.close();
+  pipe=Pipe.open();
+  sourceChannel=pipe.source();
+  sinkChannel=pipe.sink();
+  writingCallable=_executorIntraBand.new WritingCallable(sinkChannel,channelContext);
+  writingCallable.openLatch();
+  futureTask=new FutureTask<Void>(writingCallable);
+  writingThread=new Thread(futureTask);
+  writingThread.start();
+  counter=0;
+  while (sendingQueue.offer(Datagram.createRequestDatagram(_type,_data),1,TimeUnit.SECONDS)) {
+    counter++;
+  }
+  Assert.assertTrue(counter > 0);
+  sinkChannel.close();
+  result=futureTask.get();
+  Assert.assertNull(result);
+  writingThread.join();
+  sourceChannel.close();
+  sinkChannel.close();
+  pipe=Pipe.open();
+  sourceChannel=pipe.source();
+  sinkChannel=pipe.sink();
+  sinkChannel.configureBlocking(false);
+  writingCallable=_executorIntraBand.new WritingCallable(sinkChannel,channelContext);
+  writingCallable.openLatch();
+  futureTask=new FutureTask<Void>(writingCallable);
+  writingThread=new Thread(futureTask);
+  writingThread.start();
+  counter=0;
+  while (sendingQueue.offer(Datagram.createRequestDatagram(_type,_data),1,TimeUnit.SECONDS) || writingThread.isAlive()) {
+    counter++;
+  }
+  Assert.assertTrue(counter > 0);
+  try {
+    futureTask.get();
+    Assert.fail();
+  }
+ catch (  ExecutionException ee) {
+    Assert.assertEquals(IllegalStateException.class,ee.getCause().getClass());
+  }
+  writingThread.join();
+  sourceChannel.close();
+  sinkChannel.close();
+}

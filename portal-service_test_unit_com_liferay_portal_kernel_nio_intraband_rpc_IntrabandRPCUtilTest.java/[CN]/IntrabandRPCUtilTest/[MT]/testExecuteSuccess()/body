@@ -1,0 +1,25 @@
+{
+  PortalClassLoaderUtil.setClassLoader(getClass().getClassLoader());
+  MockIntraband mockIntraBand=new MockIntraband(){
+    @Override protected void doSendDatagram(    RegistrationReference registrationReference,    Datagram datagram){
+      Deserializer deserializer=new Deserializer(datagram.getDataByteBuffer());
+      try {
+        ProcessCallable<Serializable> processCallable=deserializer.readObject();
+        Serializable result=processCallable.call();
+        Serializer serializer=new Serializer();
+        serializer.writeObject(result);
+        CompletionHandler<Object> completionHandler=DatagramHelper.getCompletionHandler(datagram);
+        completionHandler.replied(null,Datagram.createResponseDatagram(datagram,serializer.toByteBuffer()));
+      }
+ catch (      Exception e) {
+        Assert.fail(e.getMessage());
+      }
+    }
+  }
+;
+  MockRegistrationReference mockRegistrationReference=new MockRegistrationReference(mockIntraBand);
+  String result=IntrabandRPCUtil.execute(mockRegistrationReference,new TestProcessCallable());
+  Assert.assertEquals(TestProcessCallable.class.getName(),result);
+  result=IntrabandRPCUtil.execute(mockRegistrationReference,new TestProcessCallable(),1,TimeUnit.MILLISECONDS);
+  Assert.assertEquals(TestProcessCallable.class.getName(),result);
+}

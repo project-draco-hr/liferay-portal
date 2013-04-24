@@ -1,0 +1,34 @@
+{
+  if (scatteringByteChannel == null) {
+    throw new NullPointerException("Scattering byte channel is null");
+  }
+  if (gatheringByteChannel == null) {
+    throw new NullPointerException("Gathering byte channel is null");
+  }
+  if (!(scatteringByteChannel instanceof SelectableChannel)) {
+    throw new IllegalArgumentException("Scattering byte channel is not of type SelectableChannel");
+  }
+  if (!(gatheringByteChannel instanceof SelectableChannel)) {
+    throw new IllegalArgumentException("Gathering byte channel is not of type SelectableChannel");
+  }
+  SelectableChannel readSelectableChannel=(SelectableChannel)scatteringByteChannel;
+  SelectableChannel writeSelectableChannel=(SelectableChannel)gatheringByteChannel;
+  if ((readSelectableChannel.validOps() & SelectionKey.OP_READ) == 0) {
+    throw new IllegalArgumentException("Scattering byte channel is not valid for reading");
+  }
+  if ((writeSelectableChannel.validOps() & SelectionKey.OP_WRITE) == 0) {
+    throw new IllegalArgumentException("Gathering byte channel is not valid for writing");
+  }
+  ensureOpen();
+  readSelectableChannel.configureBlocking(false);
+  writeSelectableChannel.configureBlocking(false);
+  FutureTask<RegistrationReference> registerFutureTask=new FutureTask<RegistrationReference>(new RegisterCallable(readSelectableChannel,writeSelectableChannel));
+  registerQueue.offer(registerFutureTask);
+  selector.wakeup();
+  try {
+    return registerFutureTask.get();
+  }
+ catch (  Exception e) {
+    throw new IOException(e);
+  }
+}

@@ -1,0 +1,33 @@
+{
+  Pipe pipe=Pipe.open();
+  final SourceChannel sourceChannel=pipe.source();
+  SinkChannel sinkChannel=pipe.sink();
+  try {
+    MockRegistrationReference mockRegistrationReference=new MockRegistrationReference(_executorIntraBand);
+    ChannelContext channelContext=new ChannelContext(new LinkedList<Datagram>());
+    channelContext.setRegistrationReference(mockRegistrationReference);
+    ReadingCallable readingCallable=_executorIntraBand.new ReadingCallable(sourceChannel,channelContext);
+    Thread closeThread=new Thread(){
+      @Override public void run(){
+        try {
+          sleep(100);
+          sourceChannel.close();
+        }
+ catch (        Exception e) {
+          Assert.fail(e.getMessage());
+        }
+      }
+    }
+;
+    closeThread.start();
+    readingCallable.openLatch();
+    Void result=readingCallable.call();
+    closeThread.join();
+    Assert.assertNull(result);
+    Assert.assertFalse(mockRegistrationReference.isValid());
+  }
+  finally {
+    sourceChannel.close();
+    sinkChannel.close();
+  }
+}
