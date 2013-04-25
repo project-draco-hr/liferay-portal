@@ -1,0 +1,43 @@
+{
+  _registerLock.lock();
+  try {
+    MPI mpi=spi.getMPI();
+    if (mpi != _mpiStub) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Unable to register SPI instance " + spi + ". It was created by a foreign MPI "+ mpi+ ", not by "+ _mpiStub);
+      }
+      return false;
+    }
+    String spiProviderName=spi.getSPIProviderName();
+    SPIProvider registeredSPIProvider=_spiProviderMap.get(spiProviderName);
+    if (registeredSPIProvider == null) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Unable to register SPI instance " + spi + ". No such SPIProvider registered with name "+ spiProviderName);
+      }
+      return false;
+    }
+    SPIConfiguration spiConfiguration=spi.getSPIConfiguration();
+    String spiId=spiConfiguration.getId();
+    SPIKey spiKey=new SPIKey(spiProviderName,spiId);
+    SPI previousSPI=_spiMap.putIfAbsent(spiKey,spi);
+    if (previousSPI != null) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Unable to register SPI instance " + spi + " with key "+ spiKey+ ". There is already a "+ "spi with the same key registered "+ previousSPI);
+      }
+      return false;
+    }
+ else {
+      SPIRuntimeMappingUtil.register(spi);
+      if (_log.isInfoEnabled()) {
+        _log.info("Registered new SPI " + spi + " with key "+ spiKey);
+      }
+      return true;
+    }
+  }
+ catch (  RemoteException re) {
+    throw new RuntimeException(re);
+  }
+ finally {
+    _registerLock.unlock();
+  }
+}
