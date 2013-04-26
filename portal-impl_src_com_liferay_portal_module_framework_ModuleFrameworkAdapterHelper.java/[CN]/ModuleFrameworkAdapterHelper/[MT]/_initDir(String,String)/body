@@ -3,14 +3,18 @@
     FileUtil fileUtil=new FileUtil();
     fileUtil.setFile(new FileImpl());
   }
-  if (FileUtil.exists(destinationPath)) {
-    return;
+  if (!FileUtil.exists(destinationPath)) {
+    FileUtil.mkdirs(destinationPath);
   }
-  FileUtil.mkdirs(destinationPath);
   ClassLoader classLoader=ClassLoaderUtil.getPortalClassLoader();
-  String[] jarFileNames=StringUtil.split(StringUtil.read(classLoader,sourcePath + "/jars.txt"));
+  URL jarsListURL=classLoader.getResource(sourcePath + "/jars.txt");
+  URLConnection connection=jarsListURL.openConnection();
+  String[] jarFileNames=StringUtil.split(StringUtil.read(connection.getInputStream()));
   for (  String jarFileName : jarFileNames) {
-    byte[] bytes=FileUtil.getBytes(classLoader.getResourceAsStream(sourcePath + "/" + jarFileName));
-    FileUtil.write(new File(destinationPath,jarFileName),bytes);
+    File distinationFile=new File(destinationPath,jarFileName);
+    if (distinationFile.lastModified() < connection.getLastModified()) {
+      byte[] bytes=FileUtil.getBytes(classLoader.getResourceAsStream(sourcePath + "/" + jarFileName));
+      FileUtil.write(distinationFile,bytes);
+    }
   }
 }
