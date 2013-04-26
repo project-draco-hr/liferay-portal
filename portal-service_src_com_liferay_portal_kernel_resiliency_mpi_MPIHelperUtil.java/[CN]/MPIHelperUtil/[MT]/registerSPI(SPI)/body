@@ -1,0 +1,42 @@
+{
+  _lock.lock();
+  try {
+    MPI mpi=spi.getMPI();
+    if (mpi != _mpi) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Not registering SPI " + spi + " with foreign MPI "+ mpi+ " versus "+ _mpi);
+      }
+      return false;
+    }
+    String spiProviderName=spi.getSPIProviderName();
+    SPIProvider spiProvider=_spiProviders.get(spiProviderName);
+    if (spiProvider == null) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Not registering SPI " + spi + " with unknown SPI provider "+ spiProviderName);
+      }
+      return false;
+    }
+    SPIConfiguration spiConfiguration=spi.getSPIConfiguration();
+    SPIKey spiKey=new SPIKey(spiProviderName,spiConfiguration.getSPIId());
+    SPI previousSPI=_spis.putIfAbsent(spiKey,spi);
+    if (previousSPI != null) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Not registering SPI " + spi + " because it duplicates "+ previousSPI);
+      }
+      return false;
+    }
+ else {
+      SPIRegistryUtil.registerSPI(spi);
+      if (_log.isInfoEnabled()) {
+        _log.info("Registered SPI " + spi);
+      }
+      return true;
+    }
+  }
+ catch (  RemoteException re) {
+    throw new RuntimeException(re);
+  }
+ finally {
+    _lock.unlock();
+  }
+}

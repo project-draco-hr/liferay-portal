@@ -1,0 +1,45 @@
+{
+  List<String> portletIds=new ArrayList<String>();
+  SPIConfiguration spiConfiguration=spi.getSPIConfiguration();
+  for (  String portletId : spiConfiguration.getPortletIds()) {
+    Portlet portlet=PortletLocalServiceUtil.getPortletById(portletId);
+    if (portlet == null) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Skip unknown portlet id " + portletId);
+      }
+    }
+ else {
+      portletIds.add(portletId);
+    }
+  }
+  String[] servletContextNames=spiConfiguration.getServletContextNames();
+  for (  String servletContextName : servletContextNames) {
+    PortletApp portletApp=PortletLocalServiceUtil.getPortletApp(servletContextName);
+    if (portletApp == null) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Skip unknown servlet context name " + servletContextName);
+      }
+    }
+ else {
+      List<Portlet> portlets=portletApp.getPortlets();
+      for (      Portlet portlet : portlets) {
+        portletIds.add(portlet.getPortletId());
+      }
+    }
+  }
+  _lock.lock();
+  try {
+    for (    String portletId : portletIds) {
+      _portletSPIs.put(portletId,spi);
+    }
+    _portletIds.put(spi,portletIds.toArray(new String[portletIds.size()]));
+    for (    String servletContextName : servletContextNames) {
+      _servletContextSPIs.put(servletContextName,spi);
+    }
+    _servletContextNames.put(spi,servletContextNames.clone());
+    ServiceBeanAopCacheManagerUtil.reset();
+  }
+  finally {
+    _lock.unlock();
+  }
+}
