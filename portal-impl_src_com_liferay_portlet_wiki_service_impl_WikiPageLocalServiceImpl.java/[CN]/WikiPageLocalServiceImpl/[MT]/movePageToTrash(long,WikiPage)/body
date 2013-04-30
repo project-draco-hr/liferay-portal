@@ -1,5 +1,6 @@
 {
   int oldStatus=page.getStatus();
+  String oldTitle=page.getTitle();
   page=updateStatus(userId,page,WorkflowConstants.STATUS_IN_TRASH,new ServiceContext());
   TrashEntry trashEntry=trashEntryLocalService.getEntry(WikiPage.class.getName(),page.getResourcePrimKey());
   String trashTitle=TrashUtil.getTrashTitle(trashEntry.getEntryId());
@@ -18,6 +19,14 @@
   wikiPageResourcePersistence.update(pageResource);
   page.setTitle(trashTitle);
   wikiPagePersistence.update(page);
+  List<WikiPage> children=wikiPagePersistence.findByN_P(page.getNodeId(),oldTitle);
+  for (  WikiPage curPage : children) {
+    curPage.setParentTitle(trashTitle);
+    wikiPagePersistence.update(curPage);
+    if (curPage.isApproved()) {
+      movePageToTrash(userId,curPage);
+    }
+  }
   socialActivityCounterLocalService.disableActivityCounters(WikiPage.class.getName(),page.getPageId());
   socialActivityLocalService.addActivity(userId,page.getGroupId(),WikiPage.class.getName(),page.getResourcePrimKey(),SocialActivityConstants.TYPE_MOVE_TO_TRASH,StringPool.BLANK,0);
   if (oldStatus == WorkflowConstants.STATUS_PENDING) {
