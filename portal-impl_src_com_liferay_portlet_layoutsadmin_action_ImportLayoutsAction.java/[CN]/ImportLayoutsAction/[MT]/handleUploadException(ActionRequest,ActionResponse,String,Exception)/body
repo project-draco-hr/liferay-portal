@@ -1,0 +1,64 @@
+{
+  HttpServletResponse response=PortalUtil.getHttpServletResponse(actionResponse);
+  response.setContentType(ContentTypes.TEXT_HTML);
+  response.setStatus(HttpServletResponse.SC_OK);
+  String errorType="0";
+  ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  if (e instanceof DuplicateFileException || e instanceof FileExtensionException || e instanceof FileNameException|| e instanceof LARFileException|| e instanceof LARFileSizeException|| e instanceof LARTypeException|| e instanceof LayoutPrototypeException|| e instanceof LocaleException|| e instanceof FileSizeException) {
+    if (e instanceof DuplicateFileException) {
+      errorType=String.valueOf(ServletResponseConstants.SC_DUPLICATE_FILE_EXCEPTION);
+    }
+ else     if (e instanceof FileExtensionException) {
+      errorType=String.valueOf(ServletResponseConstants.SC_FILE_EXTENSION_EXCEPTION);
+    }
+ else     if (e instanceof FileNameException) {
+      errorType=String.valueOf(ServletResponseConstants.SC_FILE_NAME_EXCEPTION);
+    }
+ else     if (e instanceof FileSizeException || e instanceof LARFileSizeException) {
+      errorType=String.valueOf(ServletResponseConstants.SC_FILE_SIZE_EXCEPTION);
+    }
+ else     if (e instanceof LARTypeException) {
+      LARTypeException lte=(LARTypeException)e;
+      errorType=ServletResponseConstants.SC_FILE_CUSTOM_EXCEPTION + StringPool.PERIOD + LanguageUtil.format(themeDisplay.getLocale(),"please-import-a-lar-file-of-the-correct-type" + "-x-is-not-valid",lte.getMessage());
+    }
+ else     if (e instanceof LARFileException) {
+      errorType=ServletResponseConstants.SC_FILE_CUSTOM_EXCEPTION + StringPool.PERIOD + LanguageUtil.get(themeDisplay.getLocale(),"please-specify-a-lar-file-to-import");
+    }
+ else     if (e instanceof LocaleException) {
+      LocaleException le=(LocaleException)e;
+      errorType=ServletResponseConstants.SC_FILE_CUSTOM_EXCEPTION + StringPool.PERIOD + LanguageUtil.format(themeDisplay.getLocale(),"the-available-languages-in-the-lar-file-x-do" + "-not-match-the-portal's-available-languages-x",new String[]{StringUtil.merge(le.getSourceAvailableLocales(),StringPool.COMMA_AND_SPACE),StringUtil.merge(le.getTargetAvailableLocales(),StringPool.COMMA_AND_SPACE)});
+    }
+ else     if (e instanceof LayoutPrototypeException) {
+      LayoutPrototypeException lpe=(LayoutPrototypeException)e;
+      List<Tuple> missingLayoutPrototypes=lpe.getMissingLayoutPrototypes();
+      StringBundler sb=new StringBundler(5 + (10 * missingLayoutPrototypes.size()));
+      sb.append(ServletResponseConstants.SC_FILE_CUSTOM_EXCEPTION);
+      sb.append(StringPool.PERIOD);
+      sb.append(LanguageUtil.get(themeDisplay.getLocale(),"the-lar-file-could-not-be-imported-because-it-" + "requires-page-templates-or-site-templates-" + "that-could-not-be-found.-please-import-the-"+ "following-templates-manually"));
+      sb.append("<ul>");
+      for (      Tuple missingLayoutPrototype : missingLayoutPrototypes) {
+        String layoutPrototypeClassName=(String)missingLayoutPrototype.getObject(0);
+        String layoutPrototypeUuid=(String)missingLayoutPrototype.getObject(1);
+        String layoutPrototypeName=(String)missingLayoutPrototype.getObject(2);
+        sb.append("<li>");
+        sb.append(ResourceActionsUtil.getModelResource(themeDisplay.getLocale(),layoutPrototypeClassName));
+        sb.append(StringPool.COLON);
+        sb.append(StringPool.SPACE);
+        sb.append("<strong>");
+        sb.append(layoutPrototypeName);
+        sb.append("</strong>");
+        sb.append(StringPool.OPEN_PARENTHESIS);
+        sb.append(layoutPrototypeUuid);
+        sb.append(StringPool.CLOSE_PARENTHESIS);
+        sb.append("</li>");
+      }
+      sb.append("</ul>");
+      errorType=sb.toString();
+    }
+  }
+ else {
+    errorType=String.valueOf(ServletResponseConstants.SC_FILE_CUSTOM_EXCEPTION);
+  }
+  deleteTempFileEntry(themeDisplay.getScopeGroupId());
+  ServletResponseUtil.write(response,String.valueOf(errorType));
+}

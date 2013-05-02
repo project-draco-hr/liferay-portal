@@ -1,0 +1,30 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  long groupId=ParamUtil.getLong(actionRequest,"groupId");
+  boolean privateLayout=ParamUtil.getBoolean(actionRequest,"privateLayout");
+  FileEntry fileEntry=ExportImportUtil.getTempFileEntry(groupId,themeDisplay.getUserId());
+  File file=DLFileEntryLocalServiceUtil.getFile(themeDisplay.getUserId(),fileEntry.getFileEntryId(),fileEntry.getVersion(),false);
+  if ((file == null) || !file.exists()) {
+    throw new LARFileException("Import file does not exist");
+  }
+  boolean successfulRename=false;
+  File newFile=null;
+  try {
+    String newFilePath=StringUtil.replace(file.getPath(),file.getName(),fileEntry.getTitle());
+    newFile=new File(newFilePath);
+    successfulRename=file.renameTo(newFile);
+    if (!successfulRename) {
+      newFile=FileUtil.createTempFile(fileEntry.getExtension());
+      FileUtil.copyFile(file,newFile);
+    }
+    LayoutServiceUtil.validateImportLayoutsFile(groupId,privateLayout,actionRequest.getParameterMap(),newFile);
+  }
+  finally {
+    if (successfulRename) {
+      newFile.renameTo(file);
+    }
+ else {
+      FileUtil.delete(newFile);
+    }
+  }
+}
