@@ -44,47 +44,18 @@
   PortletDataContext portletDataContext=new PortletDataContextImpl(companyId,groupId,parameterMap,new HashSet<String>(),strategy,zipReader);
   portletDataContext.setPortetDataContextListener(new PortletDataContextListenerImpl(portletDataContext));
   portletDataContext.setPrivateLayout(privateLayout);
-  Element rootElement=null;
   InputStream themeZip=null;
-  String xml=portletDataContext.getZipEntryAsString("/manifest.xml");
-  if (xml == null) {
-    throw new LARFileException("manifest.xml not found in the LAR");
-  }
-  try {
-    Document document=SAXReaderUtil.read(xml);
-    rootElement=document.getRootElement();
-  }
- catch (  Exception e) {
-    throw new LARFileException(e);
-  }
-  Element headerElement=rootElement.element("header");
-  int buildNumber=ReleaseInfo.getBuildNumber();
-  int importBuildNumber=GetterUtil.getInteger(headerElement.attributeValue("build-number"));
-  if (buildNumber != importBuildNumber) {
-    throw new LayoutImportException("LAR build number " + importBuildNumber + " does not match "+ "portal build number "+ buildNumber);
-  }
-  String larType=headerElement.attributeValue("type");
-  if (!larType.equals("layout-prototype") && !larType.equals("layout-set") && !larType.equals("layout-set-prototype")) {
-    throw new LARTypeException(larType);
-  }
-  Locale[] sourceAvailableLocales=LocaleUtil.fromLanguageIds(StringUtil.split(headerElement.attributeValue("available-locales")));
-  Locale[] targetAvailableLocales=LanguageUtil.getAvailableLocales();
-  for (  Locale sourceAvailableLocale : sourceAvailableLocales) {
-    if (!ArrayUtil.contains(targetAvailableLocales,sourceAvailableLocale)) {
-      LocaleException le=new LocaleException();
-      le.setSourceAvailableLocales(sourceAvailableLocales);
-      le.setTargetAvailableLocales(targetAvailableLocales);
-      throw le;
-    }
-  }
-  Element layoutsElement=rootElement.element("layouts");
-  List<Element> layoutElements=layoutsElement.elements("layout");
-  validateLayoutPrototypes(companyId,layoutsElement,layoutElements);
+  Element rootElement=null;
+  Element headerElement=null;
+  Element layoutsElement=null;
+  List<Element> layoutElements=null;
+  validateFile(portletDataContext,rootElement,headerElement,layoutsElement,layoutElements);
   long sourceCompanyGroupId=GetterUtil.getLong(headerElement.attributeValue("company-group-id"));
   portletDataContext.setSourceCompanyGroupId(sourceCompanyGroupId);
   long sourceGroupId=GetterUtil.getLong(headerElement.attributeValue("group-id"));
   portletDataContext.setSourceGroupId(sourceGroupId);
   String layoutSetPrototypeUuid=layoutsElement.attributeValue("layout-set-prototype-uuid");
+  String larType=headerElement.attributeValue("type");
   if (group.isLayoutPrototype() && larType.equals("layout-prototype")) {
     deleteMissingLayouts=false;
     LayoutPrototype layoutPrototype=LayoutPrototypeLocalServiceUtil.getLayoutPrototype(group.getClassPK());

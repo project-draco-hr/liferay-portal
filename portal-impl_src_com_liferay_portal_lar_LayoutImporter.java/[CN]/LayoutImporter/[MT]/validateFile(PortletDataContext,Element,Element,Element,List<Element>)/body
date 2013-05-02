@@ -1,0 +1,36 @@
+{
+  String xml=portletDataContext.getZipEntryAsString("/manifest.xml");
+  if (xml == null) {
+    throw new LARFileException("manifest.xml not found in the LAR");
+  }
+  try {
+    Document document=SAXReaderUtil.read(xml);
+    rootElement=document.getRootElement();
+  }
+ catch (  Exception e) {
+    throw new LARFileException(e);
+  }
+  headerElement=rootElement.element("header");
+  int buildNumber=ReleaseInfo.getBuildNumber();
+  int importBuildNumber=GetterUtil.getInteger(headerElement.attributeValue("build-number"));
+  if (buildNumber != importBuildNumber) {
+    throw new LayoutImportException("LAR build number " + importBuildNumber + " does not match "+ "portal build number "+ buildNumber);
+  }
+  String larType=headerElement.attributeValue("type");
+  if (!larType.equals("layout-prototype") && !larType.equals("layout-set") && !larType.equals("layout-set-prototype")) {
+    throw new LARTypeException(larType);
+  }
+  Locale[] sourceAvailableLocales=LocaleUtil.fromLanguageIds(StringUtil.split(headerElement.attributeValue("available-locales")));
+  Locale[] targetAvailableLocales=LanguageUtil.getAvailableLocales();
+  for (  Locale sourceAvailableLocale : sourceAvailableLocales) {
+    if (!ArrayUtil.contains(targetAvailableLocales,sourceAvailableLocale)) {
+      LocaleException le=new LocaleException();
+      le.setSourceAvailableLocales(sourceAvailableLocales);
+      le.setTargetAvailableLocales(targetAvailableLocales);
+      throw le;
+    }
+  }
+  layoutsElement=rootElement.element("layouts");
+  layoutElements=layoutsElement.elements("layout");
+  validateLayoutPrototypes(portletDataContext.getCompanyId(),layoutsElement,layoutElements);
+}
