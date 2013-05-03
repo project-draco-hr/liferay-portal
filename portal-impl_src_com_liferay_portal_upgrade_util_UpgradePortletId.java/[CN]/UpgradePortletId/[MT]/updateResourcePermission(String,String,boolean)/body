@@ -4,18 +4,27 @@
   ResultSet rs=null;
   try {
     con=DataAccess.getUpgradeOptimizedConnection();
-    ps=con.prepareStatement("select resourcePermissionId, name, primKey from " + "ResourcePermission where name = '" + oldRootPortletId + "'");
+    ps=con.prepareStatement("select resourcePermissionId, name, scope, primKey from " + "ResourcePermission where name = '" + oldRootPortletId + "'");
     rs=ps.executeQuery();
     while (rs.next()) {
       long resourcePermissionId=rs.getLong("resourcePermissionId");
       String name=rs.getString("name");
+      int scope=rs.getInt("scope");
       String primKey=rs.getString("primKey");
       String newName=name;
       if (updateName) {
-        newName=StringUtil.replace(name,oldRootPortletId,newRootPortletId);
+        newName=newRootPortletId;
       }
-      String newPrimKey=StringUtil.replace(primKey,oldRootPortletId,newRootPortletId);
-      updateResourcePermission(resourcePermissionId,newName,newPrimKey);
+      if (scope == ResourceConstants.SCOPE_INDIVIDUAL) {
+        int pos=primKey.indexOf(PortletConstants.LAYOUT_SEPARATOR);
+        long plid=GetterUtil.getLong(primKey.substring(0,pos));
+        String portletId=primKey.substring(pos + PortletConstants.LAYOUT_SEPARATOR.length());
+        String instanceId=PortletConstants.getInstanceId(portletId);
+        long userId=PortletConstants.getUserId(portletId);
+        String newPortletId=PortletConstants.assemblePortletId(newRootPortletId,userId,instanceId);
+        primKey=PortletPermissionUtil.getPrimaryKey(plid,newPortletId);
+      }
+      updateResourcePermission(resourcePermissionId,newName,primKey);
     }
   }
   finally {
