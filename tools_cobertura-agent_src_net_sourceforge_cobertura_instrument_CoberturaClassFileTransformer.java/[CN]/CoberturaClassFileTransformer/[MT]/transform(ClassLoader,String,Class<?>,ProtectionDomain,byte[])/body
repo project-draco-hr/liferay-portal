@@ -1,32 +1,38 @@
 {
-  if (matches(className)) {
-    InstrumentationAgent.recordInstrumentation(classLoader,className,classfileBuffer);
-    ProjectData projectData=_projectDatas.get(classLoader);
-    if (projectData == null) {
-      projectData=new ProjectData();
-      ProjectData previousProjectData=_projectDatas.putIfAbsent(classLoader,projectData);
-      if (previousProjectData != null) {
-        projectData=previousProjectData;
+  try {
+    if (matches(className)) {
+      InstrumentationAgent.recordInstrumentation(classLoader,className,classfileBuffer);
+      ProjectData projectData=_projectDatas.get(classLoader);
+      if (projectData == null) {
+        projectData=new ProjectData();
+        ProjectData previousProjectData=_projectDatas.putIfAbsent(classLoader,projectData);
+        if (previousProjectData != null) {
+          projectData=previousProjectData;
+        }
       }
-    }
-    ClassWriter classWriter=new ClassWriter(ClassWriter.COMPUTE_MAXS);
-    ClassVisitor classVisitor=classWriter;
-    if (!InstrumentationAgent.isStaticallyInstrumented()) {
-      classVisitor=new RemoveHasBeenInstrumentedClassVisitor(classVisitor);
-    }
-    classVisitor=new ClassInstrumenter(projectData,classVisitor,Collections.emptyList(),Collections.emptyList());
-    ClassReader classReader=new ClassReader(classfileBuffer);
+      ClassWriter classWriter=new ClassWriter(ClassWriter.COMPUTE_MAXS);
+      ClassVisitor classVisitor=classWriter;
+      if (!InstrumentationAgent.isStaticallyInstrumented()) {
+        classVisitor=new RemoveHasBeenInstrumentedClassVisitor(classVisitor);
+      }
+      classVisitor=new ClassInstrumenter(projectData,classVisitor,Collections.emptyList(),Collections.emptyList());
+      ClassReader classReader=new ClassReader(classfileBuffer);
 synchronized (projectData) {
-      classReader.accept(classVisitor,0);
+        classReader.accept(classVisitor,0);
+      }
+      return classWriter.toByteArray();
     }
-    return classWriter.toByteArray();
+    if (className.equals("net/sourceforge/cobertura/coveragedata/TouchCollector")) {
+      ClassWriter classWriter=new ClassWriter(ClassWriter.COMPUTE_MAXS);
+      ClassVisitor classVisitor=new TouchCollectorClassVisitor(classWriter);
+      ClassReader classReader=new ClassReader(classfileBuffer);
+      classReader.accept(classVisitor,0);
+      return classWriter.toByteArray();
+    }
   }
-  if (className.equals("net/sourceforge/cobertura/coveragedata/TouchCollector")) {
-    ClassWriter classWriter=new ClassWriter(ClassWriter.COMPUTE_MAXS);
-    ClassVisitor classVisitor=new TouchCollectorClassVisitor(classWriter);
-    ClassReader classReader=new ClassReader(classfileBuffer);
-    classReader.accept(classVisitor,0);
-    return classWriter.toByteArray();
+ catch (  Throwable t) {
+    t.printStackTrace();
+    throw new RuntimeException(t);
   }
   return null;
 }
