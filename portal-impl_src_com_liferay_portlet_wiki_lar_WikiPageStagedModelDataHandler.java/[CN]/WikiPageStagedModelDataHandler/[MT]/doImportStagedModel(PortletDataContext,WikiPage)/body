@@ -1,13 +1,17 @@
 {
   long userId=portletDataContext.getUserId(page.getUserUuid());
-  Map<Long,Long> nodeIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(WikiNode.class);
-  long nodeId=MapUtil.getLong(nodeIds,page.getNodeId(),page.getNodeId());
+  String nodePath=ExportImportPathUtil.getModelPath(portletDataContext,WikiNode.class.getName(),page.getNodeId());
+  WikiNode node=(WikiNode)portletDataContext.getZipEntryAsObject(nodePath);
+  StagedModelDataHandlerUtil.importStagedModel(portletDataContext,node);
+  Element pageElement=portletDataContext.getImportDataStagedModelElement(page);
   String content=ExportImportUtil.importContentReferences(portletDataContext,pageElement,page.getContent());
   page.setContent(content);
-  ServiceContext serviceContext=portletDataContext.createServiceContext(pageElement,page,NAMESPACE);
+  ServiceContext serviceContext=portletDataContext.createServiceContext(page,WikiPortletDataHandler.NAMESPACE);
   if (page.getStatus() != WorkflowConstants.STATUS_APPROVED) {
     serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
   }
+  Map<Long,Long> nodeIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(WikiNode.class);
+  long nodeId=MapUtil.getLong(nodeIds,page.getNodeId(),page.getNodeId());
   WikiPage importedPage=null;
   WikiPage existingPage=WikiPageUtil.fetchByUUID_G(page.getUuid(),portletDataContext.getScopeGroupId());
   if (existingPage == null) {
@@ -24,27 +28,29 @@
  else {
     importedPage=WikiPageLocalServiceUtil.updatePage(userId,nodeId,existingPage.getTitle(),0,page.getContent(),page.getSummary(),page.isMinorEdit(),page.getFormat(),page.getParentTitle(),page.getRedirectTitle(),serviceContext);
   }
-  if (portletDataContext.getBooleanParameter(NAMESPACE,"attachments") && page.isHead()) {
-    for (    Element attachmentElement : pageElement.elements("attachment")) {
-      String name=attachmentElement.attributeValue("name");
+  if (page.isHead() && portletDataContext.getBooleanParameter(WikiPortletDataHandler.NAMESPACE,"attachments")) {
+    List<Element> attachmentElements=portletDataContext.getReferenceDataElements(pageElement,FileEntry.class,PortletDataContext.REFERENCE_TYPE_WEAK);
+    for (    Element attachmentElement : attachmentElements) {
+      String path=attachmentElement.attributeValue("path");
       String binPath=attachmentElement.attributeValue("bin-path");
+      FileEntry fileEntry=(FileEntry)portletDataContext.getZipEntryAsObject(path);
       InputStream inputStream=null;
       String mimeType=null;
       try {
         inputStream=portletDataContext.getZipEntryAsInputStream(binPath);
-        mimeType=MimeTypesUtil.getContentType(inputStream,name);
+        mimeType=MimeTypesUtil.getContentType(inputStream,fileEntry.getTitle());
       }
   finally {
         StreamUtil.cleanUp(inputStream);
       }
       try {
         inputStream=portletDataContext.getZipEntryAsInputStream(binPath);
-        WikiPageLocalServiceUtil.addPageAttachment(userId,importedPage.getNodeId(),importedPage.getTitle(),name,inputStream,mimeType);
+        WikiPageLocalServiceUtil.addPageAttachment(userId,importedPage.getNodeId(),importedPage.getTitle(),fileEntry.getTitle(),inputStream,mimeType);
       }
   finally {
         StreamUtil.cleanUp(inputStream);
       }
     }
   }
-  portletDataContext.importClassedModel(page,importedPage,NAMESPACE);
+  portletDataContext.importClassedModel(page,importedPage,WikiPortletDataHandler.NAMESPACE);
 }
