@@ -2,17 +2,31 @@
   portletDataContext.addPermissions("com.liferay.portlet.wiki",portletDataContext.getScopeGroupId());
   Element rootElement=addExportDataRootElement(portletDataContext);
   rootElement.addAttribute("group-id",String.valueOf(portletDataContext.getScopeGroupId()));
-  Element nodesElement=rootElement.addElement("nodes");
-  Element pagesElement=rootElement.addElement("pages");
-  Element dlFileEntryTypesElement=pagesElement.addElement("dl-file-entry-types");
-  Element dlFoldersElement=pagesElement.addElement("dl-folders");
-  Element dlFileEntriesElement=pagesElement.addElement("dl-file-entries");
-  Element dlFileRanksElement=pagesElement.addElement("dl-file-ranks");
-  Element dlRepositoriesElement=pagesElement.addElement("dl-repositories");
-  Element dlRepositoryEntriesElement=pagesElement.addElement("dl-repository-entries");
-  List<WikiNode> nodes=WikiNodeUtil.findByGroupId(portletDataContext.getScopeGroupId());
-  for (  WikiNode node : nodes) {
-    exportNode(portletDataContext,nodesElement,pagesElement,dlFileEntryTypesElement,dlFoldersElement,dlFileEntriesElement,dlFileRanksElement,dlRepositoriesElement,dlRepositoryEntriesElement,node);
+  ActionableDynamicQuery nodeActionableDynamicQuery=new WikiNodeActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
+    }
+    @Override protected void performAction(    Object object) throws PortalException {
+      WikiNode node=(WikiNode)object;
+      StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,node);
+    }
   }
+;
+  nodeActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
+  nodeActionableDynamicQuery.performActions();
+  ActionableDynamicQuery pageActionableDynamicQuery=new WikiPageActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
+      Property statusProperty=PropertyFactoryUtil.forName("status");
+      dynamicQuery.add(statusProperty.ne(WorkflowConstants.STATUS_IN_TRASH));
+    }
+    @Override protected void performAction(    Object object) throws PortalException {
+      WikiPage page=(WikiPage)object;
+      StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,page);
+    }
+  }
+;
+  pageActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
+  pageActionableDynamicQuery.performActions();
   return getExportDataRootElementString(rootElement);
 }
