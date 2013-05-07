@@ -1,0 +1,105 @@
+{
+  Group group=null;
+  try {
+    group=GroupLocalServiceUtil.getGroup(portletDataContext.getScopeGroupId());
+  }
+ catch (  Exception e) {
+    if (_log.isWarnEnabled()) {
+      _log.warn(e);
+    }
+    return content;
+  }
+  StringBuilder sb=new StringBuilder(content);
+  String privateGroupServletMapping=_PRIVATE_GROUP_SERVLET_MAPPING;
+  String privateUserServletMapping=_PRIVATE_USER_SERVLET_MAPPING;
+  String publicServletMapping=_PUBLIC_GROUP_SERVLET_MAPPING;
+  String portalContextPath=PortalUtil.getPathContext();
+  if (Validator.isNotNull(portalContextPath)) {
+    privateGroupServletMapping=portalContextPath.concat(privateGroupServletMapping);
+    privateUserServletMapping=portalContextPath.concat(privateUserServletMapping);
+    publicServletMapping=portalContextPath.concat(publicServletMapping);
+  }
+  String href="href=";
+  int beginPos=content.length();
+  while (true) {
+    int hrefLength=href.length();
+    beginPos=content.lastIndexOf(href,beginPos);
+    if (beginPos == -1) {
+      break;
+    }
+    char c=content.charAt(beginPos + hrefLength);
+    if ((c == CharPool.APOSTROPHE) || (c == CharPool.QUOTE)) {
+      hrefLength++;
+    }
+    int endPos1=content.indexOf(CharPool.APOSTROPHE,beginPos + hrefLength);
+    int endPos2=content.indexOf(CharPool.CLOSE_BRACKET,beginPos + hrefLength);
+    int endPos3=content.indexOf(CharPool.CLOSE_CURLY_BRACE,beginPos + hrefLength);
+    int endPos4=content.indexOf(CharPool.CLOSE_PARENTHESIS,beginPos + hrefLength);
+    int endPos5=content.indexOf(CharPool.LESS_THAN,beginPos + hrefLength);
+    int endPos6=content.indexOf(CharPool.QUESTION,beginPos + hrefLength);
+    int endPos7=content.indexOf(CharPool.QUOTE,beginPos + hrefLength);
+    int endPos8=content.indexOf(CharPool.SPACE,beginPos + hrefLength);
+    int endPos=endPos1;
+    if ((endPos == -1) || ((endPos2 != -1) && (endPos2 < endPos))) {
+      endPos=endPos2;
+    }
+    if ((endPos == -1) || ((endPos3 != -1) && (endPos3 < endPos))) {
+      endPos=endPos3;
+    }
+    if ((endPos == -1) || ((endPos4 != -1) && (endPos4 < endPos))) {
+      endPos=endPos4;
+    }
+    if ((endPos == -1) || ((endPos5 != -1) && (endPos5 < endPos))) {
+      endPos=endPos5;
+    }
+    if ((endPos == -1) || ((endPos6 != -1) && (endPos6 < endPos))) {
+      endPos=endPos6;
+    }
+    if ((endPos == -1) || ((endPos7 != -1) && (endPos7 < endPos))) {
+      endPos=endPos7;
+    }
+    if ((endPos == -1) || ((endPos8 != -1) && (endPos8 < endPos))) {
+      endPos=endPos8;
+    }
+    if (endPos == -1) {
+      beginPos--;
+      continue;
+    }
+    String url=content.substring(beginPos + hrefLength,endPos);
+    if (!url.startsWith(privateGroupServletMapping) && !url.startsWith(privateUserServletMapping) && !url.startsWith(publicServletMapping)) {
+      beginPos--;
+      continue;
+    }
+    int contextLength=0;
+    if (Validator.isNotNull(portalContextPath)) {
+      contextLength=portalContextPath.length();
+    }
+    int beginGroupPos=content.indexOf(CharPool.SLASH,beginPos + hrefLength + contextLength+ 1);
+    if (beginGroupPos == -1) {
+      beginPos--;
+      continue;
+    }
+    int endGroupPos=content.indexOf(CharPool.SLASH,beginGroupPos + 1);
+    if (endGroupPos == -1) {
+      beginPos--;
+      continue;
+    }
+    String groupFriendlyURL=content.substring(beginGroupPos,endGroupPos);
+    if (groupFriendlyURL.equals(group.getFriendlyURL())) {
+      sb.replace(beginGroupPos,endGroupPos,"@data_handler_group_friendly_url@");
+    }
+    String dataHandlerServletMapping=StringPool.BLANK;
+    if (url.startsWith(privateGroupServletMapping)) {
+      dataHandlerServletMapping="@data_handler_private_group_servlet_mapping@";
+    }
+ else     if (url.startsWith(privateUserServletMapping)) {
+      dataHandlerServletMapping="@data_handler_private_user_servlet_mapping@";
+    }
+ else {
+      dataHandlerServletMapping="@data_handler_public_servlet_mapping@";
+    }
+    sb.replace(beginPos + hrefLength,beginGroupPos,dataHandlerServletMapping);
+    beginPos--;
+  }
+  return sb.toString();
+}
