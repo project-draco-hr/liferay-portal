@@ -1,0 +1,67 @@
+{
+  PortletLocalServiceUtilAdvice._portletIds=Arrays.asList("portlet3","portlet4");
+  SPIConfiguration spiConfiguration=new SPIConfiguration("","",8081,"",new String[]{"portlet1","portlet2"},new String[]{"portletApp1","portletApp2"});
+  final AtomicBoolean throwException=new AtomicBoolean();
+  MockSPI mockSPI=new MockSPI(){
+    @Override public int hashCode(){
+      if (throwException.get()) {
+        throw new RuntimeException();
+      }
+      return super.hashCode();
+    }
+  }
+;
+  mockSPI.spiConfiguration=spiConfiguration;
+  List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(SPIRegistryImpl.class.getName(),Level.WARNING);
+  _spiRegistryImpl.registerSPI(mockSPI);
+  Assert.assertEquals(3,_portletIdToSPIMap.size());
+  Assert.assertEquals(mockSPI,_portletIdToSPIMap.remove("portlet1"));
+  Assert.assertEquals(mockSPI,_portletIdToSPIMap.remove("portlet3"));
+  Assert.assertEquals(mockSPI,_portletIdToSPIMap.remove("portlet4"));
+  Assert.assertSame(mockSPI,_spiRegistryImpl.getServletContextSPI("portletApp1"));
+  Assert.assertSame(mockSPI,_spiRegistryImpl.getServletContextSPI("portletApp2"));
+  Assert.assertNull(_spiRegistryImpl.getServletContextSPI("portletApp3"));
+  List<String> portletIds=Arrays.asList(_spiToPortletIdsMap.remove(mockSPI));
+  Assert.assertTrue(portletIds.contains("portlet1"));
+  Assert.assertTrue(portletIds.contains("portlet3"));
+  Assert.assertTrue(portletIds.contains("portlet4"));
+  Assert.assertEquals(2,logRecords.size());
+  LogRecord logRecord1=logRecords.get(0);
+  Assert.assertEquals("Skip unknown portlet id portlet2",logRecord1.getMessage());
+  LogRecord logRecord2=logRecords.get(1);
+  Assert.assertEquals("Skip unknown servlet context name portletApp2",logRecord2.getMessage());
+  logRecords=JDKLoggerTestUtil.configureJDKLogger(SPIRegistryImpl.class.getName(),Level.OFF);
+  _spiRegistryImpl.registerSPI(mockSPI);
+  Assert.assertEquals(3,_portletIdToSPIMap.size());
+  Assert.assertEquals(mockSPI,_portletIdToSPIMap.remove("portlet1"));
+  Assert.assertEquals(mockSPI,_portletIdToSPIMap.remove("portlet3"));
+  Assert.assertEquals(mockSPI,_portletIdToSPIMap.remove("portlet4"));
+  portletIds=Arrays.asList(_spiToPortletIdsMap.remove(mockSPI));
+  Assert.assertTrue(portletIds.contains("portlet1"));
+  Assert.assertTrue(portletIds.contains("portlet3"));
+  Assert.assertTrue(portletIds.contains("portlet4"));
+  Assert.assertTrue(logRecords.isEmpty());
+  throwException.set(true);
+  try {
+    _spiRegistryImpl.registerSPI(mockSPI);
+    Assert.fail();
+  }
+ catch (  RuntimeException re) {
+  }
+  _portletIdToSPIMap.clear();
+  throwException.set(false);
+  _spiRegistryImpl.registerSPI(mockSPI);
+  _spiRegistryImpl.unregisterSPI(mockSPI);
+  Assert.assertTrue(_spiToPortletIdsMap.isEmpty());
+  Assert.assertTrue(_portletIdToSPIMap.isEmpty());
+  _spiRegistryImpl.unregisterSPI(mockSPI);
+  Assert.assertTrue(_spiToPortletIdsMap.isEmpty());
+  Assert.assertTrue(_portletIdToSPIMap.isEmpty());
+  throwException.set(true);
+  try {
+    _spiRegistryImpl.unregisterSPI(mockSPI);
+    Assert.fail();
+  }
+ catch (  RuntimeException re) {
+  }
+}
