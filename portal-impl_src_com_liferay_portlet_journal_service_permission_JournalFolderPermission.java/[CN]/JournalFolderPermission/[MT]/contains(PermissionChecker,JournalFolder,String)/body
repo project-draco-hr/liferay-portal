@@ -3,33 +3,40 @@
     actionId=ActionKeys.ADD_SUBFOLDER;
   }
   long folderId=folder.getFolderId();
-  if (actionId.equals(ActionKeys.VIEW)) {
-    while (folderId != JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
-      folder=JournalFolderLocalServiceUtil.getFolder(folderId);
-      folderId=folder.getParentFolderId();
-      if (!permissionChecker.hasOwnerPermission(folder.getCompanyId(),JournalFolder.class.getName(),folder.getFolderId(),folder.getUserId(),actionId) && !permissionChecker.hasPermission(folder.getGroupId(),JournalFolder.class.getName(),folder.getFolderId(),actionId)) {
-        return false;
-      }
-      if (!PropsValues.PERMISSIONS_VIEW_DYNAMIC_INHERITANCE) {
-        break;
-      }
-    }
-    return true;
-  }
- else {
-    while (folderId != JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
-      folder=JournalFolderLocalServiceUtil.getFolder(folderId);
-      folderId=folder.getParentFolderId();
-      if (permissionChecker.hasOwnerPermission(folder.getCompanyId(),JournalFolder.class.getName(),folder.getFolderId(),folder.getUserId(),actionId)) {
-        return true;
-      }
-      if (permissionChecker.hasPermission(folder.getGroupId(),JournalFolder.class.getName(),folder.getFolderId(),actionId)) {
-        return true;
-      }
-      if (actionId.equals(ActionKeys.VIEW)) {
-        break;
+  if (PropsValues.PERMISSIONS_VIEW_DYNAMIC_INHERITANCE) {
+    long originalFolderId=folderId;
+    try {
+      while (folderId != JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+        folder=JournalFolderLocalServiceUtil.getFolder(folderId);
+        if (!permissionChecker.hasOwnerPermission(folder.getCompanyId(),JournalFolder.class.getName(),folderId,folder.getUserId(),ActionKeys.VIEW) && !permissionChecker.hasPermission(folder.getGroupId(),JournalFolder.class.getName(),folderId,ActionKeys.VIEW)) {
+          return false;
+        }
+        folderId=folder.getParentFolderId();
       }
     }
-    return false;
+ catch (    NoSuchFolderException nsfe) {
+      if (!folder.isInTrash()) {
+        throw nsfe;
+      }
+    }
+    if (actionId.equals(ActionKeys.VIEW)) {
+      return true;
+    }
+    folderId=originalFolderId;
   }
+  try {
+    while (folderId != JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+      folder=JournalFolderLocalServiceUtil.getFolder(folderId);
+      if (permissionChecker.hasOwnerPermission(folder.getCompanyId(),JournalFolder.class.getName(),folderId,folder.getUserId(),actionId) || permissionChecker.hasPermission(folder.getGroupId(),JournalFolder.class.getName(),folderId,actionId)) {
+        return true;
+      }
+      folderId=folder.getParentFolderId();
+    }
+  }
+ catch (  NoSuchFolderException nsfe) {
+    if (!folder.isInTrash()) {
+      throw nsfe;
+    }
+  }
+  return false;
 }
