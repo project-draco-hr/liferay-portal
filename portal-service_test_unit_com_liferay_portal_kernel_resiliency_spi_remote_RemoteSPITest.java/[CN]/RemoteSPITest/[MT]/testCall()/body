@@ -1,0 +1,45 @@
+{
+  final AtomicBoolean throwIOException=new AtomicBoolean();
+  ProcessOutputStream processOutputStream=new ProcessOutputStream(new ObjectOutputStream(new UnsyncByteArrayOutputStream())){
+    @Override public void writeProcessCallable(    ProcessCallable<?> processCallable) throws IOException {
+      if (throwIOException.get()) {
+        throw new IOException();
+      }
+      super.writeProcessCallable(processCallable);
+    }
+  }
+;
+  _setProcessOutputStream(processOutputStream);
+  ConcurrentMap<String,Object> attributes=ProcessExecutor.ProcessContext.getAttributes();
+  Method bridgeCallMethod=ReflectionUtil.getBridgeMethod(RemoteSPI.class,"call");
+  SPI spi=(SPI)bridgeCallMethod.invoke(_mockRemoteSPI);
+  Assert.assertSame(spi,UnicastRemoteObject.toStub(_mockRemoteSPI));
+  Assert.assertTrue(ProcessExecutor.ProcessContext.isAttached());
+  ProcessExecutor.ProcessContext.detach();
+  Assert.assertSame(_mockRemoteSPI,attributes.remove(SPI.SPI_INSTANCE_PUBLICATION_KEY));
+  try {
+    _mockRemoteSPI.call();
+    Assert.fail();
+  }
+ catch (  ProcessException pe) {
+    Throwable throwable=pe.getCause();
+    Assert.assertSame(ExportException.class,throwable.getClass());
+  }
+  Assert.assertTrue(ProcessExecutor.ProcessContext.isAttached());
+  ProcessExecutor.ProcessContext.detach();
+  Assert.assertNull(attributes.remove(SPI.SPI_INSTANCE_PUBLICATION_KEY));
+  UnicastRemoteObject.unexportObject(_mockRemoteSPI,true);
+  throwIOException.set(true);
+  try {
+    _mockRemoteSPI.call();
+    Assert.fail();
+  }
+ catch (  ProcessException pe) {
+    Throwable throwable=pe.getCause();
+    Assert.assertSame(IOException.class,throwable.getClass());
+  }
+  Assert.assertTrue(ProcessExecutor.ProcessContext.isAttached());
+  ProcessExecutor.ProcessContext.detach();
+  Assert.assertNull(attributes.remove(SPI.SPI_INSTANCE_PUBLICATION_KEY));
+  UnicastRemoteObject.unexportObject(_mockRemoteSPI,true);
+}

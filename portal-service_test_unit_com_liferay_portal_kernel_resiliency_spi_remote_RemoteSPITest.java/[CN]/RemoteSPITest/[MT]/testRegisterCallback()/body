@@ -1,0 +1,28 @@
+{
+  String uuid="uuid";
+  final SynchronousQueue<SPI> synchronousQueue=SPISynchronousQueueUtil.createSynchronousQueue(uuid);
+  FutureTask<SPI> takeSPIFutureTask=new FutureTask<SPI>(new Callable<SPI>(){
+    @Override public SPI call() throws Exception {
+      return synchronousQueue.take();
+    }
+  }
+);
+  Thread takeSPIThread=new Thread(takeSPIFutureTask);
+  takeSPIThread.start();
+  RegisterCallback registerCallback=new RegisterCallback(uuid,_mockRemoteSPI);
+  Method bridgeCallMethod=ReflectionUtil.getBridgeMethod(RegisterCallback.class,"call");
+  Assert.assertSame(_mockRemoteSPI,bridgeCallMethod.invoke(registerCallback));
+  Assert.assertSame(_mockRemoteSPI,takeSPIFutureTask.get());
+  SPISynchronousQueueUtil.createSynchronousQueue(uuid);
+  registerCallback=new RegisterCallback(uuid,_mockRemoteSPI);
+  Thread currentThread=Thread.currentThread();
+  currentThread.interrupt();
+  try {
+    registerCallback.call();
+    Assert.fail();
+  }
+ catch (  ProcessException pe) {
+    Throwable throwable=pe.getCause();
+    Assert.assertSame(InterruptedException.class,throwable.getClass());
+  }
+}
