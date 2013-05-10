@@ -1,10 +1,10 @@
 {
-  portletDataContext.addPermissions("com.liferay.portlet.journal",portletDataContext.getScopeGroupId());
+  portletDataContext.addPermissions(_RESOURCE_NAME,portletDataContext.getScopeGroupId());
   Element rootElement=addExportDataRootElement(portletDataContext);
   rootElement.addAttribute("group-id",String.valueOf(portletDataContext.getScopeGroupId()));
-  ActionableDynamicQuery structureActionableDynamicQuery=new DDMStructureActionableDynamicQuery(){
+  ActionableDynamicQuery ddmStructureActionableDynamicQuery=new DDMStructureExportActionableDynamicQuery(portletDataContext){
     @Override protected void addCriteria(    DynamicQuery dynamicQuery){
-      portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
+      super.addCriteria(dynamicQuery);
       Property classNameIdProperty=PropertyFactoryUtil.forName("classNameId");
       long classNameId=PortalUtil.getClassNameId(JournalArticle.class);
       dynamicQuery.add(classNameIdProperty.eq(classNameId));
@@ -24,58 +24,14 @@
     }
   }
 ;
-  structureActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
-  structureActionableDynamicQuery.performActions();
-  ActionableDynamicQuery feedActionableDynamicQuery=new JournalFeedActionableDynamicQuery(){
-    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
-      portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
-    }
-    @Override protected void performAction(    Object object) throws PortalException {
-      JournalFeed feed=(JournalFeed)object;
-      StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,feed);
-    }
-  }
-;
-  feedActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
+  ddmStructureActionableDynamicQuery.performActions();
+  ActionableDynamicQuery feedActionableDynamicQuery=new JournalFeedExportActionableDynamicQuery(portletDataContext);
   feedActionableDynamicQuery.performActions();
-  if (!portletDataContext.getBooleanParameter(NAMESPACE,"web-content")) {
-    getExportDataRootElementString(rootElement);
+  if (portletDataContext.getBooleanParameter(NAMESPACE,"web-content")) {
+    ActionableDynamicQuery folderActionableDynamicQuery=getFolderActionableDynamicQuery(portletDataContext);
+    folderActionableDynamicQuery.performActions();
+    ActionableDynamicQuery articleActionableDynamicQuery=getArticleActionableDynamicQuery(portletDataContext);
+    articleActionableDynamicQuery.performActions();
   }
-  ActionableDynamicQuery folderActionableDynamicQuery=new JournalFolderActionableDynamicQuery(){
-    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
-      portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
-      Property statusProperty=PropertyFactoryUtil.forName("status");
-      dynamicQuery.add(statusProperty.ne(WorkflowConstants.STATUS_IN_TRASH));
-    }
-    @Override protected void performAction(    Object object) throws PortalException {
-      JournalFolder folder=(JournalFolder)object;
-      StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,folder);
-    }
-  }
-;
-  folderActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
-  folderActionableDynamicQuery.performActions();
-  ActionableDynamicQuery articleActionableDynamicQuery=new JournalArticleActionableDynamicQuery(){
-    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
-      portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
-      Property statusProperty=PropertyFactoryUtil.forName("status");
-      dynamicQuery.add(statusProperty.in(new Integer[]{WorkflowConstants.STATUS_APPROVED,WorkflowConstants.STATUS_EXPIRED}));
-    }
-    @Override protected void performAction(    Object object) throws PortalException {
-      JournalArticle article=(JournalArticle)object;
-      boolean latestVersion=false;
-      try {
-        latestVersion=JournalArticleLocalServiceUtil.isLatestVersion(article.getGroupId(),article.getArticleId(),article.getVersion(),WorkflowConstants.STATUS_APPROVED);
-      }
- catch (      Exception e) {
-      }
-      if (portletDataContext.getBooleanParameter(NAMESPACE,"version-history") || latestVersion) {
-        StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,article);
-      }
-    }
-  }
-;
-  articleActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
-  articleActionableDynamicQuery.performActions();
   return getExportDataRootElementString(rootElement);
 }
