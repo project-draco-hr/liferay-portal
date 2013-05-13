@@ -1,8 +1,4 @@
 {
-  String path=ExportImportPathUtil.getLayoutPath(portletDataContext,layout.getLayoutId()) + "/layout.xml";
-  if (!portletDataContext.isPathNotProcessed(path)) {
-    return;
-  }
   LayoutRevision layoutRevision=null;
   ServiceContext serviceContext=ServiceContextThreadLocal.getServiceContext();
   boolean exportLAR=ParamUtil.getBoolean(serviceContext,"exportLAR");
@@ -18,7 +14,7 @@
     LayoutStagingHandler layoutStagingHandler=LayoutStagingUtil.getLayoutStagingHandler(layout);
     layoutStagingHandler.setLayoutRevision(layoutRevision);
   }
-  Element layoutElement=layoutsElement.addElement("layout");
+  Element layoutElement=portletDataContext.getExportDataElement(layout);
   if (layoutRevision != null) {
     layoutElement.addAttribute("layout-revision-id",String.valueOf(layoutRevision.getLayoutRevisionId()));
     layoutElement.addAttribute("layout-branch-id",String.valueOf(layoutRevision.getLayoutBranchId()));
@@ -28,8 +24,10 @@
   layoutElement.addAttribute("layout-id",String.valueOf(layout.getLayoutId()));
   long parentLayoutId=layout.getParentLayoutId();
   if (parentLayoutId != LayoutConstants.DEFAULT_PARENT_LAYOUT_ID) {
-    Layout parentLayout=LayoutLocalServiceUtil.getLayout(layout.getGroupId(),layout.isPrivateLayout(),parentLayoutId);
+    Layout parentLayout=LayoutLocalServiceUtil.fetchLayout(layout.getGroupId(),layout.isPrivateLayout(),parentLayoutId);
     if (parentLayout != null) {
+      exportStagedModel(portletDataContext,parentLayout);
+      portletDataContext.addReferenceElement(layout,layoutElement,parentLayout,PortletDataContext.REFERENCE_TYPE_PARENT,false);
       layoutElement.addAttribute("parent-layout-uuid",parentLayout.getUuid());
     }
   }
@@ -48,14 +46,14 @@
   if (layout.isIconImage()) {
     Image image=ImageLocalServiceUtil.getImage(layout.getIconImageId());
     if (image != null) {
-      String iconPath=getLayoutIconPath(portletDataContext,layout,image);
+      String iconPath=ExportImportPathUtil.getModelPath(portletDataContext.getScopeGroupId(),Image.class.getName(),image.getImageId());
       layoutElement.addElement("icon-image-path").addText(iconPath);
       portletDataContext.addZipEntry(iconPath,image.getTextObj());
     }
   }
-  _portletExporter.exportPortletData(portletDataContext,layoutConfigurationPortlet,layout,null,layoutElement);
+  boolean exportPermissions=MapUtil.getBoolean(portletDataContext.getParameterMap(),PortletDataHandlerKeys.PERMISSIONS);
   if (exportPermissions) {
-    _permissionExporter.exportLayoutPermissions(portletDataContext,layoutCache,portletDataContext.getCompanyId(),portletDataContext.getScopeGroupId(),layout,layoutElement);
+    _permissionExporter.exportLayoutPermissions(portletDataContext,new LayoutCache(),portletDataContext.getCompanyId(),portletDataContext.getScopeGroupId(),layout,layoutElement);
   }
   if (layout.isTypeArticle()) {
     exportJournalArticle(portletDataContext,layout,layoutElement);
@@ -66,54 +64,17 @@
     if (linkToLayoutId > 0) {
       try {
         Layout linkedToLayout=LayoutLocalServiceUtil.getLayout(portletDataContext.getScopeGroupId(),layout.isPrivateLayout(),linkToLayoutId);
-        exportLayout(portletDataContext,layoutConfigurationPortlet,layoutCache,portlets,portletIds,exportPermissions,linkedToLayout,layoutsElement);
+        exportStagedModel(portletDataContext,linkedToLayout);
+        portletDataContext.addReferenceElement(layout,layoutElement,linkedToLayout,PortletDataContext.REFERENCE_TYPE_STRONG,false);
+        layoutElement.addAttribute("linked-to-layout-uuid",linkedToLayout.getUuid());
       }
  catch (      NoSuchLayoutException nsle) {
       }
     }
   }
- else   if (layout.isSupportsEmbeddedPortlets()) {
-    if (layout.isTypePortlet()) {
-      for (      Portlet portlet : portlets) {
-        if (portlet.isScopeable() && layout.hasScopeGroup()) {
-          String key=PortletPermissionUtil.getPrimaryKey(layout.getPlid(),portlet.getPortletId());
-          portletIds.put(key,new Object[]{portlet.getPortletId(),layout.getPlid(),layout.getScopeGroup().getGroupId(),StringPool.BLANK,layout.getUuid()});
-        }
-      }
-    }
-    LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
-    for (    Portlet portlet : layoutTypePortlet.getAllPortlets()) {
-      String portletId=portlet.getPortletId();
-      javax.portlet.PortletPreferences jxPreferences=PortletPreferencesFactoryUtil.getLayoutPortletSetup(layout,portletId);
-      String scopeType=GetterUtil.getString(jxPreferences.getValue("lfrScopeType",null));
-      String scopeLayoutUuid=GetterUtil.getString(jxPreferences.getValue("lfrScopeLayoutUuid",null));
-      long scopeGroupId=portletDataContext.getScopeGroupId();
-      if (Validator.isNotNull(scopeType)) {
-        Group scopeGroup=null;
-        if (scopeType.equals("company")) {
-          scopeGroup=GroupLocalServiceUtil.getCompanyGroup(layout.getCompanyId());
-        }
- else         if (scopeType.equals("layout")) {
-          Layout scopeLayout=null;
-          scopeLayout=LayoutLocalServiceUtil.fetchLayoutByUuidAndGroupId(scopeLayoutUuid,portletDataContext.getGroupId(),portletDataContext.isPrivateLayout());
-          if (scopeLayout == null) {
-            continue;
-          }
-          scopeGroup=scopeLayout.getScopeGroup();
-        }
- else {
-          throw new IllegalArgumentException("Scope type " + scopeType + " is invalid");
-        }
-        if (scopeGroup != null) {
-          scopeGroupId=scopeGroup.getGroupId();
-        }
-      }
-      String key=PortletPermissionUtil.getPrimaryKey(layout.getPlid(),portletId);
-      portletIds.put(key,new Object[]{portletId,layout.getPlid(),scopeGroupId,scopeType,scopeLayoutUuid});
-    }
-  }
   fixTypeSettings(layout);
-  layoutElement.addAttribute("path",path);
-  portletDataContext.addExpando(layoutElement,path,layout);
-  portletDataContext.addZipEntry(path,layout);
+  String layoutPath=ExportImportPathUtil.getModelPath(layout);
+  layoutElement.addAttribute("path",layoutPath);
+  portletDataContext.addExpando(layoutElement,layoutPath,layout);
+  portletDataContext.addZipEntry(layoutPath,layout);
 }

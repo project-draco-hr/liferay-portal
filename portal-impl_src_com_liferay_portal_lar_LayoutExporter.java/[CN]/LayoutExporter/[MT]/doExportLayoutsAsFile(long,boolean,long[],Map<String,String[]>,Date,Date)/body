@@ -49,6 +49,7 @@
   portletDataContext.setPortetDataContextListener(new PortletDataContextListenerImpl(portletDataContext));
   Document document=SAXReaderUtil.createDocument();
   Element rootElement=document.addElement("root");
+  portletDataContext.setExportDataRootElement(rootElement);
   Element headerElement=rootElement.addElement("header");
   headerElement.addAttribute("available-locales",StringUtil.merge(LanguageUtil.getAvailableLocales()));
   headerElement.addAttribute("build-number",String.valueOf(ReleaseInfo.getBuildNumber()));
@@ -81,7 +82,7 @@
   if (exportLogo) {
     Image image=ImageLocalServiceUtil.getImage(layoutSet.getLogoId());
     if ((image != null) && (image.getTextObj() != null)) {
-      String logoPath=getLayoutSetLogoPath(portletDataContext);
+      String logoPath=ExportImportPathUtil.getRootPath(portletDataContext).concat("/logo");
       headerElement.addAttribute("logo-path",logoPath);
       portletDataContext.addZipEntry(logoPath,image.getTextObj());
     }
@@ -92,7 +93,6 @@
   }
   Element cssElement=headerElement.addElement("css");
   cssElement.addCDATA(layoutSet.getCss());
-  Portlet layoutConfigurationPortlet=PortletLocalServiceUtil.getPortletById(portletDataContext.getCompanyId(),PortletKeys.DOCKBAR);
   Map<String,Object[]> portletIds=new LinkedHashMap<String,Object[]>();
   List<Layout> layouts=null;
   if ((layoutIds == null) || (layoutIds.length == 0)) {
@@ -122,7 +122,7 @@
   }
   Element missingReferencesElement=rootElement.addElement("missing-references");
   portletDataContext.setMissingReferencesElement(missingReferencesElement);
-  Element layoutsElement=rootElement.addElement("layouts");
+  Element layoutsElement=portletDataContext.getExportDataGroupElement(Layout.class);
   String layoutSetPrototypeUuid=layoutSet.getLayoutSetPrototypeUuid();
   if (Validator.isNotNull(layoutSetPrototypeUuid)) {
     LayoutSetPrototype layoutSetPrototype=LayoutSetPrototypeLocalServiceUtil.getLayoutSetPrototypeByUuidAndCompanyId(layoutSetPrototypeUuid,companyId);
@@ -130,7 +130,7 @@
     layoutsElement.addAttribute("layout-set-prototype-name",layoutSetPrototype.getName(LocaleUtil.getDefault()));
   }
   for (  Layout layout : layouts) {
-    exportLayout(portletDataContext,layoutConfigurationPortlet,layoutCache,portlets,portletIds,exportPermissions,layout,layoutsElement);
+    exportLayout(portletDataContext,portlets,portletIds,layout,layoutsElement);
   }
   long previousScopeGroupId=portletDataContext.getScopeGroupId();
   Element portletsElement=rootElement.addElement("portlets");
@@ -171,7 +171,7 @@
     portletDataContext.setScopeGroupId(scopeGroupId);
     portletDataContext.setScopeType(scopeType);
     portletDataContext.setScopeLayoutUuid(scopeLayoutUuid);
-    boolean[] exportPortletControls=getExportPortletControls(companyId,portletId,portletDataContext,parameterMap,type);
+    boolean[] exportPortletControls=getExportPortletControls(companyId,portletId,parameterMap,type);
     _portletExporter.exportPortlet(portletDataContext,layoutCache,portletId,layout,portletsElement,defaultUserId,exportPermissions,exportPortletArchivedSetups,exportPortletControls[0],exportPortletControls[1],exportPortletUserPreferences);
   }
   portletDataContext.setScopeGroupId(previousScopeGroupId);
