@@ -69,13 +69,31 @@ synchronized (selector) {
       }
       interruptThread.join();
     }
+    _selectorIntraband.close();
+    _selectorIntraband=new SelectorIntraband(_DEFAULT_TIMEOUT);
     SelectionKeyRegistrationReference selectionKeyRegistrationReference=(SelectionKeyRegistrationReference)_selectorIntraband.registerChannel(socketChannel);
     Assert.assertNotNull(selectionKeyRegistrationReference);
     Assert.assertSame(selectionKeyRegistrationReference.readSelectionKey,selectionKeyRegistrationReference.writeSelectionKey);
     SelectionKey selectionKey=selectionKeyRegistrationReference.readSelectionKey;
     Assert.assertTrue(selectionKey.isValid());
-    Assert.assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE,selectionKey.interestOps());
+    Assert.assertEquals(SelectionKey.OP_READ,selectionKey.interestOps());
     Assert.assertNotNull(selectionKey.attachment());
+    selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+    selector=_selectorIntraband.selector;
+    selector.wakeup();
+    while (selectionKey.interestOps() != SelectionKey.OP_READ)     ;
+    wakeUpThread=new Thread(new WakeUpRunnable(_selectorIntraband));
+    wakeUpThread.start();
+synchronized (selector) {
+      wakeUpThread.interrupt();
+      wakeUpThread.join();
+      selectionKey.interestOps(SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+      SocketChannel peerSocketChannel=peerSocketChannels[1];
+      peerSocketChannel.write(ByteBuffer.allocate(1));
+      Socket socket=peerSocketChannel.socket();
+      socket.shutdownOutput();
+    }
+    while (selectionKey.isValid())     ;
     _selectorIntraband.close();
     try {
       _selectorIntraband.registerChannel(socketChannel);

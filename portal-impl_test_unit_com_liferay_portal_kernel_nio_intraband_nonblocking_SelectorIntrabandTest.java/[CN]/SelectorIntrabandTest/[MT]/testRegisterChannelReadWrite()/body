@@ -69,6 +69,8 @@ synchronized (selector) {
     }
     interruptThread.join();
   }
+  _selectorIntraband.close();
+  _selectorIntraband=new SelectorIntraband(_DEFAULT_TIMEOUT);
   SelectionKeyRegistrationReference selectionKeyRegistrationReference=(SelectionKeyRegistrationReference)_selectorIntraband.registerChannel(sourceChannel,sinkChannel);
   Assert.assertNotNull(selectionKeyRegistrationReference);
   SelectionKey readSelectionKey=selectionKeyRegistrationReference.readSelectionKey;
@@ -77,9 +79,13 @@ synchronized (selector) {
   Assert.assertNotNull(readSelectionKey.attachment());
   SelectionKey writeSelectionKey=selectionKeyRegistrationReference.writeSelectionKey;
   Assert.assertTrue(writeSelectionKey.isValid());
-  Assert.assertEquals(SelectionKey.OP_WRITE,writeSelectionKey.interestOps());
+  Assert.assertEquals(0,writeSelectionKey.interestOps());
   Assert.assertNotNull(writeSelectionKey.attachment());
   Assert.assertSame(readSelectionKey.attachment(),writeSelectionKey.attachment());
+  writeSelectionKey.interestOps(SelectionKey.OP_WRITE);
+  selector=_selectorIntraband.selector;
+  selector.wakeup();
+  while (writeSelectionKey.interestOps() != 0)   ;
   unregisterChannels(selectionKeyRegistrationReference);
   _selectorIntraband.close();
   try {
