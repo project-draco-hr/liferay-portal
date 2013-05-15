@@ -15,14 +15,12 @@
     layoutStagingHandler.setLayoutRevision(layoutRevision);
   }
   Element layoutElement=portletDataContext.getExportDataElement(layout);
-  if (layoutRevision != null) {
-    layoutElement.addAttribute("layout-revision-id",String.valueOf(layoutRevision.getLayoutRevisionId()));
-    layoutElement.addAttribute("layout-branch-id",String.valueOf(layoutRevision.getLayoutBranchId()));
-    LayoutBranch layoutBranch=layoutRevision.getLayoutBranch();
-    layoutElement.addAttribute("layout-branch-name",String.valueOf(layoutBranch.getName()));
+  populateElementLayoutMetadata(layoutElement,layout,layoutRevision);
+  boolean deleteLayout=MapUtil.getBoolean(portletDataContext.getParameterMap(),"delete_" + layout.getPlid());
+  if (deleteLayout) {
+    layoutElement.addAttribute("delete",String.valueOf(true));
+    return;
   }
-  layoutElement.addAttribute("layout-uuid",layout.getUuid());
-  layoutElement.addAttribute("layout-id",String.valueOf(layout.getLayoutId()));
   long parentLayoutId=layout.getParentLayoutId();
   if (parentLayoutId != LayoutConstants.DEFAULT_PARENT_LAYOUT_ID) {
     Layout parentLayout=LayoutLocalServiceUtil.fetchLayout(layout.getGroupId(),layout.isPrivateLayout(),parentLayoutId);
@@ -32,45 +30,16 @@
       layoutElement.addAttribute("parent-layout-uuid",parentLayout.getUuid());
     }
   }
-  String layoutPrototypeUuid=layout.getLayoutPrototypeUuid();
-  if (Validator.isNotNull(layoutPrototypeUuid)) {
-    LayoutPrototype layoutPrototype=LayoutPrototypeLocalServiceUtil.getLayoutPrototypeByUuidAndCompanyId(layoutPrototypeUuid,portletDataContext.getCompanyId());
-    layoutElement.addAttribute("layout-prototype-uuid",layoutPrototypeUuid);
-    layoutElement.addAttribute("layout-prototype-name",layoutPrototype.getName(LocaleUtil.getDefault()));
-  }
-  boolean deleteLayout=MapUtil.getBoolean(portletDataContext.getParameterMap(),"delete_" + layout.getPlid());
-  if (deleteLayout) {
-    layoutElement.addAttribute("delete",String.valueOf(true));
-    return;
-  }
   portletDataContext.setPlid(layout.getPlid());
   if (layout.isIconImage()) {
-    Image image=ImageLocalServiceUtil.getImage(layout.getIconImageId());
-    if (image != null) {
-      String iconPath=ExportImportPathUtil.getModelPath(portletDataContext.getScopeGroupId(),Image.class.getName(),image.getImageId());
-      Element iconImagePathElement=layoutElement.addElement("icon-image-path");
-      iconImagePathElement.addText(iconPath);
-      portletDataContext.addZipEntry(iconPath,image.getTextObj());
-    }
+    exportLayoutIconImage(portletDataContext,layout,layoutElement);
   }
   if (layout.isTypeArticle()) {
     exportJournalArticle(portletDataContext,layout,layoutElement);
   }
-  if (layout.isTypeLinkToLayout()) {
-    UnicodeProperties typeSettingsProperties=layout.getTypeSettingsProperties();
-    long linkToLayoutId=GetterUtil.getLong(typeSettingsProperties.getProperty("linkToLayoutId",StringPool.BLANK));
-    if (linkToLayoutId > 0) {
-      try {
-        Layout linkedToLayout=LayoutLocalServiceUtil.getLayout(portletDataContext.getScopeGroupId(),layout.isPrivateLayout(),linkToLayoutId);
-        exportStagedModel(portletDataContext,linkedToLayout);
-        portletDataContext.addReferenceElement(layout,layoutElement,linkedToLayout,PortletDataContext.REFERENCE_TYPE_STRONG,false);
-        layoutElement.addAttribute("linked-to-layout-uuid",linkedToLayout.getUuid());
-      }
- catch (      NoSuchLayoutException nsle) {
-      }
-    }
+ else   if (layout.isTypeLinkToLayout()) {
+    exportLinkedLayout(portletDataContext,layout,layoutElement);
   }
   fixExportTypeSettings(layout);
-  String layoutPath=ExportImportPathUtil.getModelPath(layout);
   portletDataContext.addClassedModel(layoutElement,ExportImportPathUtil.getModelPath(layout),layout,LayoutPortletDataHandler.NAMESPACE);
 }

@@ -90,16 +90,7 @@
     importedLayout.setGroupId(groupId);
     importedLayout.setPrivateLayout(privateLayout);
     importedLayout.setLayoutId(layoutId);
-    boolean addGroupPermissions=true;
-    Group group=importedLayout.getGroup();
-    if (privateLayout && group.isUser()) {
-      addGroupPermissions=false;
-    }
-    boolean addGuestPermissions=false;
-    if (!privateLayout || layout.isTypeControlPanel()) {
-      addGuestPermissions=true;
-    }
-    ResourceLocalServiceUtil.addResources(portletDataContext.getCompanyId(),groupId,userId,Layout.class.getName(),importedLayout.getPlid(),false,addGroupPermissions,addGuestPermissions);
+    initNewLayoutPermissions(portletDataContext.getCompanyId(),groupId,userId,layout,importedLayout,privateLayout);
     LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(groupId,privateLayout);
     importedLayout.setLayoutSet(layoutSet);
   }
@@ -142,33 +133,7 @@
     mergePortlets(importedLayout,layout.getTypeSettings(),portletsMergeMode);
   }
  else   if (layout.isTypeLinkToLayout()) {
-    UnicodeProperties typeSettingsProperties=layout.getTypeSettingsProperties();
-    long linkToLayoutId=GetterUtil.getLong(typeSettingsProperties.getProperty("linkToLayoutId",StringPool.BLANK));
-    String linkedToLayoutUuid=layoutElement.attributeValue("linked-to-layout-uuid");
-    if (linkToLayoutId > 0) {
-      Element linkedToLayoutElement=portletDataContext.getReferenceDataElement(layout,Layout.class,layout.getGroupId(),linkedToLayoutUuid);
-      if (linkedToLayoutElement != null) {
-        String linkedToLayoutPath=linkedToLayoutElement.attributeValue("path");
-        Layout linkedToLayout=(Layout)portletDataContext.getZipEntryAsObject(linkedToLayoutPath);
-        StagedModelDataHandlerUtil.importStagedModel(portletDataContext,linkedToLayout);
-        Layout importedLinkedLayout=newLayoutsMap.get(linkToLayoutId);
-        typeSettingsProperties.setProperty("privateLayout",String.valueOf(importedLinkedLayout.isPrivateLayout()));
-        typeSettingsProperties.setProperty("linkToLayoutId",String.valueOf(importedLinkedLayout.getLayoutId()));
-      }
- else {
-        if (_log.isWarnEnabled()) {
-          StringBundler sb=new StringBundler(6);
-          sb.append("Unable to link layout with friendly URL ");
-          sb.append(layout.getFriendlyURL());
-          sb.append(" and layout id ");
-          sb.append(layout.getLayoutId());
-          sb.append(" to layout with layout id ");
-          sb.append(linkToLayoutId);
-          _log.warn(sb.toString());
-        }
-      }
-    }
-    updateTypeSettings(importedLayout,layout);
+    importLinkedLayout(portletDataContext,layout,importedLayout,layoutElement,newLayoutsMap);
   }
  else {
     updateTypeSettings(importedLayout,layout);
@@ -190,28 +155,19 @@
   importedLayout.setPriority(layout.getPriority());
   importedLayout.setLayoutPrototypeUuid(layout.getLayoutPrototypeUuid());
   importedLayout.setLayoutPrototypeLinkEnabled(layout.isLayoutPrototypeLinkEnabled());
-  StagingUtil.updateLastImportSettings(layoutElement,importedLayout,portletDataContext);
-  fixImportTypeSettings(importedLayout);
   importedLayout.setIconImage(false);
   if (layout.isIconImage()) {
-    String iconImagePath=layoutElement.elementText("icon-image-path");
-    byte[] iconBytes=portletDataContext.getZipEntryAsByteArray(iconImagePath);
-    if ((iconBytes != null) && (iconBytes.length > 0)) {
-      importedLayout.setIconImage(true);
-      if (importedLayout.getIconImageId() == 0) {
-        long iconImageId=CounterLocalServiceUtil.increment();
-        importedLayout.setIconImageId(iconImageId);
-      }
-      ImageLocalServiceUtil.updateImage(importedLayout.getIconImageId(),iconBytes);
-    }
+    importLayoutIconImage(portletDataContext,importedLayout,layoutElement);
   }
  else {
     ImageLocalServiceUtil.deleteImage(importedLayout.getIconImageId());
   }
+  StagingUtil.updateLastImportSettings(layoutElement,importedLayout,portletDataContext);
+  fixImportTypeSettings(importedLayout);
   LayoutUtil.update(importedLayout);
-  portletDataContext.setPlid(importedLayout.getPlid());
-  portletDataContext.setOldPlid(layout.getPlid());
   List<Layout> newLayouts=portletDataContext.getNewLayouts();
   newLayouts.add(importedLayout);
+  portletDataContext.setPlid(importedLayout.getPlid());
+  portletDataContext.setOldPlid(layout.getPlid());
   portletDataContext.importClassedModel(layout,importedLayout,LayoutPortletDataHandler.NAMESPACE);
 }
