@@ -1,7 +1,25 @@
 {
-  for (  JournalArticle article : journalArticlePersistence.findByG_F(groupId,folderId)) {
-    if (includeTrashedEntries || !article.isInTrash()) {
-      deleteArticle(article,null,null);
+  SystemEventHierarchyEntryThreadLocal.push(JournalArticle.class,0);
+  List<JournalArticleResource> articleResources=new ArrayList<JournalArticleResource>();
+  try {
+    JournalArticleResource articleResource=null;
+    for (    JournalArticle article : journalArticlePersistence.findByG_F(groupId,folderId)) {
+      if ((articleResource == null) || (articleResource.getPrimaryKey() != article.getResourcePrimKey())) {
+        articleResource=journalArticleResourceLocalService.getArticleResource(article.getResourcePrimKey());
+        articleResources.add(articleResource);
+      }
+      if (includeTrashedEntries || !article.isInTrash()) {
+        deleteArticle(article,null,null);
+      }
+ else {
+        articleResources.remove(articleResource);
+      }
     }
+  }
+  finally {
+    SystemEventHierarchyEntryThreadLocal.pop();
+  }
+  for (  JournalArticleResource articleResource : articleResources) {
+    systemEventLocalService.addSystemEvent(0,groupId,JournalArticle.class.getName(),articleResource.getResourcePrimKey(),articleResource.getUuid(),null,SystemEventConstants.TYPE_DELETE,StringPool.BLANK);
   }
 }

@@ -1,14 +1,21 @@
 {
   Repository repository=repositoryPersistence.fetchByPrimaryKey(repositoryId);
   if (repository != null) {
-    expandoValueLocalService.deleteValues(Repository.class.getName(),repositoryId);
+    SystemEventHierarchyEntryThreadLocal.push(Repository.class,repositoryId);
     try {
-      dlFolderLocalService.deleteFolder(repository.getDlFolderId());
+      expandoValueLocalService.deleteValues(Repository.class.getName(),repositoryId);
+      try {
+        dlFolderLocalService.deleteFolder(repository.getDlFolderId());
+      }
+ catch (      NoSuchFolderException nsfe) {
+      }
+      repositoryPersistence.remove(repository);
+      repositoryEntryPersistence.removeByRepositoryId(repositoryId);
+      systemEventLocalService.addSystemEvent(0,repository.getGroupId(),Repository.class.getName(),repositoryId,repository.getUuid(),null,SystemEventConstants.TYPE_DELETE,StringPool.BLANK);
     }
- catch (    NoSuchFolderException nsfe) {
+  finally {
+      SystemEventHierarchyEntryThreadLocal.pop();
     }
-    repositoryPersistence.remove(repository);
-    repositoryEntryPersistence.removeByRepositoryId(repositoryId);
   }
   return repository;
 }
