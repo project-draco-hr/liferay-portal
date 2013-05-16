@@ -1,0 +1,37 @@
+{
+  String distributedSerializable="DISTRIBUTED_SERIALIZABLE";
+  final String distributedNonserializable="DISTRIBUTED_NONSERIALIZABLE";
+  String nondistributed="NONDISTRIBUTED";
+  DistributedRegistry.registerDistributed(distributedSerializable,Direction.DUPLEX,MatchType.EXACT);
+  DistributedRegistry.registerDistributed(distributedNonserializable,Direction.DUPLEX,MatchType.EXACT);
+  MockHttpServletRequest mockHttpServletRequest=new MockHttpServletRequest();
+  mockHttpServletRequest.setAttribute(distributedSerializable,distributedSerializable);
+  mockHttpServletRequest.setAttribute(distributedNonserializable,new Object(){
+    @Override public String toString(){
+      return distributedNonserializable;
+    }
+  }
+);
+  mockHttpServletRequest.setAttribute(nondistributed,nondistributed);
+  List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(AgentSerializable.class.getName(),Level.OFF);
+  Map<String,Serializable> distributedRequestAttributes=AgentSerializable.extractDistributedRequestAttributes(mockHttpServletRequest,Direction.DUPLEX);
+  Assert.assertTrue(logRecords.isEmpty());
+  Assert.assertEquals(1,distributedRequestAttributes.size());
+  Assert.assertEquals(distributedSerializable,distributedRequestAttributes.get(distributedSerializable));
+  logRecords=JDKLoggerTestUtil.configureJDKLogger(AgentSerializable.class.getName(),Level.WARNING);
+  distributedRequestAttributes=AgentSerializable.extractDistributedRequestAttributes(mockHttpServletRequest,Direction.DUPLEX);
+  Assert.assertEquals(1,logRecords.size());
+  LogRecord logRecord=logRecords.get(0);
+  Assert.assertEquals("Nonserializable distributed request attribute name " + distributedNonserializable + " with value "+ distributedNonserializable,logRecord.getMessage());
+  Assert.assertEquals(1,distributedRequestAttributes.size());
+  Assert.assertEquals(distributedSerializable,distributedRequestAttributes.get(distributedSerializable));
+  logRecords=JDKLoggerTestUtil.configureJDKLogger(AgentSerializable.class.getName(),Level.FINE);
+  distributedRequestAttributes=AgentSerializable.extractDistributedRequestAttributes(mockHttpServletRequest,Direction.DUPLEX);
+  Assert.assertEquals(2,logRecords.size());
+  logRecord=logRecords.get(0);
+  Assert.assertEquals("Nonserializable distributed request attribute name " + distributedNonserializable + " with value "+ distributedNonserializable,logRecord.getMessage());
+  logRecord=logRecords.get(1);
+  Assert.assertEquals("Nondistributed request attribute name " + nondistributed + " with direction DUPLEX and value "+ nondistributed,logRecord.getMessage());
+  Assert.assertEquals(1,distributedRequestAttributes.size());
+  Assert.assertEquals(distributedSerializable,distributedRequestAttributes.get(distributedSerializable));
+}
