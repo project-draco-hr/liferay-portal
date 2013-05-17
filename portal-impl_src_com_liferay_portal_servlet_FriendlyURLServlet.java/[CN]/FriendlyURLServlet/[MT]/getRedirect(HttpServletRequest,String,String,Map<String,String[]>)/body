@@ -1,6 +1,6 @@
 {
   if (Validator.isNull(path) || (path.charAt(0) != CharPool.SLASH)) {
-    return mainPath;
+    return new Object[]{mainPath,false};
   }
   String friendlyURL=null;
   int pos=path.indexOf(CharPool.SLASH,1);
@@ -11,7 +11,7 @@
     friendlyURL=path;
   }
   if (Validator.isNull(friendlyURL)) {
-    return mainPath;
+    return new Object[]{mainPath,false};
   }
   long companyId=PortalInstances.getCompanyId(request);
   Group group=GroupLocalServiceUtil.fetchFriendlyURLGroup(companyId,friendlyURL);
@@ -44,7 +44,7 @@
     }
   }
   if (group == null) {
-    return mainPath;
+    return new Object[]{mainPath,false};
   }
   friendlyURL=null;
   if ((pos != -1) && ((pos + 1) != path.length())) {
@@ -60,5 +60,16 @@
     serviceContext=ServiceContextFactory.getInstance(request);
     ServiceContextThreadLocal.pushServiceContext(serviceContext);
   }
-  return PortalUtil.getActualURL(group.getGroupId(),_private,mainPath,friendlyURL,params,requestContext);
+  String actualURL=PortalUtil.getActualURL(group.getGroupId(),_private,mainPath,friendlyURL,params,requestContext);
+  if (Validator.isNotNull(friendlyURL)) {
+    Locale locale=PortalUtil.getLocale(request);
+    Object[] object=PortalUtil.getLayout(group.getGroupId(),_private,friendlyURL,params,requestContext);
+    Layout layout=(Layout)object[0];
+    friendlyURL=(String)object[1];
+    if (isInvalidLocalizedFriendlyURL(layout,friendlyURL,locale)) {
+      String redirect=PortalUtil.getLocalizedFriendlyURL(request,layout,locale);
+      return new Object[]{redirect,true};
+    }
+  }
+  return new Object[]{actualURL,false};
 }
