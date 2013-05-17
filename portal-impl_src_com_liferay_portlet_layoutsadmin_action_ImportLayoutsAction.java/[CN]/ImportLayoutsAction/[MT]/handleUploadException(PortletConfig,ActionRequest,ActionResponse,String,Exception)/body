@@ -6,7 +6,7 @@
   JSONArray errorMessageJSONArray=null;
   int errorType=0;
   ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
-  if (e instanceof DuplicateFileException || e instanceof FileExtensionException || e instanceof FileNameException|| e instanceof FileSizeException|| e instanceof LARFileException|| e instanceof LARFileSizeException|| e instanceof LARTypeException|| e instanceof LayoutPrototypeException|| e instanceof LocaleException) {
+  if (e instanceof DuplicateFileException || e instanceof FileExtensionException || e instanceof FileNameException|| e instanceof FileSizeException|| e instanceof LARFileException|| e instanceof LARFileSizeException|| e instanceof LARTypeException|| e instanceof LayoutPrototypeException|| e instanceof LocaleException|| e instanceof MissingReferenceException) {
     if (e instanceof DuplicateFileException) {
       errorMessage=themeDisplay.translate("please-enter-a-unique-document-name");
       errorType=ServletResponseConstants.SC_DUPLICATE_FILE_EXCEPTION;
@@ -62,6 +62,36 @@
  else     if (e instanceof LocaleException) {
       LocaleException le=(LocaleException)e;
       errorMessage=themeDisplay.translate("the-available-languages-in-the-lar-file-x-do-not-match-" + "the-portal's-available-languages-x",new String[]{StringUtil.merge(le.getSourceAvailableLocales(),StringPool.COMMA_AND_SPACE),StringUtil.merge(le.getTargetAvailableLocales(),StringPool.COMMA_AND_SPACE)});
+      errorType=ServletResponseConstants.SC_FILE_CUSTOM_EXCEPTION;
+    }
+ else     if (e instanceof MissingReferenceException) {
+      MissingReferenceException mre=(MissingReferenceException)e;
+      StringBundler sb=new StringBundler(4);
+      sb.append("the-lar-file-could-not-be-imported-because-there-");
+      sb.append("are-missing-references-that-can-not-be-found-in-");
+      sb.append("the-current-site.-please-import-another-lar-file");
+      sb.append("-containing-the-following-elements");
+      errorMessage=themeDisplay.translate(sb.toString());
+      errorMessageJSONArray=JSONFactoryUtil.createJSONArray();
+      Map<String,MissingReference> missingReferences=mre.getMissingReferences();
+      for (      String missingReferenceDisplayName : missingReferences.keySet()) {
+        MissingReference missingReference=missingReferences.get(missingReferenceDisplayName);
+        JSONObject errorMessageJSONObject=JSONFactoryUtil.createJSONObject();
+        Map<String,String> referrers=missingReference.getReferrers();
+        if (referrers.size() == 1) {
+          for (          String referrerDisplayName : referrers.keySet()) {
+            String referrerClasName=referrers.get(referrerDisplayName);
+            errorMessageJSONObject.put("info",themeDisplay.translate("referenced-by-a-x-x",new String[]{ResourceActionsUtil.getModelResource(themeDisplay.getLocale(),referrerClasName),referrerDisplayName}));
+            break;
+          }
+        }
+ else {
+          errorMessageJSONObject.put("info",themeDisplay.translate("referenced-by-x-elements",referrers.size()));
+        }
+        errorMessageJSONObject.put("name",missingReferenceDisplayName);
+        errorMessageJSONObject.put("type",ResourceActionsUtil.getModelResource(themeDisplay.getLocale(),missingReference.getClassName()));
+        errorMessageJSONArray.put(errorMessageJSONObject);
+      }
       errorType=ServletResponseConstants.SC_FILE_CUSTOM_EXCEPTION;
     }
   }
