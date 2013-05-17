@@ -1,0 +1,20 @@
+{
+  long btEntryId=(Long)message.get("btEntryId");
+  BTEntry btEntry=btEntryLocalService.getBTEntry(btEntryId);
+  String taskExecutorClassName=btEntry.getTaskExecutorClassName();
+  String servletContextNames=btEntry.getServletContextNames();
+  ClassLoader classLoader=PortalClassLoaderUtil.getClassLoader();
+  if (Validator.isNotNull(servletContextNames)) {
+    classLoader=ClassLoaderUtil.getAggregatedPluginsClassLoader(StringUtil.split(servletContextNames,StringPool.COMMA),false);
+  }
+  ServiceContext serviceContext=new ServiceContext();
+  btEntryLocalService.updateBTEntry(btEntryId,BackgroundTaskConstants.STATUS_IN_PROGRESS,serviceContext);
+  try {
+    BackgroundTaskExecutor backgroundTaskExecutor=(BackgroundTaskExecutor)InstanceFactory.newInstance(classLoader,taskExecutorClassName);
+    backgroundTaskExecutor.execute(btEntry,classLoader);
+    btEntryLocalService.updateBTEntry(btEntryId,BackgroundTaskConstants.STATUS_SUCCESSFUL,serviceContext);
+  }
+ catch (  Exception e) {
+    btEntryLocalService.updateBTEntry(btEntryId,BackgroundTaskConstants.STATUS_FAILED,serviceContext);
+  }
+}
