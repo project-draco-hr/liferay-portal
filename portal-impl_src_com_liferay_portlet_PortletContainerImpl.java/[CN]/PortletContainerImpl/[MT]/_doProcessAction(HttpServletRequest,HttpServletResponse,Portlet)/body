@@ -1,23 +1,4 @@
 {
-  HttpServletRequest ownerLayoutRequest=getOwnerLayoutRequestWrapper(request,portlet);
-  Layout ownerLayout=(Layout)ownerLayoutRequest.getAttribute(WebKeys.LAYOUT);
-  boolean allowAddPortletDefaultResource=PortalUtil.isAllowAddPortletDefaultResource(ownerLayoutRequest,portlet);
-  if (!allowAddPortletDefaultResource) {
-    String url=null;
-    LastPath lastPath=(LastPath)request.getAttribute(WebKeys.LAST_PATH);
-    if (lastPath != null) {
-      StringBundler sb=new StringBundler(3);
-      sb.append(PortalUtil.getPortalURL(request));
-      sb.append(lastPath.getContextPath());
-      sb.append(lastPath.getPath());
-      url=sb.toString();
-    }
- else {
-      url=String.valueOf(request.getRequestURI());
-    }
-    _log.error("Reject processAction for " + url + " on "+ portlet.getPortletId());
-    return ActionResult.EMPTY_ACTION_RESULT;
-  }
   Layout layout=(Layout)request.getAttribute(WebKeys.LAYOUT);
   WindowState windowState=WindowStateFactory.getWindowState(ParamUtil.getString(request,"p_p_state"));
   if (layout.isTypeControlPanel() && ((windowState == null) || windowState.equals(WindowState.NORMAL) || Validator.isNull(windowState.toString()))) {
@@ -43,23 +24,14 @@
         request=uploadServletRequest;
       }
     }
-    if (PropsValues.AUTH_TOKEN_CHECK_ENABLED && invokerPortlet.isCheckAuthToken()) {
-      AuthTokenUtil.check(request);
-    }
     ActionRequestImpl actionRequestImpl=ActionRequestFactory.create(request,portlet,invokerPortlet,portletContext,windowState,portletMode,portletPreferences,layout.getPlid());
     User user=PortalUtil.getUser(request);
     ActionResponseImpl actionResponseImpl=ActionResponseFactory.create(actionRequestImpl,response,portlet.getPortletId(),user,layout,windowState,portletMode);
     actionRequestImpl.defineObjects(portletConfig,actionResponseImpl);
     ServiceContext serviceContext=ServiceContextFactory.getInstance(actionRequestImpl);
     ServiceContextThreadLocal.pushServiceContext(serviceContext);
-    PermissionChecker permissionChecker=PermissionThreadLocal.getPermissionChecker();
-    ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
-    long scopeGroupId=themeDisplay.getScopeGroupId();
-    boolean access=PortletPermissionUtil.hasAccessPermission(permissionChecker,scopeGroupId,ownerLayout,portlet,portletMode);
-    if (access) {
-      invokerPortlet.processAction(actionRequestImpl,actionResponseImpl);
-      actionResponseImpl.transferHeaders(response);
-    }
+    invokerPortlet.processAction(actionRequestImpl,actionResponseImpl);
+    actionResponseImpl.transferHeaders(response);
     RenderParametersPool.put(request,layout.getPlid(),portlet.getPortletId(),actionResponseImpl.getRenderParameterMap());
     List<Event> events=actionResponseImpl.getEvents();
     String redirectLocation=actionResponseImpl.getRedirectLocation();
