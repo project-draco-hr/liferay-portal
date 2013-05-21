@@ -1,0 +1,67 @@
+{
+  Map<String,String> arguments=ArgumentsUtil.parseArguments(args);
+  String propertiesFilePath=GetterUtil.getString(arguments.get("properties.file.path"));
+  String destDir=GetterUtil.getString(arguments.get("properties.dest.file.path"));
+  String title=GetterUtil.getString(arguments.get("properties.title"));
+  boolean toc=GetterUtil.getBoolean(arguments.get("properties.toc"));
+  System.out.println("Converting " + propertiesFilePath + " to HTML");
+  Map context=new HashMap();
+  context.put("pageTitle",title);
+  context.put("toc",toc);
+  String propertiesFileName=StringPool.BLANK;
+  int pos=propertiesFilePath.lastIndexOf("/");
+  if (pos != -1) {
+    propertiesFileName=propertiesFilePath.substring(pos + 1);
+  }
+ else {
+    propertiesFileName=propertiesFilePath;
+  }
+  context.put("propertiesFileName",propertiesFileName);
+  File propertiesFile=new File(propertiesFilePath);
+  String propertiesString=_read(propertiesFile);
+  String[] sectionStrings=propertiesString.split("\n\n");
+  List<PropertiesSection> sections=new ArrayList<PropertiesSection>(sectionStrings.length);
+  PropertiesSection section;
+  for (int i=0; i < sectionStrings.length; i++) {
+    String sectionString=StringUtil.trimLeading(sectionStrings[i],' ');
+    section=new PropertiesSection(sectionString);
+    if (sectionString.startsWith("##")) {
+      int numLines=_countLines(sectionString);
+      if (numLines == 3) {
+        section.setTitle(_extractTitle(section));
+        sections.add(section);
+      }
+ else       if (numLines > 3) {
+        section.setComments(_extractComments(section));
+        sections.add(section);
+      }
+ else {
+        System.out.println("Error: PropertiesSection should consist of 3 or " + "more lines:\n" + "##\n"+ "## Comment(s)\n"+ "##");
+        return;
+      }
+    }
+ else {
+      section.setPropertyComments(_extractPropertyComments(section));
+      section.setDefaultProperties(_extractDefaultProperties(section));
+      section.setExampleProperties(_extractExampleProperties(section));
+      sections.add(section);
+    }
+  }
+  context.put("sections",sections);
+  try {
+    String htmlFilePath=new StringBundler(destDir).append(StringPool.SLASH).append(propertiesFileName).append(".html").toString();
+    System.out.println("Writing " + htmlFilePath);
+    File propertiesHTMLFile=new File(htmlFilePath);
+    Writer writer=new FileWriter(propertiesHTMLFile);
+    try {
+      FreeMarkerUtil.process(_TPL_PROPERTIES_HTML,context,writer);
+    }
+ catch (    Exception e) {
+      e.printStackTrace();
+    }
+    writer.flush();
+  }
+ catch (  IOException ioe) {
+    ioe.printStackTrace();
+  }
+}
