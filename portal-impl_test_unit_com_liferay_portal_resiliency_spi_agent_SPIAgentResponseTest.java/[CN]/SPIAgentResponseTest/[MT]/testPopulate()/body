@@ -1,0 +1,81 @@
+{
+  SPIAgentResponse spiAgentResponse=new SPIAgentResponse();
+  Exception exception=new Exception();
+  spiAgentResponse.setException(exception);
+  try {
+    spiAgentResponse.populate(new MockHttpServletRequest(),new MockHttpServletResponse());
+    Assert.fail();
+  }
+ catch (  PortalResiliencyException pre) {
+    Assert.assertEquals("SPI exception",pre.getMessage());
+    Assert.assertSame(exception,pre.getCause());
+  }
+  spiAgentResponse.setException(null);
+  spiAgentResponse.populate(new MockHttpServletRequest(),new MockHttpServletResponse());
+  spiAgentResponse.portalResiliencyResponse=true;
+  Map<String,Serializable> distributedRequestAttributes=new HashMap<String,Serializable>();
+  distributedRequestAttributes.put(RequestAttributes.ATTRIBUTE1,RequestAttributes.ATTRIBUTE1);
+  distributedRequestAttributes.put(RequestAttributes.ATTRIBUTE3,RequestAttributes.ATTRIBUTE3);
+  spiAgentResponse.distributedRequestAttributes=distributedRequestAttributes;
+  Map<String,Serializable> deltaSessionAttributes=new HashMap<String,Serializable>();
+  deltaSessionAttributes.put(_sessionAttribute1,_sessionAttribute1);
+  deltaSessionAttributes.put(_sessionAttribute2,_sessionAttribute2);
+  spiAgentResponse.deltaSessionAttributes=deltaSessionAttributes;
+  MetaInfoCacheServletResponse metaInfoCacheServletResponse=new MetaInfoCacheServletResponse(new MockHttpServletResponse());
+  spiAgentResponse.metaData=metaInfoCacheServletResponse.getMetaData();
+  spiAgentResponse.threadLocalDistributors=new ThreadLocalDistributor[0];
+  MockHttpServletRequest mockHttpServletRequest=new MockHttpServletRequest();
+  spiAgentResponse.populate(mockHttpServletRequest,new MockHttpServletResponse());
+  Enumeration<String> requestAttributeNameEnumeration=mockHttpServletRequest.getAttributeNames();
+  List<String> requestAttributeNames=ListUtil.fromEnumeration(requestAttributeNameEnumeration);
+  Assert.assertEquals(2,requestAttributeNames.size());
+  Assert.assertTrue(requestAttributeNames.contains(RequestAttributes.ATTRIBUTE1));
+  Assert.assertTrue(requestAttributeNames.contains(RequestAttributes.ATTRIBUTE3));
+  Assert.assertEquals(RequestAttributes.ATTRIBUTE1,mockHttpServletRequest.getAttribute(RequestAttributes.ATTRIBUTE1));
+  Assert.assertEquals(RequestAttributes.ATTRIBUTE1,mockHttpServletRequest.getAttribute(RequestAttributes.ATTRIBUTE1));
+  distributedRequestAttributes.clear();
+  String typeSetting="typeSetting";
+  distributedRequestAttributes.put(WebKeys.SPI_AGENT_LAYOUT_TYPE_SETTINGS,typeSetting);
+  mockHttpServletRequest.setAttribute(WebKeys.LAYOUT,new LayoutImpl());
+  spiAgentResponse.populate(mockHttpServletRequest,new MockHttpServletResponse());
+  Layout layout=(Layout)mockHttpServletRequest.getAttribute(WebKeys.LAYOUT);
+  Assert.assertEquals(typeSetting,layout.getTypeSettings());
+  byte[] outputData=new byte[10];
+  spiAgentResponse.byteData=outputData;
+  BufferCacheServletResponse bufferCacheServletResponse=new BufferCacheServletResponse(new MockHttpServletResponse());
+  spiAgentResponse.populate(mockHttpServletRequest,bufferCacheServletResponse);
+  ByteBuffer byteBuffer=bufferCacheServletResponse.getByteBuffer();
+  Assert.assertSame(outputData,byteBuffer.array());
+  final IOException ioException=new IOException();
+  HttpServletResponse httpServletResponse=new StubHttpServletResponse(){
+    @Override public boolean isCommitted(){
+      return false;
+    }
+    @Override public void flushBuffer() throws IOException {
+      throw ioException;
+    }
+    @Override public void setContentLength(    int contentLength){
+    }
+  }
+;
+  try {
+    spiAgentResponse.populate(mockHttpServletRequest,httpServletResponse);
+    Assert.fail();
+  }
+ catch (  PortalResiliencyException pre) {
+    Assert.assertSame(ioException,pre.getCause());
+  }
+  String stringData="stringData";
+  spiAgentResponse.stringData=stringData;
+  bufferCacheServletResponse=new BufferCacheServletResponse(new MockHttpServletResponse());
+  spiAgentResponse.populate(mockHttpServletRequest,bufferCacheServletResponse);
+  CharBuffer charBuffer=bufferCacheServletResponse.getCharBuffer();
+  Assert.assertEquals(stringData,charBuffer.toString());
+  try {
+    spiAgentResponse.populate(mockHttpServletRequest,httpServletResponse);
+    Assert.fail();
+  }
+ catch (  PortalResiliencyException pre) {
+    Assert.assertSame(ioException,pre.getCause());
+  }
+}
