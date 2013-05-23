@@ -1,0 +1,26 @@
+{
+  List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(SPIClassPathContextListener.class.getName(),Level.FINE);
+  File embeddedLibDir=new File(_contextPath,_embeddedLibDir);
+  embeddedLibDir.mkdir();
+  File jarFile=new File(embeddedLibDir,"jarfile.jar");
+  jarFile.createNewFile();
+  File notJarFile=new File(embeddedLibDir,"notJarFile.zip");
+  notJarFile.createNewFile();
+  String wrongSPIProviderClassName="wrongSPIProviderClassName";
+  _mockServletContext.addInitParameter("spiProviderClassName",wrongSPIProviderClassName);
+  SPIClassPathContextListener spiClassPathContextListener=new SPIClassPathContextListener();
+  spiClassPathContextListener.contextInitialized(new ServletContextEvent(_mockServletContext));
+  String expectedClassPath=jarFile.getAbsolutePath() + File.pathSeparator + _contextPath+ "/WEB-INF/classes"+ File.pathSeparator+ ClassPathUtil.getGlobalClassPath();
+  Assert.assertEquals(expectedClassPath,SPIClassPathContextListener.SPI_CLASS_PATH);
+  Assert.assertEquals(3,logRecords.size());
+  LogRecord logRecord=logRecords.get(0);
+  Assert.assertEquals("Embedded lib class path " + jarFile.getAbsolutePath() + File.pathSeparator,logRecord.getMessage());
+  logRecord=logRecords.get(1);
+  Assert.assertEquals("SPI class path " + expectedClassPath,logRecord.getMessage());
+  logRecord=logRecords.get(2);
+  Assert.assertEquals("Unable to create SPI provider with name wrongSPIProviderClassName",logRecord.getMessage());
+  logRecords=JDKLoggerTestUtil.configureJDKLogger(SPIClassPathContextListener.class.getName(),Level.OFF);
+  spiClassPathContextListener.contextInitialized(new ServletContextEvent(_mockServletContext));
+  Assert.assertEquals(expectedClassPath,SPIClassPathContextListener.SPI_CLASS_PATH);
+  Assert.assertTrue(logRecords.isEmpty());
+}

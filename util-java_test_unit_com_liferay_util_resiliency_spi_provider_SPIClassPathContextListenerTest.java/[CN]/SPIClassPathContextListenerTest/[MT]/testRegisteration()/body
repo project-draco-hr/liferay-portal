@@ -1,0 +1,26 @@
+{
+  File embeddedLibDir=new File(_contextPath,_embeddedLibDir);
+  embeddedLibDir.mkdir();
+  SPIClassPathContextListener spiClassPathContextListener=new SPIClassPathContextListener();
+  _mockServletContext.addInitParameter("spiProviderClassName",MockSPIProvider.class.getName());
+  spiClassPathContextListener.contextInitialized(new ServletContextEvent(_mockServletContext));
+  AtomicReference<SPIProvider> spiProviderReference=SPIClassPathContextListener.spiProviderReference;
+  Assert.assertNotNull(spiProviderReference.get());
+  List<SPIProvider> spiProviders=MPIHelperUtil.getSPIProviders();
+  Assert.assertEquals(1,spiProviders.size());
+  Assert.assertSame(spiProviderReference.get(),spiProviders.get(0));
+  List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(SPIClassPathContextListener.class.getName(),Level.SEVERE);
+  spiClassPathContextListener.contextInitialized(new ServletContextEvent(_mockServletContext));
+  Assert.assertEquals(1,logRecords.size());
+  LogRecord logRecord=logRecords.get(0);
+  Assert.assertEquals("Duplicate SPI provider " + spiProviderReference.get() + " is already registered in servlet context "+ _mockServletContext.getContextPath(),logRecord.getMessage());
+  spiClassPathContextListener.contextDestroyed(new ServletContextEvent(_mockServletContext));
+  Assert.assertNull(spiProviderReference.get());
+  spiProviders=MPIHelperUtil.getSPIProviders();
+  Assert.assertTrue(spiProviders.isEmpty());
+  spiClassPathContextListener.contextDestroyed(new ServletContextEvent(_mockServletContext));
+  Assert.assertNull(spiProviderReference.get());
+  spiProviders=MPIHelperUtil.getSPIProviders();
+  Assert.assertTrue(spiProviders.isEmpty());
+  embeddedLibDir.delete();
+}
