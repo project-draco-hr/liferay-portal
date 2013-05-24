@@ -1,0 +1,29 @@
+{
+  HttpClientSPIAgent httpClientSPIAgent=new HttpClientSPIAgent(_spiConfiguration,new MockRegistrationReference(new MockIntraband()));
+  final AtomicBoolean throwException=new AtomicBoolean();
+  SPI spi=new MockSPI(){
+    @Override public void addServlet(    String contextPath,    String docBasePath,    String mappingPattern,    String servletClassName){
+      if (throwException.get()) {
+        throw new RuntimeException();
+      }
+      Assert.assertEquals(HttpClientSPIAgent.SPI_AGENT_CONTEXT_PATH,contextPath);
+      Assert.assertEquals(_spiConfiguration.getBaseDir(),docBasePath);
+      Assert.assertEquals(HttpClientSPIAgent.MAPPING_PATTERN,mappingPattern);
+      Assert.assertEquals(AcceptorServlet.class.getName(),servletClassName);
+    }
+    @Override public SPIConfiguration getSPIConfiguration(){
+      return _spiConfiguration;
+    }
+  }
+;
+  httpClientSPIAgent.init(spi);
+  throwException.set(true);
+  try {
+    httpClientSPIAgent.init(spi);
+    Assert.fail();
+  }
+ catch (  PortalResiliencyException pre) {
+    Throwable throwable=pre.getCause();
+    Assert.assertSame(RuntimeException.class,throwable.getClass());
+  }
+}

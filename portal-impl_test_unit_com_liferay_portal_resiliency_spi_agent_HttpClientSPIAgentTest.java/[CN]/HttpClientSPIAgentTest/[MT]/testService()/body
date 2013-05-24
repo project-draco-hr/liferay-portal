@@ -1,0 +1,89 @@
+{
+  HttpClientSPIAgent httpClientSPIAgent=new HttpClientSPIAgent(_spiConfiguration,new MockRegistrationReference(new MockIntraband()));
+  try {
+    httpClientSPIAgent.service(null,null);
+    Assert.fail();
+  }
+ catch (  PortalResiliencyException pre) {
+    Throwable throwable=pre.getCause();
+    Assert.assertSame(ConnectException.class,throwable.getClass());
+  }
+  PropsUtil.setProps(new PropsImpl());
+  httpClientSPIAgent=new HttpClientSPIAgent(_spiConfiguration,new MockRegistrationReference(new DirectMailboxIntraBand(null,new IOException())));
+  ServerSocketChannel serverSocketChannel=SocketUtil.createServerSocketChannel(InetAddressUtil.getLoopbackInetAddress(),_spiConfiguration.getConnectorPort(),null);
+  serverSocketChannel.configureBlocking(true);
+  SocketChannel socketChannel=SocketChannel.open(httpClientSPIAgent.socketAddress);
+  Socket socket=socketChannel.socket();
+  Queue<Socket> socketBlockingQueue=httpClientSPIAgent.socketBlockingQueue;
+  socketBlockingQueue.add(socket);
+  try {
+    httpClientSPIAgent.service(new MockHttpServletRequest(),null);
+    Assert.fail();
+  }
+ catch (  PortalResiliencyException pre) {
+    Throwable throwable=pre.getCause();
+    Assert.assertSame(IOException.class,throwable.getClass());
+  }
+  ServerSocket serverSocket=serverSocketChannel.socket();
+  closePeers(socket,serverSocket);
+  List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(HttpClientSPIAgent.class.getName(),Level.OFF);
+  socketChannel=SocketChannel.open(httpClientSPIAgent.socketAddress);
+  DirectMailboxIntraBand directMailboxIntraBand=new DirectMailboxIntraBand(socketChannel,new IOException());
+  httpClientSPIAgent=new HttpClientSPIAgent(_spiConfiguration,new MockRegistrationReference(directMailboxIntraBand));
+  socketBlockingQueue=httpClientSPIAgent.socketBlockingQueue;
+  socket=socketChannel.socket();
+  socketBlockingQueue.add(socket);
+  try {
+    httpClientSPIAgent.service(new MockHttpServletRequest(),null);
+    Assert.fail();
+  }
+ catch (  PortalResiliencyException pre) {
+    Throwable throwable=pre.getCause();
+    Assert.assertSame(IOException.class,throwable.getClass());
+  }
+  Assert.assertTrue(logRecords.isEmpty());
+  closeSocketChannel(socketChannel,directMailboxIntraBand._fileDescriptor);
+  closePeers(socket,serverSocket);
+  logRecords=JDKLoggerTestUtil.configureJDKLogger(HttpClientSPIAgent.class.getName(),Level.WARNING);
+  socketChannel=SocketChannel.open(httpClientSPIAgent.socketAddress);
+  directMailboxIntraBand=new DirectMailboxIntraBand(socketChannel,new IOException());
+  httpClientSPIAgent=new HttpClientSPIAgent(_spiConfiguration,new MockRegistrationReference(directMailboxIntraBand));
+  socketBlockingQueue=httpClientSPIAgent.socketBlockingQueue;
+  socket=socketChannel.socket();
+  socketBlockingQueue.add(socket);
+  try {
+    httpClientSPIAgent.service(new MockHttpServletRequest(),null);
+    Assert.fail();
+  }
+ catch (  PortalResiliencyException pre) {
+    Throwable throwable=pre.getCause();
+    Assert.assertSame(IOException.class,throwable.getClass());
+  }
+  Assert.assertEquals(1,logRecords.size());
+  LogRecord logRecord=logRecords.get(0);
+  Throwable throwable=logRecord.getThrown();
+  Assert.assertSame(IOException.class,throwable.getClass());
+  closeSocketChannel(socketChannel,directMailboxIntraBand._fileDescriptor);
+  closePeers(socket,serverSocket);
+  socketChannel=SocketChannel.open(httpClientSPIAgent.socketAddress);
+  socketChannel.configureBlocking(true);
+  httpClientSPIAgent=new HttpClientSPIAgent(_spiConfiguration,new MockRegistrationReference(new DirectMailboxIntraBand(null,null)));
+  socketBlockingQueue=httpClientSPIAgent.socketBlockingQueue;
+  socket=socketChannel.socket();
+  socketBlockingQueue.add(socket);
+  Serializer serializer=new Serializer();
+  serializer.writeObject(new SPIAgentResponse());
+  Method depositMailMethod=ReflectionUtil.getDeclaredMethod(MailboxUtil.class,"depositMail",ByteBuffer.class);
+  long receipt=(Long)depositMailMethod.invoke(null,serializer.toByteBuffer());
+  Socket remoteSocket=serverSocket.accept();
+  OutputStream outputStream=remoteSocket.getOutputStream();
+  outputStream.write("HTTP/1.1 200 OK\n\n".getBytes("US-ASCII"));
+  byte[] receiptData=new byte[8];
+  BigEndianCodec.putLong(receiptData,0,receipt);
+  outputStream.write(receiptData);
+  outputStream.flush();
+  httpClientSPIAgent.service(new MockHttpServletRequest(),new MockHttpServletResponse());
+  socket.close();
+  remoteSocket.close();
+  serverSocket.close();
+}
