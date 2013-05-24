@@ -1,0 +1,60 @@
+{
+  if (javaMethod.isConstructor() || javaMethod.isPrivate() || javaMethod.isStatic()) {
+    return false;
+  }
+  String methodName=javaMethod.getName();
+  JavaParameter[] javaParameters=javaMethod.getParameters();
+  Type[] types=new Type[javaParameters.length];
+  for (int i=0; i < javaParameters.length; i++) {
+    types[i]=javaParameters[i].getType();
+  }
+  for (  Tuple ancestorJavaClassTuple : ancestorJavaClassTuples) {
+    JavaClass ancestorJavaClass=(JavaClass)ancestorJavaClassTuple.getObject(0);
+    JavaMethod ancestorJavaMethod=null;
+    if (ancestorJavaClassTuple.getSize() > 1) {
+      Type[] ancestorActualTypeArguments=(Type[])ancestorJavaClassTuple.getObject(1);
+      Type[] genericTypes=new Type[types.length];
+      for (int i=0; i < types.length; i++) {
+        Type type=types[i];
+        String typeValue=type.getValue();
+        boolean useGenericType=false;
+        for (int j=0; j < ancestorActualTypeArguments.length; j++) {
+          if (typeValue.equals(ancestorActualTypeArguments[j].getValue())) {
+            useGenericType=true;
+            break;
+          }
+        }
+        if (useGenericType) {
+          genericTypes[i]=new Type("java.lang.Object");
+        }
+ else {
+          genericTypes[i]=type;
+        }
+      }
+      ancestorJavaMethod=ancestorJavaClass.getMethodBySignature(methodName,genericTypes);
+    }
+ else {
+      ancestorJavaMethod=ancestorJavaClass.getMethodBySignature(methodName,types);
+    }
+    if (ancestorJavaMethod == null) {
+      continue;
+    }
+    boolean samePackage=false;
+    JavaPackage ancestorJavaPackage=ancestorJavaClass.getPackage();
+    if (ancestorJavaPackage != null) {
+      samePackage=ancestorJavaPackage.equals(javaClass.getPackage());
+    }
+    if (samePackage) {
+      return !ancestorJavaMethod.isPrivate();
+    }
+ else {
+      if (ancestorJavaMethod.isProtected() || ancestorJavaMethod.isPublic()) {
+        return true;
+      }
+ else {
+        return false;
+      }
+    }
+  }
+  return false;
+}
