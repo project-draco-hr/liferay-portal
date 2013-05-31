@@ -1,0 +1,29 @@
+{
+  AccessControlled accessControlled=findAnnotation(methodInvocation);
+  if (accessControlled == AccessControlled.NULL_ACCESS_CONTROLLED) {
+    return null;
+  }
+  boolean remoteAccess=AccessControlThreadLocal.isRemoteAccess();
+  if (!remoteAccess) {
+    return null;
+  }
+  Object targetObject=methodInvocation.getThis();
+  if (targetObject == null) {
+    return null;
+  }
+  Class<?> targetClass=targetObject.getClass();
+  String servletContextName=ClassLoaderPool.getContextName(targetClass.getClassLoader());
+  SPI spi=SPIRegistryUtil.getServletContextSPI(servletContextName);
+  if (spi == null) {
+    serviceBeanAopCacheManager.removeMethodInterceptor(methodInvocation,this);
+    return null;
+  }
+  if (!(targetObject instanceof IdentifiableBean)) {
+    Class<?> clazz=targetObject.getClass();
+    _log.error("Unable to bridge portal resiliency call for " + clazz.getName() + " because it does not implement "+ IdentifiableBean.class.getName());
+    return null;
+  }
+  IdentifiableBean identifiableBean=(IdentifiableBean)targetObject;
+  ServiceMethodProcessCallable serviceMethodProcessCallable=new ServiceMethodProcessCallable(servletContextName,identifiableBean.getBeanIdentifier(),new MethodHandler(methodInvocation.getMethod(),methodInvocation.getArguments()));
+  return IntrabandRPCUtil.execute(spi.getRegistrationReference(),serviceMethodProcessCallable);
+}
