@@ -1,0 +1,48 @@
+{
+  final Counter counter=new Counter();
+  JAASHelper originalInstance=JAASHelper.getInstance();
+  JAASHelper.setInstance(new JAASHelper(){
+    @Override protected long _getJaasUserId(    long companyId,    String name) throws PortalException, SystemException {
+      try {
+        return super._getJaasUserId(companyId,name);
+      }
+  finally {
+        counter.count();
+      }
+    }
+  }
+);
+  _mockServletContext=new AutoDeployMockServletContext(getResourceBasePath(),new FileSystemResourceLoader());
+  MockServletConfig mockServletConfig=new MockServletConfig(_mockServletContext);
+  mainServlet=new MainServlet();
+  try {
+    mainServlet.init(mockServletConfig);
+  }
+ catch (  ServletException se) {
+    throw new RuntimeException("The main servlet could not be initialized");
+  }
+  MockHttpServletRequest request=new MockHttpServletRequest(_mockServletContext,"GET","/");
+  MockHttpServletResponse response=new MockHttpServletResponse();
+  User user=TestPropsValues.getUser();
+  Date lastLoginDate=user.getLastLoginDate();
+  long userId=user.getUserId();
+  String userIdString=String.valueOf(userId);
+  request.setRemoteUser(userIdString);
+  JAASAction preAction=new JAASAction();
+  JAASAction postAction=new JAASAction();
+  try {
+    EventsProcessorUtil.registerEvent(PropsKeys.LOGIN_EVENTS_PRE,preAction);
+    EventsProcessorUtil.registerEvent(PropsKeys.LOGIN_EVENTS_POST,postAction);
+    mainServlet.service(request,response);
+    Assert.assertEquals(2,counter.getCount());
+    Assert.assertTrue(preAction.wasFired());
+    Assert.assertTrue(postAction.wasFired());
+    user=UserLocalServiceUtil.getUser(userId);
+    Assert.assertTrue(lastLoginDate.before(user.getLastLoginDate()));
+  }
+  finally {
+    EventsProcessorUtil.unregisterEvent(PropsKeys.LOGIN_EVENTS_PRE,postAction);
+    EventsProcessorUtil.unregisterEvent(PropsKeys.LOGIN_EVENTS_POST,postAction);
+    JAASHelper.setInstance(originalInstance);
+  }
+}
