@@ -1,0 +1,46 @@
+{
+  String dictionaryFileNameList=PropsUtil.get(PropsKeys.LUCENE_SPELL_CHECKER_DICTIONARY,new Filter(locale.toString()));
+  String[] dictionaryFileNames=StringUtil.split(dictionaryFileNameList);
+  IndexAccessor indexAccessor=LuceneHelperUtil.getIndexAccessor(companyId);
+  for (  String dictionaryFileName : dictionaryFileNames) {
+    if (_log.isInfoEnabled()) {
+      _log.info("Commencing dictionary indexing for: " + locale + " - "+ dictionaryFileName);
+    }
+    URL dictionaryURL=getResource(dictionaryFileName);
+    InputStream dictionaryInputStream=null;
+    try {
+      dictionaryInputStream=dictionaryURL.openStream();
+      if (dictionaryInputStream == null) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("No dictionary defined for: " + locale);
+        }
+        continue;
+      }
+      IndexSearcher indexSearcher=LuceneHelperUtil.getSearcher(indexAccessor.getCompanyId(),true);
+      List<IndexReader> indexReaders=new ArrayList<IndexReader>();
+      if (indexSearcher.maxDoc() > 0) {
+        ReaderUtil.gatherSubReaders(indexReaders,indexSearcher.getIndexReader());
+      }
+      String localizedFieldName=DocumentImpl.getLocalizedName(locale,com.liferay.portal.kernel.search.Field.SPELL_CHECK_WORD);
+      Collection<Document> documents=new ArrayList<Document>();
+      Dictionary dictionary=new PlainTextDictionary(dictionaryInputStream);
+      Iterator<String> wordsIterator=dictionary.getWordsIterator();
+      while (wordsIterator.hasNext()) {
+        String word=wordsIterator.next();
+        boolean validWord=validateWord(localizedFieldName,word,indexReaders);
+        if (!validWord) {
+          continue;
+        }
+        Document document=createDocument(localizedFieldName,word,locale);
+        documents.add(document);
+      }
+      indexAccessor.addDocuments(documents);
+    }
+  finally {
+      StreamUtil.cleanUp(dictionaryInputStream);
+    }
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("Completing text file based dictionary: " + locale);
+  }
+}
