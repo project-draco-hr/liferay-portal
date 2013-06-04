@@ -1,5 +1,5 @@
 {
-  Group group=GroupLocalServiceUtil.getGroup(groupId);
+  final Group group=GroupLocalServiceUtil.getGroup(groupId);
   String userIdStrategy=MapUtil.getString(parameterMap,PortletDataHandlerKeys.USER_ID_STRATEGY);
   ZipReader zipReader=ZipReaderFactoryUtil.getZipReader(file);
   PortletDataContext portletDataContext=PortletDataContextFactoryUtil.createImportPortletDataContext(group.getCompanyId(),groupId,parameterMap,getUserIdStrategy(userId,userIdStrategy),zipReader);
@@ -13,6 +13,25 @@
         Date exportDate=GetterUtil.getDate(exportDateString,DateFormatFactoryUtil.getSimpleDateFormat(Time.RFC822_FORMAT));
         manifestSummary.setExportDate(exportDate);
       }
+ else       if (elementName.equals("portlet")) {
+        String portletId=element.attributeValue("portlet-id");
+        try {
+          Portlet portlet=PortletLocalServiceUtil.getPortletById(group.getCompanyId(),portletId);
+          com.liferay.portal.kernel.lar.PortletDataHandler portletDataHandler=portlet.getPortletDataHandlerInstance();
+          if (portletDataHandler != null) {
+            boolean data=GetterUtil.getBoolean(element.attributeValue("portlet-data"));
+            if (data) {
+              manifestSummary.addDataPortlet(portlet);
+            }
+            boolean setup=GetterUtil.getBoolean(element.attributeValue("portlet-setup"));
+            if (setup) {
+              manifestSummary.addSetupPortlet(portlet);
+            }
+          }
+        }
+ catch (        SystemException se) {
+        }
+      }
  else       if (elementName.equals("staged-model")) {
         String className=element.attributeValue("class-name");
         long count=GetterUtil.getLong(element.getText());
@@ -20,7 +39,7 @@
       }
     }
   }
-,new String[]{"header","staged-model"});
+,new String[]{"header","portlet","staged-model"});
   saxParser.setContentHandler(elementHandler);
   InputStream is=portletDataContext.getZipEntryAsInputStream("/manifest.xml");
   if (is == null) {
