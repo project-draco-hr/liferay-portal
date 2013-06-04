@@ -1,0 +1,36 @@
+{
+  try {
+    Map<String,List<String>> spellCheckResults=new LinkedHashMap<String,List<String>>();
+    long companyId=searchContext.getCompanyId();
+    float scoringThreshold=searchContext.getScoringThreshold();
+    if (scoringThreshold == 0) {
+      scoringThreshold=_DEFAULT_SCORING_THRESHOLD;
+    }
+    IndexSearcher indexSearcher=LuceneHelperUtil.getSearcher(companyId,true);
+    List<IndexReader> indexReaders=new ArrayList<IndexReader>();
+    if (indexSearcher.maxDoc() > 0) {
+      ReaderUtil.gatherSubReaders(indexReaders,indexSearcher.getIndexReader());
+    }
+    for (    String keyword : keywords) {
+      List<String> spellCheckSuggestions=Collections.emptyList();
+      if (!SpellCheckerUtil.validateWordExists(localizedFieldName,keyword,indexReaders)) {
+        int frequency=indexSearcher.docFreq(new Term(localizedFieldName,keyword));
+        String[] suggestionsArray=null;
+        if (frequency > 0) {
+          suggestionsArray=new String[]{keyword};
+        }
+ else {
+          BooleanQuery suggestWordQuery=buildSpellCheckQuery(keyword,locale);
+          RelevancyChecker relevancyChecker=new StringDistanceRelevancyChecker(keyword,scoringThreshold,_stringDistance);
+          suggestionsArray=doPerformSearch(indexSearcher,suggestWordQuery,localizedFieldName,relevancyChecker,maxResults);
+        }
+        spellCheckSuggestions=Arrays.asList(suggestionsArray);
+      }
+      spellCheckResults.put(keyword,spellCheckSuggestions);
+    }
+    return spellCheckResults;
+  }
+ catch (  IOException e) {
+    throw new SearchException("Unable to find alternative queries",e);
+  }
+}
