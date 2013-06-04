@@ -7,12 +7,20 @@
   SAXParser saxParser=new SAXParser();
   ElementHandler elementHandler=new ElementHandler(new ElementProcessor(){
     @Override public void processElement(    Element element){
-      String className=element.attributeValue("class-name");
-      long count=GetterUtil.getLong(element.getText());
-      manifestSummary.addModelCount(className,count);
+      String elementName=element.getName();
+      if (elementName.equals("header")) {
+        String exportDateString=element.attributeValue("export-date");
+        Date exportDate=GetterUtil.getDate(exportDateString,DateFormatFactoryUtil.getSimpleDateFormat(Time.RFC822_FORMAT));
+        manifestSummary.setExportDate(exportDate);
+      }
+ else       if (elementName.equals("staged-model")) {
+        String className=element.attributeValue("class-name");
+        long count=GetterUtil.getLong(element.getText());
+        manifestSummary.addModelCount(className,count);
+      }
     }
   }
-,new String[]{"staged-model"});
+,new String[]{"header","staged-model"});
   saxParser.setContentHandler(elementHandler);
   InputStream is=portletDataContext.getZipEntryAsInputStream("/manifest.xml");
   if (is == null) {
@@ -20,11 +28,5 @@
   }
   String manifestXMLContent=StringUtil.read(is);
   saxParser.parse(new InputSource(new StringReader(manifestXMLContent)));
-  Document document=SAXReaderUtil.read(manifestXMLContent);
-  Element rootElement=document.getRootElement();
-  Element headerElement=rootElement.element("header");
-  String exportDateString=headerElement.attributeValue("export-date");
-  Date exportDate=GetterUtil.getDate(exportDateString,DateFormatFactoryUtil.getSimpleDateFormat(Time.RFC822_FORMAT));
-  manifestSummary.setExportDate(exportDate);
   return manifestSummary;
 }
