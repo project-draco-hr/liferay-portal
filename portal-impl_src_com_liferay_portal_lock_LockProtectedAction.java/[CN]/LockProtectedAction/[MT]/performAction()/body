@@ -1,0 +1,37 @@
+{
+  Lock lock=null;
+  while (true) {
+    try {
+      lock=LockLocalServiceUtil.lock(_className,_lockKey,_lockKey,false);
+    }
+ catch (    Exception e) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Unable to acquire lock. Retrying.");
+      }
+      continue;
+    }
+    if (lock.isNew()) {
+      try {
+        _returnValue=performProtectedAction();
+      }
+  finally {
+        LockLocalServiceUtil.unlock(_className,_lockKey,_lockKey,false);
+      }
+      break;
+    }
+    Date createDate=lock.getCreateDate();
+    if ((System.currentTimeMillis() - createDate.getTime()) >= _timeout) {
+      LockLocalServiceUtil.unlock(_className,_lockKey,lock.getOwner(),false);
+      if (_log.isWarnEnabled()) {
+        _log.warn("Removed lock " + lock + " due to timeout.");
+      }
+    }
+ else {
+      try {
+        Thread.sleep(_retryDelay);
+      }
+ catch (      InterruptedException ie) {
+      }
+    }
+  }
+}
