@@ -1,0 +1,31 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  Date now=new Date();
+  final long backgroundTaskId=counterLocalService.increment();
+  BackgroundTask backgroundTask=backgroundTaskPersistence.create(backgroundTaskId);
+  backgroundTask.setCompanyId(user.getCompanyId());
+  backgroundTask.setCreateDate(serviceContext.getCreateDate(now));
+  backgroundTask.setGroupId(groupId);
+  backgroundTask.setModifiedDate(serviceContext.getModifiedDate(now));
+  backgroundTask.setUserId(userId);
+  backgroundTask.setUserName(user.getFullName());
+  backgroundTask.setName(name);
+  backgroundTask.setServletContextNames(StringUtil.merge(servletContextNames));
+  backgroundTask.setTaskExecutorClassName(taskExecutorClass.getName());
+  if (taskContextMap != null) {
+    String taskContext=JSONFactoryUtil.serialize(taskContextMap);
+    backgroundTask.setTaskContext(taskContext);
+  }
+  backgroundTask.setStatus(BackgroundTaskConstants.STATUS_NEW);
+  backgroundTaskPersistence.update(backgroundTask);
+  TransactionCommitCallbackRegistryUtil.registerCallback(new Callable<Void>(){
+    @Override public Void call() throws Exception {
+      Message message=new Message();
+      message.put("backgroundTaskId",backgroundTaskId);
+      MessageBusUtil.sendMessage(DestinationNames.BACKGROUND_TASK,message);
+      return null;
+    }
+  }
+);
+  return backgroundTask;
+}

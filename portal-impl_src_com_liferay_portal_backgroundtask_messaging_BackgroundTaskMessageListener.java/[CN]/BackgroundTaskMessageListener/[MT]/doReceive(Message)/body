@@ -1,0 +1,19 @@
+{
+  long backgroundTaskId=(Long)message.get("backgroundTaskId");
+  ServiceContext serviceContext=new ServiceContext();
+  BackgroundTaskLocalServiceUtil.updateBackgroundTask(backgroundTaskId,null,BackgroundTaskConstants.STATUS_IN_PROGRESS,serviceContext);
+  try {
+    ClassLoader classLoader=ClassLoaderUtil.getPortalClassLoader();
+    BackgroundTask backgroundTask=BackgroundTaskLocalServiceUtil.getBackgroundTask(backgroundTaskId);
+    String servletContextNames=backgroundTask.getServletContextNames();
+    if (Validator.isNotNull(servletContextNames)) {
+      classLoader=ClassLoaderUtil.getAggregatePluginsClassLoader(StringUtil.split(servletContextNames),false);
+    }
+    BackgroundTaskExecutor backgroundTaskExecutor=(BackgroundTaskExecutor)InstanceFactory.newInstance(classLoader,backgroundTask.getTaskExecutorClassName());
+    backgroundTaskExecutor.execute(backgroundTask,classLoader);
+    BackgroundTaskLocalServiceUtil.updateBackgroundTask(backgroundTaskId,null,BackgroundTaskConstants.STATUS_SUCCESSFUL,serviceContext);
+  }
+ catch (  Exception e) {
+    BackgroundTaskLocalServiceUtil.updateBackgroundTask(backgroundTaskId,null,BackgroundTaskConstants.STATUS_FAILED,serviceContext);
+  }
+}
