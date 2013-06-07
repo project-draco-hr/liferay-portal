@@ -1,6 +1,34 @@
 {
   Document document=SAXReaderUtil.createDocument();
-  Element rootElement=document.addElement("deletions");
-  Set<Long> deletionEventClassNameIds=portletDataContext.getDeletionEventClassNameIds();
+  final Element rootElement=document.addElement("deletions");
+  final Set<Long> deletionEventClassNameIds=portletDataContext.getDeletionEventClassNameIds();
+  ActionableDynamicQuery actionableDynamicQuery=new SystemEventActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      if (deletionEventClassNameIds.isEmpty()) {
+        return;
+      }
+      setGroupId(portletDataContext.getScopeGroupId());
+      Property typeProperty=PropertyFactoryUtil.forName("type");
+      dynamicQuery.add(typeProperty.eq(SystemEventConstants.TYPE_DELETE));
+      Property classNameIdProperty=PropertyFactoryUtil.forName("classNameId");
+      dynamicQuery.add(classNameIdProperty.in(deletionEventClassNameIds.toArray()));
+      if (!portletDataContext.hasDateRange()) {
+        return;
+      }
+      Property modifiedDateProperty=PropertyFactoryUtil.forName("createDate");
+      Date startDate=portletDataContext.getStartDate();
+      Date endDate=portletDataContext.getEndDate();
+      dynamicQuery.add(modifiedDateProperty.ge(startDate.getTime()));
+      dynamicQuery.add(modifiedDateProperty.le(endDate.getTime()));
+    }
+    @Override protected void performAction(    Object object) throws PortalException, SystemException {
+      SystemEvent systemEvent=(SystemEvent)object;
+      exportDeletion(portletDataContext,systemEvent,rootElement);
+    }
+  }
+;
+  if (!deletionEventClassNameIds.isEmpty()) {
+    actionableDynamicQuery.performActions();
+  }
   portletDataContext.addZipEntry(ExportImportPathUtil.getRootPath(portletDataContext) + "/deletions.xml",document.formattedString());
 }
