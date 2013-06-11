@@ -1,0 +1,61 @@
+{
+  List<String> importedExceptionClassNames=null;
+  JavaDocBuilder javaDocBuilder=null;
+  Pattern catchExceptionPattern=Pattern.compile("\n(\t+)catch \\((.+Exception) (.+)\\) \\{\n");
+  for (int lineCount=1; ; ) {
+    Matcher catchExceptionMatcher=catchExceptionPattern.matcher(content);
+    if (!catchExceptionMatcher.find()) {
+      return;
+    }
+    String beforeCatchCode=content.substring(0,catchExceptionMatcher.start());
+    lineCount=lineCount + StringUtil.count(beforeCatchCode,"\n") + 1;
+    String exceptionClassName=catchExceptionMatcher.group(2);
+    String exceptionVariableName=catchExceptionMatcher.group(3);
+    String tabs=catchExceptionMatcher.group(1);
+    int pos=content.indexOf("\n" + tabs + StringPool.CLOSE_CURLY_BRACE,catchExceptionMatcher.end() - 1);
+    String insideCatchCode=content.substring(catchExceptionMatcher.end(),pos + 1);
+    Pattern exceptionVariablePattern=Pattern.compile("\\W" + exceptionVariableName + "\\W");
+    Matcher exceptionVariableMatcher=exceptionVariablePattern.matcher(insideCatchCode);
+    if (exceptionVariableMatcher.find()) {
+      content=content.substring(catchExceptionMatcher.start() + 1);
+      continue;
+    }
+    if (javaDocBuilder == null) {
+      javaDocBuilder=new JavaDocBuilder();
+      javaDocBuilder.addSource(file);
+    }
+    if (importedExceptionClassNames == null) {
+      importedExceptionClassNames=_getImportedExceptionClassNames(javaDocBuilder);
+    }
+    String originalExceptionClassName=exceptionClassName;
+    if (!exceptionClassName.contains(StringPool.PERIOD)) {
+      for (      String exceptionClass : importedExceptionClassNames) {
+        if (exceptionClass.endsWith(StringPool.PERIOD + exceptionClassName)) {
+          exceptionClassName=exceptionClass;
+          break;
+        }
+      }
+    }
+    if (!exceptionClassName.contains(StringPool.PERIOD)) {
+      exceptionClassName=packagePath + StringPool.PERIOD + exceptionClassName;
+    }
+    JavaClass exceptionClass=javaDocBuilder.getClassByName(exceptionClassName);
+    while (true) {
+      String packageName=exceptionClass.getPackageName();
+      if (!packageName.contains("com.liferay")) {
+        break;
+      }
+      exceptionClassName=exceptionClass.getName();
+      if (exceptionClassName.equals("PortalException") || exceptionClassName.equals("SystemException")) {
+        _processErrorMessage(fileName,"Unprocessed " + originalExceptionClassName + ": "+ fileName+ " "+ lineCount);
+        break;
+      }
+      JavaClass exceptionSuperClass=exceptionClass.getSuperJavaClass();
+      if (exceptionSuperClass == null) {
+        break;
+      }
+      exceptionClass=exceptionSuperClass;
+    }
+    content=content.substring(catchExceptionMatcher.start() + 1);
+  }
+}
