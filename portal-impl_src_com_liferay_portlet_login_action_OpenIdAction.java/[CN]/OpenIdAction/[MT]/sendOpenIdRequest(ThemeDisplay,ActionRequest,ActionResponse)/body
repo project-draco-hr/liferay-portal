@@ -13,28 +13,27 @@
   DiscoveryInformation discovered=manager.associate(discoveries);
   session.setAttribute(WebKeys.OPEN_ID_DISCO,discovered);
   AuthRequest authRequest=manager.authenticate(discovered,portletURL.toString(),themeDisplay.getPortalURL());
-  try {
-    UserLocalServiceUtil.getUserByOpenId(themeDisplay.getCompanyId(),openId);
+  if (UserLocalServiceUtil.fetchUserByOpenId(themeDisplay.getCompanyId(),openId) != null) {
+    response.sendRedirect(authRequest.getDestinationUrl(true));
+    return;
   }
- catch (  NoSuchUserException nsue) {
-    String screenName=OpenIdUtil.getScreenName(openId);
-    try {
-      User user=UserLocalServiceUtil.getUserByScreenName(themeDisplay.getCompanyId(),screenName);
-      UserLocalServiceUtil.updateOpenId(user.getUserId(),openId);
-    }
- catch (    NoSuchUserException nsue2) {
-      FetchRequest fetchRequest=FetchRequest.createFetchRequest();
-      String openIdProvider=getOpenIdProvider(discovered.getOPEndpoint());
-      String[] openIdAXTypes=PropsUtil.getArray(PropsKeys.OPEN_ID_AX_SCHEMA,new Filter(openIdProvider));
-      for (      String openIdAXType : openIdAXTypes) {
-        fetchRequest.addAttribute(openIdAXType,PropsUtil.get(_OPEN_ID_AX_TYPE.concat(openIdAXType),new Filter(openIdProvider)),true);
-      }
-      authRequest.addExtension(fetchRequest);
-      SRegRequest sRegRequest=SRegRequest.createFetchRequest();
-      sRegRequest.addAttribute(_OPEN_ID_SREG_ATTR_EMAIL,true);
-      sRegRequest.addAttribute(_OPEN_ID_SREG_ATTR_FULLNAME,true);
-      authRequest.addExtension(sRegRequest);
-    }
+  String screenName=OpenIdUtil.getScreenName(openId);
+  User user=UserLocalServiceUtil.fetchUserByScreenName(themeDisplay.getCompanyId(),screenName);
+  if (user != null) {
+    UserLocalServiceUtil.updateOpenId(user.getUserId(),openId);
+    response.sendRedirect(authRequest.getDestinationUrl(true));
+    return;
   }
+  FetchRequest fetchRequest=FetchRequest.createFetchRequest();
+  String openIdProvider=getOpenIdProvider(discovered.getOPEndpoint());
+  String[] openIdAXTypes=PropsUtil.getArray(PropsKeys.OPEN_ID_AX_SCHEMA,new Filter(openIdProvider));
+  for (  String openIdAXType : openIdAXTypes) {
+    fetchRequest.addAttribute(openIdAXType,PropsUtil.get(_OPEN_ID_AX_TYPE.concat(openIdAXType),new Filter(openIdProvider)),true);
+  }
+  authRequest.addExtension(fetchRequest);
+  SRegRequest sRegRequest=SRegRequest.createFetchRequest();
+  sRegRequest.addAttribute(_OPEN_ID_SREG_ATTR_EMAIL,true);
+  sRegRequest.addAttribute(_OPEN_ID_SREG_ATTR_FULLNAME,true);
+  authRequest.addExtension(sRegRequest);
   response.sendRedirect(authRequest.getDestinationUrl(true));
 }

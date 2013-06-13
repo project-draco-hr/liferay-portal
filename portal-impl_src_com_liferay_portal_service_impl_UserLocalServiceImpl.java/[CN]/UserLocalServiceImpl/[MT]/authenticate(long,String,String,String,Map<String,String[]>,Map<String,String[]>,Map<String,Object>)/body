@@ -33,18 +33,16 @@
     authResult=AuthPipeline.authenticateByUserId(PropsKeys.AUTH_PIPELINE_PRE,companyId,userId,password,headerMap,parameterMap);
   }
   User user=null;
-  try {
-    if (authType.equals(CompanyConstants.AUTH_TYPE_EA)) {
-      user=userPersistence.findByC_EA(companyId,login);
-    }
- else     if (authType.equals(CompanyConstants.AUTH_TYPE_SN)) {
-      user=userPersistence.findByC_SN(companyId,login);
-    }
- else     if (authType.equals(CompanyConstants.AUTH_TYPE_ID)) {
-      user=userPersistence.findByC_U(companyId,GetterUtil.getLong(login));
-    }
+  if (authType.equals(CompanyConstants.AUTH_TYPE_EA)) {
+    user=fetchUserByEmailAddress(companyId,login);
   }
- catch (  NoSuchUserException nsue) {
+ else   if (authType.equals(CompanyConstants.AUTH_TYPE_SN)) {
+    user=fetchUserByScreenName(companyId,login);
+  }
+ else   if (authType.equals(CompanyConstants.AUTH_TYPE_ID)) {
+    user=userPersistence.fetchByPrimaryKey(GetterUtil.getLong(login));
+  }
+  if (user == null) {
     return Authenticator.DNE;
   }
   if (user.isDefaultUser()) {
@@ -112,10 +110,8 @@
  else       if (authType.equals(CompanyConstants.AUTH_TYPE_ID)) {
         AuthPipeline.onFailureByUserId(PropsKeys.AUTH_FAILURE,companyId,userId,headerMap,parameterMap);
       }
-      try {
-        user=userPersistence.findByPrimaryKey(user.getUserId());
-      }
- catch (      NoSuchUserException nsue) {
+      user=userPersistence.fetchByPrimaryKey(user.getUserId());
+      if (user == null) {
         return Authenticator.DNE;
       }
       if (!LDAPSettingsUtil.isPasswordPolicyEnabled(user.getCompanyId())) {
