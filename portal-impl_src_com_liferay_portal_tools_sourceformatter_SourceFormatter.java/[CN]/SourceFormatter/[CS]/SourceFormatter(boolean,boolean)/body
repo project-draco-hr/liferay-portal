@@ -1,28 +1,20 @@
 {
-  _checkUnprocessedExceptions=GetterUtil.getBoolean(System.getProperty("source.formatter.check.unprocessed.exceptions"));
-  _excludes=StringUtil.split(GetterUtil.getString(System.getProperty("source.formatter.excludes")));
-  _portalSource=_isPortalSource();
-  _throwException=throwException;
-  _sourceFormatterHelper=new SourceFormatterHelper(useProperties);
-  _sourceFormatterHelper.init();
   Thread thread1=new Thread(){
     @Override public void run(){
       try {
-        _formatJava();
-        _formatAntXML();
-        _formatDDLStructuresXML();
-        _formatFriendlyURLRoutesXML();
-        _formatFTL();
-        _formatJS();
-        _formatPortalProperties();
-        _formatPortletXML();
-        _formatServiceXML();
-        _formatSH();
-        _formatSQL();
-        _formatStrutsConfigXML();
-        _formatTilesDefsXML();
-        _formatTLD();
-        _formatWebXML();
+        List<SourceProcessor> sourceProcessors=new ArrayList<SourceProcessor>();
+        sourceProcessors.add(FTLSourceProcessor.class.newInstance());
+        sourceProcessors.add(JavaSourceProcessor.class.newInstance());
+        sourceProcessors.add(JSSourceProcessor.class.newInstance());
+        sourceProcessors.add(PropertiesSourceProcessor.class.newInstance());
+        sourceProcessors.add(SHSourceProcessor.class.newInstance());
+        sourceProcessors.add(SQLSourceProcessor.class.newInstance());
+        sourceProcessors.add(TLDSourceProcessor.class.newInstance());
+        sourceProcessors.add(XMLSourceProcessor.class.newInstance());
+        for (        SourceProcessor sourceProcessor : sourceProcessors) {
+          sourceProcessor.format(useProperties,throwException);
+          _errorMessages.addAll(sourceProcessor.getErrorMessages());
+        }
       }
  catch (      Exception e) {
         e.printStackTrace();
@@ -33,7 +25,9 @@
   Thread thread2=new Thread(){
     @Override public void run(){
       try {
-        _formatJSP();
+        SourceProcessor sourceProcessor=JSPSourceProcessor.class.newInstance();
+        sourceProcessor.format(useProperties,throwException);
+        _errorMessages.addAll(sourceProcessor.getErrorMessages());
       }
  catch (      Exception e) {
         e.printStackTrace();
@@ -45,8 +39,7 @@
   thread2.start();
   thread1.join();
   thread2.join();
-  _sourceFormatterHelper.close();
-  if (_throwException && !_errorMessages.isEmpty()) {
-    throw new Exception(StringUtil.merge(_errorMessages,"\n"));
+  if (throwException && !_errorMessages.isEmpty()) {
+    System.out.println(StringUtil.merge(_errorMessages,"\n"));
   }
 }
