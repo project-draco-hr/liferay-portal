@@ -9,7 +9,6 @@
   boolean successfulRename=false;
   File newFile=null;
   try {
-    boolean privateLayout=ParamUtil.getBoolean(actionRequest,"privateLayout");
     String newFileName=StringUtil.replace(file.getPath(),file.getName(),fileEntry.getTitle());
     newFile=new File(newFileName);
     successfulRename=file.renameTo(newFile);
@@ -17,9 +16,16 @@
       newFile=FileUtil.createTempFile(fileEntry.getExtension());
       FileUtil.copyFile(file,newFile);
     }
-    LayoutServiceUtil.importLayouts(groupId,privateLayout,actionRequest.getParameterMap(),newFile);
-    deleteTempFileEntry(groupId,folderName);
-    addSuccessMessage(actionRequest,actionResponse);
+    MissingReferences missingReferences=doValidateFile(actionRequest,newFile);
+    Map<String,MissingReference> weakMissingReferences=missingReferences.getWeakMissingReferences();
+    if (weakMissingReferences.isEmpty()) {
+      return;
+    }
+    JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+    if ((weakMissingReferences != null) && (weakMissingReferences.size() > 0)) {
+      jsonObject.put("warningMessages",getWarningMessagesJSONArray(themeDisplay,weakMissingReferences));
+    }
+    writeJSON(actionRequest,actionResponse,jsonObject);
   }
   finally {
     if (successfulRename) {
