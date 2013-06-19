@@ -1,6 +1,27 @@
 {
-  companyPersistence.findByPrimaryKey(companyId);
-  long systemEventId=counterLocalService.increment();
+  SystemEventHierarchyEntry systemEventHierarchyEntry=SystemEventHierarchyEntryThreadLocal.peek();
+  int action=SystemEventConstants.ACTION_NONE;
+  if (systemEventHierarchyEntry != null) {
+    action=systemEventHierarchyEntry.getAction();
+    if ((action == SystemEventConstants.ACTION_SKIP) && !systemEventHierarchyEntry.isCurrentAsset(className,classPK)) {
+      return null;
+    }
+  }
+  Company company=companyPersistence.findByPrimaryKey(companyId);
+  Group companyGroup=company.getGroup();
+  if (companyGroup.getGroupId() == groupId) {
+    groupId=0;
+  }
+  if (Validator.isNotNull(referrerClassName) && referrerClassName.equals(className)) {
+    referrerClassName=null;
+  }
+  long systemEventId=0;
+  if ((systemEventHierarchyEntry != null) && systemEventHierarchyEntry.isCurrentAsset(className,classPK)) {
+    systemEventId=systemEventHierarchyEntry.getSystemEventId();
+  }
+ else {
+    systemEventId=counterLocalService.increment();
+  }
   SystemEvent systemEvent=systemEventPersistence.create(systemEventId);
   systemEvent.setGroupId(groupId);
   systemEvent.setCompanyId(companyId);
@@ -12,6 +33,24 @@
   systemEvent.setClassUuid(classUuid);
   systemEvent.setReferrerClassName(referrerClassName);
   systemEvent.setType(type);
+  long parentSystemEventId=0;
+  if (action == SystemEventConstants.ACTION_HIERARCHY) {
+    if (systemEventHierarchyEntry.isCurrentAsset(className,classPK)) {
+      parentSystemEventId=systemEventHierarchyEntry.getParentSystemEventId();
+    }
+ else {
+      parentSystemEventId=systemEventHierarchyEntry.getSystemEventId();
+    }
+  }
+  long systemEventSetKey=0;
+  if ((action == SystemEventConstants.ACTION_GROUP) || (action == SystemEventConstants.ACTION_HIERARCHY)) {
+    systemEventSetKey=systemEventHierarchyEntry.getSystemEventSetKey();
+  }
+ else {
+    systemEventSetKey=counterLocalService.increment();
+  }
+  systemEvent.setParentSystemEventId(parentSystemEventId);
+  systemEvent.setSystemEventSetKey(systemEventSetKey);
   systemEvent.setExtraData(extraData);
   return systemEventPersistence.update(systemEvent);
 }
