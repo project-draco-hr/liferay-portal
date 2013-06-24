@@ -1,4 +1,7 @@
 {
+  if (AsyncInvokeThreadLocal.isEnabled()) {
+    return null;
+  }
   Async async=findAnnotation(methodInvocation);
   if (async == _nullAsync) {
     return null;
@@ -18,19 +21,13 @@
   if (destinationName == null) {
     destinationName=_defaultDestinationName;
   }
-  MessageBusUtil.sendMessage(destinationName,new Runnable(){
-    @Override public void run(){
-      try {
-        methodInvocation.proceed();
-      }
- catch (      Throwable t) {
-        throw new RuntimeException(t);
-      }
-    }
-    @Override public String toString(){
-      return methodInvocation.toString();
-    }
-  }
-);
+  Thread currentThread=Thread.currentThread();
+  ClassLoader contextClassLoader=currentThread.getContextClassLoader();
+  String servletContextName=ClassLoaderPool.getContextName(contextClassLoader);
+  MethodHandler methodHandler=new MethodHandler(methodInvocation.getMethod(),methodInvocation.getArguments());
+  Object thisObject=methodInvocation.getThis();
+  IdentifiableBean identifiableBean=(IdentifiableBean)thisObject;
+  String beanIdentifier=identifiableBean.getBeanIdentifier();
+  MessageBusUtil.sendMessage(destinationName,new MethodHandler(_invokeMethodKey,methodHandler,servletContextName,beanIdentifier));
   return nullResult;
 }
