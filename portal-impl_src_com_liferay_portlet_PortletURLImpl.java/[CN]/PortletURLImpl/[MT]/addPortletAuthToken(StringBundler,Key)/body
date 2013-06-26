@@ -2,32 +2,34 @@
   if (!PropsValues.PORTLET_ADD_DEFAULT_RESOURCE_CHECK_ENABLED) {
     return;
   }
-  HttpServletRequest request=PortalUtil.getOriginalServletRequest(_request);
-  String ppauth=ParamUtil.getString(request,"p_p_auth");
-  String actualPortletAuthenticationToken=AuthTokenUtil.getToken(_request,_plid,_portletId);
-  if (Validator.isNotNull(ppauth) && ppauth.equals(actualPortletAuthenticationToken)) {
-    sb.append("p_p_auth");
-    sb.append(StringPool.EQUAL);
-    sb.append(processValue(key,ppauth));
-    sb.append(StringPool.AMPERSAND);
-    return;
-  }
   if (!_portlet.isAddDefaultResource()) {
     return;
+  }
+  String strutsAction=getParameter("struts_action");
+  if (AuthTokenWhitelistUtil.isPortletInvocationWhitelisted(_portlet.getCompanyId(),_portletId,strutsAction)) {
+    return;
+  }
+  try {
+    LayoutTypePortlet targetLayoutTypePortlet=(LayoutTypePortlet)getLayout().getLayoutType();
+    if (targetLayoutTypePortlet.hasPortletId(_portletId)) {
+      return;
+    }
+  }
+ catch (  Exception e) {
+    if (_log.isDebugEnabled()) {
+      _log.debug(e.getMessage(),e);
+    }
   }
   Portlet portlet=(Portlet)_request.getAttribute(WebKeys.RENDER_PORTLET);
   if (portlet != null) {
     String portletId=portlet.getPortletId();
-    if (portletId.equals(_portletId) || portletId.equals(PortletKeys.CONTROL_PANEL_MENU)) {
+    if (portletId.equals(PortletKeys.CONTROL_PANEL_MENU)) {
       return;
     }
   }
-  Set<String> whiteList=AuthTokenWhitelistUtil.getPortletInvocationWhitelist();
-  if (whiteList.contains(_portletId)) {
-    return;
-  }
+  String tokenValue=AuthTokenUtil.getToken(_request,_plid,_portletId);
   sb.append("p_p_auth");
   sb.append(StringPool.EQUAL);
-  sb.append(processValue(key,actualPortletAuthenticationToken));
+  sb.append(processValue(key,tokenValue));
   sb.append(StringPool.AMPERSAND);
 }
