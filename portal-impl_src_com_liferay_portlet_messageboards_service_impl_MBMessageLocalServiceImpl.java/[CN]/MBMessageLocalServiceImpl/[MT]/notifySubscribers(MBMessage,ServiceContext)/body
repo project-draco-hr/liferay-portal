@@ -47,7 +47,28 @@
   if (message.getCategoryId() != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) {
     categoryIds.addAll(category.getAncestorCategoryIds());
   }
-  String messageURL=layoutFullURL + Portal.FRIENDLY_URL_SEPARATOR + "message_boards/view_message/"+ message.getMessageId();
+  String messageURL=StringPool.BLANK;
+  HttpServletRequest request=serviceContext.getRequest();
+  if (Validator.isNotNull(layoutFullURL) && (request != null)) {
+    long controlPanelPlid=PortalUtil.getControlPanelPlid(serviceContext.getCompanyId());
+    long messagePlid=serviceContext.getPlid();
+    if (messagePlid == controlPanelPlid) {
+      messagePlid=PortalUtil.getPlidFromPortletId(message.getGroupId(),PortletKeys.MESSAGE_BOARDS);
+      if (messagePlid != LayoutConstants.DEFAULT_PLID) {
+        Layout layout=layoutLocalService.getLayout(messagePlid);
+        layoutFullURL=getMessageLayoutURL(layout,serviceContext);
+      }
+    }
+    if (messagePlid != LayoutConstants.DEFAULT_PLID) {
+      messageURL=layoutFullURL + Portal.FRIENDLY_URL_SEPARATOR + "message_boards/view_message/"+ message.getMessageId();
+    }
+ else {
+      PortletURL portletURL=PortletURLFactoryUtil.create(request,PortletKeys.MESSAGE_BOARDS_ADMIN,controlPanelPlid,PortletRequest.RENDER_PHASE);
+      portletURL.setParameter("struts_action","/message_boards_admin/view_message");
+      portletURL.setParameter("messageId",String.valueOf(message.getMessageId()));
+      messageURL=portletURL.toString();
+    }
+  }
   String fromName=MBUtil.getEmailFromName(preferences,message.getCompanyId());
   String fromAddress=MBUtil.getEmailFromAddress(preferences,message.getCompanyId());
   String replyToAddress=StringPool.BLANK;
@@ -82,7 +103,6 @@
   if (htmlFormat && message.isFormatBBCode()) {
     try {
       messageBody=BBCodeTranslatorUtil.getHTML(messageBody);
-      HttpServletRequest request=serviceContext.getRequest();
       if (request != null) {
         ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
         messageBody=MBUtil.replaceMessageBodyPaths(themeDisplay,messageBody);
