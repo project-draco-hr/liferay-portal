@@ -5,41 +5,7 @@
   PortletDataContext portletDataContext=PortletDataContextFactoryUtil.createImportPortletDataContext(group.getCompanyId(),groupId,parameterMap,getUserIdStrategy(userId,userIdStrategy),zipReader);
   final ManifestSummary manifestSummary=new ManifestSummary();
   SAXParser saxParser=new SAXParser();
-  ElementHandler elementHandler=new ElementHandler(new ElementProcessor(){
-    @Override public void processElement(    Element element){
-      String elementName=element.getName();
-      if (elementName.equals("header")) {
-        String exportDateString=element.attributeValue("export-date");
-        Date exportDate=GetterUtil.getDate(exportDateString,DateFormatFactoryUtil.getSimpleDateFormat(Time.RFC822_FORMAT));
-        manifestSummary.setExportDate(exportDate);
-      }
- else       if (elementName.equals("portlet")) {
-        String portletId=element.attributeValue("portlet-id");
-        try {
-          Portlet portlet=PortletLocalServiceUtil.getPortletById(group.getCompanyId(),portletId);
-          PortletDataHandler portletDataHandler=portlet.getPortletDataHandlerInstance();
-          if (portletDataHandler != null) {
-            if (!(portletDataHandler instanceof DefaultConfigurationPortletDataHandler) && GetterUtil.getBoolean(element.attributeValue("portlet-data"))) {
-              manifestSummary.addDataPortlet(portlet);
-            }
-            if (Validator.isNotNull(portlet.getConfigurationActionClass())) {
-              manifestSummary.addConfigurationPortlet(portlet,StringUtil.split(element.attributeValue("portlet-configuration")));
-            }
-          }
-        }
- catch (        SystemException se) {
-        }
-      }
- else       if (elementName.equals("staged-model")) {
-        String manifestSummaryKey=element.attributeValue("manifest-summary-key");
-        long modelAdditionCount=GetterUtil.getLong(element.attributeValue("addition-count"));
-        manifestSummary.addModelAdditionCount(manifestSummaryKey,modelAdditionCount);
-        long modelDeletionCount=GetterUtil.getLong(element.attributeValue("deletion-count"));
-        manifestSummary.addModelDeletionCount(manifestSummaryKey,modelDeletionCount);
-      }
-    }
-  }
-,new String[]{"header","portlet","staged-model"});
+  ElementHandler elementHandler=new ElementHandler(new ManifestSummaryElementProcessor(group,manifestSummary),new String[]{"header","portlet","staged-model"});
   saxParser.setContentHandler(elementHandler);
   InputStream is=portletDataContext.getZipEntryAsInputStream("/manifest.xml");
   if (is == null) {
