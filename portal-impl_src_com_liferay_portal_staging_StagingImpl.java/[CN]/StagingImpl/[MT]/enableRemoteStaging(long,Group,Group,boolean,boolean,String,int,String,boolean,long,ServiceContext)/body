@@ -3,7 +3,20 @@
   if (liveGroup.hasStagingGroup()) {
     disableStaging(liveGroup,serviceContext);
   }
+  String url=buildRemoteURL(remoteAddress,remotePort,remotePathContext,secureConnection,GroupConstants.DEFAULT_LIVE_GROUP_ID,false);
   UnicodeProperties typeSettingsProperties=liveGroup.getTypeSettingsProperties();
+  boolean stagedRemotely=GetterUtil.getBoolean(typeSettingsProperties.getProperty("stagedRemotely"));
+  if (stagedRemotely) {
+    long oldGroupId=GetterUtil.getLong(typeSettingsProperties.getProperty("remoteGroupId"));
+    String oldUrl=buildRemoteURL(typeSettingsProperties);
+    if (!url.equals(oldUrl) || (remoteGroupId != oldGroupId)) {
+      disableRemoteStaging(oldUrl,oldGroupId);
+      stagedRemotely=false;
+    }
+  }
+  if (!stagedRemotely) {
+    enableRemoteStaging(url,remoteGroupId);
+  }
   typeSettingsProperties.setProperty("branchingPrivate",String.valueOf(branchingPrivate));
   typeSettingsProperties.setProperty("branchingPublic",String.valueOf(branchingPublic));
   typeSettingsProperties.setProperty("remoteAddress",remoteAddress);
@@ -15,5 +28,6 @@
   typeSettingsProperties.setProperty("stagedRemotely",Boolean.TRUE.toString());
   setCommonStagingOptions(liveGroup,typeSettingsProperties,serviceContext);
   GroupLocalServiceUtil.updateGroup(liveGroup.getGroupId(),typeSettingsProperties.toString());
+  updateStagedPortlets(url,remoteGroupId,typeSettingsProperties);
   checkDefaultLayoutSetBranches(userId,liveGroup,branchingPublic,branchingPrivate,true,serviceContext);
 }
