@@ -1,0 +1,70 @@
+{
+  String authorization=request.getHeader("Authorization");
+  if (authorization == null) {
+    return null;
+  }
+  StringTokenizer st=new StringTokenizer(authorization);
+  if (!st.hasMoreTokens()) {
+    return null;
+  }
+  String basic=st.nextToken();
+  if (!basic.equalsIgnoreCase(HttpServletRequest.BASIC_AUTH)) {
+    return null;
+  }
+  if (Validator.isNull(PropsValues.TUNNELING_SERVLET_PRESHARED_SECRET)) {
+    throw new AuthException("The tunneling servlet preshared key is not set");
+  }
+  String encodedCredentials=st.nextToken();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Encoded credentials are " + encodedCredentials);
+  }
+  String decodedCredentials=new String(Base64.decode(encodedCredentials));
+  if (_log.isDebugEnabled()) {
+    _log.debug("Decoded credentials are " + decodedCredentials);
+  }
+  int pos=decodedCredentials.indexOf(CharPool.COLON);
+  if (pos == -1) {
+    return null;
+  }
+  String login=GetterUtil.getString(decodedCredentials.substring(0,pos));
+  String password=decodedCredentials.substring(pos + 1);
+  String expectedPassword=StringPool.BLANK;
+  SecretKeySpec keySpec=new SecretKeySpec(PropsValues.TUNNELING_SERVLET_PRESHARED_SECRET.getBytes(),"HmacSHA1");
+  try {
+    Mac mac=Mac.getInstance("HmacSHA1");
+    mac.init(keySpec);
+    expectedPassword=new String(mac.doFinal(login.getBytes()));
+  }
+ catch (  NoSuchAlgorithmException nsae) {
+  }
+catch (  InvalidKeyException ike) {
+    throw new AuthException("Invalid tunneling servlet preshared key");
+  }
+  if (!password.equals(expectedPassword)) {
+    throw new AuthException();
+  }
+  User user=null;
+  try {
+    user=UserLocalServiceUtil.fetchUser(GetterUtil.getLong(login));
+    if (user == null) {
+      Company company=PortalUtil.getCompany(request);
+      user=UserLocalServiceUtil.fetchUserByEmailAddress(company.getCompanyId(),login);
+      if (user == null) {
+        user=UserLocalServiceUtil.fetchUserByScreenName(company.getCompanyId(),login);
+      }
+    }
+  }
+ catch (  PortalException pe) {
+    _log.error("Unable to fetch company",pe);
+  }
+catch (  SystemException se) {
+    _log.error("Unable to fetch userId",se);
+  }
+  if (user == null) {
+    throw new AuthException();
+  }
+  String[] credentials=new String[2];
+  credentials[0]=String.valueOf(user.getUserId());
+  credentials[1]=password;
+  return credentials;
+}
