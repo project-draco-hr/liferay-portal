@@ -10,21 +10,41 @@
 catch (    Exception e) {
     }
   }
+  Locale locale=null;
   ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
   if (themeDisplay != null) {
-    return themeDisplay.getLocale();
+    locale=themeDisplay.getLocale();
+    if (LanguageUtil.isAvailableLocale(themeDisplay.getSiteGroupId(),locale)) {
+      return locale;
+    }
+  }
+  long groupId=0;
+  try {
+    long scopeGroupId=getScopeGroupId(request);
+    groupId=getSiteGroupId(scopeGroupId);
+  }
+ catch (  Exception e) {
   }
   String i18nLanguageId=(String)request.getAttribute(WebKeys.I18N_LANGUAGE_ID);
   if (Validator.isNotNull(i18nLanguageId)) {
-    return LocaleUtil.fromLanguageId(i18nLanguageId);
+    locale=LocaleUtil.fromLanguageId(i18nLanguageId);
+    if (LanguageUtil.isAvailableLocale(groupId,locale)) {
+      return locale;
+    }
   }
   String doAsUserLanguageId=ParamUtil.getString(request,"doAsUserLanguageId");
   if (Validator.isNotNull(doAsUserLanguageId)) {
-    return LocaleUtil.fromLanguageId(doAsUserLanguageId);
+    locale=LocaleUtil.fromLanguageId(doAsUserLanguageId);
+    if (LanguageUtil.isAvailableLocale(groupId,locale)) {
+      return locale;
+    }
   }
   HttpSession session=request.getSession();
   if (session.getAttribute(Globals.LOCALE_KEY) != null) {
-    return (Locale)session.getAttribute(Globals.LOCALE_KEY);
+    locale=(Locale)session.getAttribute(Globals.LOCALE_KEY);
+    if (LanguageUtil.isAvailableLocale(groupId,locale)) {
+      return locale;
+    }
   }
   if (user == null) {
     try {
@@ -34,33 +54,39 @@ catch (    Exception e) {
     }
   }
   if ((user != null) && !user.isDefaultUser()) {
-    Locale userLocale=getAvailableLocale(user.getLocale());
+    Locale userLocale=getAvailableLocale(groupId,user.getLocale());
     if (userLocale != null) {
-      if (initialize) {
-        setLocale(request,response,userLocale);
+      if (LanguageUtil.isAvailableLocale(groupId,userLocale)) {
+        if (initialize) {
+          setLocale(request,response,userLocale);
+        }
+        return userLocale;
       }
-      return userLocale;
     }
   }
   String languageId=CookieKeys.getCookie(request,CookieKeys.GUEST_LANGUAGE_ID,false);
   if (Validator.isNotNull(languageId)) {
-    Locale cookieLocale=getAvailableLocale(LocaleUtil.fromLanguageId(languageId));
+    Locale cookieLocale=getAvailableLocale(groupId,LocaleUtil.fromLanguageId(languageId));
     if (cookieLocale != null) {
-      if (initialize) {
-        setLocale(request,response,cookieLocale);
+      if (LanguageUtil.isAvailableLocale(groupId,cookieLocale)) {
+        if (initialize) {
+          setLocale(request,response,cookieLocale);
+        }
+        return cookieLocale;
       }
-      return cookieLocale;
     }
   }
   if (PropsValues.LOCALE_DEFAULT_REQUEST) {
     Enumeration<Locale> locales=request.getLocales();
     while (locales.hasMoreElements()) {
-      Locale requestLocale=getAvailableLocale(locales.nextElement());
+      Locale requestLocale=getAvailableLocale(groupId,locales.nextElement());
       if (requestLocale != null) {
-        if (initialize) {
-          setLocale(request,response,requestLocale);
+        if (LanguageUtil.isAvailableLocale(groupId,requestLocale)) {
+          if (initialize) {
+            setLocale(request,response,requestLocale);
+          }
+          return requestLocale;
         }
-        return requestLocale;
       }
     }
   }
@@ -82,12 +108,26 @@ catch (    Exception e) {
   if (defaultUser == null) {
     return null;
   }
-  Locale defaultUserLocale=getAvailableLocale(defaultUser.getLocale());
-  if (defaultUserLocale == null) {
-    return null;
+  Locale defaultUserLocale=getAvailableLocale(groupId,defaultUser.getLocale());
+  if (defaultUserLocale != null) {
+    if (LanguageUtil.isAvailableLocale(groupId,defaultUserLocale)) {
+      if (initialize) {
+        setLocale(request,response,defaultUserLocale);
+      }
+      return defaultUserLocale;
+    }
   }
-  if (initialize) {
-    setLocale(request,response,defaultUserLocale);
+  try {
+    if (themeDisplay != null) {
+      return themeDisplay.getSiteDefaultLocale();
+    }
   }
-  return defaultUserLocale;
+ catch (  Exception e) {
+  }
+  try {
+    return PortalUtil.getSiteDefaultLocale(groupId);
+  }
+ catch (  Exception e) {
+    return LocaleUtil.getDefault();
+  }
 }
