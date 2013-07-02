@@ -2,17 +2,13 @@
   if (Validator.isNull(PropsValues.TUNNELING_SERVLET_PRESHARED_SECRET)) {
     throw new PortalException("The tunneling servlet preshared key is not set");
   }
-  String password=StringPool.BLANK;
-  SecretKeySpec keySpec=new SecretKeySpec(PropsValues.TUNNELING_SERVLET_PRESHARED_SECRET.getBytes(),"HmacSHA1");
+  String login=httpPrincipal.getLogin();
+  String password=null;
+  SecretKeySpec keySpec=new SecretKeySpec(PropsValues.TUNNELING_SERVLET_PRESHARED_SECRET.getBytes(),TUNNEL_ENCRYPTION_ALGORITHM);
   try {
-    Mac mac=Mac.getInstance("HmacSHA1");
-    mac.init(keySpec);
-    String login=httpPrincipal.getLogin();
-    password=new String(mac.doFinal(login.getBytes()));
+    password=Encryptor.encrypt(keySpec,login);
   }
- catch (  NoSuchAlgorithmException nsae) {
-  }
-catch (  InvalidKeyException ike) {
+ catch (  EncryptorException e) {
     throw new PortalException("Invalid tunneling servlet preshared key");
   }
   httpPrincipal.setPassword(password);
@@ -28,6 +24,9 @@ catch (  InvalidKeyException ike) {
     ois.close();
   }
  catch (  EOFException eofe) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Error while reading object",eofe);
+    }
   }
 catch (  IOException ioe) {
     String ioeMessage=ioe.getMessage();
