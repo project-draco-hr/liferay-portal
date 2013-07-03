@@ -11,9 +11,6 @@
   if (!basic.equalsIgnoreCase(HttpServletRequest.BASIC_AUTH)) {
     return null;
   }
-  if (Validator.isNull(PropsValues.TUNNELING_SERVLET_PRESHARED_SECRET)) {
-    throw new AuthException("The tunneling servlet preshared key is not set");
-  }
   String encodedCredentials=st.nextToken();
   if (_log.isDebugEnabled()) {
     _log.debug("Encoded credentials are " + encodedCredentials);
@@ -29,15 +26,17 @@
   String login=GetterUtil.getString(decodedCredentials.substring(0,pos));
   String password=decodedCredentials.substring(pos + 1);
   String expectedPassword=null;
-  SecretKeySpec keySpec=new SecretKeySpec(PropsValues.TUNNELING_SERVLET_PRESHARED_SECRET.getBytes(),TunnelUtil.TUNNEL_ENCRYPTION_ALGORITHM);
   try {
-    expectedPassword=Encryptor.encrypt(keySpec,login);
+    expectedPassword=Encryptor.encrypt(TunnelUtil.getPresharedKey(),login);
   }
  catch (  EncryptorException e) {
     throw new AuthException("Unable to decrypt login.",e);
   }
+catch (  InvalidKeyException e) {
+    throw new AuthException(e);
+  }
   if (!password.equals(expectedPassword)) {
-    throw new AuthException("TunnelingServletAuthVerifier preshared key does not match. " + "Please check your configurations");
+    throw new AuthException("Tunneling servlet preshared keys do not match. " + "Please check your configurations");
   }
   User user=null;
   try {
