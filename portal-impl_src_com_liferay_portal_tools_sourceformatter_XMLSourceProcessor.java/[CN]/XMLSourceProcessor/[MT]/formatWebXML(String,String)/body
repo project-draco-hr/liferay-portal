@@ -1,0 +1,45 @@
+{
+  if (!portalSource) {
+    String webXML=ContentUtil.get("com/liferay/portal/deploy/dependencies/web.xml");
+    if (content.equals(webXML)) {
+      processErrorMessage(fileName,fileName);
+    }
+    return content;
+  }
+  Properties properties=new Properties();
+  String propertiesContent=fileUtil.read(BASEDIR + "portal-impl/src/portal.properties");
+  PropertiesUtil.load(properties,propertiesContent);
+  String[] locales=StringUtil.split(properties.getProperty(PropsKeys.LOCALES));
+  Arrays.sort(locales);
+  Set<String> urlPatterns=new TreeSet<String>();
+  for (  String locale : locales) {
+    int pos=locale.indexOf(StringPool.UNDERLINE);
+    String languageCode=locale.substring(0,pos);
+    urlPatterns.add(languageCode);
+    urlPatterns.add(locale);
+  }
+  StringBundler sb=new StringBundler();
+  for (  String urlPattern : urlPatterns) {
+    sb.append("\t<servlet-mapping>\n");
+    sb.append("\t\t<servlet-name>I18n Servlet</servlet-name>\n");
+    sb.append("\t\t<url-pattern>/" + urlPattern + "/*</url-pattern>\n");
+    sb.append("\t</servlet-mapping>\n");
+  }
+  int x=content.indexOf("<servlet-mapping>");
+  x=content.indexOf("<servlet-name>I18n Servlet</servlet-name>",x);
+  x=content.lastIndexOf("<servlet-mapping>",x) - 1;
+  int y=content.lastIndexOf("<servlet-name>I18n Servlet</servlet-name>");
+  y=content.indexOf("</servlet-mapping>",y) + 19;
+  String newContent=content.substring(0,x) + sb.toString() + content.substring(y);
+  x=newContent.indexOf("<security-constraint>");
+  x=newContent.indexOf("<web-resource-name>/c/portal/protected</web-resource-name>",x);
+  x=newContent.indexOf("<url-pattern>",x) - 3;
+  y=newContent.indexOf("<http-method>",x);
+  y=newContent.lastIndexOf("</url-pattern>",y) + 15;
+  sb=new StringBundler();
+  sb.append("\t\t\t<url-pattern>/c/portal/protected</url-pattern>\n");
+  for (  String urlPattern : urlPatterns) {
+    sb.append("\t\t\t<url-pattern>/" + urlPattern + "/c/portal/protected</url-pattern>\n");
+  }
+  return newContent.substring(0,x) + sb.toString() + newContent.substring(y);
+}
