@@ -13,30 +13,30 @@
   }
   String encodedCredentials=st.nextToken();
   if (_log.isDebugEnabled()) {
-    _log.debug("Encoded credentials are " + encodedCredentials);
+    _log.debug("Encoded credentials " + encodedCredentials);
   }
   String decodedCredentials=new String(Base64.decode(encodedCredentials));
   if (_log.isDebugEnabled()) {
-    _log.debug("Decoded credentials are " + decodedCredentials);
+    _log.debug("Decoded credentials " + decodedCredentials);
   }
-  int pos=decodedCredentials.indexOf(CharPool.COLON);
-  if (pos == -1) {
+  int index=decodedCredentials.indexOf(CharPool.COLON);
+  if (index == -1) {
     return null;
   }
-  String login=GetterUtil.getString(decodedCredentials.substring(0,pos));
-  String password=decodedCredentials.substring(pos + 1);
+  String login=GetterUtil.getString(decodedCredentials.substring(0,index));
+  String password=decodedCredentials.substring(index + 1);
   String expectedPassword=null;
   try {
-    expectedPassword=Encryptor.encrypt(TunnelUtil.getSharedKey(),login);
+    expectedPassword=Encryptor.encrypt(TunnelUtil.getSharedSecretKey(),login);
   }
- catch (  EncryptorException e) {
-    throw new AuthException("Unable to decrypt login.",e);
+ catch (  EncryptorException ee) {
+    throw new AuthException("Unable to decrypt login.",ee);
   }
-catch (  InvalidKeyException e) {
-    throw new AuthException(e);
+catch (  InvalidKeyException ike) {
+    throw new AuthException(ike);
   }
   if (!password.equals(expectedPassword)) {
-    throw new AuthException("Tunneling servlet preshared keys do not match. " + "Please check your configurations");
+    throw new AuthException("Tunneling servlet shared secrets do not match");
   }
   User user=null;
   try {
@@ -50,10 +50,14 @@ catch (  InvalidKeyException e) {
     }
   }
  catch (  PortalException pe) {
-    _log.error("Unable to fetch company",pe);
+    if (_log.isWarnEnabled()) {
+      _log.warn("Unable to find company",pe);
+    }
   }
 catch (  SystemException se) {
-    _log.error("Unable to fetch userId",se);
+    if (_log.isWarnEnabled()) {
+      _log.warn("Unable to find user",se);
+    }
   }
   if (user == null) {
     throw new AuthException();
