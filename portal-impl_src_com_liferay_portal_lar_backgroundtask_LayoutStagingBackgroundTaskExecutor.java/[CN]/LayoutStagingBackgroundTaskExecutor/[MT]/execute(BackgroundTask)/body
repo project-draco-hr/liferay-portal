@@ -10,6 +10,7 @@
   Date startDate=(Date)taskContextMap.get("startDate");
   Date endDate=(Date)taskContextMap.get("endDate");
   File larFile=LayoutLocalServiceUtil.exportLayoutsAsFile(sourceGroupId,privateLayout,layoutIds,parameterMap,startDate,endDate);
+  MissingReferences missingReferences=LayoutLocalServiceUtil.validateImportLayoutsFile(userId,targetGroupId,privateLayout,parameterMap,larFile);
   try {
     LayoutLocalServiceUtil.importLayouts(userId,targetGroupId,privateLayout,parameterMap,larFile);
   }
@@ -17,5 +18,11 @@
     larFile.delete();
     StagingUtil.unlockGroup(targetGroupId);
   }
-  return BackgroundTaskResult.SUCCESS;
+  BackgroundTaskResult result=new BackgroundTaskResult(BackgroundTaskConstants.STATUS_SUCCESSFUL);
+  Map<String,MissingReference> weakMissingReferences=missingReferences.getWeakMissingReferences();
+  if (weakMissingReferences != null) {
+    JSONArray jsonArray=StagingUtil.getWarningMessagesJSONArray(getLocale(backgroundTask),weakMissingReferences);
+    result.setStatusMessage(jsonArray.toString());
+  }
+  return result;
 }
