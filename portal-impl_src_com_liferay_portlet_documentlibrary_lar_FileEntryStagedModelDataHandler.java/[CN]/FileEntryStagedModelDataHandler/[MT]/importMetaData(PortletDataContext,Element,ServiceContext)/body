@@ -1,18 +1,27 @@
 {
-  String fileEntryTypeUuid=fileEntryElement.attributeValue("fileEntryTypeUuid");
-  if (Validator.isNull(fileEntryTypeUuid)) {
+  List<Element> referenceDataElements=portletDataContext.getReferenceDataElements(fileEntryElement,DLFileEntryType.class);
+  if (referenceDataElements.size() != 1) {
     return;
   }
-  DLFileEntryType dlFileEntryType=DLFileEntryTypeLocalServiceUtil.fetchDLFileEntryTypeByUuidAndGroupId(fileEntryTypeUuid,portletDataContext.getScopeGroupId());
-  if (dlFileEntryType == null) {
-    dlFileEntryType=DLFileEntryTypeLocalServiceUtil.fetchDLFileEntryTypeByUuidAndGroupId(portletDataContext.getCompanyGroupId());
-    if (dlFileEntryType == null) {
-      serviceContext.setAttribute("fileEntryTypeId",-1);
-      return;
-    }
+  Element fileEntryTypeElement=referenceDataElements.get(0);
+  String fileEntryTypePath=fileEntryTypeElement.attributeValue("path");
+  DLFileEntryType dlFileEntryType=(DLFileEntryType)portletDataContext.getZipEntryAsObject(fileEntryTypePath);
+  DLFileEntryType existingDLFileEntryType=DLFileEntryTypeLocalServiceUtil.fetchDLFileEntryTypeByUuidAndGroupId(dlFileEntryType.getUuid(),portletDataContext.getScopeGroupId());
+  if (existingDLFileEntryType == null) {
+    existingDLFileEntryType=DLFileEntryTypeLocalServiceUtil.fetchDLFileEntryTypeByUuidAndGroupId(dlFileEntryType.getUuid(),portletDataContext.getCompanyGroupId());
   }
-  serviceContext.setAttribute("fileEntryTypeId",dlFileEntryType.getFileEntryTypeId());
-  List<DDMStructure> ddmStructures=dlFileEntryType.getDDMStructures();
+  if (existingDLFileEntryType == null) {
+    StagedModelDataHandlerUtil.importStagedModel(portletDataContext,dlFileEntryType);
+    Map<Long,Long> dlFileEntryTypeIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(DLFileEntryType.class);
+    long dlFileEntryTypeId=MapUtil.getLong(dlFileEntryTypeIds,dlFileEntryType.getFileEntryTypeId(),dlFileEntryType.getFileEntryTypeId());
+    existingDLFileEntryType=DLFileEntryTypeLocalServiceUtil.fetchDLFileEntryType(dlFileEntryTypeId);
+  }
+  if (existingDLFileEntryType == null) {
+    serviceContext.setAttribute("fileEntryTypeId",-1);
+    return;
+  }
+  serviceContext.setAttribute("fileEntryTypeId",existingDLFileEntryType.getFileEntryTypeId());
+  List<DDMStructure> ddmStructures=existingDLFileEntryType.getDDMStructures();
   for (  DDMStructure ddmStructure : ddmStructures) {
     Element structureFieldsElement=(Element)fileEntryElement.selectSingleNode("structure-fields[@structureUuid='".concat(ddmStructure.getUuid()).concat("']"));
     if (structureFieldsElement == null) {
