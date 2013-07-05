@@ -1,4 +1,10 @@
 {
+  Thread currentThread=Thread.currentThread();
+  ClassLoader contextClassLoader=currentThread.getContextClassLoader();
+  ClassLoader operatingClassLoader=getOperatingClassloader();
+  if (contextClassLoader == operatingClassLoader) {
+    _portalMessagingConfigurator=true;
+  }
   MessageBus messageBus=getMessageBus();
   for (  DestinationEventListener destinationEventListener : _globalDestinationEventListeners) {
     messageBus.addDestinationEventListener(destinationEventListener);
@@ -15,19 +21,7 @@
   for (  Destination destination : _replacementDestinations) {
     messageBus.replace(destination);
   }
-  Thread currentThread=Thread.currentThread();
-  ClassLoader contextClassLoader=currentThread.getContextClassLoader();
-  try {
-    ClassLoader operatingClassLoader=getOperatingClassloader();
-    currentThread.setContextClassLoader(operatingClassLoader);
-    for (    Map.Entry<String,List<MessageListener>> messageListeners : _messageListeners.entrySet()) {
-      String destinationName=messageListeners.getKey();
-      for (      MessageListener messageListener : messageListeners.getValue()) {
-        messageBus.registerMessageListener(destinationName,messageListener);
-      }
-    }
-  }
-  finally {
-    currentThread.setContextClassLoader(contextClassLoader);
-  }
+  connect();
+  String servletContextName=ClassLoaderPool.getContextName(operatingClassLoader);
+  MessagingConfiguratorRegistry.register(servletContextName,this);
 }
