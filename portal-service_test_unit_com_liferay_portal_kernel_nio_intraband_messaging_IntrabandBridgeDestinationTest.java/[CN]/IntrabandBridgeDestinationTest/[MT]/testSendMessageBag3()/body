@@ -1,0 +1,47 @@
+{
+  ConcurrentMap<String,Object> attributes=ProcessExecutor.ProcessContext.getAttributes();
+  MockSPI mockSPI1=_createMockSPI("SPIProvider","SPI1");
+  attributes.put(SPI.SPI_INSTANCE_PUBLICATION_KEY,mockSPI1);
+  MessageRoutingBag messageRoutingBag=_createMessageRoutingBag();
+  messageRoutingBag.setRoutingDowncast(true);
+  _intrabandBridgeDestination.sendMessageBag(messageRoutingBag);
+  Assert.assertTrue(messageRoutingBag.isVisited(_toRoutingId(mockSPI1)));
+  Message message=messageRoutingBag.getMessage();
+  Assert.assertNull(message.get(_RECEIVE_KEY));
+  _failSend=true;
+  try {
+    messageRoutingBag=_createMessageRoutingBag();
+    _intrabandBridgeDestination.sendMessageBag(messageRoutingBag);
+    Assert.fail();
+  }
+ catch (  RuntimeException re) {
+    Throwable throwable=re.getCause();
+    Assert.assertEquals(RuntimeException.class,throwable.getClass());
+    throwable=throwable.getCause();
+    Assert.assertEquals(IOException.class,throwable.getClass());
+  }
+ finally {
+    _failSend=false;
+  }
+  Assert.assertTrue(messageRoutingBag.isVisited(_toRoutingId(mockSPI1)));
+  messageRoutingBag=_createMessageRoutingBag();
+  _intrabandBridgeDestination.sendMessageBag(messageRoutingBag);
+  Assert.assertTrue(messageRoutingBag.isVisited(_toRoutingId(mockSPI1)));
+  message=messageRoutingBag.getMessage();
+  Assert.assertEquals(_RECEIVE_VALUE,message.get(_RECEIVE_KEY));
+  MockSPI mockSPI2=_createMockSPI("SPIProvider","SPI2");
+  _installSPIs(mockSPI2);
+  messageRoutingBag=_createMessageRoutingBag();
+  messageRoutingBag.setRoutingDowncast(true);
+  _intrabandBridgeDestination.sendMessageBag(messageRoutingBag);
+  Assert.assertTrue(messageRoutingBag.isVisited(_toRoutingId(mockSPI1)));
+  message=messageRoutingBag.getMessage();
+  Assert.assertEquals(_RECEIVE_VALUE,message.get(_RECEIVE_KEY));
+  messageRoutingBag=_createMessageRoutingBag();
+  messageRoutingBag.setRoutingDowncast(true);
+  messageRoutingBag.appendRoutingId(_toRoutingId(mockSPI2));
+  _intrabandBridgeDestination.sendMessageBag(messageRoutingBag);
+  Assert.assertTrue(messageRoutingBag.isVisited(_toRoutingId(mockSPI1)));
+  message=messageRoutingBag.getMessage();
+  Assert.assertNull(message.get(_RECEIVE_KEY));
+}

@@ -1,0 +1,56 @@
+{
+  final AtomicBoolean failToSend=new AtomicBoolean();
+  final AtomicReference<Message> messageReference=new AtomicReference<Message>();
+  MessageListener messageListener=new MessageListener(){
+    @Override public void receive(    Message message){
+      if (failToSend.get()) {
+        throw new RuntimeException();
+      }
+      messageReference.set(message);
+    }
+  }
+;
+  _baseDestination.register(messageListener);
+  Message message=new Message();
+  _intrabandBridgeDestination.send(message);
+  Assert.assertNotNull(message.get(MessageRoutingBag.MESSAGE_ROUTING_BAG));
+  Assert.assertSame(message,messageReference.get());
+  MessageRoutingBag messageRoutingBag=_createMessageRoutingBag();
+  message=messageRoutingBag.getMessage();
+  message.put(MessageRoutingBag.MESSAGE_ROUTING_BAG,messageRoutingBag);
+  _intrabandBridgeDestination.send(message);
+  Assert.assertSame(messageRoutingBag,message.get(MessageRoutingBag.MESSAGE_ROUTING_BAG));
+  messageRoutingBag=_createMessageRoutingBag();
+  message=messageRoutingBag.getMessage();
+  message.put(MessageRoutingBag.MESSAGE_ROUTING_BAG,messageRoutingBag);
+  messageRoutingBag.getMessageData();
+  ClassLoaderPool.register(StringPool.BLANK,new ClassLoader(){
+    @Override public Class<?> loadClass(    String name) throws ClassNotFoundException {
+      if (name.equals(Message.class.getName())) {
+        throw new ClassNotFoundException();
+      }
+      return super.loadClass(name);
+    }
+  }
+);
+  try {
+    _intrabandBridgeDestination.send(message);
+    Assert.fail();
+  }
+ catch (  RuntimeException re) {
+    Throwable throwable=re.getCause();
+    Assert.assertSame(ClassNotFoundException.class,throwable.getClass());
+  }
+ finally {
+    ClassLoaderPool.unregister(StringPool.BLANK);
+  }
+  failToSend.set(true);
+  try {
+    _intrabandBridgeDestination.send(new Message());
+    Assert.fail();
+  }
+ catch (  RuntimeException re) {
+    Throwable throwable=re.getCause();
+    Assert.assertSame(RuntimeException.class,throwable.getClass());
+  }
+}

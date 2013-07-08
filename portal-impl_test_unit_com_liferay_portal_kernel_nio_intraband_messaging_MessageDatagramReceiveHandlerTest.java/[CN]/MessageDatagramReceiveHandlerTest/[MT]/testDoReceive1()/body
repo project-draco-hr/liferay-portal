@@ -1,0 +1,80 @@
+{
+  PortalClassLoaderUtil.setClassLoader(MessageDatagramReceiveHandlerTest.class.getClassLoader());
+  MessageBus messageBus=new DefaultMessageBus();
+  MessageDatagramReceiveHandler messageDatagramReceiveHandler=new MessageDatagramReceiveHandler(messageBus);
+  SystemDataType systemDataType=SystemDataType.MESSAGE;
+  Message message=new Message();
+  message.setDestinationName(MessageDatagramReceiveHandlerTest.class.getName());
+  MessageRoutingBag messageRoutingBag=new MessageRoutingBag(message,false);
+  Datagram datagram=Datagram.createRequestDatagram(systemDataType.getValue(),messageRoutingBag.toByteArray());
+  messageDatagramReceiveHandler.doReceive(_mockRegistrationReference,datagram);
+  messageRoutingBag=new MessageRoutingBag(message,true);
+  datagram=Datagram.createRequestDatagram(systemDataType.getValue(),messageRoutingBag.toByteArray());
+  messageDatagramReceiveHandler.doReceive(_mockRegistrationReference,datagram);
+  Datagram responseDatagram=_mockIntraband.getDatagram();
+  ByteBuffer byteBuffer=responseDatagram.getDataByteBuffer();
+  MessageRoutingBag responseMessageRoutingBag=MessageRoutingBag.fromByteArray(byteBuffer.array());
+  assertMessageRoutingBagEquals(messageRoutingBag,responseMessageRoutingBag);
+  BaseDestination baseDestination=new SynchronousDestination();
+  baseDestination.setName(MessageDatagramReceiveHandlerTest.class.getName());
+  messageBus.addDestination(baseDestination);
+  datagram=Datagram.createRequestDatagram(systemDataType.getValue(),messageRoutingBag.toByteArray());
+  messageDatagramReceiveHandler.doReceive(_mockRegistrationReference,datagram);
+  responseDatagram=_mockIntraband.getDatagram();
+  byteBuffer=responseDatagram.getDataByteBuffer();
+  responseMessageRoutingBag=MessageRoutingBag.fromByteArray(byteBuffer.array());
+  assertMessageRoutingBagEquals(messageRoutingBag,responseMessageRoutingBag);
+  final AtomicReference<Message> messageReference=new AtomicReference<Message>();
+  baseDestination.register(new MessageListener(){
+    @Override public void receive(    Message message){
+      messageReference.set(message);
+    }
+  }
+);
+  datagram=Datagram.createRequestDatagram(systemDataType.getValue(),messageRoutingBag.toByteArray());
+  messageDatagramReceiveHandler.doReceive(_mockRegistrationReference,datagram);
+  responseDatagram=_mockIntraband.getDatagram();
+  byteBuffer=responseDatagram.getDataByteBuffer();
+  responseMessageRoutingBag=MessageRoutingBag.fromByteArray(byteBuffer.array());
+  assertMessageRoutingBagEquals(messageRoutingBag,responseMessageRoutingBag);
+  Message receivedMessage=messageReference.get();
+  Assert.assertNotNull(receivedMessage);
+  final MessageListenerException messageListenerException=new MessageListenerException();
+  baseDestination.register(new MessageListener(){
+    @Override public void receive(    Message message) throws MessageListenerException {
+      throw messageListenerException;
+    }
+  }
+);
+  datagram=Datagram.createRequestDatagram(systemDataType.getValue(),messageRoutingBag.toByteArray());
+  try {
+    messageDatagramReceiveHandler.doReceive(_mockRegistrationReference,datagram);
+    Assert.fail();
+  }
+ catch (  MessageBusException mbe) {
+    Assert.assertSame(messageListenerException,mbe.getCause());
+  }
+  baseDestination=new SynchronousDestination();
+  baseDestination.setName(MessageDatagramReceiveHandlerTest.class.getName());
+  final AtomicReference<MessageRoutingBag> messageRoutingBagReference=new AtomicReference<MessageRoutingBag>();
+  IntrabandBridgeDestination intrabandBridgeDestination=new IntrabandBridgeDestination(baseDestination){
+    @Override public void sendMessageBag(    MessageRoutingBag messageRoutingBag){
+      messageRoutingBagReference.set(messageRoutingBag);
+    }
+  }
+;
+  messageBus.addDestination(intrabandBridgeDestination);
+  datagram=Datagram.createRequestDatagram(systemDataType.getValue(),messageRoutingBag.toByteArray());
+  messageDatagramReceiveHandler.doReceive(_mockRegistrationReference,datagram);
+  assertMessageRoutingBagEquals(messageRoutingBag,messageRoutingBagReference.get());
+  messageReference.set(null);
+  baseDestination.register(new MessageListener(){
+    @Override public void receive(    Message message){
+      messageReference.set(message);
+    }
+  }
+);
+  datagram=Datagram.createRequestDatagram(systemDataType.getValue(),messageRoutingBag.toByteArray());
+  messageDatagramReceiveHandler.doReceive(_mockRegistrationReference,datagram);
+  Assert.assertNotNull(messageReference.get());
+}
