@@ -1,5 +1,33 @@
 {
-  Deserializer deserializer=new Deserializer(datagram.getDataByteBuffer());
-  Message message=deserializer.readObject();
-  MessageBusUtil.sendMessage(message.getDestinationName(),message);
+  ByteBuffer byteBuffer=datagram.getDataByteBuffer();
+  MessageRoutingBag messageRoutingBag=MessageRoutingBag.fromByteArray(byteBuffer.array());
+  Destination destination=_messageBus.getDestination(messageRoutingBag.getDestinationName());
+  if (destination != null) {
+    Set<MessageListener> messageListeners=destination.getMessageListeners();
+    if (destination instanceof IntrabandBridgeDestination) {
+      if (messageListeners.isEmpty()) {
+        IntrabandBridgeDestination intrabandBridgeDestination=(IntrabandBridgeDestination)destination;
+        intrabandBridgeDestination.sendMessageBag(messageRoutingBag);
+      }
+ else {
+        destination.send(messageRoutingBag.getMessage());
+      }
+    }
+ else {
+      if (!messageListeners.isEmpty()) {
+        for (        MessageListener messageListener : messageListeners) {
+          try {
+            messageListener.receive(messageRoutingBag.getMessage());
+          }
+ catch (          MessageListenerException mle) {
+            throw new MessageBusException(mle);
+          }
+        }
+      }
+    }
+  }
+  if (messageRoutingBag.isSynchronizedBridge()) {
+    Intraband intraband=registrationReference.getIntraband();
+    intraband.sendDatagram(registrationReference,Datagram.createResponseDatagram(datagram,messageRoutingBag.toByteArray()));
+  }
 }
