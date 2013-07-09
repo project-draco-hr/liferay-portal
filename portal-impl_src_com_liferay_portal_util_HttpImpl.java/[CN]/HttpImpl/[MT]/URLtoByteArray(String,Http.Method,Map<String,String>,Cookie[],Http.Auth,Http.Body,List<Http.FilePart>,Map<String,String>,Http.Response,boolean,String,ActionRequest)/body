@@ -66,12 +66,13 @@
       httpState.setCredentials(new AuthScope(auth.getHost(),auth.getPort(),auth.getRealm()),new UsernamePasswordCredentials(auth.getUsername(),auth.getPassword()));
     }
     proxifyState(httpState,hostConfiguration);
-    httpClient.executeMethod(hostConfiguration,httpMethod,httpState);
+    int responseCode=httpClient.executeMethod(hostConfiguration,httpMethod,httpState);
+    response.setResponseCode(responseCode);
     Header locationHeader=httpMethod.getResponseHeader("location");
     if ((locationHeader != null) && !locationHeader.equals(location)) {
       String redirect=locationHeader.getValue();
       if (followRedirects) {
-        return URLtoByteArray(redirect,Http.Method.GET,headers,cookies,auth,body,fileParts,parts,response,followRedirects);
+        return URLtoByteArray(redirect,Http.Method.GET,headers,cookies,auth,body,fileParts,parts,response,followRedirects,progressId,actionRequest);
       }
  else {
         response.setRedirect(redirect);
@@ -79,15 +80,31 @@
     }
     InputStream inputStream=httpMethod.getResponseBodyAsStream();
     if (inputStream != null) {
-      Header contentLength=httpMethod.getResponseHeader(HttpHeaders.CONTENT_LENGTH);
-      if (contentLength != null) {
-        response.setContentLength(GetterUtil.getInteger(contentLength.getValue()));
+      int contentLength=0;
+      Header contentLengthHeader=httpMethod.getResponseHeader(HttpHeaders.CONTENT_LENGTH);
+      if (contentLengthHeader != null) {
+        contentLength=GetterUtil.getInteger(contentLengthHeader.getValue());
+        response.setContentLength(contentLength);
       }
       Header contentType=httpMethod.getResponseHeader(HttpHeaders.CONTENT_TYPE);
       if (contentType != null) {
         response.setContentType(contentType.getValue());
       }
-      bytes=FileUtil.getBytes(inputStream);
+      if (Validator.isNotNull(progressId) && (actionRequest != null)) {
+        ProgressInputStream pis=new ProgressInputStream(actionRequest,inputStream,contentLength,progressId);
+        UnsyncByteArrayOutputStream unsyncByteArrayOutputStream=new UnsyncByteArrayOutputStream(contentLength);
+        try {
+          pis.readAll(unsyncByteArrayOutputStream);
+        }
+  finally {
+          pis.clearProgress();
+        }
+        bytes=unsyncByteArrayOutputStream.unsafeGetByteArray();
+        unsyncByteArrayOutputStream.close();
+      }
+ else {
+        bytes=FileUtil.getBytes(inputStream);
+      }
     }
     for (    Header header : httpMethod.getResponseHeaders()) {
       response.addHeader(header.getName(),header.getValue());
