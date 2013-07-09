@@ -1,20 +1,7 @@
 {
   int responseCode=HttpServletResponse.SC_OK;
-  GetMethod getMethod=null;
   String deploymentContext=ParamUtil.getString(actionRequest,"deploymentContext");
   try {
-    HttpImpl httpImpl=null;
-    Object httpObject=HttpUtil.getHttp();
-    if (httpObject instanceof DoPrivilegedBean) {
-      DoPrivilegedBean doPrivilegedBean=(DoPrivilegedBean)httpObject;
-      httpImpl=(HttpImpl)doPrivilegedBean.getActualBean();
-    }
- else {
-      httpImpl=(HttpImpl)httpObject;
-    }
-    HostConfiguration hostConfiguration=httpImpl.getHostConfiguration(url);
-    HttpClient httpClient=httpImpl.getClient(hostConfiguration);
-    getMethod=new GetMethod(url);
     String fileName=null;
     if (Validator.isNotNull(deploymentContext)) {
       fileName=BaseDeployer.DEPLOY_TO_PREFIX + deploymentContext + ".war";
@@ -27,41 +14,21 @@
       }
     }
     PluginPackageUtil.registerPluginPackageInstallation(deploymentContext);
-    responseCode=httpClient.executeMethod(hostConfiguration,getMethod);
-    if (responseCode != HttpServletResponse.SC_OK) {
-      if (failOnError) {
-        SessionErrors.add(actionRequest,"errorConnectingToUrl",new Object[]{String.valueOf(responseCode)});
-      }
-      return responseCode;
-    }
-    long contentLength=getMethod.getResponseContentLength();
     String progressId=ParamUtil.getString(actionRequest,Constants.PROGRESS_ID);
-    ProgressInputStream pis=new ProgressInputStream(actionRequest,getMethod.getResponseBodyAsStream(),contentLength,progressId);
-    String deployDir=PrefsPropsUtil.getString(PropsKeys.AUTO_DEPLOY_DEPLOY_DIR,PropsValues.AUTO_DEPLOY_DEPLOY_DIR);
-    String tmpFilePath=deployDir + StringPool.SLASH + _DOWNLOAD_DIR+ StringPool.SLASH+ fileName;
-    File tmpFile=new File(tmpFilePath);
-    if (!tmpFile.getParentFile().exists()) {
-      tmpFile.getParentFile().mkdirs();
-    }
-    FileOutputStream fos=new FileOutputStream(tmpFile);
-    try {
-      pis.readAll(fos);
-      if (_log.isInfoEnabled()) {
-        _log.info("Downloaded plugin from " + urlObj + " has "+ pis.getTotalRead()+ " bytes");
-      }
-    }
-  finally {
-      pis.clearProgress();
-    }
-    getMethod.releaseConnection();
-    if (pis.getTotalRead() > 0) {
+    Http.Options options=new Http.Options();
+    options.setActionRequest(actionRequest);
+    options.setFollowRedirects(false);
+    options.setLocation(url);
+    options.setPost(false);
+    options.setProgressId(progressId);
+    byte[] bytes=HttpUtil.URLtoByteArray(options);
+    Http.Response response=options.getResponse();
+    responseCode=response.getResponseCode();
+    if ((responseCode == HttpServletResponse.SC_OK) && (bytes.length > 0)) {
+      String deployDir=PrefsPropsUtil.getString(PropsKeys.AUTO_DEPLOY_DEPLOY_DIR,PropsValues.AUTO_DEPLOY_DEPLOY_DIR);
       String destination=deployDir + StringPool.SLASH + fileName;
       File destinationFile=new File(destination);
-      boolean moved=FileUtil.move(tmpFile,destinationFile);
-      if (!moved) {
-        FileUtil.copyFile(tmpFile,destinationFile);
-        FileUtil.delete(tmpFile);
-      }
+      FileUtil.write(destinationFile,bytes);
       SessionMessages.add(actionRequest,"pluginDownloaded");
     }
  else {
@@ -78,9 +45,6 @@ catch (  IOException ioe) {
     SessionErrors.add(actionRequest,"errorConnectingToUrl",ioe);
   }
  finally {
-    if (getMethod != null) {
-      getMethod.releaseConnection();
-    }
     PluginPackageUtil.endPluginPackageInstallation(deploymentContext);
   }
   return responseCode;
