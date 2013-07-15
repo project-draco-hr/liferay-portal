@@ -1,7 +1,28 @@
 {
   Metadata metadata=super.extractMetadata(extension,mimeType,inputStream);
+  boolean forkProcess=false;
+  if (PropsValues.TEXT_EXTRACTION_FORK_PROCESS_ENABLED) {
+    if (ArrayUtil.contains(PropsValues.TEXT_EXTRACTION_FORK_PROCESS_MIME_TYPES,mimeType)) {
+      forkProcess=true;
+    }
+  }
+  if (forkProcess) {
+    File file=FileUtil.createTempFile();
+    try {
+      FileUtil.write(file,inputStream);
+      ExtractMetadataProcessCallable extractMetadataProcessCallable=new ExtractMetadataProcessCallable(file,metadata,_parser);
+      Future<Metadata> future=ProcessExecutor.execute(ClassPathUtil.getPortalClassPath(),extractMetadataProcessCallable);
+      return future.get();
+    }
+ catch (    Exception e) {
+      throw new SystemException(e);
+    }
+ finally {
+      file.delete();
+    }
+  }
   try {
-    return extractMetadata(inputStream,metadata);
+    return extractMetadata(inputStream,metadata,_parser);
   }
  catch (  IOException ioe) {
     throw new SystemException(ioe);
