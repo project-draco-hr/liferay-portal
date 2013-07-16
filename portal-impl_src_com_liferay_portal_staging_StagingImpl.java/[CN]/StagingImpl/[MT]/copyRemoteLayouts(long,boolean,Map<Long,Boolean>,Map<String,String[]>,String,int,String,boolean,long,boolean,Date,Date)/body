@@ -27,38 +27,36 @@ catch (  SystemException se) {
     ree.setURL(url);
     throw ree;
   }
-  byte[] bytes=null;
-  if (layoutIdMap == null) {
-    bytes=LayoutLocalServiceUtil.exportLayouts(sourceGroupId,privateLayout,parameterMap,startDate,endDate);
-  }
+  File file=null;
+  FileInputStream fileInputStream=null;
+  long folderId=0;
+  try {
+    file=exportLayoutsAsFile(sourceGroupId,privateLayout,layoutIdMap,parameterMap,remoteGroupId,startDate,endDate,httpPrincipal);
+    int bufferSize=PropsValues.STAGING_REMOTE_TRANSFER_BUFFER_SIZE;
+    byte[] byteBuffer=new byte[bufferSize];
+    String fileName=file.getName();
+    String md5Checksum=FileUtil.getMD5Checksum(file);
+    fileInputStream=new FileInputStream(file);
+    int readBytes=0;
+    folderId=StagingServiceHttp.prepare(httpPrincipal,remoteGroupId,md5Checksum);
+    while ((readBytes=fileInputStream.read(byteBuffer)) >= 0) {
+      if (readBytes < bufferSize) {
+        byte[] tempByteBuffer=new byte[readBytes];
+        System.arraycopy(byteBuffer,0,tempByteBuffer,0,readBytes);
+        StagingServiceHttp.stage(httpPrincipal,folderId,fileName,tempByteBuffer);
+      }
  else {
-    List<Layout> layouts=new ArrayList<Layout>();
-    for (    Map.Entry<Long,Boolean> entry : layoutIdMap.entrySet()) {
-      long plid=GetterUtil.getLong(String.valueOf(entry.getKey()));
-      boolean includeChildren=entry.getValue();
-      Layout layout=LayoutLocalServiceUtil.getLayout(plid);
-      if (!layouts.contains(layout)) {
-        layouts.add(layout);
+        StagingServiceHttp.stage(httpPrincipal,folderId,fileName,byteBuffer);
       }
-      List<Layout> parentLayouts=getMissingRemoteParentLayouts(httpPrincipal,layout,remoteGroupId);
-      for (      Layout parentLayout : parentLayouts) {
-        if (!layouts.contains(parentLayout)) {
-          layouts.add(parentLayout);
-        }
-      }
-      if (includeChildren) {
-        for (        Layout childLayout : layout.getAllChildren()) {
-          if (!layouts.contains(childLayout)) {
-            layouts.add(childLayout);
-          }
-        }
-      }
+      byteBuffer=new byte[bufferSize];
     }
-    long[] layoutIds=getLayoutIds(layouts);
-    if (layoutIds.length <= 0) {
-      throw new RemoteExportException(RemoteExportException.NO_LAYOUTS);
-    }
-    bytes=LayoutLocalServiceUtil.exportLayouts(sourceGroupId,privateLayout,layoutIds,parameterMap,startDate,endDate);
+    StagingServiceHttp.publish(httpPrincipal,folderId,privateLayout,parameterMap);
   }
-  LayoutServiceHttp.importLayouts(httpPrincipal,remoteGroupId,remotePrivateLayout,parameterMap,bytes);
+  finally {
+    StreamUtil.cleanUp(fileInputStream);
+    FileUtil.delete(file);
+    if (folderId > 0) {
+      StagingServiceHttp.cleanup(httpPrincipal,folderId);
+    }
+  }
 }
