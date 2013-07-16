@@ -16,12 +16,22 @@
   StringBundler sb=new StringBundler(5);
   sb.append("<listener>");
   sb.append("<listener-class>");
-  String securityManagerEnabled="false";
+  boolean hasCustomServletListener=false;
+  List<Element> listenerElements=rootElement.elements("listener");
+  for (  Element listenerElement : listenerElements) {
+    String listenerClass=GetterUtil.getString(listenerElement.elementText("listener-class"));
+    if (listenerClass.equals(SerializableSessionAttributeListener.class.getName()) || listenerClass.equals(SecurePluginContextListener.class.getName())) {
+      continue;
+    }
+    hasCustomServletListener=true;
+    break;
+  }
+  boolean securityManagerEnabled=false;
   Properties properties=getPluginPackageProperties(srcFile);
   if (properties != null) {
-    securityManagerEnabled=GetterUtil.getString(properties.getProperty("security-manager-enabled"),securityManagerEnabled);
+    securityManagerEnabled=GetterUtil.getBoolean(properties.getProperty("security-manager-enabled"));
   }
-  if (securityManagerEnabled.equals("generate") || securityManagerEnabled.equals("true")) {
+  if (hasCustomServletListener || securityManagerEnabled) {
     sb.append(SecurePluginContextListener.class.getName());
   }
  else {
@@ -31,15 +41,13 @@
   sb.append("</listener>");
   String pluginContextListenerContent=sb.toString();
   String extraContent=getExtraContent(webXmlVersion,srcFile,displayName);
-  int pos=content.indexOf("<servlet>");
+  int pos=content.indexOf("<listener>");
   if (pos == -1) {
     pos=content.indexOf("</web-app>");
   }
   String newContent=content.substring(0,pos) + pluginContextListenerContent + extraContent+ content.substring(pos);
   newContent=updateLiferayWebXml(webXmlVersion,srcFile,newContent);
-  if (securityManagerEnabled.equals("generate") || securityManagerEnabled.equals("true")) {
-    newContent=secureWebXml(newContent);
-  }
+  newContent=secureWebXml(newContent,hasCustomServletListener,securityManagerEnabled);
   newContent=WebXMLBuilder.organizeWebXML(newContent);
   FileUtil.write(webXml,newContent,true);
   if (_log.isInfoEnabled()) {
