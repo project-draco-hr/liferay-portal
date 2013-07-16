@@ -1,0 +1,25 @@
+{
+  String owner=backgroundTask.getName() + StringPool.POUND + backgroundTask.getBackgroundTaskId();
+  try {
+    Lock lock=lockLocalService.getLock(BackgroundTaskExecutor.class.getName(),backgroundTask.getTaskExecutorClassName());
+    if (owner.equals(lock.getOwner())) {
+      lockLocalService.unlock(BackgroundTaskExecutor.class.getName(),backgroundTask.getTaskExecutorClassName());
+    }
+  }
+ catch (  NoSuchLockException e) {
+  }
+catch (  ExpiredLockException e) {
+  }
+  TransactionCommitCallbackRegistryUtil.registerCallback(new Callable<Void>(){
+    @Override public Void call() throws Exception {
+      Message responseMessage=new Message();
+      responseMessage.put("backgroundTaskId",backgroundTask.getBackgroundTaskId());
+      responseMessage.put("name",backgroundTask.getName());
+      responseMessage.put("status",status);
+      responseMessage.put("taskExecutorClassName",backgroundTask.getTaskExecutorClassName());
+      MessageBusUtil.sendMessage(DestinationNames.BACKGROUND_TASK_STATUS,responseMessage);
+      return null;
+    }
+  }
+);
+}
