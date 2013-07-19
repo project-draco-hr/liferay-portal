@@ -1,0 +1,44 @@
+{
+  JournalArticle article=null;
+  DDMStructure ddmStructure=null;
+  DDMTemplate ddmTemplate=null;
+  Company company=CompanyLocalServiceUtil.fetchCompany(group.getCompanyId());
+  Group companyGroup=company.getGroup();
+  long groupId=group.getGroupId();
+  if (companyScopeDependencies) {
+    groupId=companyGroup.getGroupId();
+  }
+  if (structuredContent) {
+    ddmStructure=DDMStructureTestUtil.addStructure(groupId,JournalArticle.class.getName());
+    ddmTemplate=DDMTemplateTestUtil.addTemplate(groupId,ddmStructure.getStructureId());
+    String content=DDMStructureTestUtil.getSampleStructuredContent();
+    article=JournalTestUtil.addArticleWithXMLContent(group.getGroupId(),content,ddmStructure.getStructureKey(),ddmTemplate.getTemplateKey());
+  }
+ else {
+    article=JournalTestUtil.addArticle(group.getGroupId(),ServiceTestUtil.randomString(),ServiceTestUtil.randomString());
+  }
+  String exportedResourceUuid=article.getArticleResourceUuid();
+  doExportImportPortlet(PortletKeys.JOURNAL);
+  int articlesCount=JournalArticleLocalServiceUtil.getArticlesCount(importedGroup.getGroupId());
+  Assert.assertEquals(1,articlesCount);
+  JournalArticleResource importedJournalArticleResource=JournalArticleResourceLocalServiceUtil.fetchArticleResource(exportedResourceUuid,importedGroup.getGroupId());
+  Assert.assertNotNull(importedJournalArticleResource);
+  if (!structuredContent) {
+    return;
+  }
+  groupId=importedGroup.getGroupId();
+  if (companyScopeDependencies) {
+    DDMStructure importedDDMStructure=DDMStructureLocalServiceUtil.fetchDDMStructureByUuidAndGroupId(ddmStructure.getUuid(),groupId);
+    Assert.assertNull(importedDDMStructure);
+    DDMTemplate importedDDMTemplate=DDMTemplateLocalServiceUtil.fetchDDMTemplateByUuidAndGroupId(ddmTemplate.getUuid(),groupId);
+    Assert.assertNull(importedDDMTemplate);
+    groupId=companyGroup.getGroupId();
+  }
+  DDMStructure dependentDDMStructure=DDMStructureLocalServiceUtil.fetchDDMStructureByUuidAndGroupId(ddmStructure.getUuid(),groupId);
+  Assert.assertNotNull(dependentDDMStructure);
+  DDMTemplate dependentDDMTemplate=DDMTemplateLocalServiceUtil.fetchDDMTemplateByUuidAndGroupId(ddmTemplate.getUuid(),groupId);
+  Assert.assertNotNull(dependentDDMTemplate);
+  Assert.assertEquals(article.getStructureId(),dependentDDMStructure.getStructureKey());
+  Assert.assertEquals(article.getTemplateId(),dependentDDMTemplate.getTemplateKey());
+  Assert.assertEquals(dependentDDMTemplate.getClassPK(),dependentDDMStructure.getStructureId());
+}
