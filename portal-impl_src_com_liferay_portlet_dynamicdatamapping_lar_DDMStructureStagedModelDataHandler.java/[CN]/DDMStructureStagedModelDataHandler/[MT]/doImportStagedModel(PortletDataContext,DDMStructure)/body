@@ -2,9 +2,8 @@
   prepareLanguagesForImport(structure);
   long userId=portletDataContext.getUserId(structure.getUserUuid());
   if (structure.getParentStructureId() != DDMStructureConstants.DEFAULT_PARENT_STRUCTURE_ID) {
-    String parentStructurePath=ExportImportPathUtil.getModelPath(portletDataContext,DDMStructure.class.getName(),structure.getParentStructureId());
-    DDMStructure parentStructure=(DDMStructure)portletDataContext.getZipEntryAsObject(parentStructurePath);
-    StagedModelDataHandlerUtil.importStagedModel(portletDataContext,parentStructure);
+    Element structureElement=portletDataContext.getReferenceDataElement(structure,DDMStructure.class,structure.getParentStructureId());
+    StagedModelDataHandlerUtil.importStagedModel(portletDataContext,structureElement);
   }
   Map<Long,Long> structureIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(DDMStructure.class);
   long parentStructureId=MapUtil.getLong(structureIds,structure.getParentStructureId(),structure.getParentStructureId());
@@ -21,8 +20,14 @@
       existingStructure=DDMStructureLocalServiceUtil.fetchStructure(portletDataContext.getScopeGroupId(),structure.getClassNameId(),structure.getStructureKey());
     }
     if (existingStructure == null) {
+      existingStructure=DDMStructureLocalServiceUtil.fetchDDMStructureByUuidAndGroupId(structure.getUuid(),portletDataContext.getCompanyGroupId());
+    }
+    if (existingStructure == null) {
       serviceContext.setUuid(structure.getUuid());
       importedStructure=DDMStructureLocalServiceUtil.addStructure(userId,portletDataContext.getScopeGroupId(),parentStructureId,structure.getClassNameId(),structure.getStructureKey(),structure.getNameMap(),structure.getDescriptionMap(),structure.getXsd(),structure.getStorageType(),structure.getType(),serviceContext);
+    }
+ else     if (portletDataContext.isCompanyStagedGroupedModel(existingStructure)) {
+      return;
     }
  else {
       importedStructure=DDMStructureLocalServiceUtil.updateStructure(existingStructure.getStructureId(),parentStructureId,structure.getNameMap(),structure.getDescriptionMap(),structure.getXsd(),serviceContext);
