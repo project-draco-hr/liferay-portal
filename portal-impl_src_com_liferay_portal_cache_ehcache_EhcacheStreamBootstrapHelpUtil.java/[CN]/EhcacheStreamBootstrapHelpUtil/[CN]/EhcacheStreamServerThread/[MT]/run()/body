@@ -13,40 +13,42 @@
     _serverSocket.close();
     socket.shutdownInput();
     ObjectOutputStream objectOutputStream=new AnnotatedObjectOutputStream(socket.getOutputStream());
-    objectOutputStream.writeObject(_COMMAND_CACHE_TX_START);
-    Ehcache ehcache=_portalCacheManager.getCache(_cacheName);
-    if (ehcache == null) {
-      EhcacheStreamBootstrapCacheLoader.setSkip();
-      try {
-        _portalCacheManager.addCache(_cacheName);
-      }
+    for (    String cacheName : _ehcacheNames) {
+      objectOutputStream.writeObject(_COMMAND_CACHE_TX_START);
+      Ehcache ehcache=_portalCacheManager.getCache(cacheName);
+      if (ehcache == null) {
+        EhcacheStreamBootstrapCacheLoader.setSkip();
+        try {
+          _portalCacheManager.addCache(cacheName);
+        }
   finally {
-        EhcacheStreamBootstrapCacheLoader.resetSkip();
+          EhcacheStreamBootstrapCacheLoader.resetSkip();
+        }
       }
-    }
  else {
-      objectOutputStream.writeObject(_cacheName);
-      List<Object> keys=ehcache.getKeys();
-      for (      Object key : keys) {
-        if (!(key instanceof Serializable)) {
-          if (_log.isWarnEnabled()) {
-            _log.warn("Key " + key + " is not serializable");
+        objectOutputStream.writeObject(cacheName);
+        List<Object> keys=ehcache.getKeys();
+        for (        Object key : keys) {
+          if (!(key instanceof Serializable)) {
+            if (_log.isWarnEnabled()) {
+              _log.warn("Key " + key + " is not serializable");
+            }
+            continue;
           }
-          continue;
-        }
-        Element element=ehcache.get(key);
-        if (element == null) {
-          continue;
-        }
-        Object value=element.getObjectValue();
-        if (!(value instanceof Serializable)) {
-          if (_log.isWarnEnabled() && (value != null)) {
-            _log.warn("Value " + value + " is not serializable");
+          Element element=ehcache.get(key);
+          if (element == null) {
+            continue;
           }
-          continue;
+          Object value=element.getObjectValue();
+          if (!(value instanceof Serializable)) {
+            if (_log.isWarnEnabled() && (value != null)) {
+              _log.warn("Value " + value + " is not serializable");
+            }
+            continue;
+          }
+          EhcacheElement ehcacheElement=new EhcacheElement((Serializable)key,(Serializable)value);
+          objectOutputStream.writeObject(ehcacheElement);
         }
-        EhcacheElement ehcacheElement=new EhcacheElement((Serializable)key,(Serializable)value);
-        objectOutputStream.writeObject(ehcacheElement);
       }
     }
     objectOutputStream.writeObject(_COMMAND_SOCKET_CLOSE);
