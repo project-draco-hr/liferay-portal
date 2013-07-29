@@ -13,6 +13,7 @@
   long stagingRequestId=0;
   File file=null;
   FileInputStream fileInputStream=null;
+  MissingReferences missingReferences=null;
   try {
     file=exportLayoutsAsFile(sourceGroupId,privateLayout,layoutIdMap,parameterMap,remoteGroupId,startDate,endDate,httpPrincipal);
     String checksum=FileUtil.getMD5Checksum(file);
@@ -31,7 +32,8 @@
       }
       bytes=new byte[PropsValues.STAGING_REMOTE_TRANSFER_BUFFER_SIZE];
     }
-    StagingServiceHttp.publishStagingRequest(httpPrincipal,stagingRequestId,privateLayout,parameterMap);
+    missingReferences=StagingServiceHttp.validateStagingRequest(httpPrincipal,remoteGroupId,stagingRequestId,privateLayout,parameterMap);
+    StagingServiceHttp.publishStagingRequest(httpPrincipal,remoteGroupId,stagingRequestId,privateLayout,parameterMap);
   }
   finally {
     StreamUtil.cleanUp(fileInputStream);
@@ -40,5 +42,11 @@
       StagingServiceHttp.cleanUpStagingRequest(httpPrincipal,stagingRequestId);
     }
   }
-  return new BackgroundTaskResult(BackgroundTaskConstants.STATUS_SUCCESSFUL);
+  BackgroundTaskResult backgroundTaskResult=new BackgroundTaskResult(BackgroundTaskConstants.STATUS_SUCCESSFUL);
+  Map<String,MissingReference> weakMissingReferences=missingReferences.getWeakMissingReferences();
+  if ((weakMissingReferences != null) && !weakMissingReferences.isEmpty()) {
+    JSONArray jsonArray=StagingUtil.getWarningMessagesJSONArray(getLocale(backgroundTask),weakMissingReferences,backgroundTask.getTaskContextMap());
+    backgroundTaskResult.setStatusMessage(jsonArray.toString());
+  }
+  return backgroundTaskResult;
 }
