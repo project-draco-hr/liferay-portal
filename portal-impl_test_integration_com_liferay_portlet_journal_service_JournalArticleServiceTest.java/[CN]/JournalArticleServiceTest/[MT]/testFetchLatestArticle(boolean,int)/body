@@ -1,0 +1,39 @@
+{
+  Group group=GroupTestUtil.addGroup();
+  JournalArticle article=JournalTestUtil.addArticle(group.getGroupId(),JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID,"version1","This is a test article.");
+  Assert.assertTrue(article.isApproved());
+  Assert.assertEquals(1.0,article.getVersion(),0);
+  article=JournalTestUtil.updateArticle(article,"version2",article.getContent());
+  Assert.assertTrue(article.isApproved());
+  Assert.assertEquals(1.1,article.getVersion(),0);
+  if (expireLatestVersion) {
+    article=JournalArticleLocalServiceUtil.expireArticle(article.getUserId(),article.getGroupId(),article.getArticleId(),1.1,null,ServiceTestUtil.getServiceContext(group.getGroupId()));
+    Assert.assertTrue(article.isExpired());
+    Assert.assertEquals(1.1,article.getVersion(),0);
+  }
+  JournalArticle latestArticle=JournalArticleLocalServiceUtil.fetchLatestArticle(article.getResourcePrimKey(),status,status == WorkflowConstants.STATUS_APPROVED);
+  Assert.assertNotNull(latestArticle);
+  if (expireLatestVersion) {
+    if (status == WorkflowConstants.STATUS_APPROVED) {
+      Assert.assertTrue(latestArticle.isApproved());
+      Assert.assertEquals("version1",latestArticle.getTitle(LocaleUtil.getDefault()));
+      Assert.assertEquals(1.0,latestArticle.getVersion(),0);
+    }
+ else     if ((status == WorkflowConstants.STATUS_ANY) || (status == WorkflowConstants.STATUS_EXPIRED)) {
+      Assert.assertTrue(latestArticle.isExpired());
+      Assert.assertEquals("version2",latestArticle.getTitle(LocaleUtil.getDefault()));
+      Assert.assertEquals(1.1,latestArticle.getVersion(),0);
+    }
+  }
+ else {
+    if ((status == WorkflowConstants.STATUS_APPROVED) || (status == WorkflowConstants.STATUS_ANY)) {
+      Assert.assertTrue(latestArticle.isApproved());
+      Assert.assertEquals("version2",latestArticle.getTitle(LocaleUtil.getDefault()));
+      Assert.assertEquals(1.1,latestArticle.getVersion(),0);
+    }
+ else {
+      Assert.assertNull(article);
+    }
+  }
+  GroupLocalServiceUtil.deleteGroup(group);
+}
