@@ -1,29 +1,68 @@
 {
+  StringBundler sb=new StringBundler();
   if (cdata == null) {
     return StringPool.BLANK;
   }
- else   if (cdata.contains("<pre>")) {
-    cdata=_formatCDATA(cdata,"pre");
-  }
- else   if (cdata.contains("<table>")) {
-    cdata=_formatCDATA(cdata,"table");
+ else   if (cdata.contains("<pre>") || cdata.contains("<table>")) {
+    int nextIndex=0;
+    int startIndex=0;
+    while (!cdata.isEmpty()) {
+      int preIndex=cdata.indexOf("<pre>");
+      int endPreIndex=cdata.indexOf("</pre>");
+      int tableIndex=cdata.indexOf("<table>");
+      int endTableIndex=cdata.indexOf("</table>");
+      boolean bothPreformattedTagsExist=((preIndex > -1) && (tableIndex > -1)) ? true : false;
+      boolean noPreformattedTagsExist=((preIndex == -1) && (tableIndex == -1)) ? true : false;
+      boolean preExistsWithNoExistingTable=((preIndex != -1) && (tableIndex == -1)) ? true : false;
+      boolean startsWithPreformattedTag=((preIndex == 0) || (tableIndex == 0)) ? true : false;
+      boolean tableExistsWithNoExistingPre=((preIndex == -1) && (tableIndex != -1)) ? true : false;
+      String tagName=null;
+      if (bothPreformattedTagsExist) {
+        if (preIndex < tableIndex) {
+          startIndex=preIndex;
+          tagName="pre";
+        }
+ else {
+          startIndex=tableIndex;
+          tagName="table";
+        }
+      }
+      if (!startsWithPreformattedTag) {
+        if (noPreformattedTagsExist) {
+          startIndex=cdata.length();
+        }
+ else         if (tableExistsWithNoExistingPre) {
+          startIndex=tableIndex;
+        }
+ else         if (preExistsWithNoExistingTable) {
+          startIndex=preIndex;
+        }
+        String textToFormat=cdata.substring(0,startIndex);
+        sb.append(_formatCDATA(textToFormat));
+        nextIndex=startIndex;
+      }
+ else {
+        startIndex=0;
+        if (preIndex == 0) {
+          tagName="pre";
+        }
+ else {
+          tagName="table";
+        }
+        String startTag="<" + tagName + ">";
+        String endTag="</" + tagName + ">";
+        int startTagLength=startTag.length();
+        int endTagLength=endTag.length();
+        int endIndex=cdata.indexOf(endTag,startTagLength - 1);
+        String entireElement=cdata.substring(startIndex,endIndex + endTagLength);
+        sb.append(entireElement);
+        nextIndex=endIndex + endTagLength;
+      }
+      cdata=cdata.substring(nextIndex);
+    }
   }
  else {
-    cdata=cdata.replaceAll("(?s)\\s*<(p|[ou]l)>\\s*(.*?)\\s*</\\1>\\s*","\n\n<$1>\n$2\n</$1>\n\n");
-    cdata=cdata.replaceAll("(?s)\\s*<li>\\s*(.*?)\\s*</li>\\s*","\n<li>\n$1\n</li>\n");
-    cdata=StringUtil.replace(cdata,"</li>\n\n<li>","</li>\n<li>");
-    cdata=cdata.replaceAll("\n\\s+\n","\n\n");
-    cdata.replaceAll(" +"," ");
-    Pattern pattern=Pattern.compile("(^.*?(?=\n\n|$)+|(?<=<p>\n).*?(?=\n</p>))",Pattern.DOTALL);
-    Matcher matcher=pattern.matcher(cdata);
-    StringBuffer sb=new StringBuffer();
-    while (matcher.find()) {
-      String trimmed=_trimMultilineText(matcher.group());
-      trimmed=trimmed.replaceAll("\\$","\\\\\\$");
-      matcher.appendReplacement(sb,trimmed);
-    }
-    matcher.appendTail(sb);
-    cdata=sb.toString();
+    sb.append(_formatCDATA(cdata));
   }
-  return cdata.trim();
+  return sb.toString().trim();
 }
