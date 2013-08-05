@@ -18,6 +18,27 @@
   Iterator<Group> iterator=groups.iterator();
   while (iterator.hasNext()) {
     Group group=iterator.next();
+    long liveGroupId=group.getLiveGroupId();
+    if (liveGroupId != 0) {
+      iterator.remove();
+      continue;
+    }
+    long groupParentGroupId=group.getParentGroupId();
+    if ((parentGroupIdEquals && (groupParentGroupId != parentGroupId)) || (!parentGroupIdEquals && (groupParentGroupId == parentGroupId))) {
+      iterator.remove();
+      continue;
+    }
+    String name=group.getName();
+    if (name.equals(GroupConstants.CONTROL_PANEL)) {
+      iterator.remove();
+      continue;
+    }
+    boolean containsName=matches(name,names);
+    boolean containsDescription=matches(group.getDescription(),descriptions);
+    if ((andOperator && (!containsName || !containsDescription)) || (!andOperator && (!containsName && !containsDescription))) {
+      iterator.remove();
+      continue;
+    }
     if (active != null) {
       if (active != group.isActive()) {
         iterator.remove();
@@ -31,9 +52,9 @@
     if (groupsTree != null) {
       String treePath=group.getTreePath();
       boolean matched=false;
-      for (      Group curGroup : groupsTree) {
-        String curTreePath=StringUtil.quote(String.valueOf(curGroup.getGroupId()),StringPool.SLASH);
-        if (treePath.contains(curTreePath)) {
+      for (      Group groupTree : groupsTree) {
+        String groupTreePath=StringUtil.quote(String.valueOf(groupTree.getGroupId()),StringPool.SLASH);
+        if (treePath.contains(groupTreePath)) {
           matched=true;
           break;
         }
@@ -57,33 +78,12 @@
         continue;
       }
     }
-    int curType=group.getType();
-    if (curType == 4) {
+    int type=group.getType();
+    if (type == 4) {
       iterator.remove();
       continue;
     }
-    if ((types != null) && !types.contains(curType)) {
-      iterator.remove();
-      continue;
-    }
-    long curLiveGroupId=group.getLiveGroupId();
-    if (curLiveGroupId != 0) {
-      iterator.remove();
-      continue;
-    }
-    long curParentGroupId=group.getParentGroupId();
-    if ((parentGroupIdEquals && (curParentGroupId != parentGroupId)) || (!parentGroupIdEquals && (curParentGroupId == parentGroupId))) {
-      iterator.remove();
-      continue;
-    }
-    String curName=group.getName();
-    if (curName.equals("Control Panel")) {
-      iterator.remove();
-      continue;
-    }
-    boolean containsName=matchesAny(curName,names);
-    boolean containsDescription=matchesAny(group.getDescription(),descriptions);
-    if ((andOperator && (!containsName || !containsDescription)) || (!andOperator && (!containsName && !containsDescription))) {
+    if ((types != null) && !types.contains(type)) {
       iterator.remove();
       continue;
     }
@@ -93,11 +93,11 @@
     return groups;
   }
   Set<Group> resultGroups=new HashSet<Group>(groups);
-  resultGroups.retainAll(userPersistence.getGroups(userId));
   Long roleId=(Long)params.remove("groupsRoles");
   if (roleId != null) {
     resultGroups.retainAll(rolePersistence.getGroups(roleId));
   }
+  resultGroups.retainAll(userPersistence.getGroups(userId));
   boolean inherit=GetterUtil.getBoolean(params.remove("inherit"),true);
   if (inherit) {
     List<Organization> organizations=userPersistence.getOrganizations(userId);
@@ -110,23 +110,23 @@
       }
     }
     for (    Organization organization : organizations) {
-      List<Group> copyGroups=new ArrayList<Group>(groups);
-      copyGroups.retainAll(organizationPersistence.getGroups(organization.getOrganizationId()));
-      if (!copyGroups.isEmpty()) {
-        resultGroups.addAll(copyGroups);
+      List<Group> tempGroups=new ArrayList<Group>(groups);
+      tempGroups.retainAll(organizationPersistence.getGroups(organization.getOrganizationId()));
+      if (!tempGroups.isEmpty()) {
+        resultGroups.addAll(tempGroups);
       }
     }
     List<UserGroup> userGroups=userPersistence.getUserGroups(userId);
     for (    UserGroup userGroup : userGroups) {
-      List<Group> copyGroups=new ArrayList<Group>(groups);
-      copyGroups.retainAll(userGroupPersistence.getGroups(userGroup.getUserGroupId()));
-      if (!copyGroups.isEmpty()) {
-        resultGroups.addAll(copyGroups);
+      List<Group> tempGroups=new ArrayList<Group>(groups);
+      tempGroups.retainAll(userGroupPersistence.getGroups(userGroup.getUserGroupId()));
+      if (!tempGroups.isEmpty()) {
+        resultGroups.addAll(tempGroups);
       }
     }
   }
   if (_log.isDebugEnabled() && !params.isEmpty()) {
-    _log.debug("Unprocessed params : " + params);
+    _log.debug("Unprocessed parameters " + MapUtil.toString(params));
   }
   return new ArrayList<Group>(resultGroups);
 }
