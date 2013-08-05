@@ -1,31 +1,38 @@
 {
+  DB db=DBFactoryUtil.getDB(_dbType);
+  if (db instanceof MySQLDB) {
+    db=new SampleMySQLDB();
+  }
+  Map<String,StringBundler> insertSQLs=new HashMap<String,StringBundler>();
+  Map<String,Writer> insertSQLWriters=new HashMap<String,Writer>();
+  List<String> otherSQLs=new ArrayList<String>();
   UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(reader);
   String s=null;
   while ((s=unsyncBufferedReader.readLine()) != null) {
     s=s.trim();
     if (s.length() > 0) {
       if (s.startsWith("insert into ")) {
-        compressInsertSQL(s.substring(12));
+        compressInsertSQL(db,s.substring(12),insertSQLs,insertSQLWriters);
       }
- else       if (s.length() > 0) {
-        _otherSQLs.add(s);
+ else {
+        otherSQLs.add(s);
       }
     }
   }
   unsyncBufferedReader.close();
-  for (  Map.Entry<String,StringBundler> entry : _insertSQLs.entrySet()) {
+  for (  Map.Entry<String,StringBundler> entry : insertSQLs.entrySet()) {
     String tableName=entry.getKey();
     StringBundler sb=entry.getValue();
-    String sql=_db.buildSQL(sb.toString());
-    writeToInsertSQLFile(tableName,sql);
-    Writer insertSQLWriter=_insertSQLWriters.remove(tableName);
+    String sql=db.buildSQL(sb.toString());
+    writeToInsertSQLFile(insertSQLWriters,tableName,sql);
+    Writer insertSQLWriter=insertSQLWriters.remove(tableName);
     insertSQLWriter.write(";\n");
     insertSQLWriter.close();
   }
   File endSQLFile=new File(_tempDir,_endSQLFileName);
   Writer endSQLFileWriter=new FileWriter(endSQLFile);
-  for (  String sql : _otherSQLs) {
-    sql=_db.buildSQL(sql);
+  for (  String sql : otherSQLs) {
+    sql=db.buildSQL(sql);
     endSQLFileWriter.write(sql);
     endSQLFileWriter.write(StringPool.NEW_LINE);
   }
