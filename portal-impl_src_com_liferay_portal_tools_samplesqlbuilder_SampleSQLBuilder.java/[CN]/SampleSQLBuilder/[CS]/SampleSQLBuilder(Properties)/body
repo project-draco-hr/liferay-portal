@@ -2,20 +2,29 @@
   _dbType=properties.getProperty("sample.sql.db.type");
   _optimizeBufferSize=GetterUtil.getInteger(properties.getProperty("sample.sql.optimize.buffer.size"));
   _outputDir=properties.getProperty("sample.sql.output.dir");
-  _outputMerge=GetterUtil.getBoolean(properties.getProperty("sample.sql.output.merge"));
+  boolean outputMerge=GetterUtil.getBoolean(properties.getProperty("sample.sql.output.merge"));
   _dataFactory=new DataFactory(properties);
-  FileUtil.delete(_outputDir + "/sample-" + _dbType+ ".sql");
-  FileUtil.deltree(_outputDir + "/output");
-  _tempDir=new File(_outputDir,"temp");
-  _endSQLFileName="others.sql";
-  _tempDir.mkdirs();
   CharPipe charPipe=generateSQL();
+  String endSQLFileName="others.sql";
+  File tempDir=new File(_outputDir,"temp");
+  tempDir.mkdirs();
   try {
-    compressSQL(charPipe.getReader());
-    mergeSQL();
+    compressSQL(charPipe.getReader(),tempDir,endSQLFileName);
+    if (outputMerge) {
+      File mergedSQLFile=new File(_outputDir,"sample-" + _dbType + ".sql");
+      FileUtil.delete(mergedSQLFile);
+      mergeSQL(mergedSQLFile,tempDir,endSQLFileName);
+    }
+ else {
+      File dividedSQLDir=new File(_outputDir,"output");
+      FileUtil.deltree(dividedSQLDir);
+      if (!tempDir.renameTo(dividedSQLDir)) {
+        FileUtil.copyDirectory(tempDir,dividedSQLDir);
+      }
+    }
   }
   finally {
-    FileUtil.deltree(_tempDir);
+    FileUtil.deltree(tempDir);
   }
   StringBundler sb=new StringBundler();
   for (  String key : properties.stringPropertyNames()) {
