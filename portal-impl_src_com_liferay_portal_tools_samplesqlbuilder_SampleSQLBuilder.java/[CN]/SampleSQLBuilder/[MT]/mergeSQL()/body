@@ -1,34 +1,27 @@
 {
-  File outputFile=new File(_outputDir + "/sample-" + _dbType+ ".sql");
-  FileOutputStream fileOutputStream=null;
-  FileChannel fileChannel=null;
-  if (_outputMerge) {
-    fileOutputStream=new FileOutputStream(outputFile);
-    fileChannel=fileOutputStream.getChannel();
-  }
-  Set<Map.Entry<String,StringBundler>> insertSQLs=_insertSQLs.entrySet();
-  for (  Map.Entry<String,StringBundler> entry : insertSQLs) {
-    String tableName=entry.getKey();
-    if (_outputMerge) {
-      File insertSQLFile=getInsertSQLFile(tableName);
-      FileInputStream insertSQLFileInputStream=new FileInputStream(insertSQLFile);
-      FileChannel insertSQLFileChannel=insertSQLFileInputStream.getChannel();
-      insertSQLFileChannel.transferTo(0,insertSQLFileChannel.size(),fileChannel);
-      insertSQLFileChannel.close();
-      insertSQLFile.delete();
+  if (!_outputMerge) {
+    File outputFolder=new File(_outputDir,"output");
+    if (!_tempDir.renameTo(outputFolder)) {
+      FileUtil.copyDirectory(_tempDir,outputFolder);
     }
+    return;
   }
-  if (_outputMerge) {
-    Writer writer=new OutputStreamWriter(fileOutputStream);
-    for (    String sql : _otherSQLs) {
-      sql=_db.buildSQL(sql);
-      writer.write(sql);
-      writer.write(StringPool.NEW_LINE);
+  File outputFile=new File(_outputDir,"sample-" + _dbType + ".sql");
+  FileOutputStream fileOutputStream=new FileOutputStream(outputFile);
+  FileChannel fileChannel=fileOutputStream.getChannel();
+  File lastSQLFile=null;
+  for (  File tableFile : _tempDir.listFiles()) {
+    String fileName=tableFile.getName();
+    if (fileName.equals(_endSQLFileName)) {
+      lastSQLFile=tableFile;
+      continue;
     }
-    writer.close();
+    doMergeSQL(tableFile,fileChannel);
+    tableFile.delete();
   }
-  File outputFolder=new File(_outputDir,"output");
-  if (!_outputMerge && !_tempDir.renameTo(outputFolder)) {
-    FileUtil.copyDirectory(_tempDir,outputFolder);
+  if (lastSQLFile != null) {
+    doMergeSQL(lastSQLFile,fileChannel);
+    lastSQLFile.delete();
   }
+  fileChannel.close();
 }
