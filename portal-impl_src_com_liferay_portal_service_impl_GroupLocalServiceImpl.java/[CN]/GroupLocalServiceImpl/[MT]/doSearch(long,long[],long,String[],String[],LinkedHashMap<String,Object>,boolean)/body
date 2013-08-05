@@ -1,0 +1,132 @@
+{
+  boolean parentGroupIdEquals=true;
+  if (parentGroupId == GroupConstants.ANY_PARENT_GROUP_ID) {
+    parentGroupIdEquals=false;
+  }
+  params=new LinkedHashMap<String,Object>(params);
+  Boolean active=(Boolean)params.remove("active");
+  List<Long> excludedGroupIds=(List<Long>)params.remove("excludedGroupIds");
+  List<Group> groupsTree=(List<Group>)params.remove("groupsTree");
+  Boolean manualMembership=(Boolean)params.remove("manualMembership");
+  Integer membershipRestriction=(Integer)params.remove("membershipRestriction");
+  Boolean site=(Boolean)params.remove("site");
+  List<Integer> types=(List<Integer>)params.remove("types");
+  List<Group> groups=new ArrayList<Group>();
+  for (  long classNameId : classNameIds) {
+    groups.addAll(groupPersistence.findByC_C(companyId,classNameId));
+  }
+  Iterator<Group> iterator=groups.iterator();
+  while (iterator.hasNext()) {
+    Group group=iterator.next();
+    if (active != null) {
+      if (active != group.isActive()) {
+        iterator.remove();
+        continue;
+      }
+    }
+    if ((excludedGroupIds != null) && excludedGroupIds.contains(group.getGroupId())) {
+      iterator.remove();
+      continue;
+    }
+    if (groupsTree != null) {
+      String treePath=group.getTreePath();
+      boolean matched=false;
+      for (      Group curGroup : groupsTree) {
+        String curTreePath=StringUtil.quote(String.valueOf(curGroup.getGroupId()),StringPool.SLASH);
+        if (treePath.contains(curTreePath)) {
+          matched=true;
+          break;
+        }
+      }
+      if (!matched) {
+        iterator.remove();
+        continue;
+      }
+    }
+    if ((manualMembership != null) && (manualMembership != group.isManualMembership())) {
+      iterator.remove();
+      continue;
+    }
+    if ((membershipRestriction != null) && (membershipRestriction != group.getMembershipRestriction())) {
+      iterator.remove();
+      continue;
+    }
+    if (site != null) {
+      if (site != group.isSite()) {
+        iterator.remove();
+        continue;
+      }
+    }
+    int curType=group.getType();
+    if (curType == 4) {
+      iterator.remove();
+      continue;
+    }
+    if ((types != null) && !types.contains(curType)) {
+      iterator.remove();
+      continue;
+    }
+    long curLiveGroupId=group.getLiveGroupId();
+    if (curLiveGroupId != 0) {
+      iterator.remove();
+      continue;
+    }
+    long curParentGroupId=group.getParentGroupId();
+    if ((parentGroupIdEquals && (curParentGroupId != parentGroupId)) || (!parentGroupIdEquals && (curParentGroupId == parentGroupId))) {
+      iterator.remove();
+      continue;
+    }
+    String curName=group.getName();
+    if (curName.equals("Control Panel")) {
+      iterator.remove();
+      continue;
+    }
+    boolean containsName=matchesAny(curName,names);
+    boolean containsDescription=matchesAny(group.getDescription(),descriptions);
+    if ((andOperator && (!containsName || !containsDescription)) || (!andOperator && (!containsName && !containsDescription))) {
+      iterator.remove();
+      continue;
+    }
+  }
+  Long userId=(Long)params.remove("usersGroups");
+  if (userId == null) {
+    return groups;
+  }
+  Set<Group> resultGroups=new HashSet<Group>(groups);
+  resultGroups.retainAll(userPersistence.getGroups(userId));
+  Long roleId=(Long)params.remove("groupsRoles");
+  if (roleId != null) {
+    resultGroups.retainAll(rolePersistence.getGroups(roleId));
+  }
+  boolean inherit=GetterUtil.getBoolean(params.remove("inherit"),true);
+  if (inherit) {
+    List<Organization> organizations=userPersistence.getOrganizations(userId);
+    for (    Organization organization : organizations) {
+      long organizationId=organization.getOrganizationId();
+      for (      Group group : groups) {
+        if (organizationId == group.getClassPK()) {
+          resultGroups.add(group);
+        }
+      }
+    }
+    for (    Organization organization : organizations) {
+      List<Group> copyGroups=new ArrayList<Group>(groups);
+      copyGroups.retainAll(organizationPersistence.getGroups(organization.getOrganizationId()));
+      if (!copyGroups.isEmpty()) {
+        resultGroups.addAll(copyGroups);
+      }
+    }
+    List<UserGroup> userGroups=userPersistence.getUserGroups(userId);
+    for (    UserGroup userGroup : userGroups) {
+      List<Group> copyGroups=new ArrayList<Group>(groups);
+      copyGroups.retainAll(userGroupPersistence.getGroups(userGroup.getUserGroupId()));
+      if (!copyGroups.isEmpty()) {
+        resultGroups.addAll(copyGroups);
+      }
+    }
+  }
+  if (_log.isDebugEnabled() && !params.isEmpty()) {
+    _log.debug("Unprocessed params : " + params);
+  }
+  return new ArrayList<Group>(resultGroups);
+}
