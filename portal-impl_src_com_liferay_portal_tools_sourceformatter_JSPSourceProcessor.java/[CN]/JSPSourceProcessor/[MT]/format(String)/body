@@ -1,0 +1,54 @@
+{
+  File file=new File(BASEDIR + fileName);
+  fileName=StringUtil.replace(fileName,StringPool.BACK_SLASH,StringPool.SLASH);
+  String content=fileUtil.read(file);
+  String oldContent=content;
+  String newContent=StringPool.BLANK;
+  for (; ; ) {
+    newContent=formatJSP(fileName,oldContent);
+    if (oldContent.equals(newContent)) {
+      break;
+    }
+    oldContent=newContent;
+  }
+  newContent=StringUtil.replace(newContent,new String[]{"<br/>","\"/>","\" >","@page import","\"%>",")%>","else{","for(","function (","if(","javascript: ","while(","){\n","\n\n\n"},new String[]{"<br />","\" />","\">","@ page import","\" %>",") %>","else {","for (","function(","if (","javascript:","while (",") {\n","\n\n"});
+  newContent=fixCompatClassImports(fileName,newContent);
+  if (_stripJSPImports && !_jspContents.isEmpty()) {
+    try {
+      newContent=stripJSPImports(fileName,newContent);
+    }
+ catch (    RuntimeException re) {
+      _stripJSPImports=false;
+    }
+  }
+  newContent=fixCopyright(newContent,getCopyright(),getOldCopyright(),file,fileName);
+  newContent=StringUtil.replace(newContent,new String[]{"alert('<%= LanguageUtil.","alert(\"<%= LanguageUtil.","confirm('<%= LanguageUtil.","confirm(\"<%= LanguageUtil."},new String[]{"alert('<%= UnicodeLanguageUtil.","alert(\"<%= UnicodeLanguageUtil.","confirm('<%= UnicodeLanguageUtil.","confirm(\"<%= UnicodeLanguageUtil."});
+  if (newContent.contains("    ")) {
+    if (!fileName.matches(".*template.*\\.vm$")) {
+      processErrorMessage(fileName,"tab: " + fileName);
+    }
+  }
+  if (fileName.endsWith("init.jsp")) {
+    int x=newContent.indexOf("<%@ page import=");
+    int y=newContent.lastIndexOf("<%@ page import=");
+    y=newContent.indexOf("%>",y);
+    if ((x != -1) && (y != -1) && (y > x)) {
+      boolean compressImports=true;
+      if (compressImports) {
+        String imports=newContent.substring(x,y);
+        imports=StringUtil.replace(imports,new String[]{"%>\r\n<%@ ","%>\n<%@ "},new String[]{"%><%@\r\n","%><%@\n"});
+        newContent=newContent.substring(0,x) + imports + newContent.substring(y);
+      }
+    }
+  }
+  newContent=fixSessionKey(fileName,newContent,sessionKeyPattern);
+  newContent=fixSessionKey(fileName,newContent,taglibSessionKeyPattern);
+  checkLanguageKeys(fileName,newContent,languageKeyPattern);
+  checkLanguageKeys(fileName,newContent,_taglibLanguageKeyPattern);
+  checkXSS(fileName,newContent);
+  if (isAutoFix() && (newContent != null) && !content.equals(newContent)) {
+    fileUtil.write(file,newContent);
+    sourceFormatterHelper.printError(fileName,file);
+  }
+  return newContent;
+}
