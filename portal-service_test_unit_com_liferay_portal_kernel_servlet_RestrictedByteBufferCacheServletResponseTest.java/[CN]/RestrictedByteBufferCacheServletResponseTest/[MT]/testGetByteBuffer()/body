@@ -1,0 +1,28 @@
+{
+  StubHttpServletResponse stubHttpServletResponse=new StubHttpServletResponse(){
+    @Override public ServletOutputStream getOutputStream(){
+      return new ServletOutputStreamAdapter(new UnsyncByteArrayOutputStream());
+    }
+    @Override public boolean isCommitted(){
+      return false;
+    }
+  }
+;
+  RestrictedByteBufferCacheServletResponse restrictedByteBufferCacheServletResponse=new RestrictedByteBufferCacheServletResponse(stubHttpServletResponse,1024);
+  Field emptyByteBufferField=ReflectionUtil.getDeclaredField(RestrictedByteBufferCacheServletResponse.class,"_emptyByteBuffer");
+  ByteBuffer emptyByteBuffer=(ByteBuffer)emptyByteBufferField.get(restrictedByteBufferCacheServletResponse);
+  Assert.assertSame(emptyByteBuffer,restrictedByteBufferCacheServletResponse.getByteBuffer());
+  OutputStream outputStream=restrictedByteBufferCacheServletResponse.getOutputStream();
+  ByteBuffer byteBuffer=restrictedByteBufferCacheServletResponse.getByteBuffer();
+  Assert.assertNotSame(emptyByteBuffer,restrictedByteBufferCacheServletResponse.getByteBuffer());
+  Assert.assertEquals(0,byteBuffer.remaining());
+  outputStream.flush();
+  try {
+    restrictedByteBufferCacheServletResponse.getByteBuffer();
+    Assert.fail();
+  }
+ catch (  IllegalStateException ise) {
+    Assert.assertEquals("Cache overflowed",ise.getMessage());
+  }
+  Assert.assertTrue(restrictedByteBufferCacheServletResponse.isOverflowed());
+}
