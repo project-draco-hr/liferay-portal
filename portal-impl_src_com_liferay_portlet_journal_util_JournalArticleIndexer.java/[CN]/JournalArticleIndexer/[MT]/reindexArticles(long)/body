@@ -1,48 +1,12 @@
 {
   final Collection<Document> documents=new ArrayList<Document>();
-  final Set<String> latestArticleIds=new HashSet<String>();
   ActionableDynamicQuery actionableDynamicQuery=new JournalArticleActionableDynamicQuery(){
     @Override protected void addCriteria(    DynamicQuery dynamicQuery){
-      Junction junction=RestrictionsFactoryUtil.disjunction();
-      Junction approvedArticlesJunction=RestrictionsFactoryUtil.conjunction();
-      Property displayDateProperty=PropertyFactoryUtil.forName("displayDate");
-      approvedArticlesJunction.add(displayDateProperty.lt(new Date()));
-      Property statusProperty=PropertyFactoryUtil.forName("status");
-      approvedArticlesJunction.add(statusProperty.eq(WorkflowConstants.STATUS_APPROVED));
-      junction.add(approvedArticlesJunction);
-      Junction draftArticlesJunction=RestrictionsFactoryUtil.conjunction();
-      Property versionProperty=PropertyFactoryUtil.forName("version");
-      draftArticlesJunction.add(versionProperty.eq(JournalArticleConstants.VERSION_DEFAULT));
-      draftArticlesJunction.add(statusProperty.eq(WorkflowConstants.STATUS_DRAFT));
-      junction.add(draftArticlesJunction);
-      Junction expiredArticlesJunction=RestrictionsFactoryUtil.conjunction();
-      expiredArticlesJunction.add(statusProperty.eq(WorkflowConstants.STATUS_EXPIRED));
-      junction.add(expiredArticlesJunction);
-      dynamicQuery.add(junction);
       Property indexableProperty=PropertyFactoryUtil.forName("indexable");
       dynamicQuery.add(indexableProperty.eq(true));
     }
     @Override protected void performAction(    Object object) throws PortalException, SystemException {
       JournalArticle article=(JournalArticle)object;
-      if (article.isApproved() || article.isExpired()) {
-        JournalArticle latestArticle=null;
-        if (article.isApproved()) {
-          latestArticle=JournalArticleLocalServiceUtil.getLatestArticle(article.getResourcePrimKey(),WorkflowConstants.STATUS_APPROVED);
-        }
- else         if (article.isExpired()) {
-          latestArticle=JournalArticleLocalServiceUtil.fetchLatestArticle(article.getResourcePrimKey(),WorkflowConstants.STATUS_APPROVED,true);
-          if (latestArticle != null) {
-            return;
-          }
-          latestArticle=JournalArticleLocalServiceUtil.getLatestArticle(article.getResourcePrimKey(),WorkflowConstants.STATUS_EXPIRED);
-        }
-        String latestArticleId=latestArticle.getArticleId();
-        if (latestArticleIds.contains(latestArticleId)) {
-          return;
-        }
-        latestArticleIds.add(latestArticleId);
-        article=latestArticle;
-      }
       Document document=getDocument(article);
       documents.add(document);
     }
