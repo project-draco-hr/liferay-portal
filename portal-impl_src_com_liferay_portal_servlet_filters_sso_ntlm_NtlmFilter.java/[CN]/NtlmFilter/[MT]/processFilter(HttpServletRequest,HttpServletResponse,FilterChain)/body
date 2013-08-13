@@ -4,6 +4,7 @@
   String authorization=GetterUtil.getString(request.getHeader(HttpHeaders.AUTHORIZATION));
   if (authorization.startsWith("NTLM")) {
     NtlmManager ntlmManager=getNtlmManager(companyId);
+    String cacheKey=getCacheKey(request);
     byte[] src=Base64.decode(authorization.substring(5));
     if (src[8] == 1) {
       byte[] serverChallenge=new byte[8];
@@ -14,10 +15,10 @@
       response.setHeader(HttpHeaders.WWW_AUTHENTICATE,"NTLM " + authorization);
       response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
       response.flushBuffer();
-      _portalCache.put(request.getRemoteAddr(),serverChallenge);
+      _portalCache.put(cacheKey,serverChallenge);
       return;
     }
-    byte[] serverChallenge=_portalCache.get(request.getRemoteAddr());
+    byte[] serverChallenge=_portalCache.get(cacheKey);
     if (serverChallenge == null) {
       response.setContentLength(0);
       response.setHeader(HttpHeaders.WWW_AUTHENTICATE,"NTLM");
@@ -35,7 +36,7 @@
       }
     }
  finally {
-      _portalCache.remove(request.getRemoteAddr());
+      _portalCache.remove(cacheKey);
     }
     if (ntlmUserAccount == null) {
       response.setContentLength(0);
