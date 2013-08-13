@@ -2,16 +2,17 @@
   if (acquireCachePeers() < 2) {
     return;
   }
-  List<String> ehcacheNames=new ArrayList<String>();
+  EhcachePortalCacheManager<?,?> ehcachePortalCacheManager=(EhcachePortalCacheManager<?,?>)PortalBeanLocatorUtil.locate(_BEAN_NAME_MULTI_VM_PORTAL_CACHE_MANAGER);
+  CacheManager portalCacheManager=ehcachePortalCacheManager.getEhcacheManager();
+  List<String> localCacheNames=null;
   if (synchronizeCaches) {
-    for (    Ehcache ehcache : synchronizeCaches()) {
-      ehcacheNames.add(ehcache.getName());
-    }
+    localCacheNames=Arrays.asList(portalCacheManager.getCacheNames());
   }
+  List<String> ehcacheNames=new ArrayList<String>();
   for (  Ehcache ehcache : ehcaches) {
     ehcacheNames.add(ehcache.getName());
   }
-  ClusterRequest clusterRequest=ClusterRequest.createMulticastRequest(new MethodHandler(_createServerSocketFromClusterMethodKey,ehcacheNames),true);
+  ClusterRequest clusterRequest=ClusterRequest.createMulticastRequest(new MethodHandler(_createServerSocketFromClusterMethodKey,localCacheNames,ehcacheNames,synchronizeCaches),true);
   FutureClusterResponses futureClusterResponses=ClusterExecutorUtil.execute(clusterRequest);
   BlockingQueue<ClusterNodeResponse> clusterNodeResponses=futureClusterResponses.getPartialResults();
   ClusterNodeResponse clusterNodeResponse=null;
@@ -35,8 +36,6 @@
     socket.connect(remoteSocketAddress);
     socket.shutdownOutput();
     objectInputStream=new AnnotatedObjectInputStream(socket.getInputStream());
-    EhcachePortalCacheManager<?,?> ehcachePortalCacheManager=(EhcachePortalCacheManager<?,?>)PortalBeanLocatorUtil.locate(_BEAN_NAME_MULTI_VM_PORTAL_CACHE_MANAGER);
-    CacheManager portalCacheManager=ehcachePortalCacheManager.getEhcacheManager();
     Ehcache ehcache=null;
     while (true) {
       Object object=objectInputStream.readObject();
@@ -48,13 +47,16 @@
  else       if (object instanceof String) {
         String command=(String)object;
         if (command.equals(_COMMAND_CACHE_TX_START)) {
-          String cacheName=(String)objectInputStream.readObject();
-          ehcache=portalCacheManager.getCache(cacheName);
+          String incomingString=(String)objectInputStream.readObject();
+          if (incomingString.equals(_COMMAND_SOCKET_CLOSE)) {
+            break;
+          }
+          ehcache=portalCacheManager.getCache(incomingString);
           if (ehcache == null) {
             EhcacheStreamBootstrapCacheLoader.setSkip();
             try {
-              portalCacheManager.addCache(cacheName);
-              ehcache=portalCacheManager.getCache(cacheName);
+              portalCacheManager.addCache(incomingString);
+              ehcache=portalCacheManager.getCache(incomingString);
             }
   finally {
               EhcacheStreamBootstrapCacheLoader.resetSkip();
