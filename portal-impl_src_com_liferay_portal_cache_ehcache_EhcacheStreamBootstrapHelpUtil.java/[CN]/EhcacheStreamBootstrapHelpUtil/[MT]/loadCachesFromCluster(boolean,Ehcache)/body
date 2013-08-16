@@ -1,18 +1,25 @@
 {
-  if (acquireCachePeers() < 2) {
+  List<Address> clusterNodeAddresses=ClusterExecutorUtil.getClusterNodeAddresses();
+  if (_log.isInfoEnabled()) {
+    _log.info("Cluster node addresses " + clusterNodeAddresses);
+  }
+  if (clusterNodeAddresses.size() <= 1) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("No cluster peer found, skip load cache from cluster.");
+    }
     return;
   }
   EhcachePortalCacheManager<?,?> ehcachePortalCacheManager=(EhcachePortalCacheManager<?,?>)PortalBeanLocatorUtil.locate(_BEAN_NAME_MULTI_VM_PORTAL_CACHE_MANAGER);
-  CacheManager portalCacheManager=ehcachePortalCacheManager.getEhcacheManager();
-  List<String> localCacheNames=null;
+  CacheManager cacheManager=ehcachePortalCacheManager.getEhcacheManager();
+  List<String> allCacheNames=null;
   if (synchronizeCaches) {
-    localCacheNames=Arrays.asList(portalCacheManager.getCacheNames());
+    allCacheNames=Arrays.asList(cacheManager.getCacheNames());
   }
-  List<String> ehcacheNames=new ArrayList<String>();
-  for (  Ehcache ehcache : ehcaches) {
-    ehcacheNames.add(ehcache.getName());
+  List<String> toLoadCacheNames=new ArrayList<String>();
+  for (  Ehcache ehcache : toLoadEhcaches) {
+    toLoadCacheNames.add(ehcache.getName());
   }
-  ClusterRequest clusterRequest=ClusterRequest.createMulticastRequest(new MethodHandler(_createServerSocketFromClusterMethodKey,localCacheNames,ehcacheNames,synchronizeCaches),true);
+  ClusterRequest clusterRequest=ClusterRequest.createMulticastRequest(new MethodHandler(_createServerSocketFromClusterMethodKey,allCacheNames,toLoadCacheNames),true);
   FutureClusterResponses futureClusterResponses=ClusterExecutorUtil.execute(clusterRequest);
   BlockingQueue<ClusterNodeResponse> clusterNodeResponses=futureClusterResponses.getPartialResults();
   ClusterNodeResponse clusterNodeResponse=null;
@@ -23,6 +30,9 @@
     return;
   }
   if (clusterNodeResponse == null) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Load cache from cluster timeout, no peer responsed.");
+    }
     return;
   }
   ObjectInputStream objectInputStream=null;
@@ -30,6 +40,7 @@
   try {
     SocketAddress remoteSocketAddress=(SocketAddress)clusterNodeResponse.getResult();
     if (remoteSocketAddress == null) {
+      _log.error("Cluster peer " + clusterNodeResponse.getClusterNode() + " responsed null SocketAddress.");
       return;
     }
     socket=new Socket();
@@ -45,26 +56,15 @@
         ehcache.put(element,true);
       }
  else       if (object instanceof String) {
-        String command=(String)object;
-        if (command.equals(_COMMAND_CACHE_TX_START)) {
-          String incomingString=(String)objectInputStream.readObject();
-          if (incomingString.equals(_COMMAND_SOCKET_CLOSE)) {
-            break;
-          }
-          ehcache=portalCacheManager.getCache(incomingString);
-          if (ehcache == null) {
-            EhcacheStreamBootstrapCacheLoader.setSkip();
-            try {
-              portalCacheManager.addCache(incomingString);
-              ehcache=portalCacheManager.getCache(incomingString);
-            }
-  finally {
-              EhcacheStreamBootstrapCacheLoader.resetSkip();
-            }
-          }
-        }
- else         if (command.equals(_COMMAND_SOCKET_CLOSE)) {
+        if (_COMMAND_SOCKET_CLOSE.equals(object)) {
           break;
+        }
+        EhcacheStreamBootstrapCacheLoader.setSkip();
+        try {
+          ehcache=cacheManager.addCacheIfAbsent((String)object);
+        }
+  finally {
+          EhcacheStreamBootstrapCacheLoader.resetSkip();
         }
       }
  else {

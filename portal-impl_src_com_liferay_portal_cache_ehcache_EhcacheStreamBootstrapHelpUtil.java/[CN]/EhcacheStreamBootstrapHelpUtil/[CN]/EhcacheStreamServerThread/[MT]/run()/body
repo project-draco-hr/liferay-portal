@@ -13,42 +13,40 @@
     _serverSocket.close();
     socket.shutdownInput();
     ObjectOutputStream objectOutputStream=new AnnotatedObjectOutputStream(socket.getOutputStream());
-    for (    String cacheName : _ehcacheNames) {
-      objectOutputStream.writeObject(_COMMAND_CACHE_TX_START);
-      Ehcache ehcache=_portalCacheManager.getCache(cacheName);
+    for (    String cacheName : _cacheNames) {
+      Ehcache ehcache=_cacheManager.getCache(cacheName);
       if (ehcache == null) {
         EhcacheStreamBootstrapCacheLoader.setSkip();
         try {
-          _portalCacheManager.addCache(cacheName);
+          _cacheManager.addCache(cacheName);
         }
   finally {
           EhcacheStreamBootstrapCacheLoader.resetSkip();
         }
+        continue;
       }
- else {
-        objectOutputStream.writeObject(cacheName);
-        List<Object> keys=ehcache.getKeys();
-        for (        Object key : keys) {
-          if (!(key instanceof Serializable)) {
-            if (_log.isWarnEnabled()) {
-              _log.warn("Key " + key + " is not serializable");
-            }
-            continue;
+      objectOutputStream.writeObject(cacheName);
+      List<Object> keys=ehcache.getKeys();
+      for (      Object key : keys) {
+        if (!(key instanceof Serializable)) {
+          if (_log.isWarnEnabled()) {
+            _log.warn("Key " + key + " is not serializable");
           }
-          Element element=ehcache.get(key);
-          if (element == null) {
-            continue;
-          }
-          Object value=element.getObjectValue();
-          if (!(value instanceof Serializable)) {
-            if (_log.isWarnEnabled() && (value != null)) {
-              _log.warn("Value " + value + " is not serializable");
-            }
-            continue;
-          }
-          EhcacheElement ehcacheElement=new EhcacheElement((Serializable)key,(Serializable)value);
-          objectOutputStream.writeObject(ehcacheElement);
+          continue;
         }
+        Element element=ehcache.get(key);
+        if (element == null) {
+          continue;
+        }
+        Object value=element.getObjectValue();
+        if (!(value instanceof Serializable)) {
+          if (_log.isWarnEnabled() && (value != null)) {
+            _log.warn("Value " + value + " is not serializable");
+          }
+          continue;
+        }
+        EhcacheElement ehcacheElement=new EhcacheElement((Serializable)key,(Serializable)value);
+        objectOutputStream.writeObject(ehcacheElement);
       }
     }
     objectOutputStream.writeObject(_COMMAND_SOCKET_CLOSE);
