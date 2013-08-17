@@ -1,0 +1,49 @@
+{
+  long leftPrimaryKey=1;
+  long rightPrimaryKey=2;
+  Assert.assertTrue(_tableMappingImpl.addMapping(leftPrimaryKey,rightPrimaryKey));
+  Assert.assertFalse(_tableMappingImpl.addMapping(leftPrimaryKey,rightPrimaryKey));
+  PortalCache<Long,long[]> leftToRightPortalCache=_tableMappingImpl.leftToRightPortalCache;
+  leftToRightPortalCache.put(leftPrimaryKey,new long[0]);
+  try {
+    _tableMappingImpl.addMapping(leftPrimaryKey,rightPrimaryKey);
+    Assert.fail();
+  }
+ catch (  SystemException se) {
+    Throwable cause=se.getCause();
+    Assert.assertSame(RuntimeException.class,cause.getClass());
+    Assert.assertEquals("Unique key violation, leftPrimaryKey : " + leftPrimaryKey + ", rightPrimaryKey : "+ rightPrimaryKey,cause.getMessage());
+  }
+  Assert.assertFalse(_tableMappingImpl.addMapping(leftPrimaryKey,rightPrimaryKey));
+  leftToRightPortalCache.remove(leftPrimaryKey);
+  _mappingStore.remove(leftPrimaryKey);
+  RecorderModelListener<Left> leftModelListener=new RecorderModelListener<Left>();
+  _leftPersistence.registerListener(leftModelListener);
+  RecorderModelListener<Right> rightModelListener=new RecorderModelListener<Right>();
+  _rightPersistence.registerListener(rightModelListener);
+  Assert.assertTrue(_tableMappingImpl.addMapping(leftPrimaryKey,rightPrimaryKey));
+  leftModelListener.assertOnBeforeAddAssociation(true,leftPrimaryKey,Right.class.getName(),rightPrimaryKey);
+  rightModelListener.assertOnBeforeAddAssociation(true,rightPrimaryKey,Left.class.getName(),leftPrimaryKey);
+  leftModelListener.assertOnAfterAddAssociation(true,leftPrimaryKey,Right.class.getName(),rightPrimaryKey);
+  rightModelListener.assertOnAfterAddAssociation(true,rightPrimaryKey,Left.class.getName(),leftPrimaryKey);
+  _leftPersistence.unregisterListener(leftModelListener);
+  _rightPersistence.unregisterListener(rightModelListener);
+  leftToRightPortalCache.put(leftPrimaryKey,new long[0]);
+  leftModelListener=new RecorderModelListener<Left>();
+  _leftPersistence.registerListener(leftModelListener);
+  rightModelListener=new RecorderModelListener<Right>();
+  _rightPersistence.registerListener(rightModelListener);
+  try {
+    _tableMappingImpl.addMapping(leftPrimaryKey,rightPrimaryKey);
+    Assert.fail();
+  }
+ catch (  SystemException se) {
+    Throwable cause=se.getCause();
+    Assert.assertSame(RuntimeException.class,cause.getClass());
+    Assert.assertEquals("Unique key violation, leftPrimaryKey : " + leftPrimaryKey + ", rightPrimaryKey : "+ rightPrimaryKey,cause.getMessage());
+  }
+  leftModelListener.assertOnBeforeAddAssociation(true,leftPrimaryKey,Right.class.getName(),rightPrimaryKey);
+  rightModelListener.assertOnBeforeAddAssociation(true,rightPrimaryKey,Left.class.getName(),leftPrimaryKey);
+  leftModelListener.assertOnAfterAddAssociation(false,null,null,null);
+  rightModelListener.assertOnAfterAddAssociation(false,null,null,null);
+}
