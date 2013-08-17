@@ -5,7 +5,7 @@
   }
   if (clusterNodeAddresses.size() <= 1) {
     if (_log.isDebugEnabled()) {
-      _log.debug("No cluster peer found, skip load cache from cluster.");
+      _log.debug("Not loading cache from cluster because a cluster peer " + "was not found");
     }
     return;
   }
@@ -15,11 +15,11 @@
   if (synchronizeCaches) {
     allCacheNames=Arrays.asList(cacheManager.getCacheNames());
   }
-  List<String> toLoadCacheNames=new ArrayList<String>();
-  for (  Ehcache ehcache : toLoadEhcaches) {
-    toLoadCacheNames.add(ehcache.getName());
+  List<String> newCacheNames=new ArrayList<String>();
+  for (  Ehcache ehcache : newEhcaches) {
+    newCacheNames.add(ehcache.getName());
   }
-  ClusterRequest clusterRequest=ClusterRequest.createMulticastRequest(new MethodHandler(_createServerSocketFromClusterMethodKey,allCacheNames,toLoadCacheNames),true);
+  ClusterRequest clusterRequest=ClusterRequest.createMulticastRequest(new MethodHandler(_createServerSocketFromClusterMethodKey,allCacheNames,newCacheNames),true);
   FutureClusterResponses futureClusterResponses=ClusterExecutorUtil.execute(clusterRequest);
   BlockingQueue<ClusterNodeResponse> clusterNodeResponses=futureClusterResponses.getPartialResults();
   ClusterNodeResponse clusterNodeResponse=null;
@@ -31,16 +31,16 @@
   }
   if (clusterNodeResponse == null) {
     if (_log.isWarnEnabled()) {
-      _log.warn("Load cache from cluster timeout, no peer responsed.");
+      _log.warn("Unable to load cache from the cluster because there " + "was no peer response");
     }
     return;
   }
-  ObjectInputStream objectInputStream=null;
   Socket socket=null;
+  ObjectInputStream objectInputStream=null;
   try {
     SocketAddress remoteSocketAddress=(SocketAddress)clusterNodeResponse.getResult();
     if (remoteSocketAddress == null) {
-      _log.error("Cluster peer " + clusterNodeResponse.getClusterNode() + " responsed null SocketAddress.");
+      _log.error("Cluster peer " + clusterNodeResponse.getClusterNode() + " responded with a null socket address");
       return;
     }
     socket=new Socket();
