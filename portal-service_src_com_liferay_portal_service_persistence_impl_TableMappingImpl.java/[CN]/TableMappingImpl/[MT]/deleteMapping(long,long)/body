@@ -1,0 +1,34 @@
+{
+  if (!doContainsMapping(leftPrimaryKey,rightPrimaryKey,false)) {
+    return false;
+  }
+  leftToRightPortalCache.remove(leftPrimaryKey);
+  rightToLeftPortalCache.remove(rightPrimaryKey);
+  ModelListener<L>[] leftModelListeners=leftBasePersistence.getListeners();
+  Class<R> rightModelClass=rightBasePersistence.getModelClass();
+  for (  ModelListener<L> leftModelListener : leftModelListeners) {
+    leftModelListener.onBeforeRemoveAssociation(leftPrimaryKey,rightModelClass.getName(),rightPrimaryKey);
+  }
+  ModelListener<R>[] rightModelListeners=rightBasePersistence.getListeners();
+  Class<L> leftModelClass=leftBasePersistence.getModelClass();
+  for (  ModelListener<R> rightModelListener : rightModelListeners) {
+    rightModelListener.onBeforeRemoveAssociation(rightPrimaryKey,leftModelClass.getName(),leftPrimaryKey);
+  }
+  int affectRowCount=0;
+  try {
+    affectRowCount=deleteMappingSqlUpdate.update(leftPrimaryKey,rightPrimaryKey);
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+  if (affectRowCount > 0) {
+    for (    ModelListener<L> leftModelListener : leftModelListeners) {
+      leftModelListener.onAfterRemoveAssociation(leftPrimaryKey,rightModelClass.getName(),rightPrimaryKey);
+    }
+    for (    ModelListener<R> rightModelListener : rightModelListeners) {
+      rightModelListener.onAfterRemoveAssociation(rightPrimaryKey,leftModelClass.getName(),leftPrimaryKey);
+    }
+    return true;
+  }
+  return false;
+}
