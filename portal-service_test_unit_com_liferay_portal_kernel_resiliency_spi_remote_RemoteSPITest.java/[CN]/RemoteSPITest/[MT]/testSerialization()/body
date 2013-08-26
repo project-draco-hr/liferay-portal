@@ -8,8 +8,7 @@
   System.clearProperty(PropsKeys.INTRABAND_TIMEOUT_DEFAULT);
   System.clearProperty(PropsKeys.INTRABAND_WELDER_IMPL);
   System.clearProperty(PropsKeys.LIFERAY_HOME);
-  UnsyncByteArrayInputStream unsyncByteArrayInputStream=new UnsyncByteArrayInputStream(data);
-  ObjectInputStream objectInputStream=new ObjectInputStream(unsyncByteArrayInputStream);
+  ObjectInputStream objectInputStream=new ObjectInputStream(new UnsyncByteArrayInputStream(data));
   Object object=objectInputStream.readObject();
   Assert.assertSame(MockRemoteSPI.class,object.getClass());
   Assert.assertEquals(ExecutorIntraband.class.getName(),System.getProperty(PropsKeys.INTRABAND_IMPL));
@@ -19,4 +18,32 @@
   Assert.assertEquals("-".concat(_spiConfiguration.getSPIId()),System.getProperty("spi.id"));
   Assert.assertEquals("false",System.getProperty("portal:" + PropsKeys.AUTO_DEPLOY_ENABLED));
   Assert.assertEquals("false",System.getProperty("portal:" + PropsKeys.CLUSTER_LINK_ENABLED));
+  objectInputStream=new ObjectInputStream(new UnsyncByteArrayInputStream(data));
+  SecurityManager securityManager=System.getSecurityManager();
+  System.setSecurityManager(new SecurityManager(){
+    @Override public void checkPermission(    Permission permission){
+      if ((permission instanceof RuntimePermission)) {
+        String name=permission.getName();
+        if (name.equals("setSecurityManager")) {
+          return;
+        }
+      }
+      if (permission instanceof ReflectPermission) {
+        throw new SecurityException();
+      }
+    }
+  }
+);
+  try {
+    objectInputStream.readObject();
+    Assert.fail();
+  }
+ catch (  IOException ioe) {
+    Assert.assertEquals("Unable to disable dependency management",ioe.getMessage());
+    Throwable cause=ioe.getCause();
+    Assert.assertSame(SecurityException.class,cause.getClass());
+  }
+ finally {
+    System.setSecurityManager(securityManager);
+  }
 }
