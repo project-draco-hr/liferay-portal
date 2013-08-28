@@ -1,0 +1,82 @@
+{
+  List<String> xpaths=new ArrayList<String>();
+  Stack<String> ids=(Stack)_xpathIdStack.clone();
+  String failedLineXpath=generateXpath(ids);
+  xpaths.add(failedLineXpath);
+  ids.pop();
+  int numIds=_xpathIdStack.size() - 1;
+  for (int i=2; i < numIds; i++) {
+    Stack<String> parentIds=(Stack)ids.clone();
+    for (int j=2; j < i; j++) {
+      parentIds.pop();
+    }
+    xpaths.add(generateXpath(parentIds) + "/div");
+  }
+  List<String[]> lineNumbers=new ArrayList<String[]>();
+  for (  String xpath : xpaths) {
+    String failedLine=getLineNumber(xpath);
+    String failedCommand=getCommandName(xpath);
+    if (Validator.isNotNull(failedLine) && Validator.isNotNull(failedCommand)) {
+      failedCommand=failedCommand.replace("\"","");
+      lineNumbers.add(new String[]{failedCommand,failedLine});
+    }
+  }
+  StringBundler sb=new StringBundler();
+  for (int i=0; i < (lineNumbers.size() - 1); i++) {
+    String[] currentLine=lineNumbers.get(i);
+    String[] parentLine=lineNumbers.get(i + 1);
+    String currentCommand=currentLine[0];
+    String currentLineNumber=currentLine[1];
+    String parentCommand=parentLine[0];
+    int x=parentCommand.indexOf("#");
+    String parentFile=parentCommand.substring(0,x) + ".macro";
+    sb.append("Failed Line: <b>");
+    sb.append(currentCommand);
+    sb.append("</b> (");
+    sb.append(parentFile);
+    sb.append(":");
+    sb.append(currentLineNumber);
+    sb.append(")<br />");
+  }
+  int length=lineNumbers.size();
+  String[] finalLine=lineNumbers.get(length - 1);
+  String finalCommand=finalLine[0];
+  String finalLineNumber=finalLine[1];
+  sb.append("Failed Line: <b>");
+  sb.append(finalCommand);
+  sb.append("</b> (");
+  while (ids.size() > 1) {
+    ids.pop();
+  }
+  String testCaseCommandXpath=generateXpath(ids) + "/div/h3";
+  String testCaseCommand=getLogElementText(testCaseCommandXpath);
+  ;
+  String testClassName=getLogElementText("//h2");
+  int x=testClassName.lastIndexOf(".");
+  String testName=testClassName.substring(x + 1);
+  if (testName.endsWith("TestCase")) {
+    sb.append(testName.replace("TestCase","") + ".testcase");
+  }
+ else   if (testName.endsWith("TestSuite")) {
+    sb.append(testName.replace("TestSuite","") + ".testsuite");
+  }
+  sb.append(":");
+  sb.append(finalLineNumber);
+  sb.append(")<br />");
+  sb.append("in command ");
+  sb.append(testCaseCommand.trim());
+  Throwable throwable=new Throwable();
+  StackTraceElement[] stackTraceElements=throwable.getStackTrace();
+  StringBundler exception=new StringBundler();
+  exception.append("<br /><textarea cols='85' rows='7'>");
+  for (  StackTraceElement stackTraceElement : stackTraceElements) {
+    String className=stackTraceElement.getClassName();
+    if (className.startsWith("com.liferay")) {
+      exception.append(stackTraceElement.toString() + "\\n");
+    }
+  }
+  exception.append("</textarea>");
+  sb.append(exception.toString());
+  sb.append("</p>");
+  return sb.toString();
+}
