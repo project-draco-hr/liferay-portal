@@ -1,0 +1,21 @@
+{
+  SecureRandom secureRandom=_installPredictableRandom();
+  FutureTask<Long> futureTask=new FutureTask<Long>(new Callable<Long>(){
+    @Override public Long call() throws Exception {
+      return _reload();
+    }
+  }
+);
+  Thread reloadThread=new Thread(futureTask);
+  long gapValue=-1;
+synchronized (secureRandom) {
+    reloadThread.start();
+    while (reloadThread.getState() != Thread.State.BLOCKED)     ;
+    long gapSeed=_getGapSeed();
+    gapValue=_reload();
+    Assert.assertEquals(_getFirstLong() ^ gapSeed,gapValue);
+    Assert.assertEquals(gapValue,_getGapSeed());
+  }
+  reloadThread.join();
+  Assert.assertEquals((Long)(_getFirstLong() ^ gapValue),futureTask.get());
+}
