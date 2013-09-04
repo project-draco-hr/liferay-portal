@@ -5,16 +5,37 @@
   parameterMap=request.getParameterMap();
   serverName=request.getServerName();
   serverPort=request.getServerPort();
-  String contentType=request.getHeader(HttpHeaders.CONTENT_TYPE);
-  if ((contentType != null) && contentType.startsWith(ContentTypes.MULTIPART_FORM_DATA)) {
-    UploadServletRequest uploadServletRequest=PortalUtil.getUploadServletRequest(request);
-    Map<String,FileItem[]> multipartParameterMap=uploadServletRequest.getMultipartParameterMap();
-    Map<String,List<String>> regularParameterMap=uploadServletRequest.getRegularParameterMap();
-    if (!multipartParameterMap.isEmpty()) {
-      this.multipartParameterMap=multipartParameterMap;
+  String contentType=request.getContentType();
+  if ((contentType != null) && contentType.startsWith(ContentTypes.MULTIPART)) {
+    UploadServletRequest uploadServletRequest=null;
+    while (request instanceof HttpServletRequestWrapper) {
+      if (request instanceof UploadServletRequest) {
+        uploadServletRequest=(UploadServletRequest)request;
+        break;
+      }
+      HttpServletRequestWrapper httpServletRequestWrapper=(HttpServletRequestWrapper)request;
+      request=(HttpServletRequest)httpServletRequestWrapper.getRequest();
     }
-    if (!regularParameterMap.isEmpty()) {
-      this.regularParameterMap=regularParameterMap;
+    if (uploadServletRequest == null) {
+      this.contentType=contentType;
+      requestBodyFile=FileUtil.createTempFile();
+      FileOutputStream fileOutputStream=new FileOutputStream(requestBodyFile);
+      try {
+        StreamUtil.transfer(request.getInputStream(),fileOutputStream,false);
+      }
+  finally {
+        fileOutputStream.close();
+      }
+    }
+ else {
+      Map<String,FileItem[]> multipartParameterMap=uploadServletRequest.getMultipartParameterMap();
+      Map<String,List<String>> regularParameterMap=uploadServletRequest.getRegularParameterMap();
+      if (!multipartParameterMap.isEmpty()) {
+        this.multipartParameterMap=multipartParameterMap;
+      }
+      if (!regularParameterMap.isEmpty()) {
+        this.regularParameterMap=regularParameterMap;
+      }
     }
   }
   ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
