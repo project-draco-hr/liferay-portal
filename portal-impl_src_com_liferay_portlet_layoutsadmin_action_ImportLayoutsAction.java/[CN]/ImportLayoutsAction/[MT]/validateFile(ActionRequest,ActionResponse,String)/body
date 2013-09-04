@@ -2,21 +2,11 @@
   ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
   long groupId=ParamUtil.getLong(actionRequest,"groupId");
   FileEntry fileEntry=ExportImportHelperUtil.getTempFileEntry(groupId,themeDisplay.getUserId(),folderName);
-  File file=DLFileEntryLocalServiceUtil.getFile(themeDisplay.getUserId(),fileEntry.getFileEntryId(),fileEntry.getVersion(),false);
-  if ((file == null) || !file.exists()) {
-    throw new LARFileException("Import file does not exist");
-  }
-  boolean successfulRename=false;
-  File newFile=null;
+  InputStream inputStream=null;
   try {
-    String newFileName=StringUtil.replace(file.getPath(),file.getName(),fileEntry.getTitle());
-    newFile=new File(newFileName);
-    successfulRename=file.renameTo(newFile);
-    if (!successfulRename) {
-      newFile=FileUtil.createTempFile(fileEntry.getExtension());
-      FileUtil.copyFile(file,newFile);
-    }
-    MissingReferences missingReferences=validateFile(actionRequest,newFile);
+    inputStream=DLFileEntryLocalServiceUtil.getFileAsStream(themeDisplay.getUserId(),fileEntry.getFileEntryId(),fileEntry.getVersion(),false);
+    boolean privateLayout=ParamUtil.getBoolean(actionRequest,"privateLayout");
+    MissingReferences missingReferences=validateFile(actionRequest,inputStream);
     Map<String,MissingReference> weakMissingReferences=missingReferences.getWeakMissingReferences();
     if (weakMissingReferences.isEmpty()) {
       return;
@@ -28,15 +18,6 @@
     writeJSON(actionRequest,actionResponse,jsonObject);
   }
   finally {
-    if (successfulRename) {
-      successfulRename=newFile.renameTo(file);
-      if (!successfulRename) {
-        FileUtil.copyFile(newFile,file);
-        FileUtil.delete(newFile);
-      }
-    }
- else {
-      FileUtil.delete(newFile);
-    }
+    StreamUtil.cleanUp(inputStream);
   }
 }
