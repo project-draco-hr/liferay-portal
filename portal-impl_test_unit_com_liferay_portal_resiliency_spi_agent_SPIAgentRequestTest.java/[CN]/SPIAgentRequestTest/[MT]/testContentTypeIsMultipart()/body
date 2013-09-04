@@ -1,11 +1,17 @@
 {
-  _mockHttpServletRequest.addHeader(HttpHeaders.CONTENT_TYPE,ContentTypes.MULTIPART_FORM_DATA);
+  _mockHttpServletRequest.setContentType(ContentTypes.MULTIPART_FORM_DATA);
   SPIAgentRequest spiAgentRequest=new SPIAgentRequest(new UploadServletRequestImpl(_mockHttpServletRequest,null,null));
   HttpServletRequest populateHttpServletRequest=spiAgentRequest.populateRequest(new MockHttpServletRequest());
   Assert.assertSame(AgentHttpServletRequestWrapper.class,populateHttpServletRequest.getClass());
+  Assert.assertEquals(-1,populateHttpServletRequest.getContentLength());
+  Assert.assertNull(populateHttpServletRequest.getContentType());
+  Assert.assertNull(populateHttpServletRequest.getInputStream());
   spiAgentRequest=new SPIAgentRequest(new UploadServletRequestImpl(_mockHttpServletRequest,new HashMap<String,FileItem[]>(),new HashMap<String,List<String>>()));
   populateHttpServletRequest=spiAgentRequest.populateRequest(new MockHttpServletRequest());
   Assert.assertSame(AgentHttpServletRequestWrapper.class,populateHttpServletRequest.getClass());
+  Assert.assertEquals(-1,populateHttpServletRequest.getContentLength());
+  Assert.assertNull(populateHttpServletRequest.getContentType());
+  Assert.assertNull(populateHttpServletRequest.getInputStream());
   Map<String,FileItem[]> fileParameters=new HashMap<String,FileItem[]>();
   String fileParameter="fileParameter";
   FileItem[] fileItems=new FileItem[0];
@@ -19,6 +25,9 @@
   Assert.assertEquals(1,populatedFileParameters.size());
   Assert.assertSame(fileItems,populatedFileParameters.get(fileParameter));
   Assert.assertTrue(populatedRegularParameters.isEmpty());
+  Assert.assertEquals(-1,populateHttpServletRequest.getContentLength());
+  Assert.assertNull(populateHttpServletRequest.getContentType());
+  Assert.assertNull(populateHttpServletRequest.getInputStream());
   Map<String,List<String>> regularParameters=new HashMap<String,List<String>>();
   String regularParameter="regularParameter";
   List<String> parameters=new ArrayList<String>();
@@ -33,6 +42,9 @@
   Assert.assertSame(fileItems,populatedFileParameters.get(fileParameter));
   Assert.assertEquals(1,populatedRegularParameters.size());
   Assert.assertSame(parameters,populatedRegularParameters.get(regularParameter));
+  Assert.assertEquals(-1,populateHttpServletRequest.getContentLength());
+  Assert.assertNull(populateHttpServletRequest.getContentType());
+  Assert.assertNull(populateHttpServletRequest.getInputStream());
   spiAgentRequest=new SPIAgentRequest(new UploadServletRequestImpl(_mockHttpServletRequest,new HashMap<String,FileItem[]>(),regularParameters));
   populateHttpServletRequest=spiAgentRequest.populateRequest(new MockHttpServletRequest());
   Assert.assertSame(UploadServletRequestImpl.class,populateHttpServletRequest.getClass());
@@ -42,4 +54,29 @@
   Assert.assertTrue(populatedFileParameters.isEmpty());
   Assert.assertEquals(1,populatedRegularParameters.size());
   Assert.assertSame(parameters,populatedRegularParameters.get(regularParameter));
+  Assert.assertEquals(-1,populateHttpServletRequest.getContentLength());
+  Assert.assertNull(populateHttpServletRequest.getContentType());
+  Assert.assertNull(populateHttpServletRequest.getInputStream());
+  byte[] content=new byte[1024];
+  Random random=new Random();
+  random.nextBytes(content);
+  _mockHttpServletRequest.setContent(content);
+  spiAgentRequest=new SPIAgentRequest(new HttpServletRequestWrapper(_mockHttpServletRequest));
+  Assert.assertEquals(ContentTypes.MULTIPART_FORM_DATA,spiAgentRequest.contentType);
+  Assert.assertNotNull(spiAgentRequest.requestBodyFile);
+  Assert.assertArrayEquals(content,FileUtil.getBytes(spiAgentRequest.requestBodyFile));
+  populateHttpServletRequest=spiAgentRequest.populateRequest(new MockHttpServletRequest());
+  Assert.assertEquals(content.length,populateHttpServletRequest.getContentLength());
+  Assert.assertEquals(ContentTypes.MULTIPART_FORM_DATA,populateHttpServletRequest.getContentType());
+  ServletInputStream servletInputStream=populateHttpServletRequest.getInputStream();
+  Assert.assertNotNull(servletInputStream);
+  Assert.assertArrayEquals(content,FileUtil.getBytes(servletInputStream));
+  _mockHttpServletRequest.setContent(null);
+  try {
+    new SPIAgentRequest(new HttpServletRequestWrapper(_mockHttpServletRequest));
+    Assert.fail();
+  }
+ catch (  IllegalArgumentException iae) {
+    Assert.assertEquals("Input stream cannot be null",iae.getMessage());
+  }
 }
