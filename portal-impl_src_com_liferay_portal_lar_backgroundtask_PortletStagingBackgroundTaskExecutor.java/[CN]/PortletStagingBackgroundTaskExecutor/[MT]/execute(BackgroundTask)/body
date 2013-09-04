@@ -10,20 +10,15 @@
   Date startDate=(Date)taskContextMap.get("startDate");
   Date endDate=(Date)taskContextMap.get("endDate");
   File larFile=LayoutLocalServiceUtil.exportPortletInfoAsFile(sourcePlid,sourceGroupId,portletId,parameterMap,startDate,endDate);
+  backgroundTask=markBackgroundTask(backgroundTask,"exported");
   MissingReferences missingReferences=null;
   try {
     missingReferences=LayoutLocalServiceUtil.validateImportPortletInfo(userId,targetGroupId,targetPlid,portletId,parameterMap,larFile);
-    backgroundTask=markValidatedBackgroundTask(backgroundTask);
+    backgroundTask=markBackgroundTask(backgroundTask,"validated");
     LayoutLocalServiceUtil.importPortletInfo(userId,targetPlid,targetGroupId,portletId,parameterMap,larFile);
   }
   finally {
     larFile.delete();
   }
-  BackgroundTaskResult backgroundTaskResult=new BackgroundTaskResult(BackgroundTaskConstants.STATUS_SUCCESSFUL);
-  Map<String,MissingReference> weakMissingReferences=missingReferences.getWeakMissingReferences();
-  if ((weakMissingReferences != null) && !weakMissingReferences.isEmpty()) {
-    JSONArray jsonArray=StagingUtil.getWarningMessagesJSONArray(getLocale(backgroundTask),weakMissingReferences,backgroundTask.getTaskContextMap());
-    backgroundTaskResult.setStatusMessage(jsonArray.toString());
-  }
-  return backgroundTaskResult;
+  return processMissingReferences(backgroundTask,missingReferences);
 }
