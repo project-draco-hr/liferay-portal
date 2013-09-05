@@ -1,0 +1,63 @@
+{
+  Stack<String> ids=(Stack)_xpathIdStack.clone();
+  String currentCommand=null;
+  String currentLine=null;
+  String parentCommand=null;
+  String parentLine=null;
+  String testCaseCommand=null;
+  StringBundler sb=new StringBundler();
+  sb.append("<p>");
+  while (ids.size() > 1) {
+    String xpath=generateXpath(ids);
+    String command=getLogElementText(xpath + "/div/span[@class='quote'][1]");
+    String line=getLogElementText(xpath + "/div/div[@class='line-number']");
+    command=StringUtil.replace(command,"\"","");
+    if ((parentCommand == null) || (parentLine == null)) {
+      parentCommand=command;
+      parentLine=line;
+    }
+ else {
+      currentCommand=parentCommand;
+      currentLine=parentLine;
+      parentCommand=command;
+      parentLine=line;
+      String parentFile="";
+      if (ids.size() > 2) {
+        int x=parentCommand.indexOf("#");
+        parentFile=parentCommand.substring(0,x) + ".macro";
+      }
+ else {
+        ids.pop();
+        String testCaseXpath=generateXpath(ids);
+        testCaseCommand=getLogElementText(testCaseXpath + "/div/h3");
+        int x=testCaseCommand.lastIndexOf("#");
+        parentFile=testCaseCommand.substring(0,x) + ".testcase";
+      }
+      sb.append("Failed Line: <b>");
+      sb.append(currentCommand);
+      sb.append("</b> (");
+      sb.append(parentFile);
+      sb.append(":");
+      sb.append(currentLine);
+      sb.append(")<br />");
+    }
+    ids.pop();
+  }
+  sb.append("in test case command <b>");
+  sb.append(testCaseCommand.trim());
+  sb.append("</b><br />");
+  sb.append("<textarea cols='85' rows='7' wrap='off'>");
+  sb.append(throwable.getMessage());
+  StackTraceElement[] stackTraceElements=throwable.getStackTrace();
+  for (  StackTraceElement stackTraceElement : stackTraceElements) {
+    String className=stackTraceElement.getClassName();
+    if (className.startsWith("com.liferay")) {
+      sb.append("\\n\\t");
+      sb.append(stackTraceElement.toString());
+    }
+  }
+  sb.append("</textarea>");
+  sb.append("</p>");
+  String stackTrace=sb.toString();
+  return stackTrace.replace("'","\\'");
+}
