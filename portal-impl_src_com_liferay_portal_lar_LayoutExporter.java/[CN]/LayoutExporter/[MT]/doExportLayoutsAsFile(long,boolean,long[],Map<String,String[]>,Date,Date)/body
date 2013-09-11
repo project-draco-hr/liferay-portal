@@ -3,14 +3,11 @@
   boolean exportIgnoreLastPublishDate=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.IGNORE_LAST_PUBLISH_DATE);
   boolean exportPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PERMISSIONS);
   boolean exportPortletDataAll=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PORTLET_DATA_ALL);
-  boolean exportTheme=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.THEME);
-  boolean exportThemeSettings=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.THEME_REFERENCE);
   boolean exportLogo=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.LOGO);
   boolean exportLayoutSetSettings=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.LAYOUT_SET_SETTINGS);
   boolean updateLastPublishDate=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.UPDATE_LAST_PUBLISH_DATE);
   if (_log.isDebugEnabled()) {
     _log.debug("Export permissions " + exportPermissions);
-    _log.debug("Export theme " + exportTheme);
   }
   LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(groupId,privateLayout);
   long companyId=layoutSet.getCompanyId();
@@ -72,10 +69,6 @@
     headerElement.addAttribute("type-uuid",layoutSetPrototype.getUuid());
   }
   headerElement.addAttribute("type",type);
-  if (exportTheme || exportThemeSettings) {
-    headerElement.addAttribute("theme-id",layoutSet.getThemeId());
-    headerElement.addAttribute("color-scheme-id",layoutSet.getColorSchemeId());
-  }
   if (exportLogo) {
     Image image=ImageLocalServiceUtil.getImage(layoutSet.getLogoId());
     if ((image != null) && (image.getTextObj() != null)) {
@@ -85,12 +78,11 @@
       portletDataContext.addZipEntry(logoPath,image.getTextObj());
     }
   }
+  _themeExporter.exportTheme(portletDataContext,layoutSet);
   if (exportLayoutSetSettings) {
     Element settingsElement=headerElement.addElement("settings");
     settingsElement.addCDATA(layoutSet.getSettings());
   }
-  Element cssElement=headerElement.addElement("css");
-  cssElement.addCDATA(layoutSet.getCss());
   Map<String,Object[]> portletIds=new LinkedHashMap<String,Object[]>();
   List<Layout> layouts=LayoutLocalServiceUtil.getLayouts(groupId,privateLayout);
   List<Portlet> portlets=getDataSiteLevelPortlets(companyId);
@@ -123,7 +115,7 @@
     layoutsElement.addAttribute("layout-set-prototype-name",layoutSetPrototype.getName(LocaleUtil.getDefault()));
   }
   for (  Layout layout : layouts) {
-    exportLayout(portletDataContext,portlets,layoutIds,portletIds,layout,exportTheme,zipWriter);
+    exportLayout(portletDataContext,portlets,layoutIds,portletIds,layout,zipWriter);
   }
   long previousScopeGroupId=portletDataContext.getScopeGroupId();
   Element portletsElement=rootElement.addElement("portlets");
@@ -179,11 +171,6 @@
     _permissionExporter.exportPortletDataPermissions(portletDataContext);
   }
   _portletExporter.exportRatingsEntries(portletDataContext,rootElement);
-  if (exportTheme && !portletDataContext.isPerformDirectBinaryImport()) {
-    Theme theme=layoutSet.getTheme();
-    File themeZip=new File(zipWriter.getPath() + "/theme.zip");
-    exportTheme(theme,themeZip);
-  }
   ExportImportHelperUtil.writeManifestSummary(document,portletDataContext.getManifestSummary());
   if (_log.isInfoEnabled()) {
     if (stopWatch != null) {
