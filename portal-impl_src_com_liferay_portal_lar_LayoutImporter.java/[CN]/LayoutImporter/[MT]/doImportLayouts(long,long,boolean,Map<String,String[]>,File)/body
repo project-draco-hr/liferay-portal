@@ -3,8 +3,6 @@
   boolean deletePortletData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.DELETE_PORTLET_DATA);
   boolean importCategories=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.CATEGORIES);
   boolean importPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PERMISSIONS);
-  boolean importTheme=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.THEME);
-  boolean importThemeSettings=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.THEME_REFERENCE);
   boolean importLogo=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.LOGO);
   boolean importLayoutSetSettings=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.LAYOUT_SET_SETTINGS);
   boolean layoutSetPrototypeLinkEnabled=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.LAYOUT_SET_PROTOTYPE_LINK_ENABLED,true);
@@ -18,7 +16,6 @@
     _log.debug("Delete portlet data " + deletePortletData);
     _log.debug("Import categories " + importCategories);
     _log.debug("Import permissions " + importPermissions);
-    _log.debug("Import theme " + importTheme);
   }
   StopWatch stopWatch=null;
   if (_log.isInfoEnabled()) {
@@ -38,7 +35,6 @@
   PortletDataContext portletDataContext=PortletDataContextFactoryUtil.createImportPortletDataContext(companyId,groupId,parameterMap,strategy,zipReader);
   portletDataContext.setPortetDataContextListener(new PortletDataContextListenerImpl(portletDataContext));
   portletDataContext.setPrivateLayout(privateLayout);
-  InputStream themeZip=null;
   validateFile(portletDataContext);
   long sourceCompanyId=GetterUtil.getLong(_headerElement.attributeValue("company-id"));
   portletDataContext.setSourceCompanyId(sourceCompanyId);
@@ -97,18 +93,6 @@
     layoutSet.setLayoutSetPrototypeLinkEnabled(layoutSetPrototypeLinkEnabled);
     LayoutSetLocalServiceUtil.updateLayoutSet(layoutSet);
   }
-  String themeId=layoutSet.getThemeId();
-  String colorSchemeId=layoutSet.getColorSchemeId();
-  if (importThemeSettings) {
-    Attribute themeIdAttribute=_headerElement.attribute("theme-id");
-    if (themeIdAttribute != null) {
-      themeId=themeIdAttribute.getValue();
-    }
-    Attribute colorSchemeIdAttribute=_headerElement.attribute("color-scheme-id");
-    if (colorSchemeIdAttribute != null) {
-      colorSchemeId=colorSchemeIdAttribute.getValue();
-    }
-  }
   if (importLogo) {
     String logoPath=_headerElement.attributeValue("logo-path");
     byte[] iconBytes=portletDataContext.getZipEntryAsByteArray(logoPath);
@@ -126,25 +110,11 @@
       LayoutSetLocalServiceUtil.updateLogo(groupId,privateLayout,false,(File)null);
     }
   }
+  _themeImporter.importTheme(portletDataContext,layoutSet);
   if (importLayoutSetSettings) {
     String settings=GetterUtil.getString(_headerElement.elementText("settings"));
     LayoutSetLocalServiceUtil.updateSettings(groupId,privateLayout,settings);
   }
-  if (importTheme) {
-    themeZip=portletDataContext.getZipEntryAsInputStream("theme.zip");
-  }
-  if (themeZip != null) {
-    String importThemeId=importTheme(layoutSet.getGroupId(),layoutSet.isPrivateLayout(),0,themeZip);
-    if (importThemeId != null) {
-      themeId=importThemeId;
-      colorSchemeId=ColorSchemeFactoryUtil.getDefaultRegularColorSchemeId();
-    }
-    if (_log.isDebugEnabled()) {
-      _log.debug("Importing theme takes " + stopWatch.getTime() + " ms");
-    }
-  }
-  String css=GetterUtil.getString(_headerElement.elementText("css"));
-  LayoutSetLocalServiceUtil.updateLookAndFeel(groupId,privateLayout,themeId,colorSchemeId,css,false);
   if (importPermissions) {
     _permissionImporter.readPortletDataPermissions(portletDataContext);
   }
@@ -176,7 +146,7 @@
     }
   }
   for (  Element layoutElement : _layoutElements) {
-    importLayout(portletDataContext,sourceLayoutsUuids,newLayouts,layoutElement,importTheme);
+    importLayout(portletDataContext,sourceLayoutsUuids,newLayouts,layoutElement);
   }
   Element portletsElement=_rootElement.element("portlets");
   List<Element> portletElements=portletsElement.elements("portlet");
