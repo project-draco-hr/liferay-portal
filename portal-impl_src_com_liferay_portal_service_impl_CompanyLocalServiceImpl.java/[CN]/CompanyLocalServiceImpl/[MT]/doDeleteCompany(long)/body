@@ -2,5 +2,75 @@
   Company company=companyPersistence.findByPrimaryKey(companyId);
   company.setActive(false);
   companyPersistence.update(company);
+  ActionableDynamicQuery userActionableDynamicQuery=new UserActionableDynamicQuery(){
+    @Override protected void performAction(    Object object) throws PortalException, SystemException {
+      User user=(User)object;
+      if (!user.isDefaultUser()) {
+        userLocalService.deleteUser(user.getUserId());
+      }
+    }
+  }
+;
+  userActionableDynamicQuery.setCompanyId(companyId);
+  userActionableDynamicQuery.performActions();
+  RecursiveDeleteOrganizationActionableDynamicQuery recursiveDeleteOrganizationActionableDynamicQuery=new RecursiveDeleteOrganizationActionableDynamicQuery();
+  recursiveDeleteOrganizationActionableDynamicQuery.setCompanyId(companyId);
+  recursiveDeleteOrganizationActionableDynamicQuery.performActions();
+  RecursiveDeleteGroupActionableDynamicQuery recursiveDeleteGroupActionableDynamicQuery=new RecursiveDeleteGroupActionableDynamicQuery();
+  recursiveDeleteGroupActionableDynamicQuery.setCompanyId(companyId);
+  recursiveDeleteGroupActionableDynamicQuery.performActions();
+  String[] systemGroups=PortalUtil.getSystemGroups();
+  for (  String groupName : systemGroups) {
+    Group group=groupLocalService.getGroup(companyId,groupName);
+    deleteGroup(group);
+  }
+  Group companyGroup=groupLocalService.getCompanyGroup(companyId);
+  deleteGroup(companyGroup);
+  ActionableDynamicQuery layoutPrototypeActionableDynamicQuery=new LayoutPrototypeActionableDynamicQuery(){
+    @Override protected void performAction(    Object object) throws PortalException, SystemException {
+      LayoutPrototype layoutPrototype=(LayoutPrototype)object;
+      layoutPrototypeLocalService.deleteLayoutPrototype(layoutPrototype);
+    }
+  }
+;
+  layoutPrototypeActionableDynamicQuery.setCompanyId(companyId);
+  layoutPrototypeActionableDynamicQuery.performActions();
+  ActionableDynamicQuery layoutSetPrototypeActionableDynamicQuery=new LayoutSetPrototypeActionableDynamicQuery(){
+    @Override protected void performAction(    Object object) throws PortalException, SystemException {
+      LayoutSetPrototype layoutSetPrototype=(LayoutSetPrototype)object;
+      layoutSetPrototypeLocalService.deleteLayoutSetPrototype(layoutSetPrototype);
+    }
+  }
+;
+  layoutSetPrototypeActionableDynamicQuery.setCompanyId(companyId);
+  layoutSetPrototypeActionableDynamicQuery.performActions();
+  User defaultUser=userLocalService.getDefaultUser(companyId);
+  userLocalService.deleteUser(defaultUser);
+  ActionableDynamicQuery roleActionableDynamicQuery=new RoleActionableDynamicQuery(){
+    @Override protected void performAction(    Object object) throws PortalException, SystemException {
+      Role role=(Role)object;
+      roleLocalService.deleteRole(role);
+    }
+  }
+;
+  roleActionableDynamicQuery.setCompanyId(companyId);
+  roleActionableDynamicQuery.performActions();
+  passwordPolicyLocalService.deleteNondefaultPasswordPolicies(companyId);
+  PasswordPolicy defaultPasswordPolicy=passwordPolicyLocalService.getDefaultPasswordPolicy(companyId);
+  passwordPolicyLocalService.deletePasswordPolicy(defaultPasswordPolicy);
+  List<Portlet> portlets=portletPersistence.findByCompanyId(companyId);
+  for (  Portlet portlet : portlets) {
+    portletLocalService.deletePortlet(portlet.getId());
+  }
+  portletLocalService.removeCompanyPortletsPool(companyId);
+  PortalPreferences portalPreferences=portalPreferencesPersistence.findByO_O(companyId,PortletKeys.PREFS_OWNER_TYPE_COMPANY);
+  portalPreferencesLocalService.deletePortalPreferences(portalPreferences);
+  VirtualHost companyVirtualHost=virtualHostLocalService.fetchVirtualHost(companyId,0);
+  virtualHostLocalService.deleteVirtualHost(companyVirtualHost);
+  accountLocalService.deleteAccount(company.getAccountId());
+  Shard shard=shardLocalService.getShard(Company.class.getName(),company.getCompanyId());
+  shardLocalService.deleteShard(shard);
+  company=companyPersistence.remove(companyId);
+  PortalInstances.removeCompany(companyId);
   return company;
 }
