@@ -1,0 +1,23 @@
+{
+  Set<Long> userIds=new HashSet<Long>();
+  List<MBMessage> messages=mbMessageLocalService.getThreadMessages(threadId,WorkflowConstants.STATUS_ANY);
+  for (  MBMessage message : messages) {
+    if (message.isDiscussion()) {
+      continue;
+    }
+    userIds.add(message.getUserId());
+    if (message.getStatus() == WorkflowConstants.STATUS_APPROVED) {
+      assetEntryLocalService.updateVisible(MBMessage.class.getName(),message.getMessageId(),false);
+    }
+    Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(MBMessage.class);
+    indexer.reindex(message);
+    if (message.getStatus() == WorkflowConstants.STATUS_PENDING) {
+      message.setStatus(WorkflowConstants.STATUS_DRAFT);
+      mbMessagePersistence.update(message);
+      workflowInstanceLinkLocalService.deleteWorkflowInstanceLink(message.getCompanyId(),message.getGroupId(),MBMessage.class.getName(),message.getMessageId());
+    }
+  }
+  for (  long userId : userIds) {
+    mbStatsUserLocalService.updateStatsUser(groupId,userId);
+  }
+}
