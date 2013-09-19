@@ -1,6 +1,15 @@
 {
   List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(SPIAgentSerializable.class.getName(),Level.OFF);
-  MockHttpSession mockHttpSession=new MockHttpSession();
+  MockHttpServletRequest mockHttpServletRequest=new MockHttpServletRequest();
+  final String portletId="portletId";
+  Portlet portlet=new PortletImpl(){
+    @Override public String getPortletId(){
+      return portletId;
+    }
+  }
+;
+  mockHttpServletRequest.setAttribute(WebKeys.SPI_AGENT_PORTLET,portlet);
+  MockHttpSession mockHttpSession=(MockHttpSession)mockHttpServletRequest.getSession();
   String serializeableAttribute="serializeableAttribute";
   mockHttpSession.setAttribute(serializeableAttribute,serializeableAttribute);
   final String nonserializableAttribute="nonserializableAttribute";
@@ -10,15 +19,21 @@
     }
   }
 );
-  Map<String,Serializable> sessionAttributes=SPIAgentSerializable.extractSessionAttributes(mockHttpSession);
+  String autoRemoveAttribute=LiferayPortletSession.PORTLET_SCOPE_NAMESPACE.concat("some-other-id").concat(LiferayPortletSession.LAYOUT_SEPARATOR);
+  mockHttpSession.setAttribute(autoRemoveAttribute,autoRemoveAttribute);
+  String matchAttribute=LiferayPortletSession.PORTLET_SCOPE_NAMESPACE.concat(portletId).concat(LiferayPortletSession.LAYOUT_SEPARATOR);
+  mockHttpSession.setAttribute(matchAttribute,matchAttribute);
+  Map<String,Serializable> sessionAttributes=SPIAgentSerializable.extractSessionAttributes(mockHttpServletRequest);
   Assert.assertTrue(logRecords.isEmpty());
-  Assert.assertEquals(1,sessionAttributes.size());
+  Assert.assertEquals(2,sessionAttributes.size());
   Assert.assertEquals(serializeableAttribute,sessionAttributes.get(serializeableAttribute));
+  Assert.assertEquals(matchAttribute,sessionAttributes.get(matchAttribute));
   logRecords=JDKLoggerTestUtil.configureJDKLogger(SPIAgentSerializable.class.getName(),Level.WARNING);
-  sessionAttributes=SPIAgentSerializable.extractSessionAttributes(mockHttpSession);
+  sessionAttributes=SPIAgentSerializable.extractSessionAttributes(mockHttpServletRequest);
   Assert.assertEquals(1,logRecords.size());
   LogRecord logRecord=logRecords.get(0);
   Assert.assertEquals("Nonserializable session attribute name " + nonserializableAttribute + " with value "+ nonserializableAttribute,logRecord.getMessage());
-  Assert.assertEquals(1,sessionAttributes.size());
+  Assert.assertEquals(2,sessionAttributes.size());
   Assert.assertEquals(serializeableAttribute,sessionAttributes.get(serializeableAttribute));
+  Assert.assertEquals(matchAttribute,sessionAttributes.get(matchAttribute));
 }
