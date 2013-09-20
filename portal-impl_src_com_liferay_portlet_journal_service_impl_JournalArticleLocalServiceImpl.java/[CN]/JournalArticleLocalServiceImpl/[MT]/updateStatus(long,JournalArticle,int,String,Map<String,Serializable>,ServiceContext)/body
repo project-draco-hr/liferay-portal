@@ -5,14 +5,6 @@
     status=WorkflowConstants.STATUS_SCHEDULED;
   }
   int oldStatus=article.getStatus();
-  int oldArticleVersionStatus=WorkflowConstants.STATUS_ANY;
-  List<ObjectValuePair<Long,Integer>> articleVersionStatusOVPs=new ArrayList<ObjectValuePair<Long,Integer>>();
-  List<JournalArticle> articleVersions=(List<JournalArticle>)workflowContext.get("articleVersions");
-  if ((articleVersions != null) && !articleVersions.isEmpty()) {
-    JournalArticle oldArticleVersion=articleVersions.get(0);
-    oldArticleVersionStatus=oldArticleVersion.getStatus();
-    articleVersionStatusOVPs=getArticleVersionStatuses(articleVersions);
-  }
   article.setModifiedDate(serviceContext.getModifiedDate(now));
   boolean neverExpire=false;
   if (status == WorkflowConstants.STATUS_APPROVED) {
@@ -72,26 +64,6 @@
  else     if (oldStatus == WorkflowConstants.STATUS_APPROVED) {
       updatePreviousApprovedArticle(article);
     }
-  }
-  if (oldStatus == WorkflowConstants.STATUS_IN_TRASH) {
-    List<TrashVersion> trashVersions=(List<TrashVersion>)workflowContext.get("trashVersions");
-    for (    TrashVersion trashVersion : trashVersions) {
-      JournalArticle trashArticleVersion=journalArticlePersistence.findByPrimaryKey(trashVersion.getClassPK());
-      trashArticleVersion.setStatus(trashVersion.getStatus());
-      journalArticlePersistence.update(trashArticleVersion);
-    }
-    trashEntryLocalService.deleteEntry(JournalArticle.class.getName(),article.getResourcePrimKey());
-  }
- else   if (status == WorkflowConstants.STATUS_IN_TRASH) {
-    assetEntryLocalService.updateVisible(JournalArticle.class.getName(),article.getResourcePrimKey(),false);
-    for (    JournalArticle articleVersion : articleVersions) {
-      articleVersion.setStatus(WorkflowConstants.STATUS_IN_TRASH);
-      journalArticlePersistence.update(articleVersion);
-    }
-    JournalArticleResource articleResource=journalArticleResourceLocalService.getArticleResource(article.getResourcePrimKey());
-    UnicodeProperties typeSettingsProperties=new UnicodeProperties();
-    typeSettingsProperties.put("title",article.getArticleId());
-    trashEntryLocalService.addTrashEntry(userId,article.getGroupId(),JournalArticle.class.getName(),article.getResourcePrimKey(),articleResource.getUuid(),null,oldArticleVersionStatus,articleVersionStatusOVPs,typeSettingsProperties);
   }
   if ((article.getClassNameId() == JournalArticleConstants.CLASSNAME_ID_DEFAULT) && (oldStatus != WorkflowConstants.STATUS_IN_TRASH) && (status != WorkflowConstants.STATUS_IN_TRASH)) {
     if ((oldStatus == WorkflowConstants.STATUS_PENDING) && ((status == WorkflowConstants.STATUS_APPROVED) || (status == WorkflowConstants.STATUS_DENIED))) {

@@ -6,10 +6,20 @@
   }
   List<JournalArticle> articleVersions=journalArticlePersistence.findByG_A(article.getGroupId(),article.getArticleId());
   articleVersions=ListUtil.sort(articleVersions,new ArticleVersionComparator());
-  Map<String,Serializable> workflowContext=new HashMap<String,Serializable>();
-  workflowContext.put("articleVersions",(Serializable)articleVersions);
-  article=updateStatus(userId,article.getId(),WorkflowConstants.STATUS_IN_TRASH,workflowContext,new ServiceContext());
-  TrashEntry trashEntry=trashEntryLocalService.getEntry(JournalArticle.class.getName(),article.getResourcePrimKey());
+  List<ObjectValuePair<Long,Integer>> articleVersionStatusOVPs=new ArrayList<ObjectValuePair<Long,Integer>>();
+  if ((articleVersions != null) && !articleVersions.isEmpty()) {
+    articleVersionStatusOVPs=getArticleVersionStatuses(articleVersions);
+  }
+  article=updateStatus(userId,article.getId(),WorkflowConstants.STATUS_IN_TRASH,new HashMap<String,Serializable>(),new ServiceContext());
+  assetEntryLocalService.updateVisible(JournalArticle.class.getName(),article.getResourcePrimKey(),false);
+  for (  JournalArticle articleVersion : articleVersions) {
+    articleVersion.setStatus(WorkflowConstants.STATUS_IN_TRASH);
+    journalArticlePersistence.update(articleVersion);
+  }
+  JournalArticleResource articleResource=journalArticleResourceLocalService.getArticleResource(article.getResourcePrimKey());
+  UnicodeProperties typeSettingsProperties=new UnicodeProperties();
+  typeSettingsProperties.put("title",article.getArticleId());
+  TrashEntry trashEntry=trashEntryLocalService.addTrashEntry(userId,article.getGroupId(),JournalArticle.class.getName(),article.getResourcePrimKey(),articleResource.getUuid(),null,oldStatus,articleVersionStatusOVPs,typeSettingsProperties);
   String trashArticleId=TrashUtil.getTrashTitle(trashEntry.getEntryId());
   if (!articleVersions.isEmpty()) {
     for (    JournalArticle articleVersion : articleVersions) {
@@ -17,7 +27,6 @@
       journalArticlePersistence.update(articleVersion);
     }
   }
-  JournalArticleResource articleResource=journalArticleResourcePersistence.fetchByPrimaryKey(article.getResourcePrimKey());
   articleResource.setArticleId(trashArticleId);
   journalArticleResourcePersistence.update(articleResource);
   article.setArticleId(trashArticleId);
