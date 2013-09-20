@@ -1,0 +1,22 @@
+{
+  PortalClassLoaderUtil.setClassLoader(getClass().getClassLoader());
+  BootstrapRPCDatagramReceiveHandler bootstrapRPCDatagramReceiveHandler=new BootstrapRPCDatagramReceiveHandler();
+  MockIntraband mockIntraband=new MockIntraband();
+  Serializer serializer=new Serializer();
+  serializer.writeObject(new TestProcessCallable());
+  SystemDataType systemDataType=SystemDataType.RPC;
+  bootstrapRPCDatagramReceiveHandler.receive(new MockRegistrationReference(mockIntraband),Datagram.createRequestDatagram(systemDataType.getValue(),serializer.toByteBuffer()));
+  Datagram responseDatagram=mockIntraband.getDatagram();
+  Deserializer deserializer=new Deserializer(responseDatagram.getDataByteBuffer());
+  Assert.assertEquals(TestProcessCallable.class.getName(),deserializer.readObject());
+  List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(BootstrapRPCDatagramReceiveHandler.class.getName(),Level.SEVERE);
+  serializer=new Serializer();
+  serializer.writeObject(new ErrorTestProcessCallable());
+  bootstrapRPCDatagramReceiveHandler.receive(new MockRegistrationReference(mockIntraband),Datagram.createRequestDatagram(systemDataType.getValue(),serializer.toByteBuffer()));
+  Assert.assertEquals(1,logRecords.size());
+  LogRecord logRecord=logRecords.get(0);
+  Assert.assertEquals("Unable to execute",logRecord.getMessage());
+  Throwable throwable=logRecord.getThrown();
+  Assert.assertSame(ProcessException.class,throwable.getClass());
+  Assert.assertEquals("Execution error",throwable.getMessage());
+}
