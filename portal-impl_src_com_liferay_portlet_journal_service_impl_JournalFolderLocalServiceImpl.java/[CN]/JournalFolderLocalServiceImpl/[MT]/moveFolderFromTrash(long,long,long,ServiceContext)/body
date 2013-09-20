@@ -1,12 +1,21 @@
 {
   JournalFolder folder=journalFolderPersistence.findByPrimaryKey(folderId);
-  if (folder.isInTrash()) {
+  TrashEntry trashEntry=folder.getTrashEntry();
+  if (trashEntry.isTrashEntry(JournalFolder.class,folderId)) {
     restoreFolderFromTrash(userId,folderId);
   }
  else {
-    updateStatus(userId,folder,WorkflowConstants.STATUS_APPROVED);
-    List<Object> foldersAndEntries=journalFolderLocalService.getFoldersAndArticles(folder.getGroupId(),folder.getFolderId());
-    restoreDependentFromTrash(foldersAndEntries);
+    TrashVersion trashVersion=trashVersionLocalService.fetchVersion(trashEntry.getEntryId(),JournalFolder.class.getName(),folderId);
+    int status=WorkflowConstants.STATUS_APPROVED;
+    if (trashVersion != null) {
+      status=trashVersion.getStatus();
+    }
+    updateStatus(userId,folder,status);
+    if (trashVersion != null) {
+      trashVersionLocalService.deleteTrashVersion(trashVersion);
+    }
+    List<Object> foldersAndEntries=journalFolderLocalService.getFoldersAndArticles(folder.getGroupId(),folder.getFolderId(),WorkflowConstants.STATUS_IN_TRASH);
+    restoreDependentsFromTrash(foldersAndEntries,trashEntry.getEntryId());
   }
   return journalFolderLocalService.moveFolder(folderId,parentFolderId,serviceContext);
 }

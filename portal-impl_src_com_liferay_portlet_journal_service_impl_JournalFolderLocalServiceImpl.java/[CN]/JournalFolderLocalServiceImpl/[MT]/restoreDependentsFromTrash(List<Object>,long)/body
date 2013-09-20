@@ -1,0 +1,56 @@
+{
+  for (  Object object : foldersAndEntries) {
+    if (object instanceof JournalArticle) {
+      JournalArticle article=(JournalArticle)object;
+      TrashEntry trashEntry=trashEntryLocalService.fetchEntry(JournalArticle.class.getName(),article.getResourcePrimKey());
+      if (trashEntry != null) {
+        continue;
+      }
+      TrashVersion trashVersion=trashVersionLocalService.fetchVersion(trashEntryId,JournalArticle.class.getName(),article.getId());
+      int oldStatus=WorkflowConstants.STATUS_APPROVED;
+      if (trashVersion != null) {
+        oldStatus=trashVersion.getStatus();
+      }
+      List<JournalArticle> articleVersions=journalArticlePersistence.findByG_A(article.getGroupId(),article.getArticleId());
+      for (      JournalArticle curArticle : articleVersions) {
+        trashVersion=trashVersionLocalService.fetchVersion(trashEntryId,JournalArticle.class.getName(),article.getId());
+        int curArticleOldStatus=WorkflowConstants.STATUS_APPROVED;
+        if (trashVersion != null) {
+          curArticleOldStatus=trashVersion.getStatus();
+        }
+        curArticle.setStatus(curArticleOldStatus);
+        journalArticlePersistence.update(curArticle);
+        if (trashVersion != null) {
+          trashVersionLocalService.deleteTrashVersion(trashVersion);
+        }
+      }
+      if (oldStatus == WorkflowConstants.STATUS_APPROVED) {
+        assetEntryLocalService.updateVisible(JournalArticle.class.getName(),article.getResourcePrimKey(),true);
+      }
+      Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(JournalArticle.class);
+      indexer.reindex(article);
+    }
+ else     if (object instanceof JournalFolder) {
+      JournalFolder folder=(JournalFolder)object;
+      TrashEntry trashEntry=trashEntryLocalService.fetchEntry(JournalFolder.class.getName(),folder.getFolderId());
+      if (trashEntry != null) {
+        continue;
+      }
+      TrashVersion trashVersion=trashVersionLocalService.fetchVersion(trashEntryId,JournalFolder.class.getName(),folder.getFolderId());
+      int oldStatus=WorkflowConstants.STATUS_APPROVED;
+      if (trashVersion != null) {
+        oldStatus=trashVersion.getStatus();
+      }
+      folder.setStatus(oldStatus);
+      journalFolderPersistence.update(folder);
+      List<Object> curFoldersAndEntries=getFoldersAndArticles(folder.getGroupId(),folder.getFolderId(),WorkflowConstants.STATUS_IN_TRASH);
+      restoreDependentsFromTrash(curFoldersAndEntries,trashEntryId);
+      if (trashVersion != null) {
+        trashVersionLocalService.deleteTrashVersion(trashVersion);
+      }
+      assetEntryLocalService.updateVisible(JournalFolder.class.getName(),folder.getFolderId(),true);
+      Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(JournalFolder.class);
+      indexer.reindex(folder);
+    }
+  }
+}
