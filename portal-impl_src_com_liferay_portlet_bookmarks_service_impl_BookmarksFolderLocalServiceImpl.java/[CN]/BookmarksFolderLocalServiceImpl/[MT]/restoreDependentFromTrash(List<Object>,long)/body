@@ -1,0 +1,48 @@
+{
+  for (  Object object : foldersAndEntries) {
+    if (object instanceof BookmarksEntry) {
+      BookmarksEntry entry=(BookmarksEntry)object;
+      TrashEntry trashEntry=trashEntryLocalService.fetchEntry(BookmarksEntry.class.getName(),entry.getEntryId());
+      if (trashEntry != null) {
+        continue;
+      }
+      TrashVersion trashVersion=trashVersionLocalService.fetchVersion(trashEntryId,BookmarksEntry.class.getName(),entry.getEntryId());
+      int oldStatus=WorkflowConstants.STATUS_APPROVED;
+      if (trashVersion != null) {
+        oldStatus=trashVersion.getStatus();
+      }
+      entry.setStatus(oldStatus);
+      bookmarksEntryPersistence.update(entry);
+      if (oldStatus == WorkflowConstants.STATUS_APPROVED) {
+        assetEntryLocalService.updateVisible(BookmarksEntry.class.getName(),entry.getEntryId(),true);
+      }
+      if (trashVersion != null) {
+        trashVersionLocalService.deleteTrashVersion(trashVersion);
+      }
+      Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(BookmarksEntry.class);
+      indexer.reindex(entry);
+    }
+ else     if (object instanceof BookmarksFolder) {
+      BookmarksFolder folder=(BookmarksFolder)object;
+      TrashEntry trashEntry=trashEntryLocalService.fetchEntry(BookmarksFolder.class.getName(),folder.getFolderId());
+      if (trashEntry != null) {
+        continue;
+      }
+      TrashVersion trashVersion=trashVersionLocalService.fetchVersion(trashEntryId,BookmarksFolder.class.getName(),folder.getFolderId());
+      int oldStatus=WorkflowConstants.STATUS_APPROVED;
+      if (trashVersion != null) {
+        oldStatus=trashVersion.getStatus();
+      }
+      folder.setStatus(oldStatus);
+      bookmarksFolderPersistence.update(folder);
+      List<Object> curFoldersAndEntries=getFoldersAndEntries(folder.getGroupId(),folder.getFolderId());
+      restoreDependentFromTrash(curFoldersAndEntries,trashEntry.getEntryId());
+      assetEntryLocalService.updateVisible(BookmarksFolder.class.getName(),folder.getFolderId(),true);
+      if (trashVersion != null) {
+        trashVersionLocalService.deleteTrashVersion(trashVersion);
+      }
+      Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(BookmarksFolder.class);
+      indexer.reindex(folder);
+    }
+  }
+}

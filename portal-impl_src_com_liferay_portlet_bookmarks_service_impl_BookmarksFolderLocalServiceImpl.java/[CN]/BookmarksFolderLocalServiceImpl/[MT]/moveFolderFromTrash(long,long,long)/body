@@ -1,12 +1,21 @@
 {
   BookmarksFolder folder=bookmarksFolderPersistence.findByPrimaryKey(folderId);
-  if (folder.isInTrash()) {
+  TrashEntry trashEntry=folder.getTrashEntry();
+  if (trashEntry.isTrashEntry(BookmarksFolder.class,folderId)) {
     restoreFolderFromTrash(userId,folderId);
   }
  else {
-    updateStatus(userId,folder,WorkflowConstants.STATUS_APPROVED);
-    List<Object> foldersAndEntries=bookmarksFolderLocalService.getFoldersAndEntries(folder.getGroupId(),folder.getFolderId());
-    restoreDependentFromTrash(foldersAndEntries);
+    TrashVersion trashVersion=trashVersionLocalService.fetchVersion(trashEntry.getEntryId(),BookmarksFolder.class.getName(),folderId);
+    int status=WorkflowConstants.STATUS_APPROVED;
+    if (trashVersion != null) {
+      status=trashVersion.getStatus();
+    }
+    updateStatus(userId,folder,status);
+    if (trashVersion != null) {
+      trashVersionLocalService.deleteTrashVersion(trashVersion);
+    }
+    List<Object> foldersAndEntries=bookmarksFolderLocalService.getFoldersAndEntries(folder.getGroupId(),folder.getFolderId(),WorkflowConstants.STATUS_IN_TRASH);
+    restoreDependentFromTrash(foldersAndEntries,trashEntry.getEntryId());
   }
   return bookmarksFolderLocalService.moveFolder(folderId,parentFolderId);
 }
