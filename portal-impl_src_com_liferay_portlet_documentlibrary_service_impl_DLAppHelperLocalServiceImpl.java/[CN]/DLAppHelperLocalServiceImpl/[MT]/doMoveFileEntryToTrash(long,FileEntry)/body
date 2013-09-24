@@ -2,21 +2,34 @@
   List<DLFileVersion> dlFileVersions=dlFileVersionLocalService.getFileVersions(fileEntry.getFileEntryId(),WorkflowConstants.STATUS_ANY);
   dlFileVersions=ListUtil.sort(dlFileVersions,new FileVersionVersionComparator());
   FileVersion fileVersion=new LiferayFileVersion(dlFileVersions.get(0));
-  Map<String,Serializable> workflowContext=new HashMap<String,Serializable>();
-  workflowContext.put("dlFileVersions",(Serializable)dlFileVersions);
   int oldStatus=fileVersion.getStatus();
-  dlFileEntryLocalService.updateStatus(userId,fileVersion.getFileVersionId(),WorkflowConstants.STATUS_IN_TRASH,workflowContext,new ServiceContext());
+  dlFileEntryLocalService.updateStatus(userId,fileVersion.getFileVersionId(),WorkflowConstants.STATUS_IN_TRASH,new HashMap<String,Serializable>(),new ServiceContext());
+  if (DLAppHelperThreadLocal.isEnabled()) {
+    dlFileShortcutLocalService.disableFileShortcuts(fileEntry.getFileEntryId());
+    dlFileRankLocalService.disableFileRanks(fileEntry.getFileEntryId());
+    registerDLSyncEventCallback(DLSyncConstants.EVENT_MOVE_TO_TRASH,fileEntry);
+  }
+  int oldDLFileVersionStatus=WorkflowConstants.STATUS_ANY;
+  List<ObjectValuePair<Long,Integer>> dlFileVersionStatusOVPs=new ArrayList<ObjectValuePair<Long,Integer>>();
+  if ((dlFileVersions != null) && !dlFileVersions.isEmpty()) {
+    DLFileVersion oldDLFileVersion=dlFileVersions.get(0);
+    oldDLFileVersionStatus=oldDLFileVersion.getStatus();
+    dlFileVersionStatusOVPs=getDlFileVersionStatuses(dlFileVersions);
+  }
+  for (  DLFileVersion curDLFileVersion : dlFileVersions) {
+    curDLFileVersion.setStatus(WorkflowConstants.STATUS_IN_TRASH);
+    dlFileVersionPersistence.update(curDLFileVersion);
+  }
   DLFileEntry dlFileEntry=(DLFileEntry)fileEntry.getModel();
-  TrashEntry trashEntry=trashEntryLocalService.getEntry(DLFileEntryConstants.getClassName(),dlFileEntry.getFileEntryId());
+  UnicodeProperties typeSettingsProperties=new UnicodeProperties();
+  typeSettingsProperties.put("title",dlFileEntry.getTitle());
+  TrashEntry trashEntry=trashEntryLocalService.addTrashEntry(userId,dlFileEntry.getGroupId(),DLFileEntryConstants.getClassName(),dlFileEntry.getFileEntryId(),dlFileEntry.getUuid(),dlFileEntry.getClassName(),oldDLFileVersionStatus,dlFileVersionStatusOVPs,typeSettingsProperties);
   String trashTitle=TrashUtil.getTrashTitle(trashEntry.getEntryId());
   dlFileEntry.setTitle(trashTitle);
   dlFileEntryPersistence.update(dlFileEntry);
   if (!DLAppHelperThreadLocal.isEnabled()) {
     return fileEntry;
   }
-  dlFileShortcutLocalService.disableFileShortcuts(fileEntry.getFileEntryId());
-  dlFileRankLocalService.disableFileRanks(fileEntry.getFileEntryId());
-  registerDLSyncEventCallback(DLSyncConstants.EVENT_MOVE_TO_TRASH,fileEntry);
   JSONObject extraDataJSONObject=JSONFactoryUtil.createJSONObject();
   extraDataJSONObject.put("title",TrashUtil.getOriginalTitle(fileEntry.getTitle()));
   socialActivityLocalService.addActivity(userId,fileEntry.getGroupId(),DLFileEntryConstants.getClassName(),fileEntry.getFileEntryId(),SocialActivityConstants.TYPE_MOVE_TO_TRASH,extraDataJSONObject.toString(),0);
