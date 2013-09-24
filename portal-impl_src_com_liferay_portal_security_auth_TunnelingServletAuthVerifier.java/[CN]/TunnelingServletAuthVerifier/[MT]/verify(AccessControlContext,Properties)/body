@@ -1,10 +1,29 @@
 {
   AuthVerifierResult authVerifierResult=new AuthVerifierResult();
-  String[] credentials=verify(accessControlContext.getRequest());
-  if (credentials != null) {
-    authVerifierResult.setPassword(credentials[1]);
-    authVerifierResult.setState(AuthVerifierResult.State.SUCCESS);
-    authVerifierResult.setUserId(Long.valueOf(credentials[0]));
+  try {
+    String[] credentials=verify(accessControlContext.getRequest());
+    if (credentials != null) {
+      authVerifierResult.setPassword(credentials[1]);
+      authVerifierResult.setState(AuthVerifierResult.State.SUCCESS);
+      authVerifierResult.setUserId(Long.valueOf(credentials[0]));
+    }
+  }
+ catch (  AuthException ae) {
+    if (_log.isDebugEnabled()) {
+      _log.debug(ae.getMessage());
+    }
+    HttpServletResponse response=accessControlContext.getResponse();
+    try {
+      ObjectOutputStream oos=new ObjectOutputStream(response.getOutputStream());
+      oos.writeObject(new SystemException(ae.getMessage()));
+      oos.flush();
+      oos.close();
+      authVerifierResult.setState(AuthVerifierResult.State.INVALID_CREDENTIALS);
+    }
+ catch (    IOException ioe) {
+      _log.error(ioe,ioe);
+      throw ae;
+    }
   }
   return authVerifierResult;
 }
