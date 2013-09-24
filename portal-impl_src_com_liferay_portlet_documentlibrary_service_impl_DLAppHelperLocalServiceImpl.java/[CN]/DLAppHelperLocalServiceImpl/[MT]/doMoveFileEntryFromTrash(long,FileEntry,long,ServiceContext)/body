@@ -1,7 +1,7 @@
 {
-  List<DLFileVersion> dlFileVersions=dlFileVersionLocalService.getFileVersions(fileEntry.getFileEntryId(),WorkflowConstants.STATUS_ANY);
-  dlFileVersions=ListUtil.sort(dlFileVersions,new FileVersionVersionComparator());
-  if (fileEntry.isInTrash()) {
+  DLFileEntry dlFileEntry=(DLFileEntry)fileEntry.getModel();
+  TrashEntry trashEntry=dlFileEntry.getTrashEntry();
+  if (trashEntry.isTrashEntry(DLFileEntry.class,dlFileEntry.getFileEntryId())) {
     restoreFileEntryFromTrash(userId,fileEntry);
     fileEntry=dlAppLocalService.moveFileEntry(userId,fileEntry.getFileEntryId(),newFolderId,serviceContext);
     if (DLAppHelperThreadLocal.isEnabled()) {
@@ -9,8 +9,27 @@
     }
     return fileEntry;
   }
+  List<DLFileVersion> dlFileVersions=dlFileVersionLocalService.getFileVersions(fileEntry.getFileEntryId(),WorkflowConstants.STATUS_IN_TRASH);
+  dlFileVersions=ListUtil.sort(dlFileVersions,new FileVersionVersionComparator());
   FileVersion fileVersion=new LiferayFileVersion(dlFileVersions.get(0));
-  dlFileEntryLocalService.updateStatus(userId,fileVersion.getFileVersionId(),fileVersion.getStatus(),new HashMap<String,Serializable>(),serviceContext);
+  TrashVersion trashVersion=trashVersionLocalService.fetchVersion(trashEntry.getEntryId(),DLFileVersion.class.getName(),fileVersion.getFileVersionId());
+  int oldStatus=WorkflowConstants.STATUS_APPROVED;
+  if (trashVersion != null) {
+    oldStatus=trashVersion.getStatus();
+  }
+  dlFileEntryLocalService.updateStatus(userId,fileVersion.getFileVersionId(),oldStatus,new HashMap<String,Serializable>(),serviceContext);
+  for (  DLFileVersion dlFileVersion : dlFileVersions) {
+    trashVersion=trashVersionLocalService.fetchVersion(trashEntry.getEntryId(),DLFileVersion.class.getName(),dlFileVersion.getFileVersionId());
+    oldStatus=WorkflowConstants.STATUS_APPROVED;
+    if (trashVersion != null) {
+      oldStatus=trashVersion.getStatus();
+    }
+    dlFileVersion.setStatus(oldStatus);
+    dlFileVersionPersistence.update(dlFileVersion);
+    if (trashVersion != null) {
+      trashVersionLocalService.deleteTrashVersion(trashVersion);
+    }
+  }
   if (DLAppHelperThreadLocal.isEnabled()) {
     dlFileRankLocalService.enableFileRanks(fileEntry.getFileEntryId());
     dlFileShortcutLocalService.enableFileShortcuts(fileEntry.getFileEntryId());

@@ -1,0 +1,48 @@
+{
+  for (  Object object : dlFileEntriesAndDLFolders) {
+    if (object instanceof DLFileEntry) {
+      DLFileEntry dlFileEntry=(DLFileEntry)object;
+      if (dlFileEntry.isInTrash()) {
+        continue;
+      }
+      dlFileShortcutLocalService.disableFileShortcuts(dlFileEntry.getFileEntryId());
+      List<DLFileVersion> dlFileVersions=dlFileVersionLocalService.getFileVersions(dlFileEntry.getFileEntryId(),WorkflowConstants.STATUS_ANY);
+      for (      DLFileVersion dlFileVersion : dlFileVersions) {
+        int oldStatus=dlFileVersion.getStatus();
+        dlFileVersion.setStatus(WorkflowConstants.STATUS_IN_TRASH);
+        dlFileVersionPersistence.update(dlFileVersion);
+        int status=oldStatus;
+        if (oldStatus == WorkflowConstants.STATUS_PENDING) {
+          status=WorkflowConstants.STATUS_DRAFT;
+        }
+        if (oldStatus != WorkflowConstants.STATUS_APPROVED) {
+          trashVersionLocalService.addTrashVersion(trashEntryId,DLFileVersion.class.getName(),dlFileVersion.getFileVersionId(),status);
+        }
+        if (oldStatus == WorkflowConstants.STATUS_PENDING) {
+          workflowInstanceLinkLocalService.deleteWorkflowInstanceLink(dlFileVersion.getCompanyId(),dlFileVersion.getGroupId(),DLFileEntryConstants.getClassName(),dlFileVersion.getFileVersionId());
+        }
+      }
+      assetEntryLocalService.updateVisible(DLFileEntryConstants.getClassName(),dlFileEntry.getFileEntryId(),false);
+      Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(DLFileEntry.class);
+      indexer.reindex(dlFileEntry);
+    }
+ else     if (object instanceof DLFolder) {
+      DLFolder dlFolder=(DLFolder)object;
+      if (dlFolder.isInTrash()) {
+        continue;
+      }
+      int oldStatus=dlFolder.getStatus();
+      dlFolder.setStatus(WorkflowConstants.STATUS_IN_TRASH);
+      dlFolderPersistence.update(dlFolder);
+      if (oldStatus != WorkflowConstants.STATUS_APPROVED) {
+        trashVersionLocalService.addTrashVersion(trashEntryId,DLFolder.class.getName(),dlFolder.getFolderId(),oldStatus);
+      }
+      QueryDefinition queryDefinition=new QueryDefinition(WorkflowConstants.STATUS_ANY);
+      List<Object> foldersAndFileEntriesAndFileShortcuts=dlFolderLocalService.getFoldersAndFileEntriesAndFileShortcuts(dlFolder.getGroupId(),dlFolder.getFolderId(),null,false,queryDefinition);
+      moveDependentsToTrash(foldersAndFileEntriesAndFileShortcuts,trashEntryId);
+      assetEntryLocalService.updateVisible(DLFolderConstants.getClassName(),dlFolder.getFolderId(),false);
+      Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(DLFolder.class);
+      indexer.reindex(dlFolder);
+    }
+  }
+}
