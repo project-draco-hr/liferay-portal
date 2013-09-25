@@ -1,0 +1,38 @@
+{
+  String owner=null;
+  Lock lock=null;
+  while (true) {
+    try {
+      if (owner == null) {
+        lock=LockLocalServiceUtil.lock(_LOCK_CLASS_NAME,_LOCK_CLASS_NAME,_localClusterNodeAddress);
+      }
+ else {
+        lock=LockLocalServiceUtil.lock(_LOCK_CLASS_NAME,_LOCK_CLASS_NAME,owner,_localClusterNodeAddress);
+      }
+      Address address=AddressSerializerUtil.deserialize(lock.getOwner());
+      if (_clusterExecutor.isClusterNodeAlive(address)) {
+        break;
+      }
+ else {
+        owner=lock.getOwner();
+      }
+    }
+ catch (    Exception e) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Unable to obtain cluster master token " + "Trying again.",e);
+      }
+    }
+  }
+  boolean master=_localClusterNodeAddress.equals(lock.getOwner());
+  if (master == _master) {
+    return lock.getOwner();
+  }
+  if (master) {
+    notifyMasterTokenTransitionListeners(true);
+    _master=true;
+  }
+ else {
+    notifyMasterTokenTransitionListeners(false);
+  }
+  return lock.getOwner();
+}

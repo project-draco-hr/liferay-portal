@@ -1,0 +1,25 @@
+{
+  if (!_clusterExecutor.isEnabled()) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Cluster executor is disabled, run on local node.");
+    }
+    try {
+      return (T)methodHandler.invoke(true);
+    }
+ catch (    Exception e) {
+      throw new SystemException(e);
+    }
+  }
+  String masterAddressString=getMasterAddressString();
+  Address address=AddressSerializerUtil.deserialize(masterAddressString);
+  ClusterRequest clusterRequest=ClusterRequest.createUnicastRequest(methodHandler,address);
+  try {
+    FutureClusterResponses futureClusterResponses=_clusterExecutor.execute(clusterRequest);
+    ClusterNodeResponses clusterNodeResponses=futureClusterResponses.get(_timeout,TimeUnit.SECONDS);
+    ClusterNodeResponse clusterNodeResponse=clusterNodeResponses.getClusterResponse(address);
+    return (T)clusterNodeResponse.getResult();
+  }
+ catch (  Exception e) {
+    throw new SystemException("Unable to execute on master " + address.getDescription(),e);
+  }
+}
