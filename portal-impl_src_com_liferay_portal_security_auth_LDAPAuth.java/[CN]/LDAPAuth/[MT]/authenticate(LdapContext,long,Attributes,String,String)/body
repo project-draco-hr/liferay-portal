@@ -1,5 +1,5 @@
 {
-  LDAPAuthResult ldapAuthResult=new LDAPAuthResult();
+  LDAPAuthResult ldapAuthResult=null;
   String authMethod=PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_AUTH_METHOD);
   if (authMethod.equals(AUTH_METHOD_BIND)) {
     Hashtable<String,Object> env=(Hashtable<String,Object>)ctx.getEnvironment();
@@ -7,6 +7,13 @@
     env.put(Context.SECURITY_CREDENTIALS,password);
     env.put(Context.REFERRAL,PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_REFERRAL));
     env.put("com.sun.jndi.ldap.connect.pool","false");
+    ldapAuthResult=getFailedLDAPAuthResult(env);
+    if (ldapAuthResult != null) {
+      return ldapAuthResult;
+    }
+ else {
+      ldapAuthResult=new LDAPAuthResult();
+    }
     InitialLdapContext innerCtx=null;
     try {
       innerCtx=new InitialLdapContext(env,null);
@@ -20,6 +27,7 @@
       }
       ldapAuthResult.setAuthenticated(false);
       ldapAuthResult.setErrorMessage(e.getMessage());
+      setFailedLDAPAuthResult(env,ldapAuthResult);
     }
  finally {
       if (innerCtx != null) {
@@ -28,6 +36,7 @@
     }
   }
  else   if (authMethod.equals(AUTH_METHOD_PASSWORD_COMPARE)) {
+    ldapAuthResult=new LDAPAuthResult();
     Attribute userPassword=attributes.get("userPassword");
     if (userPassword != null) {
       String ldapPassword=new String((byte[])userPassword.get());
