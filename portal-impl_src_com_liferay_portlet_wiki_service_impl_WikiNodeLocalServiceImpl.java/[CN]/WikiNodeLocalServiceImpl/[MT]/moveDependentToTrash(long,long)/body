@@ -5,6 +5,19 @@
     if (oldStatus == WorkflowConstants.STATUS_IN_TRASH) {
       continue;
     }
+    List<WikiPage> pageVersions=wikiPagePersistence.findByR_N(page.getResourcePrimKey(),page.getNodeId());
+    for (    WikiPage curPageVersion : pageVersions) {
+      int curPageVersionOldStatus=curPageVersion.getStatus();
+      curPageVersion.setStatus(WorkflowConstants.STATUS_IN_TRASH);
+      wikiPagePersistence.update(curPageVersion);
+      int status=curPageVersionOldStatus;
+      if (curPageVersionOldStatus == WorkflowConstants.STATUS_PENDING) {
+        status=WorkflowConstants.STATUS_DRAFT;
+      }
+      if (curPageVersionOldStatus != WorkflowConstants.STATUS_APPROVED) {
+        trashVersionLocalService.addTrashVersion(trashEntryId,WikiPage.class.getName(),curPageVersion.getPageId(),status);
+      }
+    }
     if (oldStatus == WorkflowConstants.STATUS_APPROVED) {
       assetEntryLocalService.updateVisible(WikiPage.class.getName(),page.getResourcePrimKey(),false);
     }
@@ -14,8 +27,6 @@
       WikiCacheUtil.clearCache(page.getNodeId());
     }
     if (oldStatus == WorkflowConstants.STATUS_PENDING) {
-      page.setStatus(WorkflowConstants.STATUS_DRAFT);
-      wikiPagePersistence.update(page);
       workflowInstanceLinkLocalService.deleteWorkflowInstanceLink(page.getCompanyId(),page.getGroupId(),WikiPage.class.getName(),page.getResourcePrimKey());
     }
   }
