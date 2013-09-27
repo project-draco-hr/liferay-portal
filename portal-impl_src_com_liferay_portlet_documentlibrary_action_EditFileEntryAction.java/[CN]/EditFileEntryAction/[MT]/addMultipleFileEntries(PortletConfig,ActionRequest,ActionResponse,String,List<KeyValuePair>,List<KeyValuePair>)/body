@@ -1,4 +1,5 @@
 {
+  String originalSelectedFileName=selectedFileName;
   ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
   long repositoryId=ParamUtil.getLong(actionRequest,"repositoryId");
   long folderId=ParamUtil.getLong(actionRequest,"folderId");
@@ -11,15 +12,34 @@
     InputStream inputStream=tempFileEntry.getContentStream();
     long size=tempFileEntry.getSize();
     ServiceContext serviceContext=ServiceContextFactory.getInstance(DLFileEntry.class.getName(),actionRequest);
+    int pos=selectedFileName.indexOf(TEMP_RANDOM_SUFFIX);
+    if (pos != -1) {
+      selectedFileName=selectedFileName.substring(0,pos);
+    }
+    while (true) {
+      try {
+        DLAppLocalServiceUtil.getFileEntry(themeDisplay.getScopeGroupId(),folderId,selectedFileName);
+        StringBundler sb=new StringBundler(5);
+        sb.append(FileUtil.stripExtension(selectedFileName));
+        sb.append(StringPool.DASH);
+        sb.append(StringUtil.randomString());
+        sb.append(StringPool.PERIOD);
+        sb.append(FileUtil.getExtension(selectedFileName));
+        selectedFileName=sb.toString();
+      }
+ catch (      Exception e) {
+        break;
+      }
+    }
     FileEntry fileEntry=DLAppServiceUtil.addFileEntry(repositoryId,folderId,selectedFileName,mimeType,selectedFileName,description,changeLog,inputStream,size,serviceContext);
     AssetPublisherUtil.addAndStoreSelection(actionRequest,DLFileEntry.class.getName(),fileEntry.getFileEntryId(),-1);
     AssetPublisherUtil.addRecentFolderId(actionRequest,DLFileEntry.class.getName(),folderId);
-    validFileNames.add(selectedFileName);
+    validFileNameKVPs.add(new KeyValuePair(selectedFileName,originalSelectedFileName));
     return;
   }
  catch (  Exception e) {
     String errorMessage=getAddMultipleFileEntriesErrorMessage(portletConfig,actionRequest,actionResponse,e);
-    invalidFileNameKVPs.add(new KeyValuePair(selectedFileName,errorMessage));
+    invalidFileNameKVPs.add(new KeyValuePair(originalSelectedFileName,errorMessage));
   }
  finally {
     if (tempFileEntry != null) {
