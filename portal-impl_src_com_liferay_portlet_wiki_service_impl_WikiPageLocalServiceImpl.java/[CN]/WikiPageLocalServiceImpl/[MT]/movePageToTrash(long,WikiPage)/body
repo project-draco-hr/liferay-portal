@@ -5,22 +5,28 @@
     page.setStatus(WorkflowConstants.STATUS_DRAFT);
     wikiPagePersistence.update(page);
   }
+  List<WikiPage> pageVersions=wikiPagePersistence.findByG_N_H(page.getResourcePrimKey(),page.getNodeId(),false);
+  pageVersions=ListUtil.sort(pageVersions,new PageVersionComparator());
+  List<ObjectValuePair<Long,Integer>> pageVersionStatusOVPs=new ArrayList<ObjectValuePair<Long,Integer>>();
+  if ((pageVersions != null) && !pageVersions.isEmpty()) {
+    pageVersionStatusOVPs=getPageVersionStatuses(pageVersions);
+  }
   page=updateStatus(userId,page,WorkflowConstants.STATUS_IN_TRASH,new ServiceContext());
+  WikiPageResource pageResource=wikiPageResourcePersistence.fetchByPrimaryKey(page.getResourcePrimKey());
   UnicodeProperties typeSettingsProperties=new UnicodeProperties();
   typeSettingsProperties.put("title",page.getTitle());
-  TrashEntry trashEntry=trashEntryLocalService.addTrashEntry(userId,page.getGroupId(),WikiPage.class.getName(),page.getResourcePrimKey(),page.getUuid(),null,oldStatus,null,typeSettingsProperties);
+  TrashEntry trashEntry=trashEntryLocalService.addTrashEntry(userId,page.getGroupId(),WikiPage.class.getName(),page.getResourcePrimKey(),pageResource.getUuid(),null,oldStatus,pageVersionStatusOVPs,typeSettingsProperties);
   String trashTitle=TrashUtil.getTrashTitle(trashEntry.getEntryId());
   List<WikiPage> redirectPages=wikiPagePersistence.findByN_R(page.getNodeId(),page.getTitle());
   for (  WikiPage redirectPage : redirectPages) {
     redirectPage.setRedirectTitle(trashTitle);
     wikiPagePersistence.update(redirectPage);
   }
-  List<WikiPage> versionPages=wikiPagePersistence.findByR_N_H(page.getResourcePrimKey(),page.getNodeId(),false);
-  for (  WikiPage versionPage : versionPages) {
-    versionPage.setTitle(trashTitle);
-    wikiPagePersistence.update(versionPage);
+  for (  WikiPage pageVersion : pageVersions) {
+    pageVersion.setTitle(trashTitle);
+    pageVersion.setStatus(WorkflowConstants.STATUS_IN_TRASH);
+    wikiPagePersistence.update(pageVersion);
   }
-  WikiPageResource pageResource=wikiPageResourcePersistence.fetchByPrimaryKey(page.getResourcePrimKey());
   pageResource.setTitle(trashTitle);
   wikiPageResourcePersistence.update(pageResource);
   page.setTitle(trashTitle);
@@ -38,6 +44,12 @@
   extraDataJSONObject.put("title",TrashUtil.getOriginalTitle(page.getTitle()));
   extraDataJSONObject.put("version",page.getVersion());
   socialActivityLocalService.addActivity(userId,page.getGroupId(),WikiPage.class.getName(),page.getResourcePrimKey(),SocialActivityConstants.TYPE_MOVE_TO_TRASH,extraDataJSONObject.toString(),0);
+  if (!pageVersions.isEmpty()) {
+    Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(WikiPage.class);
+    for (    WikiPage pageVersion : pageVersions) {
+      indexer.reindex(pageVersion);
+    }
+  }
   if (oldStatus == WorkflowConstants.STATUS_PENDING) {
     workflowInstanceLinkLocalService.deleteWorkflowInstanceLink(page.getCompanyId(),page.getGroupId(),WikiPage.class.getName(),page.getPageId());
   }
