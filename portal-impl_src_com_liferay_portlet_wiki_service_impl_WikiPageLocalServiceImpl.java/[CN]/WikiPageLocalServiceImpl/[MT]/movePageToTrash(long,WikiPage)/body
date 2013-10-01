@@ -17,10 +17,11 @@
   typeSettingsProperties.put("title",page.getTitle());
   TrashEntry trashEntry=trashEntryLocalService.addTrashEntry(userId,page.getGroupId(),WikiPage.class.getName(),page.getResourcePrimKey(),pageResource.getUuid(),null,oldStatus,pageVersionStatusOVPs,typeSettingsProperties);
   String trashTitle=TrashUtil.getTrashTitle(trashEntry.getEntryId());
-  List<WikiPage> redirectPages=wikiPagePersistence.findByN_R(page.getNodeId(),page.getTitle());
+  List<WikiPage> redirectPages=wikiPagePersistence.findByN_H_R_NotS(page.getNodeId(),true,oldTitle,WorkflowConstants.STATUS_IN_TRASH);
   for (  WikiPage redirectPage : redirectPages) {
     redirectPage.setRedirectTitle(trashTitle);
     wikiPagePersistence.update(redirectPage);
+    movePageToTrash(userId,redirectPage);
   }
   for (  WikiPage pageVersion : pageVersions) {
     pageVersion.setTitle(trashTitle);
@@ -31,13 +32,11 @@
   wikiPageResourcePersistence.update(pageResource);
   page.setTitle(trashTitle);
   wikiPagePersistence.update(page);
-  List<WikiPage> children=wikiPagePersistence.findByN_P(page.getNodeId(),oldTitle);
+  List<WikiPage> children=wikiPagePersistence.findByN_H_P_NotS(page.getNodeId(),true,oldTitle,WorkflowConstants.STATUS_IN_TRASH);
   for (  WikiPage curPage : children) {
     curPage.setParentTitle(trashTitle);
     wikiPagePersistence.update(curPage);
-    if (curPage.isApproved()) {
-      movePageToTrash(userId,curPage);
-    }
+    movePageToTrash(userId,curPage);
   }
   assetEntryLocalService.updateVisible(WikiPage.class.getName(),page.getResourcePrimKey(),false);
   JSONObject extraDataJSONObject=JSONFactoryUtil.createJSONObject();
