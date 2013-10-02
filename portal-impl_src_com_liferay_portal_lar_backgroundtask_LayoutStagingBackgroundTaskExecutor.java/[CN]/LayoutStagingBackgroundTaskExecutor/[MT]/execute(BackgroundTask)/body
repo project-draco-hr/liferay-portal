@@ -3,8 +3,8 @@
   long userId=MapUtil.getLong(taskContextMap,"userId");
   long targetGroupId=MapUtil.getLong(taskContextMap,"targetGroupId");
   StagingUtil.lockGroup(userId,targetGroupId);
-  long sourceGroupId=MapUtil.getLong(taskContextMap,"sourceGroupId");
   boolean privateLayout=MapUtil.getBoolean(taskContextMap,"privateLayout");
+  long sourceGroupId=MapUtil.getLong(taskContextMap,"sourceGroupId");
   long[] layoutIds=GetterUtil.getLongValues(taskContextMap.get("layoutIds"));
   Map<String,String[]> parameterMap=(Map<String,String[]>)taskContextMap.get("parameterMap");
   Date startDate=(Date)taskContextMap.get("startDate");
@@ -22,6 +22,17 @@
     missingReferences=LayoutLocalServiceUtil.validateImportLayoutsFile(userId,targetGroupId,privateLayout,parameterMap,file);
     backgroundTask=markBackgroundTask(backgroundTask,"validated");
     LayoutLocalServiceUtil.importLayouts(userId,targetGroupId,privateLayout,parameterMap,file);
+    Group sourceGroup=GroupLocalServiceUtil.getGroup(sourceGroupId);
+    if (sourceGroup.hasStagingGroup()) {
+      UnicodeProperties typeSettingsProperties=sourceGroup.getTypeSettingsProperties();
+      LayoutSetBranchLocalServiceUtil.deleteLayoutSetBranches(targetGroupId,false,true);
+      LayoutSetBranchLocalServiceUtil.deleteLayoutSetBranches(targetGroupId,true,true);
+      boolean branchingPrivate=GetterUtil.getBoolean(typeSettingsProperties.getProperty("branchingPrivate"));
+      boolean branchingPublic=GetterUtil.getBoolean(typeSettingsProperties.getProperty("branchingPublic"));
+      ServiceContext serviceContext=new ServiceContext();
+      serviceContext.setUserId(userId);
+      StagingUtil.checkDefaultLayoutSetBranches(userId,sourceGroup,branchingPublic,branchingPrivate,false,serviceContext);
+    }
     boolean updateLastPublishDate=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.UPDATE_LAST_PUBLISH_DATE);
     if (updateLastPublishDate) {
       StagingUtil.updateLastPublishDate(sourceGroupId,privateLayout,lastPublishDate);
