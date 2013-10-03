@@ -32,12 +32,7 @@
     roleIds=(Long[])params.get("usersRoles");
   }
   boolean inherit=GetterUtil.getBoolean(params.get("inherit"));
-  boolean doUnionOnGroup=ArrayUtil.isNotEmpty(groupIds) && inherit;
-  if (doUnionOnGroup) {
-    params2=new LinkedHashMap<String,Object>(params1);
-    params2.remove("usersGroups");
-    params3=new LinkedHashMap<String,Object>(params1);
-    params3.remove("usersGroups");
+  if (ArrayUtil.isNotEmpty(groupIds) && inherit) {
     List<Long> organizationIds=new ArrayList<Long>();
     List<Long> userGroupIds=new ArrayList<Long>();
     for (    long groupId : groupIds) {
@@ -54,17 +49,18 @@
         userGroupIds.add(userGroup.getUserGroupId());
       }
     }
-    params2.put("usersOrgs",organizationIds.toArray(new Long[organizationIds.size()]));
-    params3.put("usersUserGroups",userGroupIds.toArray(new Long[userGroupIds.size()]));
+    if (!organizationIds.isEmpty()) {
+      params2=new LinkedHashMap<String,Object>(params1);
+      params2.remove("usersGroups");
+      params2.put("usersOrgs",organizationIds.toArray(new Long[organizationIds.size()]));
+    }
+    if (!userGroupIds.isEmpty()) {
+      params3=new LinkedHashMap<String,Object>(params1);
+      params3.remove("usersGroups");
+      params3.put("usersUserGroups",userGroupIds.toArray(new Long[userGroupIds.size()]));
+    }
   }
-  boolean doUnionOnRole=ArrayUtil.isNotEmpty(roleIds) && inherit;
-  if (doUnionOnRole) {
-    params2=new LinkedHashMap<String,Object>(params1);
-    params2.remove("usersRoles");
-    params3=new LinkedHashMap<String,Object>(params1);
-    params3.remove("usersRoles");
-    params4=new LinkedHashMap<String,Object>(params1);
-    params4.remove("usersRoles");
+  if (ArrayUtil.isNotEmpty(roleIds) && inherit) {
     List<Long> organizationIds=new ArrayList<Long>();
     List<Long> roleGroupIds=new ArrayList<Long>();
     List<Long> userGroupIds=new ArrayList<Long>();
@@ -82,9 +78,21 @@
         }
       }
     }
-    params2.put("usersGroups",roleGroupIds.toArray(new Long[roleGroupIds.size()]));
-    params3.put("usersUserGroups",userGroupIds.toArray(new Long[userGroupIds.size()]));
-    params4.put("usersOrgs",organizationIds.toArray(new Long[organizationIds.size()]));
+    if (!roleGroupIds.isEmpty()) {
+      params2=new LinkedHashMap<String,Object>(params1);
+      params2.remove("usersRoles");
+      params2.put("usersGroups",roleGroupIds.toArray(new Long[roleGroupIds.size()]));
+    }
+    if (!userGroupIds.isEmpty()) {
+      params3=new LinkedHashMap<String,Object>(params1);
+      params3.remove("usersRoles");
+      params3.put("usersUserGroups",userGroupIds.toArray(new Long[userGroupIds.size()]));
+    }
+    if (!organizationIds.isEmpty()) {
+      params4=new LinkedHashMap<String,Object>(params1);
+      params4.remove("usersRoles");
+      params4.put("usersOrgs",organizationIds.toArray(new Long[organizationIds.size()]));
+    }
   }
   Session session=null;
   try {
@@ -102,15 +110,17 @@
     sb.append(StringPool.OPEN_PARENTHESIS);
     sb.append(replaceJoinAndWhere(sql,params1));
     sb.append(StringPool.CLOSE_PARENTHESIS);
-    if (doUnionOnGroup || doUnionOnRole) {
+    if (params2 != null) {
       sb.append(" UNION (");
       sb.append(replaceJoinAndWhere(sql,params2));
       sb.append(StringPool.CLOSE_PARENTHESIS);
+    }
+    if (params3 != null) {
       sb.append(" UNION (");
       sb.append(replaceJoinAndWhere(sql,params3));
       sb.append(StringPool.CLOSE_PARENTHESIS);
     }
-    if (doUnionOnRole) {
+    if (params4 != null) {
       sb.append(" UNION (");
       sb.append(replaceJoinAndWhere(sql,params4));
       sb.append(StringPool.CLOSE_PARENTHESIS);
@@ -135,7 +145,7 @@
     if (status != WorkflowConstants.STATUS_ANY) {
       qPos.add(status);
     }
-    if (doUnionOnGroup || doUnionOnRole) {
+    if (params2 != null) {
       setJoin(qPos,params2);
       qPos.add(companyId);
       qPos.add(false);
@@ -147,6 +157,8 @@
       if (status != WorkflowConstants.STATUS_ANY) {
         qPos.add(status);
       }
+    }
+    if (params3 != null) {
       setJoin(qPos,params3);
       qPos.add(companyId);
       qPos.add(false);
@@ -159,7 +171,7 @@
         qPos.add(status);
       }
     }
-    if (doUnionOnRole) {
+    if (params4 != null) {
       setJoin(qPos,params4);
       qPos.add(companyId);
       qPos.add(false);
