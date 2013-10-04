@@ -1,24 +1,30 @@
 {
   if (protectionDomain == null) {
-    return new Permissions();
+    return new LenientPermissionCollection();
   }
   Object key=_getKey(protectionDomain);
-  PermissionCollection permissionCollection=_getPermissionCollection(key);
+  PermissionCollection permissionCollection=null;
+  if (key != null) {
+    permissionCollection=_permissionCollections.get(key);
+  }
+  if (permissionCollection == null) {
+    CodeSource codeSource=protectionDomain.getCodeSource();
+    if ((codeSource != null) && (codeSource.getLocation() != null)) {
+      permissionCollection=_urlPermissionCollections.get(new URLWrapper(codeSource.getLocation()));
+    }
+  }
   if (permissionCollection != null) {
     return permissionCollection;
   }
-  permissionCollection=getPermissions(protectionDomain.getCodeSource());
-  if (permissionCollection == null) {
-    permissionCollection=new Permissions();
-  }
-  if (_policy != null) {
-    _addExtraPermissions(permissionCollection,_policy.getPermissions(protectionDomain));
-  }
-  _addExtraPermissions(permissionCollection,protectionDomain.getPermissions());
-  PACLPolicy paclPolicy=PACLPolicyManager.getPACLPolicy(protectionDomain.getClassLoader());
+  PACLPolicy paclPolicy=PACLPolicyManager.getPACLPolicy(protectionDomain);
   if (paclPolicy != null) {
-    return new PortalPermissionCollection(paclPolicy);
+    permissionCollection=new PortalPermissionCollection(paclPolicy);
   }
-  permissionCollection.add(_allPermission);
+ else {
+    permissionCollection=new LenientPermissionCollection();
+  }
+  if (key != null) {
+    _permissionCollections.put(key,permissionCollection);
+  }
   return permissionCollection;
 }
