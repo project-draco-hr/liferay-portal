@@ -4,29 +4,17 @@
   }
   try {
     _started.set(true);
-    if (!(permission instanceof PACLUtil.Permission) && ((protectionDomain.getClassLoader() == null) || !_paclPolicy.isCheckablePermission(permission))) {
+    PermissionCollection permissionCollection=null;
+    if (!(permission instanceof PACLUtil.Permission) && !_paclPolicy.isCheckablePermission(permission)) {
       return _checkWithParentPolicy(protectionDomain,permission);
     }
-    Object key=_getKey(protectionDomain);
-    PermissionCollection permissionCollection=getPermissions(protectionDomain);
-    if (permissionCollection != null) {
-      if (permissionCollection.implies(permission)) {
-        return _checkWithParentPolicy(protectionDomain,permission);
+    if (permissionCollection instanceof PortalPermissionCollection) {
+      if (permissionCollection.implies(permission) || _checkWithPACLPolicyPolicy(protectionDomain,permission,permissionCollection)) {
+        return true;
       }
- else       if (_checkWithPACLPolicyPolicy(protectionDomain,permission,permissionCollection)) {
-        return _checkWithParentPolicy(protectionDomain,permission);
-      }
-      return false;
+      throw new AccessControlException("access denied " + permission,permission);
     }
-    permissionCollection=getPermissions(protectionDomain);
-    _permissionCollections.putIfAbsent(key,permissionCollection);
-    if (permissionCollection.implies(permission)) {
-      return _checkWithParentPolicy(protectionDomain,permission);
-    }
- else     if (_checkWithPACLPolicyPolicy(protectionDomain,permission,permissionCollection)) {
-      return _checkWithParentPolicy(protectionDomain,permission);
-    }
-    return false;
+    return _checkWithParentPolicy(protectionDomain,permission);
   }
   finally {
     _started.set(false);
