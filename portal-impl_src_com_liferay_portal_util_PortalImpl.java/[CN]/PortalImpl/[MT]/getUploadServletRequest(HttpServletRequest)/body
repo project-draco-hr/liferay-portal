@@ -1,31 +1,24 @@
 {
-  HttpServletRequestWrapper requestWrapper=null;
-  if (request instanceof HttpServletRequestWrapper) {
-    requestWrapper=(HttpServletRequestWrapper)request;
-  }
-  UploadServletRequest uploadServletRequest=null;
-  while (uploadServletRequest == null) {
-    if (requestWrapper instanceof UploadServletRequest) {
-      uploadServletRequest=(UploadServletRequest)requestWrapper;
+  List<PersistentHttpServletRequestWrapper> persistentHttpServletRequestWrappers=new ArrayList<PersistentHttpServletRequestWrapper>();
+  HttpServletRequest currentRequest=request;
+  while (currentRequest instanceof HttpServletRequestWrapper) {
+    if (currentRequest instanceof UploadServletRequest) {
+      return (UploadServletRequest)currentRequest;
     }
- else {
-      HttpServletRequest parentRequest=(HttpServletRequest)requestWrapper.getRequest();
-      if (!(parentRequest instanceof HttpServletRequestWrapper)) {
-        if (ServerDetector.isWebLogic()) {
-          if (requestWrapper instanceof NonSerializableObjectRequestWrapper) {
-            parentRequest=requestWrapper;
-          }
- else {
-            parentRequest=new NonSerializableObjectRequestWrapper(parentRequest);
-          }
-        }
-        uploadServletRequest=new UploadServletRequestImpl(parentRequest);
-        break;
-      }
- else {
-        requestWrapper=(HttpServletRequestWrapper)parentRequest;
-      }
+    if (currentRequest instanceof PersistentHttpServletRequestWrapper) {
+      PersistentHttpServletRequestWrapper persistentHttpServletRequestWrapper=(PersistentHttpServletRequestWrapper)currentRequest;
+      persistentHttpServletRequestWrappers.add(persistentHttpServletRequestWrapper.clone());
     }
+    HttpServletRequestWrapper httpServletRequestWrapper=(HttpServletRequestWrapper)currentRequest;
+    currentRequest=(HttpServletRequest)httpServletRequestWrapper.getRequest();
   }
-  return uploadServletRequest;
+  if (ServerDetector.isWebLogic()) {
+    currentRequest=new NonSerializableObjectRequestWrapper(currentRequest);
+  }
+  for (int i=persistentHttpServletRequestWrappers.size() - 1; i >= 0; i--) {
+    HttpServletRequestWrapper httpServletRequestWrapper=persistentHttpServletRequestWrappers.get(i);
+    httpServletRequestWrapper.setRequest(currentRequest);
+    currentRequest=httpServletRequestWrapper;
+  }
+  return new UploadServletRequestImpl(currentRequest);
 }
