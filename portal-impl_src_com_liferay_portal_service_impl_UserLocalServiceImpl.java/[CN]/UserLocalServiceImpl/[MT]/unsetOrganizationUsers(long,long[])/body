@@ -1,6 +1,17 @@
 {
   Organization organization=organizationPersistence.findByPrimaryKey(organizationId);
-  Group group=organization.getGroup();
+  final Group group=organization.getGroup();
+  Callable<Void> callable=new Callable<Void>(){
+    @Override public Void call() throws Exception {
+      Message message=new Message();
+      message.put("groupId",group.getGroupId());
+      message.put("userIds",userIds);
+      MessageBusUtil.sendMessage(DestinationNames.SUBSCRIPTION_CLEAN_UP,message);
+      return null;
+    }
+  }
+;
+  TransactionCommitCallbackRegistryUtil.registerCallback(callable);
   userGroupRoleLocalService.deleteUserGroupRoles(userIds,group.getGroupId(),RoleConstants.TYPE_ORGANIZATION);
   organizationPersistence.removeUsers(organizationId,userIds);
   Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(User.class);
