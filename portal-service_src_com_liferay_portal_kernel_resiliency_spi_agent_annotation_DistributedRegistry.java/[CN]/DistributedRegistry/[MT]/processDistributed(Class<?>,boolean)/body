@@ -1,0 +1,40 @@
+{
+  Queue<Class<?>> queue=new LinkedList<Class<?>>();
+  queue.offer(clazz);
+  Class<?> currentClass=null;
+  while ((currentClass=queue.poll()) != null) {
+    Field[] fields=currentClass.getDeclaredFields();
+    for (    Field field : fields) {
+      Distributed distributed=field.getAnnotation(Distributed.class);
+      if (distributed == null) {
+        continue;
+      }
+      int modifiers=field.getModifiers();
+      if (!Modifier.isPublic(modifiers) || !Modifier.isStatic(modifiers) || !Modifier.isFinal(modifiers)|| (field.getType() != String.class)) {
+        continue;
+      }
+      try {
+        String name=(String)field.get(null);
+        if (register) {
+          registerDistributed(name,distributed.direction(),distributed.matchType());
+        }
+ else {
+          unregisterDistributed(name,distributed.direction(),distributed.matchType());
+        }
+      }
+ catch (      Throwable t) {
+        throw new RuntimeException(t);
+      }
+    }
+    Class<?> supperClass=currentClass.getSuperclass();
+    if ((supperClass != null) && (supperClass != Object.class)) {
+      queue.offer(supperClass);
+    }
+    Class<?>[] interfaceClasses=currentClass.getInterfaces();
+    for (    Class<?> interfaceClass : interfaceClasses) {
+      if (!queue.contains(interfaceClass)) {
+        queue.offer(interfaceClass);
+      }
+    }
+  }
+}
