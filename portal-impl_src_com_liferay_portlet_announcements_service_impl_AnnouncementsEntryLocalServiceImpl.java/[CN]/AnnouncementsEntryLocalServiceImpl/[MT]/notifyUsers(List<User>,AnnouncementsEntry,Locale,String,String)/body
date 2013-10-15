@@ -1,0 +1,39 @@
+{
+  if (_log.isDebugEnabled()) {
+    _log.debug("Notifying " + users.size() + " users");
+  }
+  boolean notifyUsers=false;
+  SubscriptionSender subscriptionSender=new SubscriptionSender();
+  for (  User user : users) {
+    AnnouncementsDelivery announcementsDelivery=announcementsDeliveryLocalService.getUserDelivery(user.getUserId(),entry.getType());
+    if (announcementsDelivery.isEmail()) {
+      subscriptionSender.addRuntimeSubscribers(user.getEmailAddress(),user.getFullName());
+      notifyUsers=true;
+    }
+    if (announcementsDelivery.isSms()) {
+      String smsSn=user.getContact().getSmsSn();
+      subscriptionSender.addRuntimeSubscribers(smsSn,user.getFullName());
+      notifyUsers=true;
+    }
+  }
+  if (!notifyUsers) {
+    return;
+  }
+  String body=ContentUtil.get(PropsValues.ANNOUNCEMENTS_EMAIL_BODY);
+  String fromAddress=PrefsPropsUtil.getStringFromNames(entry.getCompanyId(),PropsKeys.ANNOUNCEMENTS_EMAIL_FROM_ADDRESS,PropsKeys.ADMIN_EMAIL_FROM_ADDRESS);
+  String fromName=PrefsPropsUtil.getStringFromNames(entry.getCompanyId(),PropsKeys.ANNOUNCEMENTS_EMAIL_FROM_NAME,PropsKeys.ADMIN_EMAIL_FROM_NAME);
+  String subject=ContentUtil.get(PropsValues.ANNOUNCEMENTS_EMAIL_SUBJECT);
+  subscriptionSender.setBody(body);
+  subscriptionSender.setCompanyId(entry.getCompanyId());
+  subscriptionSender.setContextAttribute("[$ENTRY_CONTENT$]",entry.getContent(),false);
+  subscriptionSender.setContextAttributes("[$ENTRY_ID$]",entry.getEntryId(),"[$ENTRY_TITLE$]",entry.getTitle(),"[$ENTRY_TYPE$]","[$ENTRY_URL$]",entry.getUrl(),"[$PORTLET_NAME$]",LanguageUtil.get(locale,(entry.isAlert() ? "alert" : "announcement")));
+  subscriptionSender.setFrom(fromAddress,fromName);
+  subscriptionSender.setHtmlFormat(true);
+  subscriptionSender.setMailId("announcements_entry",entry.getEntryId());
+  subscriptionSender.setPortletId(PortletKeys.ANNOUNCEMENTS);
+  subscriptionSender.setScopeGroupId(entry.getGroupId());
+  subscriptionSender.setSubject(subject);
+  subscriptionSender.setUserId(entry.getUserId());
+  subscriptionSender.addRuntimeSubscribers(toAddress,toName);
+  subscriptionSender.flushNotificationsAsync();
+}
