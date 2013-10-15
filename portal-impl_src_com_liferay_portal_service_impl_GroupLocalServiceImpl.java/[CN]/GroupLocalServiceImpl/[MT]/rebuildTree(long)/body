@@ -1,5 +1,25 @@
 {
-  StringBundler path=new StringBundler(20);
-  path.append(StringPool.SLASH);
-  buildTreePath(companyId,0,path);
+  Deque<Object[]> traces=new LinkedList<Object[]>();
+  traces.push(new Object[]{0L,StringPool.SLASH,0L});
+  Object[] trace=null;
+  while ((trace=traces.poll()) != null) {
+    Long parentGroupId=(Long)trace[0];
+    String parentPath=(String)trace[1];
+    Long previousGroupId=(Long)trace[2];
+    List<Long> childrenGroupIds=groupFinder.findByC_P(companyId,parentGroupId,previousGroupId,PropsValues.BULK_OPERATIONS_CHUNK_SIZE);
+    if (childrenGroupIds.isEmpty()) {
+      continue;
+    }
+    if (childrenGroupIds.size() == PropsValues.BULK_OPERATIONS_CHUNK_SIZE) {
+      trace[2]=childrenGroupIds.get(childrenGroupIds.size() - 1);
+      traces.push(trace);
+    }
+    for (    long childGroupId : childrenGroupIds) {
+      String path=parentPath.concat(String.valueOf(childGroupId)).concat(StringPool.SLASH);
+      Group group=groupPersistence.findByPrimaryKey(childGroupId);
+      group.setTreePath(path);
+      groupPersistence.update(group);
+      traces.push(new Object[]{childGroupId,path,0L});
+    }
+  }
 }
