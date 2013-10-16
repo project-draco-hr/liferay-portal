@@ -1,5 +1,25 @@
 {
-  StringBundler path=new StringBundler(20);
-  path.append(StringPool.SLASH);
-  buildTreePath(companyId,0,path);
+  Deque<Object[]> traces=new LinkedList<Object[]>();
+  traces.push(new Object[]{GetterUtil.getLong(OrganizationConstants.DEFAULT_PARENT_ORGANIZATION_ID),StringPool.SLASH,0L});
+  Object[] trace=null;
+  while ((trace=traces.poll()) != null) {
+    Long parentOrganizationId=(Long)trace[0];
+    String parentPath=(String)trace[1];
+    Long previousOrganizationId=(Long)trace[2];
+    List<Long> childOrganizationIds=organizationFinder.findByC_P(companyId,parentOrganizationId,previousOrganizationId,PropsValues.BULK_OPERATIONS_CHUNK_SIZE);
+    if (childOrganizationIds.isEmpty()) {
+      continue;
+    }
+    if (childOrganizationIds.size() == PropsValues.BULK_OPERATIONS_CHUNK_SIZE) {
+      trace[2]=childOrganizationIds.get(childOrganizationIds.size() - 1);
+      traces.push(trace);
+    }
+    for (    long childOrganizationId : childOrganizationIds) {
+      String path=parentPath.concat(String.valueOf(childOrganizationId)).concat(StringPool.SLASH);
+      Organization organization=organizationPersistence.findByPrimaryKey(childOrganizationId);
+      organization.setTreePath(path);
+      organizationPersistence.update(organization);
+      traces.push(new Object[]{childOrganizationId,path,0L});
+    }
+  }
 }
