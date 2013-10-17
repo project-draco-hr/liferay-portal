@@ -7,11 +7,45 @@
     _log.error("Unable to find SPI embedded lib directory " + spiEmbeddedLibDir.getAbsolutePath());
     return;
   }
-  List<File> jarFiles=new ArrayList<File>();
+  Set<File> jarFiles=new LinkedHashSet<File>();
   for (  File file : spiEmbeddedLibDir.listFiles()) {
     String fileName=file.getName();
     if (fileName.endsWith(".jar")) {
       jarFiles.add(file);
+    }
+  }
+  if (!ServerDetector.isTomcat()) {
+    File spiEmbeddedLibExtDir=new File(spiEmbeddedLibDir,"ext");
+    if (!spiEmbeddedLibExtDir.exists() || !spiEmbeddedLibExtDir.isDirectory()) {
+      _log.error("Unable to find SPI embedded lib ext directory " + spiEmbeddedLibExtDir.getAbsolutePath());
+      return;
+    }
+    for (    File file : spiEmbeddedLibExtDir.listFiles()) {
+      String fileName=file.getName();
+      if (fileName.endsWith(".jar")) {
+        jarFiles.add(file);
+      }
+    }
+    String liferayLibGlobalDir=SystemProperties.get(PropsKeys.LIFERAY_LIB_GLOBAL_DIR);
+    File portalServiceJarFile=new File(liferayLibGlobalDir,"portal-service.jar");
+    if (!portalServiceJarFile.exists()) {
+      _log.error("Unable to find portal-service.jar file " + portalServiceJarFile.getAbsolutePath());
+      return;
+    }
+    jarFiles.add(portalServiceJarFile);
+    String jdbcDriverJarDirName=ClassUtil.getParentPath(PortalClassLoaderUtil.getClassLoader(),PropsUtil.get(PropsKeys.JDBC_DEFAULT_DRIVER_CLASS_NAME));
+    int pos=jdbcDriverJarDirName.lastIndexOf(".jar!");
+    if (pos == -1) {
+      pos=jdbcDriverJarDirName.lastIndexOf(".jar/");
+    }
+    pos=jdbcDriverJarDirName.lastIndexOf(CharPool.SLASH,pos);
+    jdbcDriverJarDirName=jdbcDriverJarDirName.substring(0,pos + 1);
+    File jdbcDriverJarDir=new File(jdbcDriverJarDirName);
+    for (    File file : jdbcDriverJarDir.listFiles()) {
+      String fileName=file.getName();
+      if (fileName.endsWith(".jar")) {
+        jarFiles.add(file);
+      }
     }
   }
   StringBundler sb=new StringBundler(jarFiles.size() * 2 + 4);
@@ -24,8 +58,10 @@
   }
   sb.append(contextPath);
   sb.append("/WEB-INF/classes");
-  sb.append(File.pathSeparator);
-  sb.append(ClassPathUtil.getGlobalClassPath());
+  if (ServerDetector.isTomcat()) {
+    sb.append(File.pathSeparator);
+    sb.append(ClassPathUtil.getGlobalClassPath());
+  }
   SPI_CLASS_PATH=sb.toString();
   if (_log.isDebugEnabled()) {
     _log.debug("SPI class path " + SPI_CLASS_PATH);
