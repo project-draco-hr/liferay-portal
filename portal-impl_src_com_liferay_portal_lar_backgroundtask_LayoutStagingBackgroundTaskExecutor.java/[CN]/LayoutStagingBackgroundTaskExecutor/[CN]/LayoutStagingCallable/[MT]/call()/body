@@ -1,0 +1,35 @@
+{
+  File file=null;
+  MissingReferences missingReferences=null;
+  try {
+    boolean privateLayout=MapUtil.getBoolean(_taskContextMap,"privateLayout");
+    long[] layoutIds=GetterUtil.getLongValues(_taskContextMap.get("layoutIds"));
+    Map<String,String[]> parameterMap=(Map<String,String[]>)_taskContextMap.get("parameterMap");
+    Date startDate=(Date)_taskContextMap.get("startDate");
+    Date endDate=(Date)_taskContextMap.get("endDate");
+    Date lastPublishDate=endDate;
+    if (lastPublishDate == null) {
+      lastPublishDate=new Date();
+    }
+    file=LayoutLocalServiceUtil.exportLayoutsAsFile(_sourceGroupId,privateLayout,layoutIds,parameterMap,startDate,endDate);
+    _backgroundTask=markBackgroundTask(_backgroundTask,"exported");
+    missingReferences=LayoutLocalServiceUtil.validateImportLayoutsFile(_userId,_targetGroupId,privateLayout,parameterMap,file);
+    _backgroundTask=markBackgroundTask(_backgroundTask,"validated");
+    LayoutLocalServiceUtil.importLayouts(_userId,_targetGroupId,privateLayout,parameterMap,file);
+    initLayoutSetBranches(_userId,_sourceGroupId,_targetGroupId);
+    boolean updateLastPublishDate=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.UPDATE_LAST_PUBLISH_DATE);
+    if (updateLastPublishDate) {
+      Group sourceGroup=GroupLocalServiceUtil.getGroup(_sourceGroupId);
+      if (!sourceGroup.hasStagingGroup()) {
+        StagingUtil.updateLastPublishDate(_sourceGroupId,privateLayout,lastPublishDate);
+      }
+ else {
+        StagingUtil.updateLastPublishDate(_targetGroupId,privateLayout,lastPublishDate);
+      }
+    }
+  }
+  finally {
+    FileUtil.delete(file);
+  }
+  return missingReferences;
+}

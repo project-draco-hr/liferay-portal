@@ -4,39 +4,30 @@
   long targetGroupId=MapUtil.getLong(taskContextMap,"targetGroupId");
   StagingUtil.lockGroup(userId,targetGroupId);
   long sourceGroupId=MapUtil.getLong(taskContextMap,"sourceGroupId");
-  boolean privateLayout=MapUtil.getBoolean(taskContextMap,"privateLayout");
-  long[] layoutIds=GetterUtil.getLongValues(taskContextMap.get("layoutIds"));
-  Map<String,String[]> parameterMap=(Map<String,String[]>)taskContextMap.get("parameterMap");
-  Date startDate=(Date)taskContextMap.get("startDate");
-  Date endDate=(Date)taskContextMap.get("endDate");
+  boolean initialImport=MapUtil.getBoolean(taskContextMap,"initialImport");
+  ServiceContext serviceContext=(ServiceContext)taskContextMap.get("serviceContext");
+  Group sourceGroup=GroupLocalServiceUtil.getGroup(sourceGroupId);
   clearBackgroundTaskStatus(backgroundTask);
-  File file=null;
   MissingReferences missingReferences=null;
+  boolean failed=false;
   try {
-    Date lastPublishDate=endDate;
-    if (lastPublishDate == null) {
-      lastPublishDate=new Date();
+    Callable layoutStagingCallable=new LayoutStagingCallable(backgroundTask,sourceGroupId,targetGroupId,taskContextMap,userId);
+    missingReferences=(MissingReferences)TransactionalCallableUtil.call(_transactionAttribute,layoutStagingCallable);
+  }
+ catch (  Throwable t) {
+    failed=true;
+    if (t instanceof Exception) {
+      throw (Exception)t;
     }
-    file=LayoutLocalServiceUtil.exportLayoutsAsFile(sourceGroupId,privateLayout,layoutIds,parameterMap,startDate,endDate);
-    backgroundTask=markBackgroundTask(backgroundTask,"exported");
-    missingReferences=LayoutLocalServiceUtil.validateImportLayoutsFile(userId,targetGroupId,privateLayout,parameterMap,file);
-    backgroundTask=markBackgroundTask(backgroundTask,"validated");
-    LayoutLocalServiceUtil.importLayouts(userId,targetGroupId,privateLayout,parameterMap,file);
-    initLayoutSetBranches(userId,sourceGroupId,targetGroupId);
-    boolean updateLastPublishDate=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.UPDATE_LAST_PUBLISH_DATE);
-    if (updateLastPublishDate) {
-      Group sourceGroup=GroupLocalServiceUtil.getGroup(sourceGroupId);
-      if (!sourceGroup.hasStagingGroup()) {
-        StagingUtil.updateLastPublishDate(sourceGroupId,privateLayout,lastPublishDate);
-      }
  else {
-        StagingUtil.updateLastPublishDate(targetGroupId,privateLayout,lastPublishDate);
-      }
+      throw new SystemException(t);
     }
   }
-  finally {
-    FileUtil.delete(file);
+ finally {
     StagingUtil.unlockGroup(targetGroupId);
+    if (failed && initialImport) {
+      StagingUtil.disableStaging(sourceGroup,serviceContext);
+    }
   }
   return processMissingReferences(backgroundTask,missingReferences);
 }
