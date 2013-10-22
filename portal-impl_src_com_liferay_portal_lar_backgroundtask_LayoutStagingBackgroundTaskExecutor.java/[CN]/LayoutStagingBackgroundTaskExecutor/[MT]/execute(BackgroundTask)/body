@@ -4,7 +4,6 @@
   long targetGroupId=MapUtil.getLong(taskContextMap,"targetGroupId");
   StagingUtil.lockGroup(userId,targetGroupId);
   long sourceGroupId=MapUtil.getLong(taskContextMap,"sourceGroupId");
-  boolean initialImport=MapUtil.getBoolean(taskContextMap,"initialImport");
   ServiceContext serviceContext=(ServiceContext)taskContextMap.get("serviceContext");
   Group sourceGroup=GroupLocalServiceUtil.getGroup(sourceGroupId);
   clearBackgroundTaskStatus(backgroundTask);
@@ -15,7 +14,9 @@
     missingReferences=(MissingReferences)TransactionalCallableUtil.call(_transactionAttribute,layoutStagingCallable);
   }
  catch (  Throwable t) {
-    failed=true;
+    if (sourceGroup.hasStagingGroup()) {
+      StagingLocalServiceUtil.disableStaging(sourceGroup,serviceContext);
+    }
     if (t instanceof Exception) {
       throw (Exception)t;
     }
@@ -25,9 +26,6 @@
   }
  finally {
     StagingUtil.unlockGroup(targetGroupId);
-    if (failed && initialImport) {
-      StagingUtil.disableStaging(sourceGroup,serviceContext);
-    }
   }
   return processMissingReferences(backgroundTask,missingReferences);
 }
