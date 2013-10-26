@@ -1,0 +1,71 @@
+{
+  if (_reportLevelIsOff) {
+    return;
+  }
+  ProjectBuilder projectbuilder=new ProjectBuilder(bndProject);
+  Jar baselineJar=projectbuilder.getBaselineJar();
+  try {
+    if (baselineJar == null) {
+      String name=bndProject.getProperty(Constants.BASELINEREPO);
+      bndProject.deploy(name,output);
+      return;
+    }
+    Baseline baseline=new Baseline(this,_differ);
+    Set<Info> infos=baseline.baseline(jar,baselineJar,null);
+    if (infos.isEmpty()) {
+      return;
+    }
+    BundleInfo bundleInfo=baseline.getBundleInfo();
+    Info[] array=infos.toArray(new Info[infos.size()]);
+    Arrays.sort(array,new Comparator<Info>(){
+      public int compare(      Info info1,      Info info2){
+        return info1.packageName.compareTo(info2.packageName);
+      }
+    }
+);
+    for (    Info info : array) {
+      Diff packageDiff=info.packageDiff;
+      Delta delta=packageDiff.getDelta();
+      String warnings="-";
+      Version newerVersion=info.newerVersion;
+      Version suggestedVersion=info.suggestedVersion;
+      if (suggestedVersion != null) {
+        if (newerVersion.compareTo(suggestedVersion) > 0) {
+          warnings="EXCESSIVE VERSION INCREASE";
+        }
+ else         if (newerVersion.compareTo(suggestedVersion) < 0) {
+          warnings="VERSION INCREASE REQUIRED";
+        }
+      }
+      if (delta == Delta.REMOVED) {
+        warnings="PACKAGE REMOVED";
+      }
+ else       if (delta == Delta.UNCHANGED) {
+        boolean newVersionSuggested=false;
+        if ((suggestedVersion.getMajor() != newerVersion.getMajor()) || (suggestedVersion.getMicro() != newerVersion.getMicro()) || (suggestedVersion.getMinor() != newerVersion.getMinor())) {
+          newVersionSuggested=true;
+          warnings="VERSION INCREASE SUGGESTED";
+        }
+        if (!newVersionSuggested && !info.mismatch) {
+          continue;
+        }
+      }
+      if (_reportLevelIsStandard && warnings.equals("-")) {
+        continue;
+      }
+      doInfo(bundleInfo,info,warnings);
+      if (_reportLevelIsDiff && (delta != Delta.REMOVED)) {
+        doPackageDiff(packageDiff);
+      }
+    }
+  }
+  finally {
+    if (baselineJar != null) {
+      baselineJar.close();
+    }
+    if (_printWriter != null) {
+      _printWriter.close();
+    }
+    projectbuilder.close();
+  }
+}

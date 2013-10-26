@@ -1,0 +1,36 @@
+{
+  aQute.bnd.build.Project bndProject=getBndProject();
+  Builder builder=new Builder(bndProject);
+  builder.setClasspath(_classpathFiles.toArray(new File[_classpathFiles.size()]));
+  builder.setPedantic(isPedantic());
+  builder.setProperties(_file);
+  builder.setSourcepath(new File[]{_sourcePath});
+  Jar jars[]=builder.builds();
+  boolean taskFailed=report();
+  boolean bndFailed=report(builder);
+  if (taskFailed || bndFailed) {
+    throw new BuildException("bnd failed",new org.apache.tools.ant.Location(_file.getAbsolutePath()));
+  }
+  for (  Jar jar : jars) {
+    String bsn=jar.getName();
+    File output=_outputPath;
+    String path=builder.getProperty("-output");
+    if (path == null) {
+      output=getFile(_outputPath,bsn + ".jar");
+    }
+ else {
+      output=getFile(_outputPath,path);
+    }
+    if (!output.exists() || (output.lastModified() <= jar.lastModified())) {
+      jar.write(output);
+      log(jar.getName() + " (" + output.getName()+ ") "+ jar.getResources().size());
+      doBaselineJar(jar,output,bndProject);
+    }
+ else {
+      log(jar.getName() + " (" + output.getName()+ ") "+ jar.getResources().size()+ " (not modified)");
+    }
+    report();
+    jar.close();
+  }
+  builder.close();
+}
