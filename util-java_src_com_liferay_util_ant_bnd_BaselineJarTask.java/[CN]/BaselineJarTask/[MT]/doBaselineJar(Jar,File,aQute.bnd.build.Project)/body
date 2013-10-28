@@ -2,30 +2,28 @@
   if (_reportLevelIsOff) {
     return;
   }
-  ProjectBuilder projectbuilder=new ProjectBuilder(bndProject);
-  Jar baselineJar=projectbuilder.getBaselineJar();
+  ProjectBuilder projectBuilder=new ProjectBuilder(bndProject);
+  Jar baselineJar=projectBuilder.getBaselineJar();
   try {
     if (baselineJar == null) {
       String name=bndProject.getProperty(Constants.BASELINEREPO);
       bndProject.deploy(name,output);
       return;
     }
-    Baseline baseline=new Baseline(this,_differ);
+    Baseline baseline=new Baseline(this,_diffPluginImpl);
     Set<Info> infos=baseline.baseline(jar,baselineJar,null);
     if (infos.isEmpty()) {
       return;
     }
     BundleInfo bundleInfo=baseline.getBundleInfo();
-    Info[] array=infos.toArray(new Info[infos.size()]);
-    Arrays.sort(array,new Comparator<Info>(){
-      public int compare(      Info info1,      Info info2){
+    Info[] infosArray=infos.toArray(new Info[infos.size()]);
+    Arrays.sort(infosArray,new Comparator<Info>(){
+      @Override public int compare(      Info info1,      Info info2){
         return info1.packageName.compareTo(info2.packageName);
       }
     }
 );
-    for (    Info info : array) {
-      Diff packageDiff=info.packageDiff;
-      Delta delta=packageDiff.getDelta();
+    for (    Info info : infosArray) {
       String warnings="-";
       Version newerVersion=info.newerVersion;
       Version suggestedVersion=info.suggestedVersion;
@@ -37,14 +35,16 @@
           warnings="VERSION INCREASE REQUIRED";
         }
       }
+      Diff packageDiff=info.packageDiff;
+      Delta delta=packageDiff.getDelta();
       if (delta == Delta.REMOVED) {
         warnings="PACKAGE REMOVED";
       }
  else       if (delta == Delta.UNCHANGED) {
         boolean newVersionSuggested=false;
         if ((suggestedVersion.getMajor() != newerVersion.getMajor()) || (suggestedVersion.getMicro() != newerVersion.getMicro()) || (suggestedVersion.getMinor() != newerVersion.getMinor())) {
-          newVersionSuggested=true;
           warnings="VERSION INCREASE SUGGESTED";
+          newVersionSuggested=true;
         }
         if (!newVersionSuggested && !info.mismatch) {
           continue;
@@ -66,6 +66,6 @@
     if (_printWriter != null) {
       _printWriter.close();
     }
-    projectbuilder.close();
+    projectBuilder.close();
   }
 }
