@@ -9,10 +9,19 @@
     initialBaseModelsSearchCount=searchBaseModelsCount(getBaseModelClass(),group.getGroupId());
     initialTrashEntriesSearchCount=searchTrashEntriesCount(getSearchKeywords(),serviceContext);
   }
+  List<Integer> originalStatus=new ArrayList<Integer>();
   baseModel=addBaseModel(parentBaseModel,true,serviceContext);
-  baseModel=updateBaseModel((Long)baseModel.getPrimaryKeyObj(),serviceContext);
+  baseModel=expireBaseModel(baseModel,serviceContext);
   WorkflowedModel workflowedModel=getWorkflowedModel(baseModel);
-  int originalStatus=workflowedModel.getStatus();
+  originalStatus.add(workflowedModel.getStatus());
+  serviceContext.setWorkflowAction(WorkflowConstants.ACTION_PUBLISH);
+  baseModel=updateBaseModel((Long)baseModel.getPrimaryKeyObj(),serviceContext);
+  workflowedModel=getWorkflowedModel(baseModel);
+  originalStatus.add(workflowedModel.getStatus());
+  serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
+  baseModel=updateBaseModel((Long)baseModel.getPrimaryKeyObj(),serviceContext);
+  workflowedModel=getWorkflowedModel(baseModel);
+  originalStatus.add(workflowedModel.getStatus());
   Assert.assertEquals(initialBaseModelsCount + 1,getNotInTrashBaseModelsCount(parentBaseModel));
   Assert.assertEquals(initialTrashEntriesCount,getTrashEntriesCount(group.getGroupId()));
   if (isIndexableBaseModel()) {
@@ -40,8 +49,10 @@
   }
  else {
     restoreParentBaseModelFromTrash((Long)parentBaseModel.getPrimaryKeyObj());
-    baseModel=getBaseModel((Long)baseModel.getPrimaryKeyObj());
-    workflowedModel=getWorkflowedModel(baseModel);
-    Assert.assertEquals(originalStatus,workflowedModel.getStatus());
+    List<? extends WorkflowedModel> children=getChildrenWorkflowedModels(parentBaseModel);
+    for (int i=1; i <= children.size(); i++) {
+      WorkflowedModel child=children.get(i - 1);
+      Assert.assertEquals(originalStatus.get(children.size() - i).intValue(),child.getStatus());
+    }
   }
 }
