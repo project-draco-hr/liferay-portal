@@ -61,7 +61,18 @@
   portletDataContext.setSourceGroupId(sourceGroupId);
   long sourceUserPersonalSiteGroupId=GetterUtil.getLong(_headerElement.attributeValue("user-personal-site-group-id"));
   portletDataContext.setSourceUserPersonalSiteGroupId(sourceUserPersonalSiteGroupId);
+  Element portletElement=null;
+  try {
+    portletElement=_rootElement.element("portlet");
+    Document portletDocument=SAXReaderUtil.read(portletDataContext.getZipEntryAsString(portletElement.attributeValue("path")));
+    portletElement=portletDocument.getRootElement();
+  }
+ catch (  DocumentException de) {
+    throw new SystemException(de);
+  }
+  LayoutCache layoutCache=new LayoutCache();
   if (importPermissions) {
+    _permissionImporter.importRoles(layoutCache,layout.getCompanyId(),groupId,userId,portletElement);
     _permissionImporter.readPortletDataPermissions(portletDataContext);
   }
   readAssetCategories(portletDataContext);
@@ -75,15 +86,6 @@
   }
   if (deletePortletData) {
     deletePortletData(portletDataContext,portletId,plid);
-  }
-  Element portletElement=null;
-  try {
-    portletElement=_rootElement.element("portlet");
-    Document portletDocument=SAXReaderUtil.read(portletDataContext.getZipEntryAsString(portletElement.attributeValue("path")));
-    portletElement=portletDocument.getRootElement();
-  }
- catch (  DocumentException de) {
-    throw new SystemException(de);
   }
   Element portletDataElement=portletElement.element("portlet-data");
   boolean importData=importPortletData && (portletDataElement != null);
@@ -103,7 +105,6 @@
     if (_log.isDebugEnabled()) {
       _log.debug("Importing portlet permissions");
     }
-    LayoutCache layoutCache=new LayoutCache();
     _permissionImporter.importPortletPermissions(layoutCache,layout.getCompanyId(),groupId,userId,layout,portletElement,portletId);
     if (userId > 0) {
       Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(User.class);
