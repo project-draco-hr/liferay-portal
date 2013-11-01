@@ -1,10 +1,7 @@
 {
-  if (_firstMessage) {
-    _firstMessage=false;
-    return;
-  }
   List<String[]> levelsRequiredDeploymentContexts=DeployManagerUtil.getLevelsRequiredDeploymentContexts();
   List<String[]> levelsRequiredDeploymentWARFileNames=DeployManagerUtil.getLevelsRequiredDeploymentWARFileNames();
+  boolean deployed=false;
   for (int i=0; i < levelsRequiredDeploymentContexts.size(); i++) {
     String[] levelRequiredDeploymentContexts=levelsRequiredDeploymentContexts.get(i);
     String[] levelRequiredDeploymentWARFileNames=levelsRequiredDeploymentWARFileNames.get(i);
@@ -13,12 +10,12 @@
       if (DeployManagerUtil.isDeployed(levelRequiredDeploymentContext)) {
         continue;
       }
+      deployed=true;
       String levelRequiredDeploymentWARFileName=levelRequiredDeploymentWARFileNames[j];
       if (_log.isDebugEnabled()) {
         _log.debug("Automatically deploying the required plugin " + levelRequiredDeploymentWARFileName);
       }
-      Class<?> clazz=getClass();
-      ClassLoader classLoader=clazz.getClassLoader();
+      ClassLoader classLoader=PortalClassLoaderUtil.getClassLoader();
       InputStream inputStream=classLoader.getResourceAsStream("com/liferay/portal/deploy/dependencies/plugins" + (i + 1) + "/"+ levelRequiredDeploymentWARFileNames[j]);
       AutoDeployDir autoDeployDir=AutoDeployUtil.getDir(AutoDeployDir.DEFAULT_NAME);
       if (autoDeployDir == null) {
@@ -27,7 +24,15 @@
         }
         continue;
       }
-      StreamUtil.transfer(inputStream,new FileOutputStream(autoDeployDir.getDeployDir() + "/" + levelRequiredDeploymentWARFileNames[j]));
+      try {
+        StreamUtil.transfer(inputStream,new FileOutputStream(autoDeployDir.getDeployDir() + "/" + levelRequiredDeploymentWARFileNames[j]));
+      }
+ catch (      IOException ioe) {
+        _log.error("Unable to write file",ioe);
+      }
     }
+  }
+  if (!deployed) {
+    unschedule(false);
   }
 }
