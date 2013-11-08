@@ -1,0 +1,56 @@
+{
+  List<Element> referenceDataElements=Collections.emptyList();
+  if (parentStagedModel == null) {
+    referenceDataElements=portletDataContext.getReferenceDataElements(entityElement,FileEntry.class,PortletDataContext.REFERENCE_TYPE_DEPENDENCY);
+  }
+ else {
+    referenceDataElements=portletDataContext.getReferenceElements(parentStagedModel,FileEntry.class);
+  }
+  for (  Element referenceDataElement : referenceDataElements) {
+    String fileEntryUUID=referenceDataElement.attributeValue("uuid");
+    if (fileEntryUUID == null) {
+      continue;
+    }
+    String path=referenceDataElement.attributeValue("path");
+    long classPk=GetterUtil.getLong(referenceDataElement.attributeValue("class-pk"),0);
+    long groupId=GetterUtil.getLong(referenceDataElement.attributeValue("group-id"),0);
+    if (Validator.isNull(path)) {
+      String className=referenceDataElement.attributeValue("class-name");
+      path=ExportImportPathUtil.getModelPath(groupId,className,classPk);
+    }
+    if (!content.contains("[$dl-reference=" + path + "$]")) {
+      continue;
+    }
+    FileEntry importedFileEntry=null;
+    if ((portletDataContext.getSourceCompanyGroupId() == groupId) && (portletDataContext.getGroupId() != portletDataContext.getCompanyGroupId())) {
+      String uuid=referenceDataElement.attributeValue("uuid");
+      try {
+        importedFileEntry=DLAppLocalServiceUtil.getFileEntryByUuidAndGroupId(uuid,portletDataContext.getCompanyGroupId());
+      }
+ catch (      NoSuchFileEntryException nsfee) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Unable to reference " + path);
+        }
+        continue;
+      }
+    }
+ else {
+      FileEntry fileEntry=(FileEntry)portletDataContext.getZipEntryAsObject(path);
+      StagedModelDataHandlerUtil.importStagedModel(portletDataContext,fileEntry);
+      Map<Long,Long> fileEntryIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(DLFileEntry.class);
+      long importedFileEntryId=MapUtil.getLong(fileEntryIds,fileEntry.getFileEntryId(),fileEntry.getFileEntryId());
+      try {
+        importedFileEntry=DLAppLocalServiceUtil.getFileEntry(importedFileEntryId);
+      }
+ catch (      NoSuchFileEntryException nsfee) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Unable to reference " + path);
+        }
+        continue;
+      }
+    }
+    String url=DLUtil.getPreviewURL(importedFileEntry,importedFileEntry.getFileVersion(),null,StringPool.BLANK,false,false);
+    content=StringUtil.replace(content,"[$dl-reference=" + path + "$]",url);
+  }
+  return content;
+}
