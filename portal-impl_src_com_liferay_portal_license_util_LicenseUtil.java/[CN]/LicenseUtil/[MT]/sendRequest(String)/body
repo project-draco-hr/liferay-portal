@@ -1,6 +1,9 @@
 {
-  DefaultHttpClient defaultHttpClient=new DefaultHttpClient();
+  HttpClient httpClient=null;
+  HttpClientConnectionManager httpClientConnectionManager=new BasicHttpClientConnectionManager();
   try {
+    HttpClientBuilder httpClientBuilder=HttpClientBuilder.create();
+    httpClientBuilder.setConnectionManager(httpClientConnectionManager);
     String serverURL=LICENSE_SERVER_URL;
     if (!serverURL.endsWith(StringPool.SLASH)) {
       serverURL+=StringPool.SLASH;
@@ -8,22 +11,24 @@
     serverURL+="osb-portlet/license";
     URI uri=new URI(serverURL);
     HttpPost httpPost=new HttpPost(uri);
+    CredentialsProvider credentialsProvider=new BasicCredentialsProvider();
+    HttpHost proxyHttpHost=null;
     if (Validator.isNotNull(_PROXY_URL)) {
       if (_log.isInfoEnabled()) {
         _log.info("Using proxy " + _PROXY_URL + StringPool.COLON+ _PROXY_PORT);
       }
-      HttpHost httpHost=new HttpHost(_PROXY_URL,_PROXY_PORT);
-      HttpParams httpParams=defaultHttpClient.getParams();
-      httpParams.setParameter(ConnRoutePNames.DEFAULT_PROXY,httpHost);
+      proxyHttpHost=new HttpHost(_PROXY_URL,_PROXY_PORT);
       if (Validator.isNotNull(_PROXY_USER_NAME)) {
-        CredentialsProvider credentialsProvider=defaultHttpClient.getCredentialsProvider();
         credentialsProvider.setCredentials(new AuthScope(_PROXY_URL,_PROXY_PORT),new UsernamePasswordCredentials(_PROXY_USER_NAME,_PROXY_PASSWORD));
       }
     }
+    httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+    httpClientBuilder.setProxy(proxyHttpHost);
+    httpClient=httpClientBuilder.build();
     ByteArrayEntity byteArrayEntity=new ByteArrayEntity(_encryptRequest(serverURL,request));
     byteArrayEntity.setContentType(ContentTypes.APPLICATION_JSON);
     httpPost.setEntity(byteArrayEntity);
-    HttpResponse httpResponse=defaultHttpClient.execute(httpPost);
+    HttpResponse httpResponse=httpClient.execute(httpPost);
     HttpEntity httpEntity=httpResponse.getEntity();
     String response=_decryptResponse(serverURL,httpEntity.getContent());
     if (_log.isDebugEnabled()) {
@@ -35,7 +40,8 @@
     return response;
   }
   finally {
-    ClientConnectionManager clientConnectionManager=defaultHttpClient.getConnectionManager();
-    clientConnectionManager.shutdown();
+    if (httpClient != null) {
+      httpClientConnectionManager.shutdown();
+    }
   }
 }
