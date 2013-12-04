@@ -1,7 +1,4 @@
 {
-  if (context == null) {
-    context=new HashMap<String,String>();
-  }
   if (status.equals("pending")) {
     _xpathIdStack.push(id);
   }
@@ -10,9 +7,7 @@
     return;
   }
   String xpath=generateXpath(_xpathIdStack);
-  String xpath2=xpath + "//span[@class='quote']";
   List<WebElement> webElements=_webDriver.findElements(By.xpath(xpath));
-  List<WebElement> webElements2=_webDriver.findElements(By.xpath(xpath2));
   if (status.equals("pass")) {
     _xpathIdStack.pop();
   }
@@ -24,18 +19,20 @@
   for (  WebElement webElement : webElements) {
     _javascriptExecutor.executeScript(sb.toString(),webElement);
   }
+  webElements=_webDriver.findElements(By.xpath(xpath + "//span[@class='quote']"));
+  sb=new StringBundler();
   sb.append("var element = arguments[0];");
-  sb.append("var inHTML = element.innerHTML;");
-  sb.append("return inHTML;");
-  for (  WebElement webElement2 : webElements2) {
-    String val=(String)_javascriptExecutor.executeScript(sb.toString(),webElement2);
-    StringBundler sb2=new StringBundler();
-    sb2.append("var element = arguments[0];");
-    sb2.append("element.title = \"");
-    String contentContext=val;
-    val=getContextKey(val,context);
-    sb2.append(val);
-    sb2.append("\";");
-    _javascriptExecutor.executeScript(sb2.toString(),webElement2);
+  sb.append("return element.innerHTML;");
+  String innerHTMLJavascript=sb.toString();
+  for (  WebElement webElement : webElements) {
+    String value=(String)_javascriptExecutor.executeScript(innerHTMLJavascript,webElement);
+    value=RuntimeVariables.evaluateVariable(value,context);
+    value=StringEscapeUtils.escapeEcmaScript(value);
+    sb=new StringBundler();
+    sb.append("var element = arguments[0];");
+    sb.append("element.title = \"");
+    sb.append(value);
+    sb.append("\";");
+    _javascriptExecutor.executeScript(sb.toString(),webElement);
   }
 }
