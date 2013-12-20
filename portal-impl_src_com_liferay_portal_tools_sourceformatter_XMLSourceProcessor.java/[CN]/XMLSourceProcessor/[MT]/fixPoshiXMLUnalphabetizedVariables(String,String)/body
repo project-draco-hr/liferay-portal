@@ -1,0 +1,43 @@
+{
+  Pattern pattern=Pattern.compile("((?:[\\t]*+\\<var.*?\\>\\n[\\t]*+){2,}?)" + "(?:(?:\\n){1,}+|\\</execute\\>)");
+  Matcher matcher=pattern.matcher(content);
+  while (matcher.find()) {
+    String variableBlock=matcher.group(1);
+    variableBlock=variableBlock.trim();
+    Pattern variableLinePattern=Pattern.compile("([\\t]*+)(\\<var name=\\\"([^\\\"]*)\\\".*?/\\>" + ".*+(?:\\</var\\>)??)");
+    Matcher variableLineMatcher=variableLinePattern.matcher(variableBlock);
+    boolean outOfOrder=false;
+    String previousName=StringPool.BLANK;
+    List<String> sortedVariableNames=new ArrayList<String>();
+    String tabs=StringPool.BLANK;
+    Map<String,String> variableLines=new HashMap<String,String>();
+    while (variableLineMatcher.find()) {
+      if (tabs.equals(StringPool.BLANK)) {
+        tabs=variableLineMatcher.group(1);
+      }
+      String variableLine=variableLineMatcher.group(2);
+      String variableName=variableLineMatcher.group(3);
+      sortedVariableNames.add(variableName);
+      variableLines.put(variableName,variableLine);
+      if (variableName.compareToIgnoreCase(previousName) < 0) {
+        processErrorMessage(fileName,fileName + " has an unordered variable " + variableName);
+        outOfOrder=true;
+      }
+      previousName=variableName;
+    }
+    if (outOfOrder) {
+      Collections.sort(sortedVariableNames,String.CASE_INSENSITIVE_ORDER);
+      StringBundler sb=new StringBundler();
+      for (      String sortedVariableName : sortedVariableNames) {
+        sb.append(tabs);
+        sb.append(variableLines.get(sortedVariableName));
+        sb.append("\n");
+      }
+      String alphabetizedVariableBlock=sb.toString();
+      alphabetizedVariableBlock=alphabetizedVariableBlock.trim();
+      content=StringUtil.replace(content,variableBlock,alphabetizedVariableBlock);
+      continue;
+    }
+  }
+  return content;
+}
