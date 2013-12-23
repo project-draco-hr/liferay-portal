@@ -13,10 +13,27 @@
   }
   MessageBus messageBus=MessageBusUtil.getMessageBus();
   for (  String searchEngineId : SearchEngineUtil.getSearchEngineIds()) {
-    String searchReaderDestinationName=SearchEngineUtil.getSearchWriterDestinationName(searchEngineId);
-    Destination searchReaderDestination=messageBus.getDestination(searchReaderDestinationName);
-    if (searchReaderDestination != null) {
-      searchReaderDestination.close(true);
+    String searchWriterDestinationName=SearchEngineUtil.getSearchWriterDestinationName(searchEngineId);
+    Destination searchWriteDestination=messageBus.getDestination(searchWriterDestinationName);
+    if (searchWriteDestination != null) {
+      ThreadPoolExecutor threadPoolExecutor=PortalExecutorManagerUtil.getPortalExecutor(searchWriterDestinationName);
+      int maxPoolSize=threadPoolExecutor.getMaxPoolSize();
+      CountDownLatch checkInCountDownLatch=new CountDownLatch(maxPoolSize);
+      ShutdownSyncJob shutdownSyncJob=new ShutdownSyncJob(checkInCountDownLatch);
+      for (int i=0; i < maxPoolSize; i++) {
+        threadPoolExecutor.submit(shutdownSyncJob);
+      }
+      try {
+        checkInCountDownLatch.await();
+      }
+ catch (      InterruptedException ie) {
+        _log.error("Shutdown waiting interrupted",ie);
+      }
+      List<Runnable> runnables=threadPoolExecutor.shutdownNow();
+      if (_log.isDebugEnabled()) {
+        _log.debug("Cancelled appending indexing jobs : " + runnables);
+      }
+      searchWriteDestination.close(true);
     }
   }
   for (  IndexAccessor indexAccessor : _indexAccessors.values()) {
