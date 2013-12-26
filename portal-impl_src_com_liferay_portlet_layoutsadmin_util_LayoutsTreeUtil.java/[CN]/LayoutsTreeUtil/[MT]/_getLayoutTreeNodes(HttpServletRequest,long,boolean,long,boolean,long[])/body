@@ -1,0 +1,39 @@
+{
+  List<LayoutTreeNode> layoutTreeNodes=new ArrayList<LayoutTreeNode>();
+  List<Layout> layoutAncestors=null;
+  List<Layout> layouts=LayoutServiceUtil.getLayouts(groupId,privateLayout,parentLayoutId,incomplete,QueryUtil.ALL_POS,QueryUtil.ALL_POS);
+  long selPlid=ParamUtil.getLong(request,"selPlid");
+  if (selPlid != 0) {
+    Layout selLayout=LayoutLocalServiceUtil.getLayout(selPlid);
+    layoutAncestors=LayoutServiceUtil.getAncestorLayouts(selPlid);
+    layoutAncestors.add(selLayout);
+  }
+  int start=0;
+  int end=layouts.size();
+  if (PropsValues.LAYOUT_MANAGE_PAGES_INITIAL_CHILDREN > -1) {
+    start=ParamUtil.getInteger(request,"start");
+    start=Math.max(0,Math.min(start,layouts.size()));
+    end=ParamUtil.getInteger(request,"end",start + PropsValues.LAYOUT_MANAGE_PAGES_INITIAL_CHILDREN);
+    int loadedLayoutsCount=_getLoadedLayoutsCount(request,parentLayoutId);
+    if (loadedLayoutsCount > end) {
+      end=loadedLayoutsCount;
+    }
+    end=Math.max(start,Math.min(end,layouts.size()));
+  }
+  for (  Layout layout : layouts.subList(start,end)) {
+    LayoutTreeNode layoutTreeNode=new LayoutTreeNode(layout);
+    if ((layoutAncestors != null) && layoutAncestors.contains(layout) || ArrayUtil.contains(expandedLayoutIds,layout.getLayoutId())) {
+      List<LayoutTreeNode> children=new ArrayList<LayoutTreeNode>();
+      if (layout instanceof VirtualLayout) {
+        VirtualLayout virtualLayout=(VirtualLayout)layout;
+        children=_getLayoutTreeNodes(request,virtualLayout.getSourceGroupId(),virtualLayout.isPrivateLayout(),virtualLayout.getLayoutId(),incomplete,expandedLayoutIds);
+      }
+ else {
+        children=_getLayoutTreeNodes(request,groupId,layout.isPrivateLayout(),layout.getLayoutId(),incomplete,expandedLayoutIds);
+      }
+      layoutTreeNode.setChildren(children);
+    }
+    layoutTreeNodes.add(layoutTreeNode);
+  }
+  return layoutTreeNodes;
+}
