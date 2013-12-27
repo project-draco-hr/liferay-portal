@@ -1,19 +1,22 @@
 {
-  List<SocialRequest> requests=SocialRequestLocalServiceUtil.getSocialRequests(QueryUtil.ALL_POS,QueryUtil.ALL_POS);
-  if (requests.isEmpty()) {
-    return;
-  }
-  List<Group> groups=new ArrayList<Group>();
-  for (  long companyId : PortalInstances.getCompanyIdsBySQL()) {
-    groups.addAll(GroupLocalServiceUtil.getCompanyGroups(companyId,QueryUtil.ALL_POS,QueryUtil.ALL_POS));
-  }
-  List<Long> groupIds=new ArrayList<Long>();
-  for (  Group group : groups) {
-    groupIds.add(group.getGroupId());
-  }
-  for (  SocialRequest request : requests) {
-    if (!groupIds.contains(request.getClassPK()) && (request.getClassNameId() == PortalUtil.getClassNameId(Group.class))) {
-      SocialRequestLocalServiceUtil.deleteRequest(request);
+  ActionableDynamicQuery socialRequestActionableDynamicQuery=new SocialRequestActionableDynamicQuery(){
+    @Override protected void addCriteria(    DynamicQuery dynamicQuery){
+      Property classNameId=PropertyFactoryUtil.forName("classNameId");
+      dynamicQuery.add(classNameId.eq(PortalUtil.getClassNameId(Group.class)));
+      Property classPK=PropertyFactoryUtil.forName("classPK");
+      DynamicQuery groupIdDq=DynamicQueryFactoryUtil.forClass(Group.class,PortalClassLoaderUtil.getClassLoader());
+      Projection groupIdProjection=ProjectionFactoryUtil.property("groupId");
+      groupIdDq.setProjection(groupIdProjection);
+      dynamicQuery.add(classPK.notIn(groupIdDq));
+    }
+    @Override protected void performAction(    Object object) throws PortalException, SystemException {
+      SocialRequestLocalServiceUtil.deleteRequest((SocialRequest)object);
     }
   }
+;
+  long requestCount=socialRequestActionableDynamicQuery.performCount();
+  if (requestCount == 0) {
+    return;
+  }
+  socialRequestActionableDynamicQuery.performActions();
 }
