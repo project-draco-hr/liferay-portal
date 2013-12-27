@@ -1,0 +1,36 @@
+{
+  String currentDate=DateUtil.getCurrentDate("yyyy-MM-dd",LocaleUtil.getDefault());
+  String log4jXMLFile=PropsValues.LIFERAY_HOME + "/logs/liferay." + currentDate+ ".log.xml";
+  if (!FileUtil.exists(log4jXMLFile)) {
+    return;
+  }
+  String content=FileUtil.read(log4jXMLFile);
+  if (content.equals("")) {
+    return;
+  }
+  StringBundler sb=new StringBundler();
+  sb.append("<log4j>");
+  sb.append(content);
+  sb.append("</log4j>");
+  content=sb.toString();
+  content=content.replaceAll("log4j:","");
+  Document document=SAXReaderUtil.read(content,true);
+  Element rootElement=document.getRootElement();
+  List<Element> eventElements=rootElement.elements("event");
+  for (  Element eventElement : eventElements) {
+    String level=eventElement.attributeValue("level");
+    if (level.equals("ERROR")) {
+      Element messageElement=eventElement.element("message");
+      String messageText=messageElement.getText();
+      if (isIgnorableErrorLine(messageText)) {
+        continue;
+      }
+      FileUtil.write(log4jXMLFile,"");
+      Element throwableElement=eventElement.element("throwable");
+      if (throwableElement != null) {
+        throw new Exception(messageText + throwableElement.getText());
+      }
+      throw new Exception(messageText);
+    }
+  }
+}
