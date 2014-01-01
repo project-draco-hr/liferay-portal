@@ -1,2 +1,32 @@
 {
+  ClusterRequest clusterRequest=ClusterRequest.createUnicastRequest(new MethodHandler(_createTokenMethodKey,_TRANSIENT_TOKEN_KEEP_ALIVE_TIME),bootupAddress);
+  FutureClusterResponses futureClusterResponses=ClusterExecutorUtil.execute(clusterRequest);
+  BlockingQueue<ClusterNodeResponse> clusterNodeResponses=futureClusterResponses.getPartialResults();
+  try {
+    ClusterNodeResponse clusterNodeResponse=clusterNodeResponses.poll(_CLUSTER_LINK_NODE_BOOTUP_RESPONSE_TIMEOUT,TimeUnit.MILLISECONDS);
+    ClusterNode clusterNode=clusterNodeResponse.getClusterNode();
+    int port=clusterNode.getPort();
+    if (port <= 0) {
+      StringBundler sb=new StringBundler(6);
+      sb.append("Invalid cluster node port ");
+      sb.append(port);
+      sb.append(". The port is set by the first request or ");
+      sb.append("configured in portal.properties by the properties ");
+      sb.append("\"portal.instance.http.port\" and ");
+      sb.append("\"portal.instance.https.port\".");
+      throw new Exception(sb.toString());
+    }
+    InetAddress inetAddress=clusterNode.getInetAddress();
+    String fileName=PortalUtil.getPathContext();
+    if (!fileName.endsWith(StringPool.SLASH)) {
+      fileName=fileName.concat(StringPool.SLASH);
+    }
+    fileName=fileName.concat("lucene/dump");
+    URL url=new URL(_protocol,inetAddress.getHostAddress(),port,fileName);
+    String transientToken=(String)clusterNodeResponse.getResult();
+    return new ObjectValuePair<String,URL>(transientToken,url);
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
 }
