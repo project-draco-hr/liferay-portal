@@ -1,19 +1,18 @@
 {
-  List<Organization> organizations=new ArrayList<Organization>();
-  boolean corruptIndex=false;
   List<Document> documents=hits.toList();
+  List<Organization> organizations=new ArrayList<Organization>(documents.size());
   for (  Document document : documents) {
     long organizationId=GetterUtil.getLong(document.get(Field.ORGANIZATION_ID));
-    try {
-      Organization organization=OrganizationLocalServiceUtil.getOrganization(organizationId);
-      organizations.add(organization);
-    }
- catch (    NoSuchOrganizationException nsoe) {
-      corruptIndex=true;
+    Organization organization=OrganizationLocalServiceUtil.fetchOrganization(organizationId);
+    if (organization == null) {
+      organizations=null;
       Indexer indexer=IndexerRegistryUtil.getIndexer(Organization.class);
       long companyId=GetterUtil.getLong(document.get(Field.COMPANY_ID));
       indexer.delete(companyId,document.getUID());
     }
+ else     if (organizations != null) {
+      organizations.add(organization);
+    }
   }
-  return new Tuple(organizations,corruptIndex);
+  return organizations;
 }
