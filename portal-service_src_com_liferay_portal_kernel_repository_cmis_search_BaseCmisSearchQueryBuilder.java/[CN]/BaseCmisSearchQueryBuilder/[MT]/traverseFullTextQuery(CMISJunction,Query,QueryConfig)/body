@@ -1,0 +1,38 @@
+{
+  if (query instanceof BooleanQuery) {
+    BooleanQuery booleanQuery=(BooleanQuery)query;
+    List<BooleanClause> booleanClauses=booleanQuery.clauses();
+    CMISFullTextConjunction anyCMISConjunction=new CMISFullTextConjunction();
+    CMISFullTextConjunction notCMISConjunction=new CMISFullTextConjunction();
+    CMISDisjunction cmisDisjunction=new CMISDisjunction();
+    for (    BooleanClause booleanClause : booleanClauses) {
+      CMISJunction cmisJunction=cmisDisjunction;
+      BooleanClauseOccur booleanClauseOccur=booleanClause.getBooleanClauseOccur();
+      if (booleanClauseOccur.equals(BooleanClauseOccur.MUST)) {
+        cmisJunction=anyCMISConjunction;
+      }
+ else       if (booleanClauseOccur.equals(BooleanClauseOccur.MUST_NOT)) {
+        cmisJunction=notCMISConjunction;
+      }
+      Query booleanClauseQuery=booleanClause.getQuery();
+      traverseFullTextQuery(cmisJunction,booleanClauseQuery,queryConfig);
+    }
+    if (!anyCMISConjunction.isEmpty()) {
+      criterion.add(anyCMISConjunction);
+    }
+    if (!cmisDisjunction.isEmpty()) {
+      criterion.add(cmisDisjunction);
+    }
+    if (!notCMISConjunction.isEmpty()) {
+      criterion.add(new CMISContainsNotExpression(notCMISConjunction));
+    }
+  }
+ else   if (query instanceof TermQuery) {
+    TermQuery termQuery=(TermQuery)query;
+    QueryTerm queryTerm=termQuery.getQueryTerm();
+    if (!queryTerm.getField().equals(Field.CONTENT)) {
+      return;
+    }
+    criterion.add(new CMISContainsValueExpression(queryTerm.getValue()));
+  }
+}
