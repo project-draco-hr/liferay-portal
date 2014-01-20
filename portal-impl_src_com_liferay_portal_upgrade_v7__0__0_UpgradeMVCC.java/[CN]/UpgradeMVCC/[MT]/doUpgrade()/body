@@ -1,0 +1,45 @@
+{
+  Thread currentThread=Thread.currentThread();
+  ClassLoader classLoader=currentThread.getContextClassLoader();
+  InputStream inputStream=classLoader.getResourceAsStream("META-INF/portal-hbm.xml");
+  Document document=SAXReaderUtil.read(inputStream);
+  Element rootElement=document.getRootElement();
+  List<Element> classElements=rootElement.elements("class");
+  Connection con=DataAccess.getUpgradeOptimizedConnection();
+  try {
+    DatabaseMetaData databaseMetaData=con.getMetaData();
+    for (    Element classElement : classElements) {
+      if (classElement.element("version") == null) {
+        continue;
+      }
+      String versionedTable=classElement.attributeValue("table");
+      ResultSet tableResultSet=databaseMetaData.getTables(null,null,versionedTable,null);
+      try {
+        if (!tableResultSet.next()) {
+          _log.error("Table " + versionedTable + " does not exist!");
+          continue;
+        }
+        ResultSet columnResultSet=databaseMetaData.getColumns(null,null,versionedTable,"mvccVersion");
+        try {
+          if (columnResultSet.next()) {
+            continue;
+          }
+          String addColumnSQL="alter table ".concat(versionedTable).concat(" add mvccVersion LONG default 0");
+          runSQL(addColumnSQL);
+          if (_log.isDebugEnabled()) {
+            _log.debug("Added mvccVersion column to table " + versionedTable);
+          }
+        }
+  finally {
+          DataAccess.cleanUp(columnResultSet);
+        }
+      }
+  finally {
+        DataAccess.cleanUp(tableResultSet);
+      }
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con);
+  }
+}
