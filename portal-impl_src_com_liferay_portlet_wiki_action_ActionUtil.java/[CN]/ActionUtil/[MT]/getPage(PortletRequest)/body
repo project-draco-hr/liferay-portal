@@ -1,4 +1,56 @@
 {
   HttpServletRequest request=PortalUtil.getHttpServletRequest(portletRequest);
-  getPage(request);
+  ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+  long nodeId=ParamUtil.getLong(request,"nodeId");
+  String title=ParamUtil.getString(request,"title");
+  double version=ParamUtil.getDouble(request,"version");
+  WikiNode node=null;
+  try {
+    if (nodeId > 0) {
+      node=WikiNodeServiceUtil.getNode(nodeId);
+    }
+  }
+ catch (  NoSuchNodeException nsne) {
+  }
+  if (node == null) {
+    node=(WikiNode)request.getAttribute(WebKeys.WIKI_NODE);
+    if (node != null) {
+      nodeId=node.getNodeId();
+    }
+  }
+  if (Validator.isNull(title)) {
+    title=WikiPageConstants.FRONT_PAGE;
+  }
+  WikiPage page=null;
+  try {
+    page=WikiPageServiceUtil.getPage(nodeId,title,version);
+    if (page.isDraft()) {
+      throw new NoSuchPageException();
+    }
+  }
+ catch (  NoSuchPageException nspe) {
+    if (title.equals(WikiPageConstants.FRONT_PAGE) && (version == 0)) {
+      ServiceContext serviceContext=new ServiceContext();
+      Layout layout=themeDisplay.getLayout();
+      serviceContext.setAddGroupPermissions(true);
+      if (layout.isPublicLayout()) {
+        serviceContext.setAddGuestPermissions(true);
+      }
+ else {
+        serviceContext.setAddGuestPermissions(false);
+      }
+      boolean workflowEnabled=WorkflowThreadLocal.isEnabled();
+      try {
+        WorkflowThreadLocal.setEnabled(false);
+        page=WikiPageLocalServiceUtil.addPage(themeDisplay.getDefaultUserId(),nodeId,title,null,WikiPageConstants.NEW,true,serviceContext);
+      }
+  finally {
+        WorkflowThreadLocal.setEnabled(workflowEnabled);
+      }
+    }
+ else {
+      throw nspe;
+    }
+  }
+  request.setAttribute(WebKeys.WIKI_PAGE,page);
 }
