@@ -1,0 +1,41 @@
+{
+  Pattern pattern=Pattern.compile("((?:[\\t]*+\\<var.*?\\>\\n[\\t]*+){2,}?)" + "(?:(?:\\n){1,}+|\\</execute\\>)");
+  Matcher matcher=pattern.matcher(content);
+  while (matcher.find()) {
+    boolean outOfOrder=false;
+    String previousName=StringPool.BLANK;
+    String tabs=StringPool.BLANK;
+    Map<String,String> variableLineMap=new HashMap<String,String>();
+    List<String> variableNames=new ArrayList<String>();
+    String variableBlock=matcher.group(1);
+    variableBlock=variableBlock.trim();
+    Pattern variableLinePattern=Pattern.compile("([\\t]*+)(\\<var name=\\\"([^\\\"]*)\\\".*?/\\>.*+" + "(?:\\</var\\>)??)");
+    Matcher variableLineMatcher=variableLinePattern.matcher(variableBlock);
+    while (variableLineMatcher.find()) {
+      if (tabs.equals(StringPool.BLANK)) {
+        tabs=variableLineMatcher.group(1);
+      }
+      String variableLine=variableLineMatcher.group(2);
+      String variableName=variableLineMatcher.group(3);
+      variableNames.add(variableName);
+      variableLineMap.put(variableName,variableLine);
+      if (variableName.compareToIgnoreCase(previousName) < 0) {
+        outOfOrder=true;
+      }
+      previousName=variableName;
+    }
+    if (outOfOrder) {
+      Collections.sort(variableNames,String.CASE_INSENSITIVE_ORDER);
+      StringBundler sb=new StringBundler();
+      for (      String variableName : variableNames) {
+        sb.append(tabs);
+        sb.append(variableLineMap.get(variableName));
+        sb.append("\n");
+      }
+      String newVariableBlock=sb.toString();
+      newVariableBlock=newVariableBlock.trim();
+      content=StringUtil.replaceFirst(content,variableBlock,newVariableBlock);
+    }
+  }
+  return content;
+}
