@@ -3,35 +3,31 @@
     return new HashSet<String>(_macAddresses);
   }
   Set<String> macAddresses=new HashSet<String>();
-  String osName=System.getProperty("os.name");
-  String executable=null;
-  String arguments=null;
-  if (StringUtil.startsWith(osName,"win")) {
-    executable="ipconfig";
-    arguments="/all";
-  }
- else {
-    if (StringUtil.startsWith(osName,"aix")) {
-      executable="netstat";
-      arguments="-ina";
-    }
- else {
-      executable="ifconfig";
-      arguments="-a";
-    }
-    File sbinDir=new File("/sbin",executable);
-    if (sbinDir.exists()) {
-      executable="/sbin/".concat(executable);
-    }
-  }
   try {
-    Runtime runtime=Runtime.getRuntime();
-    Process process=runtime.exec(new String[]{executable,arguments});
-    macAddresses=getMacAddresses(osName,process.getInputStream());
+    List<NetworkInterface> networkInterfaces=Collections.list(NetworkInterface.getNetworkInterfaces());
+    for (    NetworkInterface networkInterface : networkInterfaces) {
+      byte[] hardwareAddress=networkInterface.getHardwareAddress();
+      if (hardwareAddress == null) {
+        continue;
+      }
+      int macAddressLength=hardwareAddress.length * 3 - 1;
+      StringBuilder sb=new StringBuilder(macAddressLength);
+      String hexString=StringUtil.bytesToHexString(hardwareAddress);
+      for (int i=0; i < hexString.length(); i+=2) {
+        if (i != 0) {
+          sb.append(CharPool.COLON);
+        }
+        sb.append(Character.toLowerCase(hexString.charAt(i)));
+        sb.append(Character.toLowerCase(hexString.charAt(i + 1)));
+      }
+      String macAddress=sb.toString();
+      macAddresses.add(macAddress);
+    }
   }
  catch (  Exception e) {
+    _log.error("Unable to read local server's MAC addresses");
     _log.error(e,e);
   }
   _macAddresses=macAddresses;
-  return new HashSet<String>(macAddresses);
+  return macAddresses;
 }
