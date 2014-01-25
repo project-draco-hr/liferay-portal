@@ -6,35 +6,19 @@
   if (!sqlFile.exists()) {
     FileUtil.write(sqlFile,"");
   }
-  Map<String,String> indexSQLs=new TreeMap<String,String>();
+  Map<String,List<IndexMetadata>> indexMetadataMap=new TreeMap<String,List<IndexMetadata>>();
   UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new FileReader(sqlFile));
   while (true) {
     String indexSQL=unsyncBufferedReader.readLine();
     if (indexSQL == null) {
       break;
     }
-    if (Validator.isNotNull(indexSQL.trim())) {
-      int pos=indexSQL.indexOf(" on ");
-      String indexSpec=indexSQL.substring(pos + 4);
-      indexSQLs.put(indexSpec,indexSQL);
+    indexSQL=indexSQL.trim();
+    if (Validator.isNull(indexSQL)) {
+      continue;
     }
-  }
-  unsyncBufferedReader.close();
-  File propsFile=new File(_sqlDir + "/" + _sqlIndexesPropertiesFileName);
-  if (!propsFile.exists()) {
-    FileUtil.write(propsFile,"");
-  }
-  Map<String,String> indexProps=new TreeMap<String,String>();
-  unsyncBufferedReader=new UnsyncBufferedReader(new FileReader(propsFile));
-  while (true) {
-    String indexMapping=unsyncBufferedReader.readLine();
-    if (indexMapping == null) {
-      break;
-    }
-    if (Validator.isNotNull(indexMapping.trim())) {
-      String[] splitIndexMapping=indexMapping.split("\\=");
-      indexProps.put(splitIndexMapping[1],splitIndexMapping[0]);
-    }
+    IndexMetadata indexMetadata=IndexMetadataFactoryUtil.createIndexMetadata(indexSQL);
+    _addIndexMetadata(indexMetadataMap,indexMetadata.getTableName(),indexMetadata);
   }
   unsyncBufferedReader.close();
   for (int i=0; i < _ejbList.size(); i++) {
@@ -55,50 +39,29 @@
           EntityColumn col=finderColsList.get(k);
           finderColsNames.add(col.getDBName());
         }
+        if (finderColsNames.isEmpty()) {
+          continue;
+        }
         IndexMetadata indexMetadata=IndexMetadataFactoryUtil.createIndexMetadata(finder.isUnique(),entity.getTable(),finderColsNames.toArray(new String[finderColsNames.size()]));
-        indexSQLs.put(indexMetadata.getSpecification(),indexMetadata.getCreateSQL());
-        String finderName=entity.getTable() + StringPool.PERIOD + finder.getName();
-        indexProps.put(finderName,indexMetadata.getIndexName());
+        _addIndexMetadata(indexMetadataMap,indexMetadata.getTableName(),indexMetadata);
       }
     }
   }
   for (  Map.Entry<String,EntityMapping> entry : _entityMappings.entrySet()) {
     EntityMapping entityMapping=entry.getValue();
-    _getCreateMappingTableIndex(entityMapping,indexSQLs,indexProps);
+    _getCreateMappingTableIndex(entityMapping,indexMetadataMap);
   }
   StringBundler sb=new StringBundler();
-  String prevEntityName=null;
-  for (  String indexSQL : indexSQLs.values()) {
-    int pos=indexSQL.indexOf(" on ");
-    String indexSQLSuffix=indexSQL.substring(pos + 4);
-    String entityName=indexSQLSuffix.split(" ")[0];
-    if ((prevEntityName != null) && !prevEntityName.equals(entityName)) {
-      sb.append("\n");
+  for (  List<IndexMetadata> indexMetadataList : indexMetadataMap.values()) {
+    Collections.sort(indexMetadataList);
+    for (    IndexMetadata indexMetadata : indexMetadataList) {
+      sb.append(indexMetadata.getCreateSQL());
+      sb.append(StringPool.NEW_LINE);
     }
-    sb.append(indexSQL);
-    sb.append("\n");
-    prevEntityName=entityName;
+    sb.append(StringPool.NEW_LINE);
   }
-  if (!indexSQLs.isEmpty()) {
-    sb.setIndex(sb.index() - 1);
+  if (!indexMetadataMap.isEmpty()) {
+    sb.setIndex(sb.index() - 2);
   }
   FileUtil.write(sqlFile,sb.toString(),true);
-  sb.setIndex(0);
-  prevEntityName=null;
-  for (  String finderName : indexProps.keySet()) {
-    String indexName=indexProps.get(finderName);
-    String entityName=finderName.split("\\.")[0];
-    if ((prevEntityName != null) && !prevEntityName.equals(entityName)) {
-      sb.append("\n");
-    }
-    sb.append(indexName);
-    sb.append(StringPool.EQUAL);
-    sb.append(finderName);
-    sb.append("\n");
-    prevEntityName=entityName;
-  }
-  if (!indexProps.isEmpty()) {
-    sb.setIndex(sb.index() - 1);
-  }
-  FileUtil.write(propsFile,sb.toString(),true);
 }

@@ -1,0 +1,46 @@
+{
+  if (_log.isInfoEnabled()) {
+    _log.info("Dropping stale indexes");
+  }
+  Set<String> validIndexNames=new HashSet<String>();
+  if (indexes.isEmpty()) {
+    return validIndexNames;
+  }
+  String tablesSQLLowerCase=StringUtil.toLowerCase(tablesSQL);
+  String indexesSQLLowerCase=StringUtil.toLowerCase(indexesSQL);
+  String[] lines=StringUtil.splitLines(indexesSQL);
+  Set<String> indexNames=new HashSet<String>();
+  for (  String line : lines) {
+    if (Validator.isNull(line)) {
+      continue;
+    }
+    IndexMetadata indexMetadata=IndexMetadataFactoryUtil.createIndexMetadata(line);
+    indexNames.add(StringUtil.toLowerCase(indexMetadata.getIndexName()));
+  }
+  for (  Index index : indexes) {
+    String indexNameUpperCase=StringUtil.toUpperCase(index.getIndexName());
+    String indexNameLowerCase=StringUtil.toLowerCase(indexNameUpperCase);
+    String tableName=index.getTableName();
+    String tableNameLowerCase=StringUtil.toLowerCase(tableName);
+    boolean unique=index.isUnique();
+    validIndexNames.add(indexNameUpperCase);
+    if (indexNames.contains(indexNameLowerCase)) {
+      if (unique && indexesSQLLowerCase.contains("create unique index " + indexNameLowerCase + " ")) {
+        continue;
+      }
+      if (!unique && indexesSQLLowerCase.contains("create index " + indexNameLowerCase + " ")) {
+        continue;
+      }
+    }
+ else     if (!tablesSQLLowerCase.contains("create table " + tableNameLowerCase + " (")) {
+      continue;
+    }
+    validIndexNames.remove(indexNameUpperCase);
+    String sql="drop index " + indexNameUpperCase + " on "+ tableName;
+    if (_log.isInfoEnabled()) {
+      _log.info(sql);
+    }
+    runSQL(con,sql);
+  }
+  return validIndexNames;
+}
