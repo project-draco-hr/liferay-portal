@@ -1,13 +1,13 @@
 {
   Matcher matcher=_poshiVariablesBlockPattern.matcher(content);
   while (matcher.find()) {
-    boolean outOfOrder=false;
     String previousName=StringPool.BLANK;
     String tabs=StringPool.BLANK;
     Map<String,String> variableLinesMap=new TreeMap<String,String>(String.CASE_INSENSITIVE_ORDER);
     String variableBlock=matcher.group(1);
     variableBlock=variableBlock.trim();
     Matcher variableLineMatcher=_poshiVariableLinePattern.matcher(variableBlock);
+    boolean hasUnsortedVariables=false;
     while (variableLineMatcher.find()) {
       if (tabs.equals(StringPool.BLANK)) {
         tabs=variableLineMatcher.group(1);
@@ -15,22 +15,23 @@
       String variableLine=variableLineMatcher.group(2);
       String variableName=variableLineMatcher.group(3);
       variableLinesMap.put(variableName,variableLine);
-      if (variableName.compareToIgnoreCase(previousName) < 0) {
-        outOfOrder=true;
+      if (!hasUnsortedVariables && (variableName.compareToIgnoreCase(previousName) < 0)) {
+        hasUnsortedVariables=true;
       }
       previousName=variableName;
     }
-    if (outOfOrder) {
-      StringBundler sb=new StringBundler();
-      for (      Map.Entry<String,String> entry : variableLinesMap.entrySet()) {
-        sb.append(tabs);
-        sb.append(entry.getValue());
-        sb.append("\n");
-      }
-      String newVariableBlock=sb.toString();
-      newVariableBlock=newVariableBlock.trim();
-      content=StringUtil.replaceFirst(content,variableBlock,newVariableBlock);
+    if (!hasUnsortedVariables) {
+      continue;
     }
+    StringBundler sb=new StringBundler();
+    for (    Map.Entry<String,String> entry : variableLinesMap.entrySet()) {
+      sb.append(tabs);
+      sb.append(entry.getValue());
+      sb.append("\n");
+    }
+    String newVariableBlock=sb.toString();
+    newVariableBlock=newVariableBlock.trim();
+    content=StringUtil.replaceFirst(content,variableBlock,newVariableBlock);
   }
   return content;
 }
