@@ -4,9 +4,21 @@
   _initUtil(classLoader);
   _rubyScript=StringUtil.read(classLoader,"com/liferay/portal/servlet/filters/dynamiccss" + "/dependencies/main.rb");
   _tempDir=SystemProperties.get(SystemProperties.TMP_DIR);
+  RubyExecutor rubyExecutor=new RubyExecutor();
+  rubyExecutor.setExecuteInSeparateThread(false);
+  List<String> fileNameList=new ArrayList<String>();
   for (  String dirName : dirNames) {
-    _rubyExecutor=new RubyExecutor();
-    _rubyExecutor.setExecuteInSeparateThread(false);
-    _parseSassDirectory(dirName,docrootDirName,portalCommonDirName);
+    _collectSassFiles(fileNameList,dirName,docrootDirName);
   }
+  Runtime runtime=Runtime.getRuntime();
+  ExecutorService executorService=Executors.newFixedThreadPool(runtime.availableProcessors());
+  List<Future<String>> futureList=new ArrayList<Future<String>>(fileNameList.size());
+  for (  String fileName : fileNameList) {
+    Callable<String> callable=new CacheSassCallable(rubyExecutor,docrootDirName,portalCommonDirName,fileName);
+    futureList.add(executorService.submit(callable));
+  }
+  for (  Future<String> future : futureList) {
+    System.out.println(future.get());
+  }
+  executorService.shutdownNow();
 }
