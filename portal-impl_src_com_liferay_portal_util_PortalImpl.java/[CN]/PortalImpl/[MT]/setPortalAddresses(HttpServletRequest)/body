@@ -1,0 +1,45 @@
+{
+  boolean secure=request.isSecure();
+  if ((secure && (_securePortalLocalAddress.get() != null) && (_securePortalServerAddress.get() != null)) || (!secure && (_portalLocalAddress.get() != null) && (_portalServerAddress.get() != null))) {
+    return;
+  }
+  String localAddress=request.getLocalAddr();
+  int localPort=request.getLocalPort();
+  String serverAddress=request.getServerName();
+  int serverPort=request.getServerPort();
+  InetAddress localInetAddress=null;
+  InetAddress serverInetAddress=null;
+  try {
+    localInetAddress=InetAddress.getByName(localAddress);
+    serverInetAddress=InetAddress.getByName(serverAddress);
+  }
+ catch (  Exception ex) {
+    return;
+  }
+  ObjectValuePair<InetAddress,Integer> portalLocalAddress=new ObjectValuePair<InetAddress,Integer>(localInetAddress,localPort);
+  ObjectValuePair<InetAddress,Integer> portalServerAddress=new ObjectValuePair<InetAddress,Integer>(serverInetAddress,serverPort);
+  boolean updateLocal;
+  boolean updateServer;
+  if (secure) {
+    updateLocal=_securePortalLocalAddress.compareAndSet(null,portalLocalAddress);
+    updateServer=_securePortalServerAddress.compareAndSet(null,portalServerAddress);
+    if (StringUtil.equalsIgnoreCase(Http.HTTPS,PropsValues.WEB_SERVER_PROTOCOL)) {
+      if (updateLocal) {
+        notifyPortalEventListeners(localInetAddress,localPort,true);
+      }
+      if (updateServer) {
+        notifyPortalEventListeners(serverInetAddress,serverPort,false);
+      }
+    }
+  }
+ else {
+    updateLocal=_portalLocalAddress.compareAndSet(null,portalLocalAddress);
+    updateServer=_portalServerAddress.compareAndSet(null,portalServerAddress);
+    if (updateLocal) {
+      notifyPortalEventListeners(localInetAddress,localPort,true);
+    }
+    if (updateServer) {
+      notifyPortalEventListeners(serverInetAddress,serverPort,false);
+    }
+  }
+}
