@@ -1,0 +1,35 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)portletRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  long userId=themeDisplay.getUserId();
+  long groupId=ParamUtil.getLong(portletRequest,"groupId");
+  String tabs1=ParamUtil.getString(portletRequest,"tabs1");
+  boolean privateLayout=true;
+  if (tabs1.equals("public-pages")) {
+    privateLayout=false;
+  }
+  String scope=ParamUtil.getString(portletRequest,"scope");
+  if (Validator.isNull(scope)) {
+    scope="all-pages";
+  }
+  Map<Long,Boolean> layoutIdMap=null;
+  if (scope.equals("selected-pages")) {
+    layoutIdMap=ExportImportHelperUtil.getLayoutIdMap(portletRequest);
+  }
+  Map<String,String[]> parameterMap=StagingUtil.getStagingParameters(portletRequest);
+  parameterMap.put(PortletDataHandlerKeys.PUBLISH_TO_REMOTE,new String[]{Boolean.TRUE.toString()});
+  Group group=GroupLocalServiceUtil.getGroup(groupId);
+  UnicodeProperties groupTypeSettingsProperties=group.getTypeSettingsProperties();
+  String remoteAddress=ParamUtil.getString(portletRequest,"remoteAddress",groupTypeSettingsProperties.getProperty("remoteAddress"));
+  remoteAddress=StagingUtil.stripProtocolFromRemoteAddress(remoteAddress);
+  int remotePort=ParamUtil.getInteger(portletRequest,"remotePort",GetterUtil.getInteger(groupTypeSettingsProperties.getProperty("remotePort")));
+  String remotePathContext=ParamUtil.getString(portletRequest,"remotePathContext",groupTypeSettingsProperties.getProperty("remotePathContext"));
+  boolean secureConnection=ParamUtil.getBoolean(portletRequest,"secureConnection",GetterUtil.getBoolean(groupTypeSettingsProperties.getProperty("secureConnection")));
+  long remoteGroupId=ParamUtil.getLong(portletRequest,"remoteGroupId",GetterUtil.getLong(groupTypeSettingsProperties.getProperty("remoteGroupId")));
+  boolean remotePrivateLayout=ParamUtil.getBoolean(portletRequest,"remotePrivateLayout");
+  StagingUtil.validateRemote(remoteAddress,remotePort,remotePathContext,secureConnection,remoteGroupId);
+  DateRange dateRange=ExportImportHelperUtil.getDateRange(portletRequest,groupId,privateLayout,0,null,"fromLastPublishDate");
+  String exportImportConfigurationName=ParamUtil.getString(portletRequest,"exportImportConfigurationName");
+  String exportImportConfigurationDescription=ParamUtil.getString(portletRequest,"exportImportConfigurationDescription");
+  Map<String,Serializable> configurationContextMap=ExportImportConfigurationSettingsMapFactory.buildSettingsMap(userId,groupId,privateLayout,layoutIdMap,parameterMap,remoteAddress,remotePort,remotePathContext,secureConnection,remoteGroupId,remotePrivateLayout,dateRange.getStartDate(),dateRange.getEndDate());
+  return ExportImportConfigurationLocalServiceUtil.addExportImportConfiguration(userId,remoteGroupId,exportImportConfigurationName,exportImportConfigurationDescription,ExportImportConfigurationConstants.TYPE_PUBLISH_LAYOUT_REMOTE,configurationContextMap,new ServiceContext());
+}
