@@ -1,5 +1,4 @@
 {
-  Map<String,Object> inputObjects=new HashMap<String,Object>();
   String portalWebDir=PortalUtil.getPortalWebDir();
   String commonSassPath=portalWebDir.concat(_SASS_COMMON_DIR);
   String cssThemePath=_getCssThemePath(servletContext,request,themeDisplay,theme);
@@ -14,16 +13,26 @@
       commonSassPath=cssThemePath.substring(0,pos + 11) + "ROOT/" + _SASS_COMMON_DIR;
     }
   }
-  inputObjects.put("commonSassPath",commonSassPath);
-  inputObjects.put("content",content);
-  inputObjects.put("cssRealPath",resourcePath);
-  inputObjects.put("cssThemePath",cssThemePath);
   File sassTempDir=_getSassTempDir(servletContext);
-  inputObjects.put("sassCachePath",sassTempDir.getCanonicalPath());
-  UnsyncByteArrayOutputStream unsyncByteArrayOutputStream=new UnsyncByteArrayOutputStream();
-  UnsyncPrintWriter unsyncPrintWriter=UnsyncPrintWriterPool.borrow(unsyncByteArrayOutputStream);
-  inputObjects.put("out",unsyncPrintWriter);
-  _rubyExecutor.eval(null,inputObjects,null,_rubyScript);
-  unsyncPrintWriter.flush();
-  return unsyncByteArrayOutputStream.toString();
+  Object args[]=new Object[]{content,commonSassPath,resourcePath,cssThemePath,sassTempDir.getCanonicalPath(),_log.isDebugEnabled()};
+  try {
+    content=_scriptingContainer.callMethod(_scriptObject,"process",args,String.class);
+  }
+ catch (  Exception e) {
+    if (e instanceof RaiseException) {
+      RaiseException raiseException=(RaiseException)e;
+      RubyException exception=raiseException.getException();
+      _log.error(String.valueOf(exception.message.toJava(String.class)));
+      IRubyObject backtrace=exception.getBacktrace();
+      RubyArray rubyArray=(RubyArray)backtrace.toJava(RubyArray.class);
+      for (int i=0; i < rubyArray.size(); i++) {
+        Object item=rubyArray.get(i);
+        _log.error(String.valueOf(item));
+      }
+    }
+ else {
+      _log.error(e,e);
+    }
+  }
+  return content;
 }
