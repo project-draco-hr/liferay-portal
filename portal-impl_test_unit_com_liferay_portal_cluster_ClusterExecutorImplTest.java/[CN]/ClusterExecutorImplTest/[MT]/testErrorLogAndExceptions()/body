@@ -1,4 +1,5 @@
 {
+  SetBadPortalAddressAdvice.setPort(8080);
   JDKLoggerTestUtil.configureJDKLogger(ClusterBase.class.getName(),Level.FINE);
   ClusterExecutorImpl clusterExecutorImpl=null;
   try {
@@ -12,10 +13,18 @@
     List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(ClusterExecutorImpl.class.getName(),Level.SEVERE);
     clusterExecutorImpl=new ClusterExecutorImpl();
     clusterExecutorImpl.afterPropertiesSet();
-    assertLogger(logRecords,"Unable to get InetAddress by name :" + SetBadPortalAddressAdvice.BAD_ADDRESS,UnknownHostException.class);
     clusterExecutorImpl.initialize();
-    assertLogger(logRecords,"Unable to send notify message",Exception.class);
-    clusterExecutorImpl.portalLocalAddressConfigured(InetAddress.getLocalHost(),80);
+    Assert.assertEquals(2,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Assert.assertEquals("Unable to parse portal InetSocketAddress from :" + "bad address:8080",logRecord.getMessage());
+    Throwable throwable=logRecord.getThrown();
+    Assert.assertSame(UnknownHostException.class,throwable.getClass());
+    logRecord=logRecords.get(1);
+    Assert.assertEquals("Unable to send notify message",logRecord.getMessage());
+    throwable=logRecord.getThrown();
+    Assert.assertSame(Exception.class,throwable.getClass());
+    logRecords.clear();
+    clusterExecutorImpl.portalLocalAddressConfigured(new InetSocketAddress(InetAddress.getLocalHost(),80));
     assertLogger(logRecords,"Unable to determine configure node port",Exception.class);
     ClusterRequest clusterRequest=ClusterRequest.createMulticastRequest(null);
     try {
