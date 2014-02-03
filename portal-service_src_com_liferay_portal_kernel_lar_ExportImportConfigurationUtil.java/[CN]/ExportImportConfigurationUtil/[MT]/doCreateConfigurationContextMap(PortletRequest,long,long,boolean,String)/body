@@ -1,0 +1,41 @@
+{
+  boolean privateLayout=true;
+  String tabs1=ParamUtil.getString(portletRequest,"tabs1");
+  if (tabs1.equals("public-pages")) {
+    privateLayout=false;
+  }
+ else {
+    privateLayout=ParamUtil.getBoolean(portletRequest,"privateLayout");
+  }
+  DateRange dateRange=ExportImportDateUtil.getDateRange(portletRequest,groupId,privateLayout,0,null,defaultDateRange);
+  if (exportConfiguration) {
+    return ExportImportConfigurationSettingsMapFactory.buildSettingsMap(userId,groupId,privateLayout,null,portletRequest.getParameterMap(),dateRange.getStartDate(),dateRange.getEndDate());
+  }
+  String scope=ParamUtil.getString(portletRequest,"scope");
+  if (Validator.isNull(scope)) {
+    scope="all-pages";
+  }
+  Map<Long,Boolean> layoutIdMap=null;
+  if (scope.equals("selected-pages")) {
+    layoutIdMap=ExportImportHelperUtil.getLayoutIdMap(portletRequest);
+  }
+  Group stagingGroup=GroupLocalServiceUtil.getGroup(groupId);
+  Group liveGroup=stagingGroup.getLiveGroup();
+  Map<String,String[]> parameterMap=StagingUtil.getStagingParameters(portletRequest);
+  if (liveGroup != null) {
+    return ExportImportConfigurationSettingsMapFactory.buildSettingsMap(userId,stagingGroup.getGroupId(),liveGroup.getGroupId(),privateLayout,layoutIdMap,parameterMap,dateRange.getStartDate(),dateRange.getEndDate());
+  }
+  if (liveGroup == null) {
+    parameterMap.put(PortletDataHandlerKeys.PUBLISH_TO_REMOTE,new String[]{Boolean.TRUE.toString()});
+  }
+  UnicodeProperties groupTypeSettingsProperties=stagingGroup.getTypeSettingsProperties();
+  String remoteAddress=ParamUtil.getString(portletRequest,"remoteAddress",groupTypeSettingsProperties.getProperty("remoteAddress"));
+  remoteAddress=StagingUtil.stripProtocolFromRemoteAddress(remoteAddress);
+  int remotePort=ParamUtil.getInteger(portletRequest,"remotePort",GetterUtil.getInteger(groupTypeSettingsProperties.getProperty("remotePort")));
+  String remotePathContext=ParamUtil.getString(portletRequest,"remotePathContext",groupTypeSettingsProperties.getProperty("remotePathContext"));
+  boolean secureConnection=ParamUtil.getBoolean(portletRequest,"secureConnection",GetterUtil.getBoolean(groupTypeSettingsProperties.getProperty("secureConnection")));
+  long remoteGroupId=ParamUtil.getLong(portletRequest,"remoteGroupId",GetterUtil.getLong(groupTypeSettingsProperties.getProperty("remoteGroupId")));
+  boolean remotePrivateLayout=ParamUtil.getBoolean(portletRequest,"remotePrivateLayout");
+  StagingUtil.validateRemote(remoteAddress,remotePort,remotePathContext,secureConnection,remoteGroupId);
+  return ExportImportConfigurationSettingsMapFactory.buildSettingsMap(userId,groupId,privateLayout,layoutIdMap,parameterMap,remoteAddress,remotePort,remotePathContext,secureConnection,remoteGroupId,remotePrivateLayout,dateRange.getStartDate(),dateRange.getEndDate());
+}
