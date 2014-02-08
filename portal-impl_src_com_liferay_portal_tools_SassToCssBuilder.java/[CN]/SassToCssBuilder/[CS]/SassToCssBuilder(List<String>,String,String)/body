@@ -2,24 +2,18 @@
   Class<?> clazz=getClass();
   ClassLoader classLoader=clazz.getClassLoader();
   _initUtil(classLoader);
-  RubyExecutor rubyExecutor=new RubyExecutor();
-  rubyExecutor.setExecuteInSeparateThread(false);
-  ScriptingContainer scriptingContainer=rubyExecutor.getScriptingContainer();
-  String rubyScript=StringUtil.read(classLoader,"com/liferay/portal/servlet/filters/dynamiccss" + "/dependencies/main.rb");
-  Object scriptObject=scriptingContainer.runScriptlet(rubyScript);
   List<String> fileNames=new ArrayList<String>();
   for (  String dirName : dirNames) {
     _collectSassFiles(fileNames,dirName,docrootDirName);
   }
   Runtime runtime=Runtime.getRuntime();
   ExecutorService executorService=Executors.newFixedThreadPool(runtime.availableProcessors());
-  List<Future<String>> futures=new ArrayList<Future<String>>(fileNames.size());
-  for (  String fileName : fileNames) {
-    Callable<String> callable=new CacheSassCallable(scriptingContainer,scriptObject,docrootDirName,portalCommonDirName,fileName);
-    futures.add(executorService.submit(callable));
+  try {
+    SassExecutor sassExecutor=new SassExecutor(docrootDirName,portalCommonDirName);
+    SassFileCache fileCache=new SassFileCache(executorService,sassExecutor,docrootDirName,fileNames);
+    fileCache.processAll();
   }
-  for (  Future<String> future : futures) {
-    System.out.println(future.get());
+  finally {
+    executorService.shutdownNow();
   }
-  executorService.shutdownNow();
 }
