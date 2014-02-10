@@ -1,0 +1,62 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)liferayPortletRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  AssetRendererFactory assetRendererFactory=AssetRendererFactoryRegistryUtil.getAssetRendererFactoryByClassName(className);
+  if ((assetRendererFactory == null) || !assetRendererFactory.hasAddPermission(themeDisplay.getPermissionChecker(),groupId,classTypeId)) {
+    return null;
+  }
+  PortletURL addPortletURL=assetRendererFactory.getURLAdd(liferayPortletRequest,liferayPortletResponse);
+  if (addPortletURL == null) {
+    return null;
+  }
+  if (redirect != null) {
+    addPortletURL.setParameter("redirect",redirect);
+  }
+  String referringPortletResource=ParamUtil.getString(liferayPortletRequest,"portletResource");
+  if (Validator.isNotNull(referringPortletResource)) {
+    addPortletURL.setParameter("referringPortletResource",referringPortletResource);
+  }
+ else {
+    PortletDisplay portletDisplay=themeDisplay.getPortletDisplay();
+    addPortletURL.setParameter("referringPortletResource",portletDisplay.getId());
+    if (allAssetCategoryIds != null) {
+      Map<Long,String> assetVocabularyAssetCategoryIds=new HashMap<Long,String>();
+      for (      long assetCategoryId : allAssetCategoryIds) {
+        AssetCategory assetCategory=AssetCategoryLocalServiceUtil.fetchAssetCategory(assetCategoryId);
+        if (assetCategory == null) {
+          continue;
+        }
+        long assetVocabularyId=assetCategory.getVocabularyId();
+        if (assetVocabularyAssetCategoryIds.containsKey(assetVocabularyId)) {
+          String assetCategoryIds=assetVocabularyAssetCategoryIds.get(assetVocabularyId);
+          assetVocabularyAssetCategoryIds.put(assetVocabularyId,assetCategoryIds + StringPool.COMMA + assetCategoryId);
+        }
+ else {
+          assetVocabularyAssetCategoryIds.put(assetVocabularyId,String.valueOf(assetCategoryId));
+        }
+      }
+      for (      Map.Entry<Long,String> entry : assetVocabularyAssetCategoryIds.entrySet()) {
+        long assetVocabularyId=entry.getKey();
+        String assetCategoryIds=entry.getValue();
+        addPortletURL.setParameter("assetCategoryIds_" + assetVocabularyId,assetCategoryIds);
+      }
+    }
+    if (allAssetTagNames != null) {
+      addPortletURL.setParameter("assetTagNames",StringUtil.merge(allAssetTagNames));
+    }
+  }
+  if (classTypeId > 0) {
+    addPortletURL.setParameter("classTypeId",String.valueOf(classTypeId));
+    if (className.equals(DLFileEntry.class.getName())) {
+      addPortletURL.setParameter(Constants.CMD,Constants.ADD);
+      addPortletURL.setParameter("folderId",String.valueOf(DLFolderConstants.DEFAULT_PARENT_FOLDER_ID));
+      addPortletURL.setParameter("fileEntryTypeId",String.valueOf(classTypeId));
+    }
+    if (className.equals(JournalArticle.class.getName())) {
+      DDMStructure ddmStructure=DDMStructureLocalServiceUtil.getStructure(classTypeId);
+      addPortletURL.setParameter("structureId",ddmStructure.getStructureKey());
+    }
+  }
+  addPortletURL.setPortletMode(PortletMode.VIEW);
+  addPortletURL.setWindowState(LiferayWindowState.POP_UP);
+  return addPortletURL;
+}
