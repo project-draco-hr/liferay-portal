@@ -1,0 +1,32 @@
+{
+  final File file1=new File(_testDir,"test1");
+  final File file2=new File(_testDir,"test2");
+  String testContent="Test Content";
+  FileUtil.write(file2,testContent);
+  ServletContext servletContext=new MockServletContext(){
+    @Override public URL getResource(    String path) throws MalformedURLException {
+      if (path.contains(file1.getName())) {
+        URI uri=file1.toURI();
+        return uri.toURL();
+      }
+      if (path.contains(file2.getName())) {
+        URI uri=file2.toURI();
+        return uri.toURL();
+      }
+      return super.getResource(path);
+    }
+  }
+;
+  servletContext=_prepareServletContext(servletContext);
+  ServletPaths servletPaths=new ServletPaths(servletContext,"test");
+  Assert.assertNull(servletPaths.getContent());
+  List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(ServletPaths.class.getName(),Level.SEVERE);
+  servletPaths=new ServletPaths(servletContext,file1.getName());
+  Assert.assertNull(servletPaths.getContent());
+  Assert.assertEquals(1,logRecords.size());
+  LogRecord logRecord=logRecords.get(0);
+  Throwable throwable=logRecord.getThrown();
+  Assert.assertSame(FileNotFoundException.class,throwable.getClass());
+  servletPaths=new ServletPaths(servletContext,file2.getName());
+  Assert.assertEquals(testContent,servletPaths.getContent());
+}
