@@ -1,38 +1,38 @@
 {
-  int start=searchContext.getStart();
   int end=searchContext.getEnd();
-  if ((start == QueryUtil.ALL_POS) && (end == QueryUtil.ALL_POS)) {
-    Hits hits=getResults(searchContext);
-    filterResults(hits);
+  int start=searchContext.getStart();
+  if ((end == QueryUtil.ALL_POS) && (start == QueryUtil.ALL_POS)) {
+    Hits hits=getHits(searchContext);
+    filterHits(hits);
     return hits;
   }
   if ((start < 0) || (start > end)) {
     return new HitsImpl();
   }
+  int excludedDocsSize=0;
+  int hitsSize=0;
   int offset=0;
-  int totalHits=0;
   long startTime=0;
-  int totalExcludedDocs=0;
   List<Document> documents=new ArrayList<Document>();
   List<Float> scores=new ArrayList<Float>();
   while (true) {
     int count=end - documents.size();
     int amplifiedCount=(int)(count * _INDEX_PERMISSION_FILTER_SEARCH_AMPLIFICATION_FACTOR);
     int amplifiedEnd=offset + amplifiedCount;
-    searchContext.setStart(offset);
     searchContext.setEnd(amplifiedEnd);
-    Hits hits=getResults(searchContext);
+    searchContext.setStart(offset);
+    Hits hits=getHits(searchContext);
     if (startTime == 0) {
-      totalHits=hits.getLength();
+      hitsSize=hits.getLength();
       startTime=hits.getStart();
     }
-    Document[] orginalDocs=hits.getDocs();
-    filterResults(hits);
-    Document[] finalDocs=hits.getDocs();
-    totalExcludedDocs+=orginalDocs.length - finalDocs.length;
-    collectResults(hits,documents,scores,count);
-    if ((finalDocs.length >= count) || (orginalDocs.length < amplifiedCount) || (amplifiedEnd >= totalHits)) {
-      updateResults(hits,documents,scores,start,end,totalHits - totalExcludedDocs,startTime);
+    Document[] oldDocs=hits.getDocs();
+    filterHits(hits);
+    Document[] newDocs=hits.getDocs();
+    excludedDocsSize+=oldDocs.length - newDocs.length;
+    collectHits(hits,documents,scores,count);
+    if ((newDocs.length >= count) || (oldDocs.length < amplifiedCount) || (amplifiedEnd >= hitsSize)) {
+      updateHits(hits,documents,scores,start,end,hitsSize - excludedDocsSize,startTime);
       return hits;
     }
     offset=amplifiedEnd;
