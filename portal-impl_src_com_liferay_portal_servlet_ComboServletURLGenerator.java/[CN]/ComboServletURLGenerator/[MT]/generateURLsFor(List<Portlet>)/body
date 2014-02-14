@@ -1,0 +1,41 @@
+{
+  List<String> urls=new ArrayList<String>();
+  portlets=ListUtil.sort(portlets,_portletNameComparator);
+  StringBundler comboURLSB=new StringBundler(_comboURLPrefix);
+  boolean hasComboURL=false;
+  long timestamp=_minTimestamp;
+  for (  Portlet portlet : portlets) {
+    for (    PortletResourcesAccessor portletResourcesAccessor : _portletResourcesAccessors) {
+      List<String> resources=ListUtil.sort(portletResourcesAccessor.get(portlet));
+      for (      String resource : resources) {
+        if (!_predicateFilter.filter(resource)) {
+          continue;
+        }
+        if (_visited.contains(resource)) {
+          continue;
+        }
+        if (HttpUtil.hasProtocol(resource)) {
+          urls.add(resource);
+        }
+ else {
+          comboURLSB.append(StringPool.AMPERSAND);
+          String curPortletContextPath=portlet.getContextPath();
+          if (!portletResourcesAccessor.isPortalResource() && (curPortletContextPath != null) && !curPortletContextPath.equals(PortalUtil.getPathContext())) {
+            comboURLSB.append(curPortletContextPath);
+            comboURLSB.append(StringPool.COLON);
+          }
+          comboURLSB.append(HtmlUtil.escape(resource));
+          timestamp=Math.max(timestamp,portlet.getTimestamp());
+          hasComboURL=true;
+        }
+        _visited.add(resource);
+      }
+    }
+  }
+  if (hasComboURL) {
+    String comboURL=comboURLSB.toString();
+    comboURL=HttpUtil.addParameter(comboURL,"t",timestamp);
+    urls.add(comboURL);
+  }
+  return urls;
+}
