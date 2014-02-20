@@ -1,0 +1,30 @@
+{
+  IndexSearcher indexSearcher=_indexSearcherManager.aquire();
+  IndexReader indexReader=indexSearcher.getIndexReader();
+  int referenceCountBeforeAquire=indexReader.getRefCount();
+  _indexSearcherManager.aquire();
+  int referenceCountAfterAquire=indexReader.getRefCount();
+  Assert.assertEquals(referenceCountBeforeAquire + 1,referenceCountAfterAquire);
+  final String fieldValue="testvalue";
+  _addDocument(fieldValue);
+  _indexSearcherManager.invalid();
+  Thread thread=new Thread(){
+    public void run(){
+      try {
+        IndexSearcher indexSearcher1=_indexSearcherManager.aquire();
+        _assertHits(indexSearcher1,fieldValue,1);
+      }
+ catch (      Exception ex) {
+        Assert.fail();
+      }
+    }
+  }
+;
+synchronized (_indexSearcherManager) {
+    thread.start();
+    while (thread.getState() != State.BLOCKED)     ;
+    indexSearcher=_indexSearcherManager.aquire();
+    _assertHits(indexSearcher,fieldValue,1);
+  }
+  thread.join();
+}
