@@ -1,20 +1,18 @@
 {
   IndexSearcher indexSearcher=_indexSearcherManager.aquire();
   IndexReader indexReader=indexSearcher.getIndexReader();
-  int referenceCountBeforeAquire=indexReader.getRefCount();
-  _indexSearcherManager.aquire();
-  int referenceCountAfterAquire=indexReader.getRefCount();
-  Assert.assertEquals(referenceCountBeforeAquire + 1,referenceCountAfterAquire);
+  int referenceCount=indexReader.getRefCount();
+  Assert.assertSame(indexSearcher,_indexSearcherManager.aquire());
+  Assert.assertEquals(referenceCount + 1,indexReader.getRefCount());
   final String fieldValue="testvalue";
   _addDocument(fieldValue);
   _indexSearcherManager.invalid();
   Thread thread=new Thread(){
-    public void run(){
+    @Override public void run(){
       try {
-        IndexSearcher indexSearcher1=_indexSearcherManager.aquire();
-        _assertHits(indexSearcher1,fieldValue,1);
+        _assertHits(fieldValue,1);
       }
- catch (      Exception ex) {
+ catch (      Exception e) {
         Assert.fail();
       }
     }
@@ -23,8 +21,40 @@
 synchronized (_indexSearcherManager) {
     thread.start();
     while (thread.getState() != State.BLOCKED)     ;
-    indexSearcher=_indexSearcherManager.aquire();
-    _assertHits(indexSearcher,fieldValue,1);
+    _assertHits(fieldValue,1);
   }
   thread.join();
+  _drainRefs(1);
+  IndexReaderAdvice.block();
+  FutureTask<IndexSearcher> futureTask1=new FutureTask<IndexSearcher>(new Callable<IndexSearcher>(){
+    @Override public IndexSearcher call() throws Exception {
+      return _indexSearcherManager.aquire();
+    }
+  }
+);
+  thread=new Thread(futureTask1);
+  thread.start();
+  IndexReaderAdvice.waitUntilBlock(1);
+  _addDocument(fieldValue);
+  _indexSearcherManager.invalid();
+  FutureTask<IndexSearcher> futureTask2=new FutureTask<IndexSearcher>(new Callable<IndexSearcher>(){
+    @Override public IndexSearcher call() throws Exception {
+      return _indexSearcherManager.aquire();
+    }
+  }
+);
+  thread=new Thread(futureTask2);
+  thread.start();
+  IndexReaderAdvice.waitUntilBlock(2);
+  IndexReaderAdvice.unblock(2);
+  Assert.assertSame(futureTask1.get(),futureTask2.get());
+  Assert.assertNotSame(indexSearcher,futureTask1.get());
+  _drainRefs(0);
+  try {
+    _indexSearcherManager.aquire();
+    Assert.fail();
+  }
+ catch (  IllegalStateException ise) {
+    Assert.assertEquals("IndexReader has been closed externally",ise.getMessage());
+  }
 }
