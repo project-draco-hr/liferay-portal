@@ -1,0 +1,66 @@
+{
+  int endPos=openTag.length + 1;
+  char c=charBuffer.charAt(openTag.length);
+  if (c == CharPool.SPACE) {
+    int startPos=openTag.length + 1;
+    for (int i=startPos; i < charBuffer.length(); i++) {
+      c=charBuffer.charAt(i);
+      if (c == CharPool.GREATER_THAN) {
+        endPos=i + 1;
+        int length=i - startPos;
+        if ((length < _MARKER_TYPE_JAVASCRIPT.length()) || (KMPSearch.search(charBuffer,startPos,length,_MARKER_TYPE_JAVASCRIPT,_MARKER_TYPE_JAVASCRIPT_NEXTS) == -1)) {
+          if (!hasLanguageAttribute(charBuffer,startPos,length)) {
+            return;
+          }
+        }
+        break;
+      }
+ else       if (c == CharPool.LESS_THAN) {
+        return;
+      }
+    }
+    if (endPos == charBuffer.length()) {
+      return;
+    }
+  }
+ else   if (c != CharPool.GREATER_THAN) {
+    return;
+  }
+  writer.append(charBuffer,0,endPos);
+  charBuffer.position(charBuffer.position() + endPos);
+  int length=KMPSearch.search(charBuffer,_MARKER_SCRIPT_CLOSE,_MARKER_SCRIPT_CLOSE_NEXTS);
+  if (length == -1) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Missing </script>");
+    }
+    return;
+  }
+  if (length == 0) {
+    outputCloseTag(charBuffer,writer,_MARKER_SCRIPT_CLOSE);
+    return;
+  }
+  String content=extractContent(charBuffer,length);
+  String minifiedContent=content;
+  if (PropsValues.MINIFIER_INLINE_CONTENT_CACHE_SIZE > 0) {
+    CacheKeyGenerator cacheKeyGenerator=CacheKeyGeneratorUtil.getCacheKeyGenerator(StripFilter.class.getName());
+    String key=String.valueOf(cacheKeyGenerator.getCacheKey(content));
+    minifiedContent=_minifierCache.get(key);
+    if (minifiedContent == null) {
+      minifiedContent=MinifierUtil.minifyJavaScript(resourceName,content);
+      boolean skipCache=false;
+      for (      String skipJavaScript : PropsValues.MINIFIER_INLINE_CONTENT_CACHE_SKIP_JAVASCRIPT) {
+        if (minifiedContent.contains(skipJavaScript)) {
+          skipCache=true;
+          break;
+        }
+      }
+      if (!skipCache) {
+        _minifierCache.put(key,minifiedContent);
+      }
+    }
+  }
+  if (Validator.isNotNull(minifiedContent)) {
+    writer.write(minifiedContent);
+  }
+  outputCloseTag(charBuffer,writer,_MARKER_SCRIPT_CLOSE);
+}
