@@ -1,16 +1,29 @@
 {
-  int count=10;
-  do {
-    IndexSearcher indexSearcher=_indexSearcherAtomicReference.get();
-    if (indexSearcher == null) {
-      throw new AlreadyClosedException("This SearcherManager is closed");
+  if (_invalid) {
+synchronized (this) {
+      if (_invalid) {
+        IndexSearcher indexSearcher=_indexSearcher;
+        if (indexSearcher == null) {
+          throw new AlreadyClosedException("IndexSearcherManager is closed");
+        }
+        IndexReader newIndexReader=IndexReader.openIfChanged(indexSearcher.getIndexReader());
+        if (newIndexReader != null) {
+          _indexSearcher=_createIndexSearcher(newIndexReader);
+          release(indexSearcher);
+        }
+        _invalid=false;
+      }
     }
+  }
+  IndexSearcher indexSearcher=null;
+  while ((indexSearcher=_indexSearcher) != null) {
     IndexReader indexReader=indexSearcher.getIndexReader();
     if (indexReader.tryIncRef()) {
       return indexSearcher;
     }
-    count--;
+    if (indexSearcher == _indexSearcher) {
+      throw new IllegalStateException("IndexReader has been closed externally");
+    }
   }
- while (count > 0);
-  throw new IllegalStateException("Unable to get IndexSearcher.");
+  throw new AlreadyClosedException("IndexSearcherManager is closed");
 }
