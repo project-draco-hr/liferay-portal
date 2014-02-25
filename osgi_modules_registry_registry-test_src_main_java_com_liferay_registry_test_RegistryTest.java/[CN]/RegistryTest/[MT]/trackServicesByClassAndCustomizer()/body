@@ -1,0 +1,36 @@
+{
+  Registry registry=RegistryUtil.getRegistry();
+  InterfaceOne a=getInstance();
+  InterfaceOne b=getInstance();
+  AtomicReference<TrackedOne> referenceA=new AtomicReference<TrackedOne>();
+  AtomicReference<TrackedOne> referenceB=new AtomicReference<TrackedOne>();
+  ServiceTrackerCustomizer<InterfaceOne,TrackedOne> customizer=new TestCustomizer(a,b,referenceA,referenceB);
+  ServiceTracker<InterfaceOne,TrackedOne> serviceTracker=registry.trackServices(InterfaceOne.class,customizer);
+  serviceTracker.open();
+  Assert.assertTrue(serviceTracker.isEmpty());
+  Assert.assertEquals(0,serviceTracker.size());
+  Map<String,Object> map=new HashMap<String,Object>();
+  map.put("a.property","G");
+  ServiceRegistration<InterfaceOne> serviceRegistrationA=registry.registerService(InterfaceOne.class,a);
+  ServiceRegistration<InterfaceOne> serviceRegistrationB=registry.registerService(InterfaceOne.class,b,map);
+  Assert.assertNotNull(serviceRegistrationA);
+  Assert.assertNotNull(serviceRegistrationB);
+  Assert.assertFalse(serviceTracker.isEmpty());
+  Assert.assertEquals(referenceA.get(),serviceTracker.getService());
+  Assert.assertEquals(referenceB.get(),serviceTracker.getService(serviceRegistrationB.getServiceReference()));
+  Assert.assertEquals(2,serviceTracker.getServiceReferences().length);
+  Assert.assertEquals(2,serviceTracker.getServices().length);
+  SortedMap<ServiceReference<InterfaceOne>,TrackedOne> trackedServiceReference=serviceTracker.getTrackedServiceReferences();
+  Assert.assertNotNull(trackedServiceReference);
+  Assert.assertEquals(2,trackedServiceReference.size());
+  Assert.assertEquals(referenceA.get(),trackedServiceReference.get(trackedServiceReference.firstKey()));
+  Assert.assertEquals(referenceB.get(),trackedServiceReference.get(trackedServiceReference.lastKey()));
+  serviceRegistrationA.unregister();
+  Assert.assertEquals(1,serviceTracker.size());
+  serviceRegistrationB.unregister();
+  Assert.assertEquals(0,serviceTracker.size());
+  trackedServiceReference=serviceTracker.getTrackedServiceReferences();
+  Assert.assertNotNull(trackedServiceReference);
+  Assert.assertEquals(0,trackedServiceReference.size());
+  serviceTracker.close();
+}
