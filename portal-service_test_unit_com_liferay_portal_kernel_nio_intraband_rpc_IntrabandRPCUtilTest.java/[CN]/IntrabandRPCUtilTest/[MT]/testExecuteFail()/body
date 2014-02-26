@@ -14,4 +14,29 @@
     Throwable throwable=ibrpce.getCause();
     Assert.assertSame(RuntimeException.class,throwable.getClass());
   }
+  final Exception exception=new Exception("Execution error");
+  mockIntraband=new MockIntraband(){
+    @Override protected void doSendDatagram(    RegistrationReference registrationReference,    Datagram datagram){
+      try {
+        Serializer serializer=new Serializer();
+        serializer.writeObject(new RPCResponse(exception));
+        CompletionHandler<Object> completionHandler=DatagramHelper.getCompletionHandler(datagram);
+        completionHandler.replied(null,Datagram.createResponseDatagram(datagram,serializer.toByteBuffer()));
+      }
+ catch (      Exception e) {
+        Assert.fail(e.getMessage());
+      }
+    }
+  }
+;
+  MockRegistrationReference mockRegistrationReference=new MockRegistrationReference(mockIntraband);
+  Future<String> futureResult=IntrabandRPCUtil.execute(mockRegistrationReference,new TestProcessCallable());
+  try {
+    futureResult.get();
+    Assert.fail();
+  }
+ catch (  ExecutionException ee) {
+    Throwable t=ee.getCause();
+    Assert.assertEquals(exception.getMessage(),t.getMessage());
+  }
 }
