@@ -1,0 +1,53 @@
+{
+  if (methodStarted) {
+    methodStarted=false;
+    myVariableIndex=getFirstStackVariable();
+    mv.visitInsn(ICONST_0);
+    mv.visitVarInsn(ISTORE,myVariableIndex);
+    mv.visitIntInsn(SIPUSH,-1);
+    mv.visitVarInsn(ISTORE,myVariableIndex + 1);
+    startLabel=label;
+  }
+  endLabel=label;
+  super.visitLabel(label);
+  if (firstPass.getJumpTargetLabels().keySet().contains(label)) {
+    if (lastJump != null) {
+      Label newLabelX=instrumentIsLastJump();
+      instrumentOwnerClass();
+      instrumentPutLineAndBranchNumbers();
+      mv.visitInsn(BOOLEAN_FALSE);
+      instrumentInvokeTouchJump();
+      Label newLabelY=new Label();
+      mv.visitJumpInsn(GOTO,newLabelY);
+      mv.visitLabel(newLabelX);
+      mv.visitVarInsn(ILOAD,myVariableIndex + 1);
+      mv.visitJumpInsn(IFLT,newLabelY);
+      instrumentOwnerClass();
+      instrumentPutLineAndBranchNumbers();
+      mv.visitInsn(BOOLEAN_TRUE);
+      instrumentInvokeTouchJump();
+      mv.visitLabel(newLabelY);
+    }
+ else {
+      mv.visitVarInsn(ILOAD,myVariableIndex + 1);
+      Label newLabelX=new Label();
+      mv.visitJumpInsn(IFLT,newLabelX);
+      instrumentJumpHit(true);
+      mv.visitLabel(newLabelX);
+    }
+  }
+ else   if (lastJump != null) {
+    Label newLabelX=instrumentIsLastJump();
+    instrumentJumpHit(false);
+    mv.visitLabel(newLabelX);
+  }
+  lastJump=null;
+  SwitchHolder sh=(SwitchHolder)firstPass.getSwitchTargetLabels().get(label);
+  if (sh != null) {
+    instrumentSwitchHit(sh.getLineNumber(),sh.getSwitchNumber(),sh.getBranch());
+  }
+  Integer line=(Integer)firstPass.getLineLabels().get(label);
+  if (line != null) {
+    visitLineNumber(line.intValue(),label);
+  }
+}
