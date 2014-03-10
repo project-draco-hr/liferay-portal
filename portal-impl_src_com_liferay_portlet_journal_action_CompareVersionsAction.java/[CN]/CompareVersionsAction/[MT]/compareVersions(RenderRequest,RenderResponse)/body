@@ -1,0 +1,34 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)renderRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  long groupId=ParamUtil.getLong(renderRequest,"groupId");
+  String articleId=ParamUtil.getString(renderRequest,"articleId");
+  String sourceArticleId=ParamUtil.getString(renderRequest,"sourceVersion");
+  String targetArticleId=ParamUtil.getString(renderRequest,"targetVersion");
+  int pos=sourceArticleId.lastIndexOf(EditArticleAction.VERSION_SEPARATOR);
+  if (pos != -1) {
+    sourceArticleId=sourceArticleId.substring(pos + EditArticleAction.VERSION_SEPARATOR.length(),sourceArticleId.length());
+  }
+  double sourceVersion=GetterUtil.getDouble(sourceArticleId);
+  pos=targetArticleId.lastIndexOf(EditArticleAction.VERSION_SEPARATOR);
+  if (pos != -1) {
+    targetArticleId=targetArticleId.substring(pos + EditArticleAction.VERSION_SEPARATOR.length(),targetArticleId.length());
+  }
+  double targetVersion=GetterUtil.getDouble(targetArticleId);
+  if ((sourceVersion == 0) && (targetVersion == 0)) {
+    List<JournalArticle> articles=JournalArticleServiceUtil.getArticlesByArticleId(groupId,articleId,0,2,new ArticleVersionComparator(false));
+    sourceVersion=articles.get(0).getVersion();
+    targetVersion=articles.get(1).getVersion();
+  }
+  if (sourceVersion > targetVersion) {
+    double tmpVersion=targetVersion;
+    targetVersion=sourceVersion;
+    sourceVersion=tmpVersion;
+  }
+  String xmlRequest=PortletRequestUtil.toXML(renderRequest,renderResponse);
+  JournalArticleDisplay sourceArticleDisplay=JournalArticleLocalServiceUtil.getArticleDisplay(groupId,articleId,sourceVersion,null,Constants.VIEW,themeDisplay.getLanguageId(),1,xmlRequest,themeDisplay);
+  JournalArticleDisplay targetArticleDisplay=JournalArticleLocalServiceUtil.getArticleDisplay(groupId,articleId,targetVersion,null,Constants.VIEW,themeDisplay.getLanguageId(),1,xmlRequest,themeDisplay);
+  String diffHtmlResults=DiffHtmlUtil.diff(new UnsyncStringReader(sourceArticleDisplay.getContent()),new UnsyncStringReader(targetArticleDisplay.getContent()));
+  renderRequest.setAttribute(WebKeys.DIFF_HTML_RESULTS,diffHtmlResults);
+  renderRequest.setAttribute(WebKeys.SOURCE_VERSION,sourceVersion);
+  renderRequest.setAttribute(WebKeys.TARGET_VERSION,targetVersion);
+}
