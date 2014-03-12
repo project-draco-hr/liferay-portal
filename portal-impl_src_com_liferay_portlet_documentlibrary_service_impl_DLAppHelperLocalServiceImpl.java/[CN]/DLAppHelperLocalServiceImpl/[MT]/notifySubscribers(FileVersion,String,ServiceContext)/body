@@ -1,0 +1,77 @@
+{
+  String layoutFullURL=serviceContext.getLayoutFullURL();
+  if (!fileVersion.isApproved() || Validator.isNull(layoutFullURL)) {
+    return;
+  }
+  DLSettings dlSettings=DLUtil.getDLSettings(fileVersion.getGroupId());
+  if (serviceContext.isCommandAdd() && dlSettings.getEmailFileEntryAddedEnabled()) {
+  }
+ else   if (serviceContext.isCommandUpdate() && dlSettings.getEmailFileEntryUpdatedEnabled()) {
+  }
+ else {
+    return;
+  }
+  String entryTitle=fileVersion.getTitle();
+  String fromName=dlSettings.getEmailFromName();
+  String fromAddress=dlSettings.getEmailFromAddress();
+  Map<Locale,String> localizedSubjectMap=null;
+  Map<Locale,String> localizedBodyMap=null;
+  if (serviceContext.isCommandUpdate()) {
+    localizedSubjectMap=dlSettings.getEmailFileEntryUpdatedSubject();
+    localizedBodyMap=dlSettings.getEmailFileEntryUpdatedBody();
+  }
+ else {
+    localizedSubjectMap=dlSettings.getEmailFileEntryAddedSubject();
+    localizedBodyMap=dlSettings.getEmailFileEntryAddedBody();
+  }
+  FileEntry fileEntry=fileVersion.getFileEntry();
+  Folder folder=null;
+  long folderId=fileEntry.getFolderId();
+  if (folderId != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+    folder=dlAppLocalService.getFolder(folderId);
+  }
+  String folderName=LanguageUtil.get(serviceContext.getLocale(),"home");
+  if (folder != null) {
+    folderName=folder.getName();
+  }
+  SubscriptionSender subscriptionSender=new SubscriptionSender();
+  DLFileEntry dlFileEntry=(DLFileEntry)fileEntry.getModel();
+  DLFileEntryType dlFileEntryType=dlFileEntryTypeLocalService.getDLFileEntryType(dlFileEntry.getFileEntryTypeId());
+  subscriptionSender.setClassPK(fileVersion.getFileEntryId());
+  subscriptionSender.setClassName(DLFileEntryConstants.getClassName());
+  subscriptionSender.setCompanyId(fileVersion.getCompanyId());
+  subscriptionSender.setContextAttributes("[$DOCUMENT_STATUS_BY_USER_NAME$]",fileVersion.getStatusByUserName(),"[$DOCUMENT_TITLE$]",entryTitle,"[$DOCUMENT_TYPE$]",dlFileEntryType.getName(serviceContext.getLocale()),"[$DOCUMENT_URL$]",entryURL,"[$FOLDER_NAME$]",folderName);
+  subscriptionSender.setContextUserPrefix("DOCUMENT");
+  subscriptionSender.setEntryTitle(entryTitle);
+  subscriptionSender.setEntryURL(entryURL);
+  subscriptionSender.setFrom(fromAddress,fromName);
+  subscriptionSender.setHtmlFormat(true);
+  subscriptionSender.setLocalizedBodyMap(localizedBodyMap);
+  subscriptionSender.setLocalizedSubjectMap(localizedSubjectMap);
+  subscriptionSender.setMailId("file_entry",fileVersion.getFileEntryId());
+  int notificationType=UserNotificationDefinition.NOTIFICATION_TYPE_ADD_ENTRY;
+  if (serviceContext.isCommandUpdate()) {
+    notificationType=UserNotificationDefinition.NOTIFICATION_TYPE_UPDATE_ENTRY;
+  }
+  subscriptionSender.setNotificationType(notificationType);
+  subscriptionSender.setPortletId(PortletKeys.DOCUMENT_LIBRARY);
+  subscriptionSender.setReplyToAddress(fromAddress);
+  subscriptionSender.setScopeGroupId(fileVersion.getGroupId());
+  subscriptionSender.setServiceContext(serviceContext);
+  subscriptionSender.setUserId(fileVersion.getUserId());
+  subscriptionSender.addPersistedSubscribers(Folder.class.getName(),fileVersion.getGroupId());
+  if (folder != null) {
+    subscriptionSender.addPersistedSubscribers(Folder.class.getName(),folder.getFolderId());
+    for (    Long ancestorFolderId : folder.getAncestorFolderIds()) {
+      subscriptionSender.addPersistedSubscribers(Folder.class.getName(),ancestorFolderId);
+    }
+  }
+  if (dlFileEntryType.getFileEntryTypeId() == DLFileEntryTypeConstants.FILE_ENTRY_TYPE_ID_BASIC_DOCUMENT) {
+    subscriptionSender.addPersistedSubscribers(DLFileEntryType.class.getName(),fileVersion.getGroupId());
+  }
+ else {
+    subscriptionSender.addPersistedSubscribers(DLFileEntryType.class.getName(),dlFileEntryType.getFileEntryTypeId());
+  }
+  subscriptionSender.addPersistedSubscribers(DLFileEntry.class.getName(),fileEntry.getFileEntryId());
+  subscriptionSender.flushNotificationsAsync();
+}

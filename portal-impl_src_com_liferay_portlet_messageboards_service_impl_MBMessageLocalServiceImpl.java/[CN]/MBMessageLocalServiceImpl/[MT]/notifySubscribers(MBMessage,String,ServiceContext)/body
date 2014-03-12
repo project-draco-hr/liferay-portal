@@ -1,0 +1,120 @@
+{
+  String layoutFullURL=serviceContext.getLayoutFullURL();
+  if (!message.isApproved() || Validator.isNull(layoutFullURL)) {
+    return;
+  }
+  if (message.isDiscussion()) {
+    try {
+      notifyDiscussionSubscribers(message,serviceContext);
+    }
+ catch (    Exception e) {
+      _log.error(e,e);
+    }
+    return;
+  }
+  MBSettings mbSettings=MBUtil.getMBSettings(message.getGroupId());
+  if (serviceContext.isCommandAdd() && mbSettings.isEmailMessageAddedEnabled()) {
+  }
+ else   if (serviceContext.isCommandUpdate() && mbSettings.isEmailMessageUpdatedEnabled()) {
+  }
+ else {
+    return;
+  }
+  Company company=companyPersistence.findByPrimaryKey(message.getCompanyId());
+  Group group=groupPersistence.findByPrimaryKey(message.getGroupId());
+  String emailAddress=PortalUtil.getUserEmailAddress(message.getUserId());
+  String fullName=PortalUtil.getUserName(message.getUserId(),message.getUserName());
+  if (message.isAnonymous()) {
+    emailAddress=StringPool.BLANK;
+    fullName=serviceContext.translate("anonymous");
+  }
+  MBCategory category=message.getCategory();
+  String categoryName=category.getName();
+  if (category.getCategoryId() == MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) {
+    categoryName=serviceContext.translate("message-boards-home");
+    categoryName+=" - " + group.getDescriptiveName();
+  }
+  List<Long> categoryIds=new ArrayList<Long>();
+  categoryIds.add(message.getCategoryId());
+  if (message.getCategoryId() != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) {
+    categoryIds.addAll(category.getAncestorCategoryIds());
+  }
+  String entryTitle=message.getSubject();
+  String fromName=mbSettings.getEmailFromName();
+  String fromAddress=mbSettings.getEmailFromAddress();
+  String replyToAddress=StringPool.BLANK;
+  if (PropsValues.POP_SERVER_NOTIFICATIONS_ENABLED) {
+    replyToAddress=MBUtil.getReplyToAddress(message.getCategoryId(),message.getMessageId(),company.getMx(),fromAddress);
+  }
+  LocalizedValuesMap subjectLocalizedValuesMap=null;
+  LocalizedValuesMap bodyLocalizedValuesMap=null;
+  if (serviceContext.isCommandUpdate()) {
+    subjectLocalizedValuesMap=mbSettings.getEmailMessageUpdatedSubject();
+    bodyLocalizedValuesMap=mbSettings.getEmailMessageUpdatedBody();
+  }
+ else {
+    subjectLocalizedValuesMap=mbSettings.getEmailMessageAddedSubject();
+    bodyLocalizedValuesMap=mbSettings.getEmailMessageAddedBody();
+  }
+  boolean htmlFormat=mbSettings.isEmailHtmlFormat();
+  String messageBody=message.getBody();
+  if (htmlFormat && message.isFormatBBCode()) {
+    try {
+      messageBody=BBCodeTranslatorUtil.getHTML(messageBody);
+      HttpServletRequest request=serviceContext.getRequest();
+      if (request != null) {
+        ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+        messageBody=MBUtil.replaceMessageBodyPaths(themeDisplay,messageBody);
+      }
+    }
+ catch (    Exception e) {
+      _log.error("Could not parse message " + message.getMessageId() + " "+ e.getMessage());
+    }
+  }
+  String inReplyTo=null;
+  if (message.getParentMessageId() != MBMessageConstants.DEFAULT_PARENT_MESSAGE_ID) {
+    inReplyTo=PortalUtil.getMailId(company.getMx(),MBUtil.MESSAGE_POP_PORTLET_PREFIX,message.getCategoryId(),message.getParentMessageId());
+  }
+  SubscriptionSender subscriptionSenderPrototype=new MBSubscriptionSender();
+  subscriptionSenderPrototype.setBulk(PropsValues.MESSAGE_BOARDS_EMAIL_BULK);
+  subscriptionSenderPrototype.setClassName(message.getModelClassName());
+  subscriptionSenderPrototype.setClassPK(message.getMessageId());
+  subscriptionSenderPrototype.setCompanyId(message.getCompanyId());
+  subscriptionSenderPrototype.setContextAttribute("[$MESSAGE_BODY$]",messageBody,false);
+  subscriptionSenderPrototype.setContextAttributes("[$CATEGORY_NAME$]",categoryName,"[$MAILING_LIST_ADDRESS$]",replyToAddress,"[$MESSAGE_ID$]",message.getMessageId(),"[$MESSAGE_SUBJECT$]",entryTitle,"[$MESSAGE_URL$]",messageURL,"[$MESSAGE_USER_ADDRESS$]",emailAddress,"[$MESSAGE_USER_NAME$]",fullName);
+  subscriptionSenderPrototype.setEntryTitle(entryTitle);
+  subscriptionSenderPrototype.setEntryURL(messageURL);
+  subscriptionSenderPrototype.setFrom(fromAddress,fromName);
+  subscriptionSenderPrototype.setHtmlFormat(htmlFormat);
+  subscriptionSenderPrototype.setInReplyTo(inReplyTo);
+  subscriptionSenderPrototype.setLocalizedBodyMap(bodyLocalizedValuesMap);
+  subscriptionSenderPrototype.setLocalizedSubjectMap(subjectLocalizedValuesMap);
+  subscriptionSenderPrototype.setMailId(MBUtil.MESSAGE_POP_PORTLET_PREFIX,message.getCategoryId(),message.getMessageId());
+  int notificationType=UserNotificationDefinition.NOTIFICATION_TYPE_ADD_ENTRY;
+  if (serviceContext.isCommandUpdate()) {
+    notificationType=UserNotificationDefinition.NOTIFICATION_TYPE_UPDATE_ENTRY;
+  }
+  subscriptionSenderPrototype.setNotificationType(notificationType);
+  subscriptionSenderPrototype.setPortletId(PortletKeys.MESSAGE_BOARDS);
+  subscriptionSenderPrototype.setReplyToAddress(replyToAddress);
+  subscriptionSenderPrototype.setScopeGroupId(message.getGroupId());
+  subscriptionSenderPrototype.setServiceContext(serviceContext);
+  subscriptionSenderPrototype.setUserId(message.getUserId());
+  SubscriptionSender subscriptionSender=(SubscriptionSender)SerializableUtil.clone(subscriptionSenderPrototype);
+  subscriptionSender.addPersistedSubscribers(MBCategory.class.getName(),message.getGroupId());
+  for (  long categoryId : categoryIds) {
+    if (categoryId != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) {
+      subscriptionSender.addPersistedSubscribers(MBCategory.class.getName(),categoryId);
+    }
+  }
+  subscriptionSender.addPersistedSubscribers(MBThread.class.getName(),message.getThreadId());
+  subscriptionSender.flushNotificationsAsync();
+  if (!MailingListThreadLocal.isSourceMailingList()) {
+    for (    long categoryId : categoryIds) {
+      MBSubscriptionSender sourceMailingListSubscriptionSender=(MBSubscriptionSender)SerializableUtil.clone(subscriptionSenderPrototype);
+      sourceMailingListSubscriptionSender.setBulk(false);
+      sourceMailingListSubscriptionSender.addMailingListSubscriber(message.getGroupId(),categoryId);
+      sourceMailingListSubscriptionSender.flushNotificationsAsync();
+    }
+  }
+}

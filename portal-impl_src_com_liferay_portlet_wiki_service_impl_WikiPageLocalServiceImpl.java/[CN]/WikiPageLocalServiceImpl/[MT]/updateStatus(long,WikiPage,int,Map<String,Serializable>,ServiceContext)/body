@@ -1,0 +1,65 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  Date now=new Date();
+  int oldStatus=page.getStatus();
+  page.setStatus(status);
+  page.setStatusByUserId(userId);
+  page.setStatusByUserName(user.getFullName());
+  page.setStatusDate(now);
+  wikiPagePersistence.update(page);
+  if (status == WorkflowConstants.STATUS_APPROVED) {
+    if ((oldStatus != WorkflowConstants.STATUS_APPROVED) && (page.getVersion() != WikiPageConstants.VERSION_DEFAULT)) {
+      AssetEntry draftAssetEntry=assetEntryLocalService.fetchEntry(WikiPage.class.getName(),page.getPrimaryKey());
+      if (draftAssetEntry != null) {
+        long[] assetCategoryIds=draftAssetEntry.getCategoryIds();
+        String[] assetTagNames=draftAssetEntry.getTagNames();
+        List<AssetLink> assetLinks=assetLinkLocalService.getDirectLinks(draftAssetEntry.getEntryId(),AssetLinkConstants.TYPE_RELATED);
+        long[] assetLinkEntryIds=StringUtil.split(ListUtil.toString(assetLinks,AssetLink.ENTRY_ID2_ACCESSOR),0L);
+        AssetEntry assetEntry=assetEntryLocalService.updateEntry(userId,page.getGroupId(),page.getCreateDate(),page.getModifiedDate(),WikiPage.class.getName(),page.getResourcePrimKey(),page.getUuid(),0,assetCategoryIds,assetTagNames,true,null,null,null,ContentTypes.TEXT_HTML,page.getTitle(),null,null,null,null,0,0,null,false);
+        assetLinkLocalService.updateLinks(userId,assetEntry.getEntryId(),assetLinkEntryIds,AssetLinkConstants.TYPE_RELATED);
+        SystemEventHierarchyEntryThreadLocal.push(WikiPage.class);
+        try {
+          assetEntryLocalService.deleteEntry(draftAssetEntry.getEntryId());
+        }
+  finally {
+          SystemEventHierarchyEntryThreadLocal.pop(WikiPage.class);
+        }
+      }
+    }
+    assetEntryLocalService.updateVisible(WikiPage.class.getName(),page.getResourcePrimKey(),true);
+    if ((oldStatus != WorkflowConstants.STATUS_IN_TRASH) && (page.getVersion() == WikiPageConstants.VERSION_DEFAULT) && (!page.isMinorEdit() || PropsValues.WIKI_PAGE_MINOR_EDIT_ADD_SOCIAL_ACTIVITY)) {
+      JSONObject extraDataJSONObject=JSONFactoryUtil.createJSONObject();
+      extraDataJSONObject.put("title",page.getTitle());
+      extraDataJSONObject.put("version",page.getVersion());
+      socialActivityLocalService.addActivity(userId,page.getGroupId(),WikiPage.class.getName(),page.getResourcePrimKey(),WikiActivityKeys.ADD_PAGE,extraDataJSONObject.toString(),0);
+    }
+    if (NotificationThreadLocal.isEnabled() && (!page.isMinorEdit() || PropsValues.WIKI_PAGE_MINOR_EDIT_SEND_EMAIL)) {
+      notifySubscribers(page,(String)workflowContext.get(WorkflowConstants.CONTEXT_URL),serviceContext);
+    }
+    clearPageCache(page);
+  }
+  if (status == WorkflowConstants.STATUS_APPROVED) {
+    page.setHead(true);
+    List<WikiPage> pages=wikiPagePersistence.findByN_T_H(page.getNodeId(),page.getTitle(),true);
+    for (    WikiPage curPage : pages) {
+      if (!curPage.equals(page)) {
+        curPage.setHead(false);
+        wikiPagePersistence.update(curPage);
+      }
+    }
+  }
+ else   if (status != WorkflowConstants.STATUS_IN_TRASH) {
+    page.setHead(false);
+    List<WikiPage> pages=wikiPagePersistence.findByN_T_S(page.getNodeId(),page.getTitle(),WorkflowConstants.STATUS_APPROVED);
+    for (    WikiPage curPage : pages) {
+      if (!curPage.equals(page)) {
+        curPage.setHead(true);
+        wikiPagePersistence.update(curPage);
+        break;
+      }
+    }
+  }
+  Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(WikiPage.class);
+  indexer.reindex(page);
+  return wikiPagePersistence.update(page);
+}
