@@ -20,51 +20,45 @@
   }
   tokens.put("article_resource_pk",String.valueOf(article.getResourcePrimKey()));
   String defaultDDMTemplateKey=article.getTemplateId();
-  if (article.isTemplateDriven()) {
-    if (Validator.isNull(ddmTemplateKey)) {
-      ddmTemplateKey=defaultDDMTemplateKey;
-    }
-    tokens.put("structure_id",article.getStructureId());
-    tokens.put("template_id",ddmTemplateKey);
+  if (Validator.isNull(ddmTemplateKey)) {
+    ddmTemplateKey=defaultDDMTemplateKey;
   }
+  tokens.put("structure_id",article.getStructureId());
+  tokens.put("template_id",ddmTemplateKey);
   String xml=article.getContent();
   try {
-    Document document=null;
-    Element rootElement=null;
-    if (article.isTemplateDriven()) {
-      document=SAXReaderUtil.read(xml);
-      rootElement=document.getRootElement();
-      Document requestDocument=SAXReaderUtil.read(xmlRequest);
-      List<Element> pages=rootElement.elements("page");
-      if (!pages.isEmpty()) {
-        pageFlow=true;
-        String targetPage=requestDocument.valueOf("/request/parameters/parameter[name='targetPage']/" + "value");
-        Element pageElement=null;
-        if (Validator.isNotNull(targetPage)) {
-          targetPage=HtmlUtil.escapeXPathAttribute(targetPage);
-          XPath xPathSelector=SAXReaderUtil.createXPath("/root/page[@id = " + targetPage + "]");
-          pageElement=(Element)xPathSelector.selectSingleNode(document);
-        }
-        if (pageElement != null) {
-          document=SAXReaderUtil.createDocument(pageElement);
-          rootElement=document.getRootElement();
-          numberOfPages=pages.size();
-        }
- else {
-          if (page > pages.size()) {
-            page=1;
-          }
-          pageElement=pages.get(page - 1);
-          document=SAXReaderUtil.createDocument(pageElement);
-          rootElement=document.getRootElement();
-          numberOfPages=pages.size();
-          paginate=true;
-        }
+    Document document=SAXReaderUtil.read(xml);
+    Element rootElement=document.getRootElement();
+    Document requestDocument=SAXReaderUtil.read(xmlRequest);
+    List<Element> pages=rootElement.elements("page");
+    if (!pages.isEmpty()) {
+      pageFlow=true;
+      String targetPage=requestDocument.valueOf("/request/parameters/parameter[name='targetPage']/value");
+      Element pageElement=null;
+      if (Validator.isNotNull(targetPage)) {
+        targetPage=HtmlUtil.escapeXPathAttribute(targetPage);
+        XPath xPathSelector=SAXReaderUtil.createXPath("/root/page[@id = " + targetPage + "]");
+        pageElement=(Element)xPathSelector.selectSingleNode(document);
       }
-      rootElement.add(requestDocument.getRootElement().createCopy());
-      JournalUtil.addAllReservedEls(rootElement,tokens,article,languageId,themeDisplay);
-      xml=DDMXMLUtil.formatXML(document);
+      if (pageElement != null) {
+        document=SAXReaderUtil.createDocument(pageElement);
+        rootElement=document.getRootElement();
+        numberOfPages=pages.size();
+      }
+ else {
+        if (page > pages.size()) {
+          page=1;
+        }
+        pageElement=pages.get(page - 1);
+        document=SAXReaderUtil.createDocument(pageElement);
+        rootElement=document.getRootElement();
+        numberOfPages=pages.size();
+        paginate=true;
+      }
     }
+    rootElement.add(requestDocument.getRootElement().createCopy());
+    JournalUtil.addAllReservedEls(rootElement,tokens,article,languageId,themeDisplay);
+    xml=DDMXMLUtil.formatXML(document);
   }
  catch (  DocumentException de) {
     throw new SystemException(de);
@@ -73,32 +67,28 @@
     if (_log.isDebugEnabled()) {
       _log.debug("Transforming " + article.getArticleId() + " "+ article.getVersion()+ " "+ languageId);
     }
-    String script=null;
-    String langType=null;
-    if (article.isTemplateDriven()) {
-      DDMTemplate ddmTemplate=null;
-      try {
-        ddmTemplate=ddmTemplatePersistence.findByG_C_T(PortalUtil.getSiteGroupId(article.getGroupId()),classNameLocalService.getClassNameId(DDMStructure.class),ddmTemplateKey);
-      }
- catch (      NoSuchTemplateException nste1) {
-        try {
-          Group companyGroup=groupLocalService.getCompanyGroup(article.getCompanyId());
-          ddmTemplate=ddmTemplatePersistence.findByG_C_T(companyGroup.getGroupId(),classNameLocalService.getClassNameId(DDMStructure.class),ddmTemplateKey);
-          tokens.put("company_group_id",String.valueOf(companyGroup.getGroupId()));
-        }
- catch (        NoSuchTemplateException nste2) {
-          if (!defaultDDMTemplateKey.equals(ddmTemplateKey)) {
-            ddmTemplate=ddmTemplatePersistence.findByG_C_T(PortalUtil.getSiteGroupId(article.getGroupId()),classNameLocalService.getClassNameId(DDMStructure.class),defaultDDMTemplateKey);
-          }
- else {
-            throw nste1;
-          }
-        }
-      }
-      script=ddmTemplate.getScript();
-      langType=ddmTemplate.getLanguage();
-      cacheable=ddmTemplate.isCacheable();
+    DDMTemplate ddmTemplate=null;
+    try {
+      ddmTemplate=ddmTemplatePersistence.findByG_C_T(PortalUtil.getSiteGroupId(article.getGroupId()),classNameLocalService.getClassNameId(DDMStructure.class),ddmTemplateKey);
     }
+ catch (    NoSuchTemplateException nste1) {
+      try {
+        Group companyGroup=groupLocalService.getCompanyGroup(article.getCompanyId());
+        ddmTemplate=ddmTemplatePersistence.findByG_C_T(companyGroup.getGroupId(),classNameLocalService.getClassNameId(DDMStructure.class),ddmTemplateKey);
+        tokens.put("company_group_id",String.valueOf(companyGroup.getGroupId()));
+      }
+ catch (      NoSuchTemplateException nste2) {
+        if (!defaultDDMTemplateKey.equals(ddmTemplateKey)) {
+          ddmTemplate=ddmTemplatePersistence.findByG_C_T(PortalUtil.getSiteGroupId(article.getGroupId()),classNameLocalService.getClassNameId(DDMStructure.class),defaultDDMTemplateKey);
+        }
+ else {
+          throw nste1;
+        }
+      }
+    }
+    String script=ddmTemplate.getScript();
+    String langType=ddmTemplate.getLanguage();
+    cacheable=ddmTemplate.isCacheable();
     content=JournalUtil.transform(themeDisplay,tokens,viewMode,languageId,xml,script,langType);
     if (!pageFlow) {
       String[] pieces=StringUtil.split(content,PropsValues.JOURNAL_ARTICLE_TOKEN_PAGE_BREAK);
