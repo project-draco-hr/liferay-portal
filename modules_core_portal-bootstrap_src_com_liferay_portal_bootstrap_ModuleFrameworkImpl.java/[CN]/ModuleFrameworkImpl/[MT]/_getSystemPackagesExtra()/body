@@ -2,14 +2,23 @@
   String[] systemPackagesExtra=PropsValues.MODULE_FRAMEWORK_SYSTEM_PACKAGES_EXTRA;
   String hashcode=_getHashcode(systemPackagesExtra);
   File coreDir=new File(PropsValues.LIFERAY_WEB_PORTAL_CONTEXT_TEMPDIR,"osgi");
+  if (!coreDir.exists()) {
+    coreDir.mkdir();
+  }
   File cacheFile=new File(coreDir,"system-packages.txt");
   File hashcodeFile=new File(coreDir,"system-packages.hash");
   if (cacheFile.exists() && hashcodeFile.exists() && _hasMatchingHashcode(hashcodeFile,hashcode)) {
     try {
-      return FileUtil.read(cacheFile);
+      ObjectInputStream objectInputStream=new ObjectInputStream(new FileInputStream(cacheFile));
+      _extraPackageMap=(Map<String,List<URL>>)objectInputStream.readObject();
+      String extraPackages=(String)objectInputStream.readObject();
+      return extraPackages;
     }
  catch (    IOException ioe) {
       _log.error(ioe,ioe);
+    }
+catch (    ClassNotFoundException cnfe) {
+      _log.error(cnfe,cnfe);
     }
   }
   _extraPackageMap=new TreeMap<String,List<URL>>();
@@ -49,7 +58,9 @@
     _log.trace("The portal's system bundle is exporting the following " + "packages:\n" + s);
   }
   try {
-    FileUtil.write(cacheFile,sb.toString());
+    ObjectOutputStream objectOutputStream=new ObjectOutputStream(new FileOutputStream(cacheFile));
+    objectOutputStream.writeObject(_extraPackageMap);
+    objectOutputStream.writeObject(sb.toString());
     FileUtil.write(hashcodeFile,hashcode);
   }
  catch (  IOException ioe) {
