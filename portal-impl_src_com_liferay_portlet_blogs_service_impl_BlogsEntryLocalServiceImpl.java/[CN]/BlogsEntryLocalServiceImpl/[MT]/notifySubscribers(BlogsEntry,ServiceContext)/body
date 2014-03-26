@@ -3,35 +3,27 @@
   if (!entry.isApproved() || Validator.isNull(layoutFullURL)) {
     return;
   }
-  PortletPreferences preferences=ServiceContextUtil.getPortletPreferences(serviceContext);
-  if (preferences == null) {
-    long ownerId=entry.getGroupId();
-    int ownerType=PortletKeys.PREFS_OWNER_TYPE_GROUP;
-    long plid=PortletKeys.PREFS_PLID_SHARED;
-    String portletId=PortletKeys.BLOGS;
-    String defaultPreferences=null;
-    preferences=portletPreferencesLocalService.getPreferences(entry.getCompanyId(),ownerId,ownerType,plid,portletId,defaultPreferences);
+  BlogsSettings blogsSettings=BlogsUtil.getBlogsSettings(entry.getGroupId());
+  if (serviceContext.isCommandAdd() && blogsSettings.getEmailEntryAddedEnabled()) {
   }
-  if (serviceContext.isCommandAdd() && BlogsUtil.getEmailEntryAddedEnabled(preferences)) {
-  }
- else   if (serviceContext.isCommandUpdate() && BlogsUtil.getEmailEntryUpdatedEnabled(preferences)) {
+ else   if (serviceContext.isCommandUpdate() && blogsSettings.getEmailEntryUpdatedEnabled()) {
   }
  else {
     return;
   }
   String entryTitle=entry.getTitle();
   String entryURL=getEntryURL(entry,serviceContext);
-  String fromName=BlogsUtil.getEmailFromName(preferences,entry.getCompanyId());
-  String fromAddress=BlogsUtil.getEmailFromAddress(preferences,entry.getCompanyId());
-  Map<Locale,String> localizedSubjectMap=null;
-  Map<Locale,String> localizedBodyMap=null;
+  String fromName=blogsSettings.getEmailFromName();
+  String fromAddress=blogsSettings.getEmailFromAddress();
+  LocalizedValuesMap subjectLocalizedValuesMap=null;
+  LocalizedValuesMap bodyLocalizedValuesMap=null;
   if (serviceContext.isCommandUpdate()) {
-    localizedSubjectMap=BlogsUtil.getEmailEntryUpdatedSubjectMap(preferences);
-    localizedBodyMap=BlogsUtil.getEmailEntryUpdatedBodyMap(preferences);
+    subjectLocalizedValuesMap=blogsSettings.getEmailEntryUpdatedSubject();
+    bodyLocalizedValuesMap=blogsSettings.getEmailEntryUpdatedBody();
   }
  else {
-    localizedSubjectMap=BlogsUtil.getEmailEntryAddedSubjectMap(preferences);
-    localizedBodyMap=BlogsUtil.getEmailEntryAddedBodyMap(preferences);
+    subjectLocalizedValuesMap=blogsSettings.getEmailEntryAddedSubject();
+    bodyLocalizedValuesMap=blogsSettings.getEmailEntryAddedBody();
   }
   SubscriptionSender subscriptionSender=new SubscriptionSender();
   subscriptionSender.setClassPK(entry.getEntryId());
@@ -44,8 +36,8 @@
   subscriptionSender.setEntryURL(entryURL);
   subscriptionSender.setFrom(fromAddress,fromName);
   subscriptionSender.setHtmlFormat(true);
-  subscriptionSender.setLocalizedBodyMap(localizedBodyMap);
-  subscriptionSender.setLocalizedSubjectMap(localizedSubjectMap);
+  subscriptionSender.setLocalizedBodyMap(bodyLocalizedValuesMap);
+  subscriptionSender.setLocalizedSubjectMap(subjectLocalizedValuesMap);
   subscriptionSender.setMailId("blogs_entry",entry.getEntryId());
   int notificationType=UserNotificationDefinition.NOTIFICATION_TYPE_ADD_ENTRY;
   if (serviceContext.isCommandUpdate()) {
