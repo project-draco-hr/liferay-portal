@@ -4,15 +4,14 @@
     session=openSession();
     String id=null;
     if (userId <= 0) {
-      id=FIND_BY_G_F;
+      id=COUNT_BY_G_F;
     }
  else {
-      id=FIND_BY_G_U_F;
+      id=COUNT_BY_G_U_F;
     }
-    String sql=getFileEntriesSQL(id,groupId,folderIds,mimeTypes,queryDefinition,inlineSQLHelper);
-    sql=CustomSQLUtil.replaceOrderBy(sql,queryDefinition.getOrderByComparator());
+    String sql=getFileEntriesSQL(id,groupId,folderIds,repositoryIds,mimeTypes,queryDefinition,inlineSQLHelper);
     SQLQuery q=session.createSynchronizedSQLQuery(sql);
-    q.addEntity(DLFileEntryImpl.TABLE_NAME,DLFileEntryImpl.class);
+    q.addScalar(COUNT_COLUMN_NAME,Type.LONG);
     QueryPos qPos=QueryPos.getInstance(q);
     qPos.add(groupId);
     if (userId > 0) {
@@ -22,10 +21,20 @@
     for (    Long folderId : folderIds) {
       qPos.add(folderId);
     }
+    for (    Long repositoryId : repositoryIds) {
+      qPos.add(repositoryId);
+    }
     if (mimeTypes != null) {
       qPos.add(mimeTypes);
     }
-    return (List<DLFileEntry>)QueryUtil.list(q,getDialect(),queryDefinition.getStart(),queryDefinition.getEnd());
+    Iterator<Long> itr=q.iterate();
+    if (itr.hasNext()) {
+      Long count=itr.next();
+      if (count != null) {
+        return count.intValue();
+      }
+    }
+    return 0;
   }
  catch (  Exception e) {
     throw new SystemException(e);
