@@ -1,0 +1,41 @@
+{
+  String cmd=ParamUtil.getString(actionRequest,Constants.CMD);
+  if (!cmd.equals(Constants.UPDATE)) {
+    return;
+  }
+  ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  Layout layout=PortletConfigurationLayoutUtil.getLayout(themeDisplay);
+  String portletResource=ParamUtil.getString(actionRequest,"portletResource");
+  PortletPermissionUtil.check(themeDisplay.getPermissionChecker(),themeDisplay.getScopeGroupId(),layout,portletResource,ActionKeys.CONFIGURATION);
+  UnicodeProperties properties=PropertiesParamUtil.getProperties(actionRequest,_configurationParametersPrefix);
+  T configuration=getConfiguration(actionRequest);
+  for (  Map.Entry<String,String> entry : properties.entrySet()) {
+    String name=entry.getKey();
+    String value=entry.getValue();
+    setValue(configuration,name,value);
+  }
+  Map<String,String[]> portletPreferencesMap=(Map<String,String[]>)actionRequest.getAttribute(WebKeys.PORTLET_PREFERENCES_MAP);
+  if (portletPreferencesMap != null) {
+    for (    Map.Entry<String,String[]> entry : portletPreferencesMap.entrySet()) {
+      String name=entry.getKey();
+      String[] values=entry.getValue();
+      setValues(configuration,name,values);
+    }
+  }
+  postProcess(themeDisplay.getCompanyId(),actionRequest,configuration);
+  if (SessionErrors.isEmpty(actionRequest)) {
+    try {
+      store(configuration);
+    }
+ catch (    ValidatorException ve) {
+      SessionErrors.add(actionRequest,ValidatorException.class.getName(),ve);
+      return;
+    }
+    SessionMessages.add(actionRequest,PortalUtil.getPortletId(actionRequest) + SessionMessages.KEY_SUFFIX_REFRESH_PORTLET,portletResource);
+    SessionMessages.add(actionRequest,PortalUtil.getPortletId(actionRequest) + SessionMessages.KEY_SUFFIX_UPDATED_CONFIGURATION);
+    String redirect=PortalUtil.escapeRedirect(ParamUtil.getString(actionRequest,"redirect"));
+    if (Validator.isNotNull(redirect)) {
+      actionResponse.sendRedirect(redirect);
+    }
+  }
+}
