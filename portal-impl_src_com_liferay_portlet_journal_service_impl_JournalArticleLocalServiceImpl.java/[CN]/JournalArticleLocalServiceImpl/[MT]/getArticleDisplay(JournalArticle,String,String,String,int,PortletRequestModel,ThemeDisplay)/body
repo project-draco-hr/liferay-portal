@@ -7,11 +7,8 @@
   boolean paginate=false;
   boolean pageFlow=false;
   boolean cacheable=true;
-  if (Validator.isNull(xmlRequest)) {
-    xmlRequest="<request />";
-  }
-  Map<String,String> tokens=JournalUtil.getTokens(article.getGroupId(),themeDisplay,xmlRequest);
-  if ((themeDisplay == null) && xmlRequest.equals("<request />")) {
+  Map<String,String> tokens=JournalUtil.getTokens(article.getGroupId(),themeDisplay,portletRequestModel);
+  if ((themeDisplay == null) && (portletRequestModel == null)) {
     tokens.put("company_id",String.valueOf(article.getCompanyId()));
     Group companyGroup=groupLocalService.getCompanyGroup(article.getCompanyId());
     tokens.put("article_group_id",String.valueOf(article.getGroupId()));
@@ -29,11 +26,17 @@
   try {
     Document document=SAXReaderUtil.read(xml);
     Element rootElement=document.getRootElement();
-    Document requestDocument=SAXReaderUtil.read(xmlRequest);
     List<Element> pages=rootElement.elements("page");
     if (!pages.isEmpty()) {
       pageFlow=true;
-      String targetPage=requestDocument.valueOf("/request/parameters/parameter[name='targetPage']/value");
+      String targetPage=null;
+      Map<String,String[]> parameters=portletRequestModel.getParameters();
+      if (parameters != null) {
+        String[] values=parameters.get("targetPage");
+        if ((values != null) && (values.length > 0)) {
+          targetPage=values[0];
+        }
+      }
       Element pageElement=null;
       if (Validator.isNotNull(targetPage)) {
         targetPage=HtmlUtil.escapeXPathAttribute(targetPage);
@@ -56,7 +59,6 @@
         paginate=true;
       }
     }
-    rootElement.add(requestDocument.getRootElement().createCopy());
     JournalUtil.addAllReservedEls(rootElement,tokens,article,languageId,themeDisplay);
     xml=DDMXMLUtil.formatXML(document);
   }
@@ -86,7 +88,7 @@
     String script=ddmTemplate.getScript();
     String langType=ddmTemplate.getLanguage();
     cacheable=ddmTemplate.isCacheable();
-    content=JournalUtil.transform(themeDisplay,tokens,viewMode,languageId,xml,null,script,langType);
+    content=JournalUtil.transform(themeDisplay,tokens,viewMode,languageId,xml,portletRequestModel,script,langType);
     if (!pageFlow) {
       String[] pieces=StringUtil.split(content,PropsValues.JOURNAL_ARTICLE_TOKEN_PAGE_BREAK);
       if (pieces.length > 1) {
