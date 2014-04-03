@@ -1,0 +1,51 @@
+{
+  Map<Long,Layout> layouts=(Map<Long,Layout>)portletDataContext.getNewPrimaryKeysMap(Layout.class + ".layout");
+  Map<Long,NavigableSet<Layout>> layoutMap=new HashMap<Long,NavigableSet<Layout>>();
+  List<Layout> importedLayouts=new LinkedList<Layout>();
+  for (  Element layoutElement : _layoutElements) {
+    String action=layoutElement.attributeValue(Constants.ACTION);
+    if (action.equals(Constants.ADD)) {
+      long layoutId=GetterUtil.getLong(layoutElement.attributeValue("layout-id"));
+      Layout layout=layouts.get(layoutId);
+      NavigableSet<Layout> childLayouts=layoutMap.get(layout.getParentLayoutId());
+      if (childLayouts == null) {
+        layoutMap.put(layout.getParentLayoutId(),new TreeSet<Layout>(new LayoutPriorityComparator()));
+      }
+      importedLayouts.add(LayoutLocalServiceUtil.getLayout(layout.getPlid()));
+    }
+  }
+  List<Layout> groupLayouts=LayoutLocalServiceUtil.getLayouts(portletDataContext.getGroupId(),portletDataContext.isPrivateLayout());
+  List<Layout> unmodifiedLayouts=new LinkedList<Layout>(groupLayouts);
+  unmodifiedLayouts.removeAll(importedLayouts);
+  if (unmodifiedLayouts.isEmpty()) {
+    return;
+  }
+  for (  Layout unmodifiedLayout : unmodifiedLayouts) {
+    NavigableSet<Layout> childLayouts=layoutMap.get(unmodifiedLayout.getParentLayoutId());
+    if (childLayouts != null) {
+      childLayouts.add(unmodifiedLayout);
+    }
+  }
+  for (  Layout importedLayout : importedLayouts) {
+    NavigableSet<Layout> childLayouts=layoutMap.get(importedLayout.getParentLayoutId());
+    if (childLayouts.isEmpty()) {
+      continue;
+    }
+    SortedSet<Layout> tailSet=childLayouts.tailSet(importedLayout,true);
+    int priority=importedLayout.getPriority();
+    for (    Layout tailLayout : tailSet) {
+      if (tailLayout.getPriority() == priority) {
+        tailLayout.setPriority(++priority);
+      }
+ else {
+        break;
+      }
+    }
+    childLayouts.add(importedLayout);
+  }
+  for (  NavigableSet<Layout> childLayouts : layoutMap.values()) {
+    for (    Layout childLayout : childLayouts) {
+      LayoutUtil.update(childLayout);
+    }
+  }
+}
