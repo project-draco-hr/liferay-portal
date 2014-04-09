@@ -1,12 +1,36 @@
 {
-  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(_clazz,_classLoader);
+  final DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(_clazz,_classLoader);
   Property property=PropertyFactoryUtil.forName(_primaryKeyPropertyName);
   dynamicQuery.add(property.ge(startPrimaryKey));
   dynamicQuery.add(property.lt(endPrimaryKey));
   addDefaultCriteria(dynamicQuery);
   addCriteria(dynamicQuery);
-  List<Object> objects=(List<Object>)executeDynamicQuery(_dynamicQueryMethod,dynamicQuery);
-  for (  Object object : objects) {
-    performAction(object);
+  Callable<Void> performActionsCallable=new Callable<Void>(){
+    @Override public Void call() throws Exception {
+      List<Object> objects=(List<Object>)executeDynamicQuery(_dynamicQueryMethod,dynamicQuery);
+      for (      Object object : objects) {
+        performAction(object);
+      }
+      return null;
+    }
+  }
+;
+  TransactionAttribute transactionAttribute=getTransactionAttribute();
+  try {
+    if (transactionAttribute == null) {
+      performActionsCallable.call();
+    }
+ else {
+      TransactionInvokerUtil.invoke(transactionAttribute,performActionsCallable);
+    }
+  }
+ catch (  Throwable t) {
+    if (t instanceof PortalException) {
+      throw (PortalException)t;
+    }
+    if (t instanceof SystemException) {
+      throw (SystemException)t;
+    }
+    throw new SystemException(t);
   }
 }
