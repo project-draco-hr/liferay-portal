@@ -1,0 +1,59 @@
+{
+  StringBundler sb=new StringBundler(9);
+  sb.append(groupId);
+  sb.append(StringPool.POUND);
+  sb.append(name);
+  sb.append(StringPool.POUND);
+  sb.append(startPeriod);
+  sb.append(StringPool.POUND);
+  sb.append(endPeriod);
+  sb.append(StringPool.POUND);
+  sb.append(periodLength);
+  String key=sb.toString();
+  List<SocialActivityCounter> activityCounters=null;
+  if (endPeriod < SocialCounterPeriodUtil.getActivityDay()) {
+    activityCounters=(List<SocialActivityCounter>)_activityCounters.get(key);
+  }
+  if (activityCounters != null) {
+    return activityCounters;
+  }
+  Session session=null;
+  try {
+    session=openSession();
+    String sql=CustomSQLUtil.get(FIND_AC_BY_G_N_S_E_1);
+    SQLQuery q=session.createSynchronizedSQLQuery(sql);
+    QueryPos qPos=QueryPos.getInstance(q);
+    qPos.add(groupId);
+    qPos.add(name);
+    qPos.add(startPeriod);
+    qPos.add(endPeriod);
+    qPos.add(periodLength);
+    qPos.add(endPeriod);
+    activityCounters=new ArrayList<SocialActivityCounter>();
+    Iterator<Object[]> itr=q.iterate();
+    while (itr.hasNext()) {
+      Object[] array=itr.next();
+      SocialActivityCounter activityCounter=new SocialActivityCounterImpl();
+      activityCounter.setName(GetterUtil.getString(array[0]));
+      activityCounter.setCurrentValue(GetterUtil.getInteger(array[1]));
+      activityCounter.setStartPeriod(GetterUtil.getInteger(array[2]));
+      activityCounter.setEndPeriod(GetterUtil.getInteger(array[3]));
+      activityCounters.add(activityCounter);
+    }
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+ finally {
+    if (activityCounters == null) {
+      _activityCounters.remove(key);
+    }
+ else {
+      if (endPeriod < SocialCounterPeriodUtil.getActivityDay()) {
+        _activityCounters.put(key,(Serializable)activityCounters);
+      }
+    }
+    closeSession(session);
+  }
+  return activityCounters;
+}
