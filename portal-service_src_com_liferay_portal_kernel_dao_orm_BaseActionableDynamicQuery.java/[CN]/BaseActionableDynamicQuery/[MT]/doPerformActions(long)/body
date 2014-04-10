@@ -1,27 +1,35 @@
 {
   final DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(_clazz,_classLoader);
   Property property=PropertyFactoryUtil.forName(_primaryKeyPropertyName);
-  dynamicQuery.add(property.ge(startPrimaryKey));
-  dynamicQuery.add(property.lt(endPrimaryKey));
+  dynamicQuery.add(property.gt(previousPrimaryKey));
+  dynamicQuery.setLimit(0,_interval);
+  dynamicQuery.addOrder(OrderFactoryUtil.asc(_primaryKeyPropertyName));
   addDefaultCriteria(dynamicQuery);
   addCriteria(dynamicQuery);
-  Callable<Void> performActionsCallable=new Callable<Void>(){
-    @Override public Void call() throws Exception {
+  Callable<Long> performActionsCallable=new Callable<Long>(){
+    @Override public Long call() throws Exception {
       List<Object> objects=(List<Object>)executeDynamicQuery(_dynamicQueryMethod,dynamicQuery);
+      if (objects.isEmpty()) {
+        return -1L;
+      }
       for (      Object object : objects) {
         performAction(object);
       }
-      return null;
+      if (objects.size() < _interval) {
+        return -1L;
+      }
+      BaseModel<?> baseModel=(BaseModel<?>)objects.get(objects.size() - 1);
+      return (Long)baseModel.getPrimaryKeyObj();
     }
   }
 ;
   TransactionAttribute transactionAttribute=getTransactionAttribute();
   try {
     if (transactionAttribute == null) {
-      performActionsCallable.call();
+      return performActionsCallable.call();
     }
  else {
-      TransactionInvokerUtil.invoke(transactionAttribute,performActionsCallable);
+      return TransactionInvokerUtil.invoke(transactionAttribute,performActionsCallable);
     }
   }
  catch (  Throwable t) {
@@ -32,5 +40,8 @@
       throw (SystemException)t;
     }
     throw new SystemException(t);
+  }
+ finally {
+    indexInterval();
   }
 }
