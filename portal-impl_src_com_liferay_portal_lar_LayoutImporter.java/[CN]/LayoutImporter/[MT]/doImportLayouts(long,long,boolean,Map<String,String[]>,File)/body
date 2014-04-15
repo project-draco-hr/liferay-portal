@@ -130,11 +130,16 @@
   _portletImporter.readExpandoTables(portletDataContext);
   _portletImporter.readLocks(portletDataContext);
   List<Layout> previousLayouts=LayoutUtil.findByG_P(groupId,privateLayout);
+  Set<Layout> modifiedLayouts=new HashSet<Layout>();
   if (Validator.isNotNull(layoutSetPrototypeUuid) && layoutSetPrototypeLinkEnabled) {
     LayoutSetPrototype layoutSetPrototype=LayoutSetPrototypeLocalServiceUtil.getLayoutSetPrototypeByUuidAndCompanyId(layoutSetPrototypeUuid,companyId);
     for (    Layout layout : previousLayouts) {
       String sourcePrototypeLayoutUuid=layout.getSourcePrototypeLayoutUuid();
       if (Validator.isNull(layout.getSourcePrototypeLayoutUuid())) {
+        continue;
+      }
+      if (SitesUtil.isLayoutModifiedSinceLastMerge(layout)) {
+        modifiedLayouts.add(layout);
         continue;
       }
       Layout sourcePrototypeLayout=LayoutUtil.fetchByUUID_G_P(sourcePrototypeLayoutUuid,layoutSetPrototype.getGroupId(),true);
@@ -186,6 +191,9 @@
     long plid=LayoutConstants.DEFAULT_PLID;
     if (layout != null) {
       plid=layout.getPlid();
+      if (modifiedLayouts.contains(layout)) {
+        continue;
+      }
     }
     portletDataContext.setPlid(plid);
     portletDataContext.setOldPlid(oldPlid);
@@ -228,6 +236,9 @@
     long lastMergeTime=System.currentTimeMillis();
     for (    Layout layout : layouts.values()) {
       layout=LayoutLocalServiceUtil.getLayout(layout.getPlid());
+      if (modifiedLayouts.contains(layout)) {
+        continue;
+      }
       UnicodeProperties typeSettingsProperties=layout.getTypeSettingsProperties();
       typeSettingsProperties.setProperty(Sites.LAST_MERGE_TIME,String.valueOf(lastMergeTime));
       LayoutUtil.update(layout);
@@ -235,7 +246,7 @@
     layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(layoutSet.getLayoutSetId());
     UnicodeProperties settingsProperties=layoutSet.getSettingsProperties();
     String mergeFailFriendlyURLLayouts=settingsProperties.getProperty(Sites.MERGE_FAIL_FRIENDLY_URL_LAYOUTS);
-    if (Validator.isNull(mergeFailFriendlyURLLayouts)) {
+    if (Validator.isNull(mergeFailFriendlyURLLayouts) && (modifiedLayouts.size() == 0)) {
       settingsProperties.setProperty(Sites.LAST_MERGE_TIME,String.valueOf(lastMergeTime));
       LayoutSetLocalServiceUtil.updateLayoutSet(layoutSet);
     }
