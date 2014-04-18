@@ -1,39 +1,51 @@
 {
-  List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.FINE);
-  ChannelContext channelContext=new ChannelContext(new LinkedList<Datagram>());
-  MockRegistrationReference mockRegistrationReference=new MockRegistrationReference(_mockIntraband);
-  channelContext.setRegistrationReference(mockRegistrationReference);
-  channelContext.setWritingDatagram(Datagram.createRequestDatagram(_type,_data));
-  Assert.assertFalse(_mockIntraband.handleWriting(new MockGatheringByteChannel(),channelContext));
-  Assert.assertFalse(mockRegistrationReference.isValid());
-  Assert.assertEquals(1,logRecords.size());
-  LogRecord logRecord=logRecords.get(0);
-  assertMessageStartWith(logRecord,"Broken write channel, unregister ");
-  Assert.assertTrue(logRecord.getThrown() instanceof IOException);
-  logRecords=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.INFO);
-  channelContext=new ChannelContext(new LinkedList<Datagram>());
-  mockRegistrationReference=new MockRegistrationReference(_mockIntraband);
-  channelContext.setRegistrationReference(mockRegistrationReference);
-  channelContext.setWritingDatagram(Datagram.createRequestDatagram(_type,_data));
-  Assert.assertFalse(_mockIntraband.handleWriting(new MockGatheringByteChannel(),channelContext));
-  Assert.assertFalse(mockRegistrationReference.isValid());
-  Assert.assertEquals(1,logRecords.size());
-  logRecord=logRecords.get(0);
-  assertMessageStartWith(logRecord,"Broken write channel, unregister ");
-  Assert.assertNull(logRecord.getThrown());
-  logRecords=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.OFF);
-  channelContext=new ChannelContext(null);
-  mockRegistrationReference=new MockRegistrationReference(_mockIntraband);
-  channelContext.setRegistrationReference(mockRegistrationReference);
-  Datagram requestDatagram=Datagram.createRequestDatagram(_type,_data);
-  RecordCompletionHandler<Object> recordCompletionHandler=new RecordCompletionHandler<Object>();
-  requestDatagram.completionHandler=recordCompletionHandler;
-  channelContext.setWritingDatagram(requestDatagram);
-  Assert.assertFalse(_mockIntraband.handleWriting(new MockGatheringByteChannel(),channelContext));
-  Assert.assertFalse(mockRegistrationReference.isValid());
-  recordCompletionHandler.waitUntilFailed();
-  Assert.assertNotNull(recordCompletionHandler.getIOException());
-  Assert.assertTrue(logRecords.isEmpty());
+  CaptureHandler captureHandler=null;
+  ChannelContext channelContext=null;
+  Datagram requestDatagram=null;
+  RecordCompletionHandler<Object> recordCompletionHandler=null;
+  try {
+    captureHandler=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.FINE);
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    channelContext=new ChannelContext(new LinkedList<Datagram>());
+    MockRegistrationReference mockRegistrationReference=new MockRegistrationReference(_mockIntraband);
+    channelContext.setRegistrationReference(mockRegistrationReference);
+    channelContext.setWritingDatagram(Datagram.createRequestDatagram(_type,_data));
+    Assert.assertFalse(_mockIntraband.handleWriting(new MockGatheringByteChannel(),channelContext));
+    Assert.assertFalse(mockRegistrationReference.isValid());
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    assertMessageStartWith(logRecord,"Broken write channel, unregister ");
+    Assert.assertTrue(logRecord.getThrown() instanceof IOException);
+    logRecords=captureHandler.resetLogLevel(Level.INFO);
+    channelContext=new ChannelContext(new LinkedList<Datagram>());
+    mockRegistrationReference=new MockRegistrationReference(_mockIntraband);
+    channelContext.setRegistrationReference(mockRegistrationReference);
+    channelContext.setWritingDatagram(Datagram.createRequestDatagram(_type,_data));
+    Assert.assertFalse(_mockIntraband.handleWriting(new MockGatheringByteChannel(),channelContext));
+    Assert.assertFalse(mockRegistrationReference.isValid());
+    Assert.assertEquals(1,logRecords.size());
+    logRecord=logRecords.get(0);
+    assertMessageStartWith(logRecord,"Broken write channel, unregister ");
+    Assert.assertNull(logRecord.getThrown());
+    logRecords=captureHandler.resetLogLevel(Level.OFF);
+    channelContext=new ChannelContext(null);
+    mockRegistrationReference=new MockRegistrationReference(_mockIntraband);
+    channelContext.setRegistrationReference(mockRegistrationReference);
+    requestDatagram=Datagram.createRequestDatagram(_type,_data);
+    recordCompletionHandler=new RecordCompletionHandler<Object>();
+    requestDatagram.completionHandler=recordCompletionHandler;
+    channelContext.setWritingDatagram(requestDatagram);
+    Assert.assertFalse(_mockIntraband.handleWriting(new MockGatheringByteChannel(),channelContext));
+    Assert.assertFalse(mockRegistrationReference.isValid());
+    recordCompletionHandler.waitUntilFailed();
+    Assert.assertNotNull(recordCompletionHandler.getIOException());
+    Assert.assertTrue(logRecords.isEmpty());
+  }
+  finally {
+    if (captureHandler != null) {
+      captureHandler.close();
+    }
+  }
   Pipe pipe=Pipe.open();
   SourceChannel sourceChannel=pipe.source();
   SinkChannel sinkChannel=pipe.sink();

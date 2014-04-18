@@ -1,24 +1,30 @@
 {
-  List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(ProcessExecutor.class.getName(),Level.SEVERE);
-  BrokenPipingProcessCallable brokenPipingProcessCallable=new BrokenPipingProcessCallable();
-  Future<String> future=ProcessExecutor.execute(_classPath,brokenPipingProcessCallable);
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(ProcessExecutor.class.getName(),Level.SEVERE);
   try {
-    future.get();
-    Assert.fail();
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    BrokenPipingProcessCallable brokenPipingProcessCallable=new BrokenPipingProcessCallable();
+    Future<String> future=ProcessExecutor.execute(_classPath,brokenPipingProcessCallable);
+    try {
+      future.get();
+      Assert.fail();
+    }
+ catch (    ExecutionException ee) {
+      Throwable cause=ee.getCause();
+      Assert.assertTrue(cause instanceof ProcessException);
+      Assert.assertEquals("Corrupted object input stream",cause.getMessage());
+    }
+    Assert.assertFalse(future.isCancelled());
+    Assert.assertTrue(future.isDone());
+    Assert.assertEquals(1,logRecords.size());
+    String message=logRecords.get(0).getMessage();
+    int index=message.lastIndexOf(' ');
+    Assert.assertTrue(index != -1);
+    Assert.assertEquals("Dumping content of corrupted object input stream to",message.substring(0,index));
+    File file=new File(message.substring(index + 1));
+    Assert.assertTrue(file.exists());
+    file.delete();
   }
- catch (  ExecutionException ee) {
-    Throwable cause=ee.getCause();
-    Assert.assertTrue(cause instanceof ProcessException);
-    Assert.assertEquals("Corrupted object input stream",cause.getMessage());
+  finally {
+    captureHandler.close();
   }
-  Assert.assertFalse(future.isCancelled());
-  Assert.assertTrue(future.isDone());
-  Assert.assertEquals(1,logRecords.size());
-  String message=logRecords.get(0).getMessage();
-  int index=message.lastIndexOf(' ');
-  Assert.assertTrue(index != -1);
-  Assert.assertEquals("Dumping content of corrupted object input stream to",message.substring(0,index));
-  File file=new File(message.substring(index + 1));
-  Assert.assertTrue(file.exists());
-  file.delete();
 }

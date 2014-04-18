@@ -1,29 +1,34 @@
 {
-  JDKLoggerTestUtil.configureJDKLogger(ProcessExecutor.class.getName(),Level.OFF);
-  KillJVMProcessCallable killJVMProcessCallable=new KillJVMProcessCallable(-1);
-  Future<Serializable> future=ProcessExecutor.execute(_classPath,killJVMProcessCallable);
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(ProcessExecutor.class.getName(),Level.OFF);
   try {
-    future.get();
-    Assert.fail();
+    KillJVMProcessCallable killJVMProcessCallable=new KillJVMProcessCallable(-1);
+    Future<Serializable> future=ProcessExecutor.execute(_classPath,killJVMProcessCallable);
+    try {
+      future.get();
+      Assert.fail();
+    }
+ catch (    ExecutionException ee) {
+      Assert.assertFalse(future.isCancelled());
+      Assert.assertTrue(future.isDone());
+      Throwable throwable=ee.getCause();
+      Assert.assertTrue(throwable instanceof ProcessException);
+    }
+    killJVMProcessCallable=new KillJVMProcessCallable(0);
+    future=ProcessExecutor.execute(_classPath,killJVMProcessCallable);
+    try {
+      future.get();
+      Assert.fail();
+    }
+ catch (    ExecutionException ee) {
+      Assert.assertFalse(future.isCancelled());
+      Assert.assertTrue(future.isDone());
+      Throwable throwable=ee.getCause();
+      Assert.assertTrue(throwable instanceof ProcessException);
+      throwable=throwable.getCause();
+      Assert.assertTrue(throwable instanceof EOFException);
+    }
   }
- catch (  ExecutionException ee) {
-    Assert.assertFalse(future.isCancelled());
-    Assert.assertTrue(future.isDone());
-    Throwable throwable=ee.getCause();
-    Assert.assertTrue(throwable instanceof ProcessException);
-  }
-  killJVMProcessCallable=new KillJVMProcessCallable(0);
-  future=ProcessExecutor.execute(_classPath,killJVMProcessCallable);
-  try {
-    future.get();
-    Assert.fail();
-  }
- catch (  ExecutionException ee) {
-    Assert.assertFalse(future.isCancelled());
-    Assert.assertTrue(future.isDone());
-    Throwable throwable=ee.getCause();
-    Assert.assertTrue(throwable instanceof ProcessException);
-    throwable=throwable.getCause();
-    Assert.assertTrue(throwable instanceof EOFException);
+  finally {
+    captureHandler.close();
   }
 }

@@ -2,22 +2,28 @@
   if (!_shouldTest()) {
     return;
   }
-  List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(FIFOUtil.class.getName(),Level.WARNING);
-  File newTmpDir=new File("newTmpDir");
-  newTmpDir.delete();
-  String oldTmpDirName=System.getProperty("java.io.tmpdir");
-  System.setProperty("java.io.tmpdir",newTmpDir.getAbsolutePath());
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(FIFOUtil.class.getName(),Level.WARNING);
   try {
-    Assert.assertFalse(FIFOUtil.isFIFOSupported());
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    File newTmpDir=new File("newTmpDir");
+    newTmpDir.delete();
+    String oldTmpDirName=System.getProperty("java.io.tmpdir");
+    System.setProperty("java.io.tmpdir",newTmpDir.getAbsolutePath());
+    try {
+      Assert.assertFalse(FIFOUtil.isFIFOSupported());
+    }
+  finally {
+      System.setProperty("java.io.tmpdir",oldTmpDirName);
+    }
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Assert.assertEquals("Unable to detect FIFO support",logRecord.getMessage());
+    Throwable throwable=logRecord.getThrown();
+    Assert.assertEquals(Exception.class,throwable.getClass());
+    String message=throwable.getMessage();
+    Assert.assertTrue(message.startsWith("Unable to create FIFO with command \"mkfifo\", " + "external process returned "));
   }
   finally {
-    System.setProperty("java.io.tmpdir",oldTmpDirName);
+    captureHandler.close();
   }
-  Assert.assertEquals(1,logRecords.size());
-  LogRecord logRecord=logRecords.get(0);
-  Assert.assertEquals("Unable to detect FIFO support",logRecord.getMessage());
-  Throwable throwable=logRecord.getThrown();
-  Assert.assertEquals(Exception.class,throwable.getClass());
-  String message=throwable.getMessage();
-  Assert.assertTrue(message.startsWith("Unable to create FIFO with command \"mkfifo\", external " + "process returned "));
 }
