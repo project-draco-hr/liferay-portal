@@ -5,149 +5,158 @@
   ScatteringByteChannel scatteringByteChannel=readPipe.source();
   SelectionKeyRegistrationReference registrationReference=(SelectionKeyRegistrationReference)_selectorIntraband.registerChannel(writePipe.source(),readPipe.sink());
   long sequenceId=100;
-  List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.WARNING);
-  Jdk14LogImplAdvice.reset();
+  CaptureHandler captureHandler=null;
   try {
-    DatagramHelper.writeTo(DatagramHelper.createACKResponseDatagram(sequenceId),gatheringByteChannel);
-  }
+    captureHandler=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.WARNING);
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Jdk14LogImplAdvice.reset();
+    try {
+      DatagramHelper.writeTo(DatagramHelper.createACKResponseDatagram(sequenceId),gatheringByteChannel);
+    }
   finally {
-    Jdk14LogImplAdvice.waitUntilWarnCalled();
-  }
-  Assert.assertEquals(1,logRecords.size());
-  IntrabandTestUtil.assertMessageStartWith(logRecords.get(0),"Dropped ownerless ACK response ");
-  logRecords=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.OFF);
-  Jdk14LogImplAdvice.reset();
-  try {
-    DatagramHelper.writeTo(DatagramHelper.createACKResponseDatagram(sequenceId),gatheringByteChannel);
-  }
+      Jdk14LogImplAdvice.waitUntilWarnCalled();
+    }
+    Assert.assertEquals(1,logRecords.size());
+    IntrabandTestUtil.assertMessageStartWith(logRecords.get(0),"Dropped ownerless ACK response ");
+    logRecords=captureHandler.resetLogLevel(Level.OFF);
+    Jdk14LogImplAdvice.reset();
+    try {
+      DatagramHelper.writeTo(DatagramHelper.createACKResponseDatagram(sequenceId),gatheringByteChannel);
+    }
   finally {
-    Jdk14LogImplAdvice.waitUntilIsWarnEnableCalled();
-  }
-  Assert.assertTrue(logRecords.isEmpty());
-  Datagram requestDatagram=Datagram.createRequestDatagram(_type,_data);
-  DatagramHelper.setAttachment(requestDatagram,new Object());
-  RecordCompletionHandler<Object> recordCompletionHandler=new RecordCompletionHandler<Object>();
-  DatagramHelper.setCompletionHandler(requestDatagram,recordCompletionHandler);
-  DatagramHelper.setSequenceId(requestDatagram,sequenceId);
-  DatagramHelper.setTimeout(requestDatagram,10000);
-  BaseIntrabandHelper.addResponseWaitingDatagram(_selectorIntraband,requestDatagram);
-  DatagramHelper.writeTo(DatagramHelper.createACKResponseDatagram(sequenceId),gatheringByteChannel);
-  recordCompletionHandler.waitUntilDelivered();
-  Assert.assertSame(DatagramHelper.getAttachment(requestDatagram),recordCompletionHandler.getAttachment());
-  logRecords=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.WARNING);
-  Jdk14LogImplAdvice.reset();
-  try {
+      Jdk14LogImplAdvice.waitUntilIsWarnEnableCalled();
+    }
+    Assert.assertTrue(logRecords.isEmpty());
+    Datagram requestDatagram=Datagram.createRequestDatagram(_type,_data);
+    DatagramHelper.setAttachment(requestDatagram,new Object());
+    RecordCompletionHandler<Object> recordCompletionHandler=new RecordCompletionHandler<Object>();
+    DatagramHelper.setCompletionHandler(requestDatagram,recordCompletionHandler);
+    DatagramHelper.setSequenceId(requestDatagram,sequenceId);
+    DatagramHelper.setTimeout(requestDatagram,10000);
+    BaseIntrabandHelper.addResponseWaitingDatagram(_selectorIntraband,requestDatagram);
+    DatagramHelper.writeTo(DatagramHelper.createACKResponseDatagram(sequenceId),gatheringByteChannel);
+    recordCompletionHandler.waitUntilDelivered();
+    Assert.assertSame(DatagramHelper.getAttachment(requestDatagram),recordCompletionHandler.getAttachment());
+    logRecords=captureHandler.resetLogLevel(Level.WARNING);
+    Jdk14LogImplAdvice.reset();
+    try {
+      DatagramHelper.writeTo(Datagram.createResponseDatagram(requestDatagram,_data),gatheringByteChannel);
+    }
+  finally {
+      Jdk14LogImplAdvice.waitUntilWarnCalled();
+    }
+    Assert.assertEquals(1,logRecords.size());
+    IntrabandTestUtil.assertMessageStartWith(logRecords.get(0),"Dropped ownerless response ");
+    logRecords=captureHandler.resetLogLevel(Level.OFF);
+    Jdk14LogImplAdvice.reset();
+    try {
+      requestDatagram=Datagram.createRequestDatagram(_type,_data);
+      DatagramHelper.setSequenceId(requestDatagram,sequenceId);
+      DatagramHelper.writeTo(Datagram.createResponseDatagram(requestDatagram,_data),gatheringByteChannel);
+    }
+  finally {
+      Jdk14LogImplAdvice.waitUntilIsWarnEnableCalled();
+    }
+    Assert.assertTrue(logRecords.isEmpty());
+    requestDatagram=Datagram.createRequestDatagram(_type,_data);
+    DatagramHelper.setAttachment(requestDatagram,new Object());
+    recordCompletionHandler=new RecordCompletionHandler<Object>();
+    DatagramHelper.setCompletionHandler(requestDatagram,recordCompletionHandler);
+    DatagramHelper.setCompletionTypes(requestDatagram,EnumSet.of(CompletionType.REPLIED));
+    DatagramHelper.setSequenceId(requestDatagram,sequenceId);
+    DatagramHelper.setTimeout(requestDatagram,10000);
+    BaseIntrabandHelper.addResponseWaitingDatagram(_selectorIntraband,requestDatagram);
     DatagramHelper.writeTo(Datagram.createResponseDatagram(requestDatagram,_data),gatheringByteChannel);
-  }
+    recordCompletionHandler.waitUntilReplied();
+    Assert.assertSame(DatagramHelper.getAttachment(requestDatagram),recordCompletionHandler.getAttachment());
+    logRecords=captureHandler.resetLogLevel(Level.WARNING);
+    requestDatagram=Datagram.createRequestDatagram(_type,_data);
+    DatagramHelper.setCompletionTypes(requestDatagram,EnumSet.noneOf(CompletionType.class));
+    recordCompletionHandler=new RecordCompletionHandler<Object>();
+    DatagramHelper.setCompletionHandler(requestDatagram,recordCompletionHandler);
+    DatagramHelper.setSequenceId(requestDatagram,sequenceId);
+    DatagramHelper.setTimeout(requestDatagram,10000);
+    BaseIntrabandHelper.addResponseWaitingDatagram(_selectorIntraband,requestDatagram);
+    Jdk14LogImplAdvice.reset();
+    try {
+      DatagramHelper.writeTo(Datagram.createResponseDatagram(requestDatagram,_data),gatheringByteChannel);
+    }
   finally {
-    Jdk14LogImplAdvice.waitUntilWarnCalled();
-  }
-  Assert.assertEquals(1,logRecords.size());
-  IntrabandTestUtil.assertMessageStartWith(logRecords.get(0),"Dropped ownerless response ");
-  logRecords=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.OFF);
-  Jdk14LogImplAdvice.reset();
-  try {
+      Jdk14LogImplAdvice.waitUntilWarnCalled();
+    }
+    Assert.assertEquals(1,logRecords.size());
+    IntrabandTestUtil.assertMessageStartWith(logRecords.get(0),"Dropped unconcerned response ");
+    logRecords=captureHandler.resetLogLevel(Level.OFF);
+    requestDatagram=Datagram.createRequestDatagram(_type,_data);
+    DatagramHelper.setCompletionTypes(requestDatagram,EnumSet.noneOf(CompletionType.class));
+    recordCompletionHandler=new RecordCompletionHandler<Object>();
+    DatagramHelper.setCompletionHandler(requestDatagram,recordCompletionHandler);
+    DatagramHelper.setSequenceId(requestDatagram,sequenceId);
+    DatagramHelper.setTimeout(requestDatagram,10000);
+    BaseIntrabandHelper.addResponseWaitingDatagram(_selectorIntraband,requestDatagram);
+    Jdk14LogImplAdvice.reset();
+    try {
+      DatagramHelper.writeTo(Datagram.createResponseDatagram(requestDatagram,_data),gatheringByteChannel);
+    }
+  finally {
+      Jdk14LogImplAdvice.waitUntilIsWarnEnableCalled();
+    }
+    Assert.assertTrue(logRecords.isEmpty());
+    logRecords=captureHandler.resetLogLevel(Level.WARNING);
+    requestDatagram=Datagram.createRequestDatagram(_type,_data);
+    DatagramHelper.setAckRequest(requestDatagram);
+    DatagramHelper.setSequenceId(requestDatagram,sequenceId);
+    Jdk14LogImplAdvice.reset();
+    try {
+      DatagramHelper.writeTo(requestDatagram,gatheringByteChannel);
+    }
+  finally {
+      Jdk14LogImplAdvice.waitUntilWarnCalled();
+    }
+    Datagram ackResponseDatagram=IntrabandTestUtil.readDatagramFully(scatteringByteChannel);
+    Assert.assertEquals(sequenceId,DatagramHelper.getSequenceId(ackResponseDatagram));
+    Assert.assertTrue(DatagramHelper.isAckResponse(ackResponseDatagram));
+    ByteBuffer dataByteBuffer=ackResponseDatagram.getDataByteBuffer();
+    Assert.assertEquals(0,dataByteBuffer.capacity());
+    Assert.assertEquals(1,logRecords.size());
+    IntrabandTestUtil.assertMessageStartWith(logRecords.get(0),"Dropped ownerless request ");
+    logRecords=captureHandler.resetLogLevel(Level.OFF);
     requestDatagram=Datagram.createRequestDatagram(_type,_data);
     DatagramHelper.setSequenceId(requestDatagram,sequenceId);
-    DatagramHelper.writeTo(Datagram.createResponseDatagram(requestDatagram,_data),gatheringByteChannel);
+    Jdk14LogImplAdvice.reset();
+    try {
+      DatagramHelper.writeTo(requestDatagram,gatheringByteChannel);
+    }
+  finally {
+      Jdk14LogImplAdvice.waitUntilIsWarnEnableCalled();
+    }
+    Assert.assertTrue(logRecords.isEmpty());
+    logRecords=captureHandler.resetLogLevel(Level.SEVERE);
+    requestDatagram=Datagram.createRequestDatagram(_type,_data);
+    DatagramHelper.setSequenceId(requestDatagram,sequenceId);
+    RecordDatagramReceiveHandler recordDatagramReceiveHandler=new RecordDatagramReceiveHandler();
+    _selectorIntraband.registerDatagramReceiveHandler(_type,recordDatagramReceiveHandler);
+    Jdk14LogImplAdvice.reset();
+    try {
+      DatagramHelper.writeTo(requestDatagram,gatheringByteChannel);
+    }
+  finally {
+      Jdk14LogImplAdvice.waitUntilErrorCalled();
+    }
+    Datagram receiveDatagram=recordDatagramReceiveHandler.getReceiveDatagram();
+    Assert.assertEquals(sequenceId,DatagramHelper.getSequenceId(receiveDatagram));
+    Assert.assertEquals(_type,receiveDatagram.getType());
+    dataByteBuffer=receiveDatagram.getDataByteBuffer();
+    Assert.assertArrayEquals(_data,dataByteBuffer.array());
+    Assert.assertEquals(1,logRecords.size());
+    IntrabandTestUtil.assertMessageStartWith(logRecords.get(0),"Unable to dispatch");
+    unregisterChannels(registrationReference);
+    gatheringByteChannel.close();
+    scatteringByteChannel.close();
   }
   finally {
-    Jdk14LogImplAdvice.waitUntilIsWarnEnableCalled();
+    if (captureHandler != null) {
+      captureHandler.close();
+    }
   }
-  Assert.assertTrue(logRecords.isEmpty());
-  requestDatagram=Datagram.createRequestDatagram(_type,_data);
-  DatagramHelper.setAttachment(requestDatagram,new Object());
-  recordCompletionHandler=new RecordCompletionHandler<Object>();
-  DatagramHelper.setCompletionHandler(requestDatagram,recordCompletionHandler);
-  DatagramHelper.setCompletionTypes(requestDatagram,EnumSet.of(CompletionType.REPLIED));
-  DatagramHelper.setSequenceId(requestDatagram,sequenceId);
-  DatagramHelper.setTimeout(requestDatagram,10000);
-  BaseIntrabandHelper.addResponseWaitingDatagram(_selectorIntraband,requestDatagram);
-  DatagramHelper.writeTo(Datagram.createResponseDatagram(requestDatagram,_data),gatheringByteChannel);
-  recordCompletionHandler.waitUntilReplied();
-  Assert.assertSame(DatagramHelper.getAttachment(requestDatagram),recordCompletionHandler.getAttachment());
-  logRecords=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.WARNING);
-  requestDatagram=Datagram.createRequestDatagram(_type,_data);
-  DatagramHelper.setCompletionTypes(requestDatagram,EnumSet.noneOf(CompletionType.class));
-  recordCompletionHandler=new RecordCompletionHandler<Object>();
-  DatagramHelper.setCompletionHandler(requestDatagram,recordCompletionHandler);
-  DatagramHelper.setSequenceId(requestDatagram,sequenceId);
-  DatagramHelper.setTimeout(requestDatagram,10000);
-  BaseIntrabandHelper.addResponseWaitingDatagram(_selectorIntraband,requestDatagram);
-  Jdk14LogImplAdvice.reset();
-  try {
-    DatagramHelper.writeTo(Datagram.createResponseDatagram(requestDatagram,_data),gatheringByteChannel);
-  }
-  finally {
-    Jdk14LogImplAdvice.waitUntilWarnCalled();
-  }
-  Assert.assertEquals(1,logRecords.size());
-  IntrabandTestUtil.assertMessageStartWith(logRecords.get(0),"Dropped unconcerned response ");
-  logRecords=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.OFF);
-  requestDatagram=Datagram.createRequestDatagram(_type,_data);
-  DatagramHelper.setCompletionTypes(requestDatagram,EnumSet.noneOf(CompletionType.class));
-  recordCompletionHandler=new RecordCompletionHandler<Object>();
-  DatagramHelper.setCompletionHandler(requestDatagram,recordCompletionHandler);
-  DatagramHelper.setSequenceId(requestDatagram,sequenceId);
-  DatagramHelper.setTimeout(requestDatagram,10000);
-  BaseIntrabandHelper.addResponseWaitingDatagram(_selectorIntraband,requestDatagram);
-  Jdk14LogImplAdvice.reset();
-  try {
-    DatagramHelper.writeTo(Datagram.createResponseDatagram(requestDatagram,_data),gatheringByteChannel);
-  }
-  finally {
-    Jdk14LogImplAdvice.waitUntilIsWarnEnableCalled();
-  }
-  Assert.assertTrue(logRecords.isEmpty());
-  logRecords=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.WARNING);
-  requestDatagram=Datagram.createRequestDatagram(_type,_data);
-  DatagramHelper.setAckRequest(requestDatagram);
-  DatagramHelper.setSequenceId(requestDatagram,sequenceId);
-  Jdk14LogImplAdvice.reset();
-  try {
-    DatagramHelper.writeTo(requestDatagram,gatheringByteChannel);
-  }
-  finally {
-    Jdk14LogImplAdvice.waitUntilWarnCalled();
-  }
-  Datagram ackResponseDatagram=IntrabandTestUtil.readDatagramFully(scatteringByteChannel);
-  Assert.assertEquals(sequenceId,DatagramHelper.getSequenceId(ackResponseDatagram));
-  Assert.assertTrue(DatagramHelper.isAckResponse(ackResponseDatagram));
-  ByteBuffer dataByteBuffer=ackResponseDatagram.getDataByteBuffer();
-  Assert.assertEquals(0,dataByteBuffer.capacity());
-  Assert.assertEquals(1,logRecords.size());
-  IntrabandTestUtil.assertMessageStartWith(logRecords.get(0),"Dropped ownerless request ");
-  logRecords=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.OFF);
-  requestDatagram=Datagram.createRequestDatagram(_type,_data);
-  DatagramHelper.setSequenceId(requestDatagram,sequenceId);
-  Jdk14LogImplAdvice.reset();
-  try {
-    DatagramHelper.writeTo(requestDatagram,gatheringByteChannel);
-  }
-  finally {
-    Jdk14LogImplAdvice.waitUntilIsWarnEnableCalled();
-  }
-  Assert.assertTrue(logRecords.isEmpty());
-  logRecords=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.SEVERE);
-  requestDatagram=Datagram.createRequestDatagram(_type,_data);
-  DatagramHelper.setSequenceId(requestDatagram,sequenceId);
-  RecordDatagramReceiveHandler recordDatagramReceiveHandler=new RecordDatagramReceiveHandler();
-  _selectorIntraband.registerDatagramReceiveHandler(_type,recordDatagramReceiveHandler);
-  Jdk14LogImplAdvice.reset();
-  try {
-    DatagramHelper.writeTo(requestDatagram,gatheringByteChannel);
-  }
-  finally {
-    Jdk14LogImplAdvice.waitUntilErrorCalled();
-  }
-  Datagram receiveDatagram=recordDatagramReceiveHandler.getReceiveDatagram();
-  Assert.assertEquals(sequenceId,DatagramHelper.getSequenceId(receiveDatagram));
-  Assert.assertEquals(_type,receiveDatagram.getType());
-  dataByteBuffer=receiveDatagram.getDataByteBuffer();
-  Assert.assertArrayEquals(_data,dataByteBuffer.array());
-  Assert.assertEquals(1,logRecords.size());
-  IntrabandTestUtil.assertMessageStartWith(logRecords.get(0),"Unable to dispatch");
-  unregisterChannels(registrationReference);
-  gatheringByteChannel.close();
-  scatteringByteChannel.close();
 }

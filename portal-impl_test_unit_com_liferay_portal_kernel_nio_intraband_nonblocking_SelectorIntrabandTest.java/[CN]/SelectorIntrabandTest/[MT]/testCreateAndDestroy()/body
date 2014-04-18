@@ -1,32 +1,41 @@
 {
-  List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(SelectorIntraband.class.getName(),Level.INFO);
-  Thread wakeUpThread=new Thread(new WakeUpRunnable(_selectorIntraband));
-  wakeUpThread.start();
-  Thread pollingThread=_selectorIntraband.pollingThread;
-  Selector selector=_selectorIntraband.selector;
+  CaptureHandler captureHandler=null;
+  try {
+    captureHandler=JDKLoggerTestUtil.configureJDKLogger(SelectorIntraband.class.getName(),Level.INFO);
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Thread wakeUpThread=new Thread(new WakeUpRunnable(_selectorIntraband));
+    wakeUpThread.start();
+    Thread pollingThread=_selectorIntraband.pollingThread;
+    Selector selector=_selectorIntraband.selector;
 synchronized (selector) {
-    wakeUpThread.interrupt();
-    wakeUpThread.join();
-    while (pollingThread.getState() != Thread.State.BLOCKED)     ;
-    selector.close();
-  }
-  pollingThread.join();
-  Assert.assertEquals(1,logRecords.size());
-  String pollingThreadName=pollingThread.getName();
-  LogRecord logRecord=logRecords.get(0);
-  Assert.assertEquals(pollingThreadName.concat(" exiting gracefully on selector closure"),logRecord.getMessage());
-  _selectorIntraband=new SelectorIntraband(_DEFAULT_TIMEOUT);
-  logRecords=JDKLoggerTestUtil.configureJDKLogger(SelectorIntraband.class.getName(),Level.OFF);
-  wakeUpThread=new Thread(new WakeUpRunnable(_selectorIntraband));
-  wakeUpThread.start();
-  pollingThread=_selectorIntraband.pollingThread;
-  selector=_selectorIntraband.selector;
+      wakeUpThread.interrupt();
+      wakeUpThread.join();
+      while (pollingThread.getState() != Thread.State.BLOCKED)       ;
+      selector.close();
+    }
+    pollingThread.join();
+    Assert.assertEquals(1,logRecords.size());
+    String pollingThreadName=pollingThread.getName();
+    LogRecord logRecord=logRecords.get(0);
+    Assert.assertEquals(pollingThreadName.concat(" exiting gracefully on selector closure"),logRecord.getMessage());
+    _selectorIntraband=new SelectorIntraband(_DEFAULT_TIMEOUT);
+    logRecords=captureHandler.resetLogLevel(Level.OFF);
+    wakeUpThread=new Thread(new WakeUpRunnable(_selectorIntraband));
+    wakeUpThread.start();
+    pollingThread=_selectorIntraband.pollingThread;
+    selector=_selectorIntraband.selector;
 synchronized (selector) {
-    wakeUpThread.interrupt();
-    wakeUpThread.join();
-    while (pollingThread.getState() != Thread.State.BLOCKED)     ;
-    selector.close();
+      wakeUpThread.interrupt();
+      wakeUpThread.join();
+      while (pollingThread.getState() != Thread.State.BLOCKED)       ;
+      selector.close();
+    }
+    pollingThread.join();
+    Assert.assertTrue(logRecords.isEmpty());
   }
-  pollingThread.join();
-  Assert.assertTrue(logRecords.isEmpty());
+  finally {
+    if (captureHandler != null) {
+      captureHandler.close();
+    }
+  }
 }

@@ -40,35 +40,44 @@
   Assert.assertSame(mockHttpServletResponse,_recordSPIAgent._originalResponse);
   Assert.assertNull(_recordSPIAgent._exception);
   Assert.assertTrue(_mockHttpSession.isInvalid());
-  _recordSPIAgent.setIOExceptionOnPrepareRequest(true);
-  List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(AcceptorServlet.class.getName(),Level.SEVERE);
+  CaptureHandler captureHandler=null;
   try {
-    acceptorServlet.service(mockHttpServletRequest,mockHttpServletResponse);
-    Assert.fail();
+    _recordSPIAgent.setIOExceptionOnPrepareRequest(true);
+    captureHandler=JDKLoggerTestUtil.configureJDKLogger(AcceptorServlet.class.getName(),Level.SEVERE);
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    try {
+      acceptorServlet.service(mockHttpServletRequest,mockHttpServletResponse);
+      Assert.fail();
+    }
+ catch (    IOException ioe) {
+      Assert.assertEquals("IOException on prepare request",ioe.getMessage());
+    }
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Throwable throwable=logRecord.getThrown();
+    Assert.assertSame(IOException.class,throwable.getClass());
+    Assert.assertEquals("IOException on prepare request",throwable.getMessage());
+    _recordSPIAgent.setIOExceptionOnPrepareRequest(false);
+    _recordSPIAgent.setRuntimeExceptionOnPrepareRequest(true);
+    logRecords=captureHandler.resetLogLevel(Level.SEVERE);
+    try {
+      acceptorServlet.service(mockHttpServletRequest,mockHttpServletResponse);
+      Assert.fail();
+    }
+ catch (    RuntimeException re) {
+      Assert.assertEquals("RuntimeException on prepare request",re.getMessage());
+    }
+    Assert.assertEquals(1,logRecords.size());
+    logRecord=logRecords.get(0);
+    throwable=logRecord.getThrown();
+    Assert.assertSame(RuntimeException.class,throwable.getClass());
+    Assert.assertEquals("RuntimeException on prepare request",throwable.getMessage());
   }
- catch (  IOException ioe) {
-    Assert.assertEquals("IOException on prepare request",ioe.getMessage());
+  finally {
+    if (captureHandler != null) {
+      captureHandler.close();
+    }
   }
-  Assert.assertEquals(1,logRecords.size());
-  LogRecord logRecord=logRecords.get(0);
-  Throwable throwable=logRecord.getThrown();
-  Assert.assertSame(IOException.class,throwable.getClass());
-  Assert.assertEquals("IOException on prepare request",throwable.getMessage());
-  _recordSPIAgent.setIOExceptionOnPrepareRequest(false);
-  _recordSPIAgent.setRuntimeExceptionOnPrepareRequest(true);
-  logRecords=JDKLoggerTestUtil.configureJDKLogger(AcceptorServlet.class.getName(),Level.SEVERE);
-  try {
-    acceptorServlet.service(mockHttpServletRequest,mockHttpServletResponse);
-    Assert.fail();
-  }
- catch (  RuntimeException re) {
-    Assert.assertEquals("RuntimeException on prepare request",re.getMessage());
-  }
-  Assert.assertEquals(1,logRecords.size());
-  logRecord=logRecords.get(0);
-  throwable=logRecord.getThrown();
-  Assert.assertSame(RuntimeException.class,throwable.getClass());
-  Assert.assertEquals("RuntimeException on prepare request",throwable.getMessage());
   _recordSPIAgent.setRuntimeExceptionOnPrepareRequest(false);
   failOnForward.set(true);
   acceptorServlet.service(mockHttpServletRequest,mockHttpServletResponse);

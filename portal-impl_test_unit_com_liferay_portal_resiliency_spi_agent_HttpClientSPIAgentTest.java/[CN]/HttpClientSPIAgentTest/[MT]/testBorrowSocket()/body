@@ -20,31 +20,40 @@
   closePeers(socket,serverSocket);
   socket=serverSocket.accept();
   socket.close();
-  List<LogRecord> logRecords=JDKLoggerTestUtil.configureJDKLogger(HttpClientSPIAgent.class.getName(),Level.OFF);
-  socket=new Socket(InetAddressUtil.getLoopbackInetAddress(),_spiConfiguration.getConnectorPort());
-  socket.shutdownInput();
-  SocketImpl socketImpl=swapSocketImpl(socket,null);
-  socketBlockingQueue.add(socket);
-  socket=httpClientSPIAgent.borrowSocket();
-  swapSocketImpl(socket,socketImpl);
-  closePeers(socket,serverSocket);
-  socket=serverSocket.accept();
-  socket.close();
-  Assert.assertTrue(logRecords.isEmpty());
-  logRecords=JDKLoggerTestUtil.configureJDKLogger(HttpClientSPIAgent.class.getName(),Level.WARNING);
-  socket=new Socket(InetAddressUtil.getLoopbackInetAddress(),_spiConfiguration.getConnectorPort());
-  socket.shutdownInput();
-  socketImpl=swapSocketImpl(socket,null);
-  socketBlockingQueue.add(socket);
-  socket=httpClientSPIAgent.borrowSocket();
-  swapSocketImpl(socket,socketImpl);
-  closePeers(socket,serverSocket);
-  socket=serverSocket.accept();
-  socket.close();
-  Assert.assertEquals(1,logRecords.size());
-  LogRecord logRecord=logRecords.get(0);
-  Throwable throwable=logRecord.getThrown();
-  Assert.assertSame(IOException.class,throwable.getClass());
+  CaptureHandler captureHandler=null;
+  try {
+    captureHandler=JDKLoggerTestUtil.configureJDKLogger(HttpClientSPIAgent.class.getName(),Level.OFF);
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    socket=new Socket(InetAddressUtil.getLoopbackInetAddress(),_spiConfiguration.getConnectorPort());
+    socket.shutdownInput();
+    SocketImpl socketImpl=swapSocketImpl(socket,null);
+    socketBlockingQueue.add(socket);
+    socket=httpClientSPIAgent.borrowSocket();
+    swapSocketImpl(socket,socketImpl);
+    closePeers(socket,serverSocket);
+    socket=serverSocket.accept();
+    socket.close();
+    Assert.assertTrue(logRecords.isEmpty());
+    logRecords=captureHandler.resetLogLevel(Level.WARNING);
+    socket=new Socket(InetAddressUtil.getLoopbackInetAddress(),_spiConfiguration.getConnectorPort());
+    socket.shutdownInput();
+    socketImpl=swapSocketImpl(socket,null);
+    socketBlockingQueue.add(socket);
+    socket=httpClientSPIAgent.borrowSocket();
+    swapSocketImpl(socket,socketImpl);
+    closePeers(socket,serverSocket);
+    socket=serverSocket.accept();
+    socket.close();
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Throwable throwable=logRecord.getThrown();
+    Assert.assertSame(IOException.class,throwable.getClass());
+  }
+  finally {
+    if (captureHandler != null) {
+      captureHandler.close();
+    }
+  }
   socket=httpClientSPIAgent.borrowSocket();
   socket.shutdownOutput();
   socketBlockingQueue.add(socket);
