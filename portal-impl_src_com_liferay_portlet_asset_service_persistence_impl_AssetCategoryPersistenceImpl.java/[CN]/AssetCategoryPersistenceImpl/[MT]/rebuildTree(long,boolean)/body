@@ -3,12 +3,23 @@
     return;
   }
   if (force || (countOrphanTreeNodes(groupId) > 0)) {
-    rebuildTree(groupId,0,1);
-    if (_HIBERNATE_CACHE_USE_SECOND_LEVEL_CACHE) {
-      CacheRegistryUtil.clear(AssetCategoryImpl.class.getName());
+    Session session=null;
+    try {
+      session=openSession();
+      if (session.isDirty()) {
+        session.flush();
+      }
+      SQLQuery selectQuery=session.createSQLQuery("SELECT categoryId FROM AssetCategory WHERE groupId = ? AND parentCategoryId = ? ORDER BY categoryId ASC");
+      selectQuery.addScalar("categoryId",com.liferay.portal.kernel.dao.orm.Type.LONG);
+      SQLQuery updateQuery=session.createSQLQuery("UPDATE AssetCategory SET leftCategoryId = ?, rightCategoryId = ? WHERE categoryId = ?");
+      rebuildTree(session,selectQuery,updateQuery,groupId,0,0);
     }
-    EntityCacheUtil.clearCache(AssetCategoryImpl.class);
-    FinderCacheUtil.clearCache(FINDER_CLASS_NAME_ENTITY);
-    FinderCacheUtil.clearCache(FINDER_CLASS_NAME_LIST_WITHOUT_PAGINATION);
+ catch (    Exception e) {
+      throw processException(e);
+    }
+ finally {
+      closeSession(session);
+    }
+    clearCache();
   }
 }

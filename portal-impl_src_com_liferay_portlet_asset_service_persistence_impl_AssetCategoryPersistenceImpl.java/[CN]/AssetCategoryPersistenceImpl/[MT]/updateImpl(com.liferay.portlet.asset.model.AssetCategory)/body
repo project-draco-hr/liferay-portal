@@ -6,19 +6,22 @@
     String uuid=PortalUUIDUtil.generate();
     assetCategory.setUuid(uuid);
   }
-  if (isNew) {
-    expandTree(assetCategory,null);
-  }
- else {
-    if (assetCategory.getParentCategoryId() != assetCategoryModelImpl.getOriginalParentCategoryId()) {
-      List<Long> childrenCategoryIds=getChildrenTreeCategoryIds(assetCategory);
-      shrinkTree(assetCategory);
-      expandTree(assetCategory,childrenCategoryIds);
-    }
-  }
   Session session=null;
   try {
     session=openSession();
+    if (rebuildTreeEnabled) {
+      if (session.isDirty()) {
+        session.flush();
+      }
+      if (isNew) {
+        nestedSetsTreeManager.insert(assetCategory,fetchByPrimaryKey(assetCategory.getParentCategoryId()));
+      }
+ else       if (assetCategory.getParentCategoryId() != assetCategoryModelImpl.getOriginalParentCategoryId()) {
+        nestedSetsTreeManager.move(assetCategory,fetchByPrimaryKey(assetCategoryModelImpl.getOriginalParentCategoryId()),fetchByPrimaryKey(assetCategory.getParentCategoryId()));
+      }
+      clearCache();
+      session.clear();
+    }
     if (assetCategory.isNew()) {
       session.save(assetCategory);
       assetCategory.setNew(false);
