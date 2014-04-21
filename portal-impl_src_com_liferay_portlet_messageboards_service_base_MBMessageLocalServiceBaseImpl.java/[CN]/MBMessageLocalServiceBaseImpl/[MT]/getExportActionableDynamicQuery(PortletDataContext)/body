@@ -1,0 +1,38 @@
+{
+  ExportActionableDynamicQuery exportActionableDynamicQuery=new ExportActionableDynamicQuery(){
+    @Override public long performCount() throws PortalException, SystemException {
+      ManifestSummary manifestSummary=portletDataContext.getManifestSummary();
+      StagedModelType stagedModelType=getStagedModelType();
+      long modelAdditionCount=super.performCount();
+      manifestSummary.addModelAdditionCount(stagedModelType.toString(),modelAdditionCount);
+      long modelDeletionCount=ExportImportHelperUtil.getModelDeletionCount(portletDataContext,stagedModelType);
+      manifestSummary.addModelDeletionCount(stagedModelType.toString(),modelDeletionCount);
+      return modelAdditionCount;
+    }
+  }
+;
+  initActionableDynamicQuery(exportActionableDynamicQuery);
+  exportActionableDynamicQuery.setAddCriteriaMethod(new ActionableDynamicQuery.AddCriteriaMethod(){
+    @Override public void addCriteria(    DynamicQuery dynamicQuery){
+      portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
+      if (getStagedModelType().getReferrerClassNameId() >= 0) {
+        Property classNameIdProperty=PropertyFactoryUtil.forName("classNameId");
+        dynamicQuery.add(classNameIdProperty.eq(getStagedModelType().getReferrerClassNameId()));
+      }
+      StagedModelDataHandler<?> stagedModelDataHandler=StagedModelDataHandlerRegistryUtil.getStagedModelDataHandler(MBMessage.class.getName());
+      Property workflowStatusProperty=PropertyFactoryUtil.forName("status");
+      dynamicQuery.add(workflowStatusProperty.in(stagedModelDataHandler.getExportableStatuses()));
+    }
+  }
+);
+  exportActionableDynamicQuery.setCompanyId(portletDataContext.getCompanyId());
+  exportActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
+  exportActionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod(){
+    @Override @SuppressWarnings("unused") public void performAction(    Object object) throws PortalException, SystemException {
+      MBMessage stagedModel=(MBMessage)object;
+      StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,stagedModel);
+    }
+  }
+);
+  return exportActionableDynamicQuery;
+}
