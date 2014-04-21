@@ -1,0 +1,29 @@
+{
+  TrashEntry trashEntry=trashEntryLocalService.fetchEntry(WikiPage.class.getName(),page.getResourcePrimKey());
+  if (trashEntry != null) {
+    return;
+  }
+  TrashVersion trashVersion=trashVersionLocalService.fetchVersion(trashEntryId,WikiPage.class.getName(),page.getPageId());
+  int oldStatus=WorkflowConstants.STATUS_APPROVED;
+  if (trashVersion != null) {
+    oldStatus=trashVersion.getStatus();
+  }
+  List<WikiPage> versionPages=wikiPagePersistence.findByR_N(page.getResourcePrimKey(),page.getNodeId());
+  for (  WikiPage versionPage : versionPages) {
+    trashVersion=trashVersionLocalService.fetchVersion(trashEntryId,WikiPage.class.getName(),versionPage.getPageId());
+    int versionPageOldStatus=WorkflowConstants.STATUS_APPROVED;
+    if (trashVersion != null) {
+      versionPageOldStatus=trashVersion.getStatus();
+    }
+    versionPage.setStatus(versionPageOldStatus);
+    wikiPagePersistence.update(versionPage);
+    if (trashVersion != null) {
+      trashVersionLocalService.deleteTrashVersion(trashVersion);
+    }
+  }
+  if (oldStatus == WorkflowConstants.STATUS_APPROVED) {
+    assetEntryLocalService.updateVisible(WikiPage.class.getName(),page.getResourcePrimKey(),true);
+  }
+  Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(WikiPage.class);
+  indexer.reindex(page);
+}
