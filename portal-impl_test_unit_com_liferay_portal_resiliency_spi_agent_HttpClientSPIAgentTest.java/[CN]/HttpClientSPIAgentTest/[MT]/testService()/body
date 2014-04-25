@@ -8,7 +8,10 @@
     Throwable throwable=pre.getCause();
     Assert.assertSame(ConnectException.class,throwable.getClass());
   }
-  httpClientSPIAgent=new HttpClientSPIAgent(_spiConfiguration,new MockRegistrationReference(new DirectMailboxIntraBand(new IOException())));
+  MockIntraband mockIntraband=new MockIntraband();
+  IOException ioException=new IOException();
+  mockIntraband.setIOException(ioException);
+  httpClientSPIAgent=new HttpClientSPIAgent(_spiConfiguration,new MockRegistrationReference(mockIntraband));
   ServerSocketChannel serverSocketChannel=SocketUtil.createServerSocketChannel(InetAddressUtil.getLoopbackInetAddress(),_spiConfiguration.getConnectorPort(),null);
   serverSocketChannel.configureBlocking(true);
   SocketChannel socketChannel=SocketChannel.open(httpClientSPIAgent.socketAddress);
@@ -24,6 +27,9 @@
  catch (  PortalResiliencyException pre) {
     Throwable throwable=pre.getCause();
     Assert.assertSame(IOException.class,throwable.getClass());
+    throwable=throwable.getCause();
+    Assert.assertSame(MailboxException.class,throwable.getClass());
+    Assert.assertSame(ioException,throwable.getCause());
   }
   ServerSocket serverSocket=serverSocketChannel.socket();
   closePeers(socket,serverSocket);
@@ -33,8 +39,7 @@
     List<LogRecord> logRecords=captureHandler.getLogRecords();
     socket=new Socket(InetAddressUtil.getLoopbackInetAddress(),_spiConfiguration.getConnectorPort());
     SocketImpl socketImpl=swapSocketImpl(socket,null);
-    DirectMailboxIntraBand directMailboxIntraBand=new DirectMailboxIntraBand(new IOException());
-    httpClientSPIAgent=new HttpClientSPIAgent(_spiConfiguration,new MockRegistrationReference(directMailboxIntraBand));
+    httpClientSPIAgent=new HttpClientSPIAgent(_spiConfiguration,new MockRegistrationReference(mockIntraband));
     socketBlockingQueue=httpClientSPIAgent.socketBlockingQueue;
     socketBlockingQueue.add(socket);
     try {
@@ -51,8 +56,7 @@
     logRecords=captureHandler.resetLogLevel(Level.WARNING);
     socket=new Socket(InetAddressUtil.getLoopbackInetAddress(),_spiConfiguration.getConnectorPort());
     socketImpl=swapSocketImpl(socket,null);
-    directMailboxIntraBand=new DirectMailboxIntraBand(new IOException());
-    httpClientSPIAgent=new HttpClientSPIAgent(_spiConfiguration,new MockRegistrationReference(directMailboxIntraBand));
+    httpClientSPIAgent=new HttpClientSPIAgent(_spiConfiguration,new MockRegistrationReference(mockIntraband));
     socketBlockingQueue=httpClientSPIAgent.socketBlockingQueue;
     socketBlockingQueue.add(socket);
     try {
@@ -77,7 +81,21 @@
   closePeers(socket,serverSocket);
   socketChannel=SocketChannel.open(httpClientSPIAgent.socketAddress);
   socketChannel.configureBlocking(true);
-  httpClientSPIAgent=new HttpClientSPIAgent(_spiConfiguration,new MockRegistrationReference(new DirectMailboxIntraBand(null)));
+  mockIntraband=new MockIntraband(){
+    @Override protected Datagram processDatagram(    Datagram datagram){
+      try {
+        long receipt=(Long)ReflectionTestUtil.invoke(MailboxUtil.class,"depositMail",new Class<?>[]{ByteBuffer.class},datagram.getDataByteBuffer());
+        byte[] receiptData=new byte[8];
+        BigEndianCodec.putLong(receiptData,0,receipt);
+        return Datagram.createResponseDatagram(datagram,ByteBuffer.wrap(receiptData));
+      }
+ catch (      Exception e) {
+        throw new RuntimeException(e);
+      }
+    }
+  }
+;
+  httpClientSPIAgent=new HttpClientSPIAgent(_spiConfiguration,new MockRegistrationReference(mockIntraband));
   socketBlockingQueue=httpClientSPIAgent.socketBlockingQueue;
   socket=socketChannel.socket();
   socketBlockingQueue.add(socket);

@@ -1,13 +1,9 @@
 {
   PropsUtilAdvice.setProps(PropsKeys.INTRABAND_MAILBOX_REAPER_THREAD_ENABLED,Boolean.FALSE.toString());
   PropsUtilAdvice.setProps(PropsKeys.INTRABAND_MAILBOX_STORAGE_LIFE,String.valueOf(Long.MAX_VALUE));
-  final AtomicBoolean throwException=new AtomicBoolean(true);
   final AtomicLong receiptReference=new AtomicLong();
   MockIntraband mockIntraband=new MockIntraband(){
-    @Override public Datagram sendSyncDatagram(    RegistrationReference registrationReference,    Datagram datagram) throws IOException {
-      if (throwException.get()) {
-        throw new IOException("Unable to send");
-      }
+    @Override protected Datagram processDatagram(    Datagram datagram){
       try {
         long receipt=(Long)ReflectionTestUtil.invoke(MailboxUtil.class,"depositMail",new Class<?>[]{ByteBuffer.class},datagram.getDataByteBuffer());
         receiptReference.set(receipt);
@@ -16,12 +12,14 @@
         return Datagram.createResponseDatagram(datagram,ByteBuffer.wrap(data));
       }
  catch (      Exception e) {
-        throw new IOException(e);
+        throw new RuntimeException(e);
       }
     }
   }
 ;
   SPIAgentSerializable agentSerializable=new SPIAgentSerializable(_SERVLET_CONTEXT_NAME);
+  IOException ioException=new IOException();
+  mockIntraband.setIOException(ioException);
   try {
     agentSerializable.writeTo(new MockRegistrationReference(mockIntraband),new UnsyncByteArrayOutputStream());
     Assert.fail();
@@ -29,12 +27,10 @@
  catch (  IOException ioe) {
     Throwable throwable=ioe.getCause();
     Assert.assertSame(MailboxException.class,throwable.getClass());
-    throwable=throwable.getCause();
-    Assert.assertSame(IOException.class,throwable.getClass());
-    Assert.assertEquals("Unable to send",throwable.getMessage());
+    Assert.assertSame(ioException,throwable.getCause());
   }
-  throwException.set(false);
   UnsyncByteArrayOutputStream unsyncByteArrayOutputStream=new UnsyncByteArrayOutputStream();
+  mockIntraband.setIOException(null);
   agentSerializable.writeTo(new MockRegistrationReference(mockIntraband),unsyncByteArrayOutputStream);
   long actualReceipt=BigEndianCodec.getLong(unsyncByteArrayOutputStream.unsafeGetByteArray(),0);
   Assert.assertEquals(receiptReference.get(),actualReceipt);
