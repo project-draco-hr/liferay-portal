@@ -14,32 +14,20 @@
     ServiceContextThreadLocal.pushServiceContext(serviceContext);
   }
   Layout layout=LayoutLocalServiceUtil.getLayout(plid);
-  UserIdStrategy userIdStrategy=getUserIdStrategy(user,userIdStrategyString);
+  UserIdStrategy userIdStrategy=ExportImportHelperUtil.getUserIdStrategy(userId,userIdStrategyString);
   ZipReader zipReader=ZipReaderFactoryUtil.getZipReader(file);
+  validateFile(layout.getCompanyId(),groupId,portletId,zipReader);
   PortletDataContext portletDataContext=PortletDataContextFactoryUtil.createImportPortletDataContext(layout.getCompanyId(),groupId,parameterMap,userIdStrategy,zipReader);
-  portletDataContext.setPortetDataContextListener(new PortletDataContextListenerImpl(portletDataContext));
   portletDataContext.setPlid(plid);
   portletDataContext.setPrivateLayout(layout.isPrivateLayout());
-  validateFile(portletDataContext,portletId);
-  ManifestSummary manifestSummary=ExportImportHelperUtil.getManifestSummary(userId,groupId,parameterMap,file);
+  ManifestSummary manifestSummary=ExportImportHelperUtil.getManifestSummary(portletDataContext);
   if (BackgroundTaskThreadLocal.hasBackgroundTask()) {
     PortletDataHandlerStatusMessageSenderUtil.sendStatusMessage("portlet",portletId,manifestSummary);
   }
   portletDataContext.setManifestSummary(manifestSummary);
-  Element rootElement=portletDataContext.getImportDataRootElement();
-  Element headerElement=rootElement.element("header");
-  long sourceCompanyId=GetterUtil.getLong(headerElement.attributeValue("company-id"));
-  portletDataContext.setSourceCompanyId(sourceCompanyId);
-  long sourceCompanyGroupId=GetterUtil.getLong(headerElement.attributeValue("company-group-id"));
-  portletDataContext.setSourceCompanyGroupId(sourceCompanyGroupId);
-  long sourceGroupId=GetterUtil.getLong(headerElement.attributeValue("group-id"));
-  portletDataContext.setSourceGroupId(sourceGroupId);
-  Map<Long,Long> groupIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(Group.class);
-  groupIds.put(sourceGroupId,groupId);
-  long sourceUserPersonalSiteGroupId=GetterUtil.getLong(headerElement.attributeValue("user-personal-site-group-id"));
-  portletDataContext.setSourceUserPersonalSiteGroupId(sourceUserPersonalSiteGroupId);
   Element portletElement=null;
   try {
+    Element rootElement=portletDataContext.getImportDataRootElement();
     portletElement=rootElement.element("portlet");
     Document portletDocument=SAXReaderUtil.read(portletDataContext.getZipEntryAsString(portletElement.attributeValue("path")));
     portletElement=portletDocument.getRootElement();
