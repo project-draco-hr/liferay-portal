@@ -1,0 +1,48 @@
+{
+  MessageBus messageBus=MessageBusUtil.getMessageBus();
+  Destination destination=messageBus.getDestination(destinationName);
+  if (destination != null) {
+    Set<MessageListener> messageListeners=destination.getMessageListeners();
+    for (    MessageListener curMessageListener : messageListeners) {
+      if (!(curMessageListener instanceof InvokerMessageListener)) {
+        continue;
+      }
+      InvokerMessageListener invokerMessageListener=(InvokerMessageListener)curMessageListener;
+      curMessageListener=invokerMessageListener.getMessageListener();
+      if (messageListener == curMessageListener) {
+        return;
+      }
+      Class<?> messageListenerClass=messageListener.getClass();
+      String messageListenerClassName=messageListenerClass.getName();
+      Class<?> curMessageListenerClass=curMessageListener.getClass();
+      if (!messageListenerClassName.equals(curMessageListenerClass.getName())) {
+        continue;
+      }
+      try {
+        if (enableScheduler) {
+          SchedulerEngineHelperUtil.unschedule(getSchedulerJobName(),getMessageListenerGroupName(),StorageType.MEMORY_CLUSTERED);
+        }
+        MessageBusUtil.unregisterMessageListener(destinationName,curMessageListener);
+      }
+ catch (      Exception e) {
+        log.error(e,e);
+      }
+      break;
+    }
+  }
+ else {
+    SerialDestination serialDestination=new SerialDestination();
+    serialDestination.setName(destinationName);
+    serialDestination.open();
+    MessageBusUtil.addDestination(serialDestination);
+  }
+  try {
+    MessageBusUtil.registerMessageListener(destinationName,messageListener);
+    if (enableScheduler) {
+      SchedulerEngineHelperUtil.schedule(getSchedulerTrigger(),StorageType.MEMORY_CLUSTERED,null,destinationName,null,0);
+    }
+  }
+ catch (  Exception e) {
+    log.error(e,e);
+  }
+}
