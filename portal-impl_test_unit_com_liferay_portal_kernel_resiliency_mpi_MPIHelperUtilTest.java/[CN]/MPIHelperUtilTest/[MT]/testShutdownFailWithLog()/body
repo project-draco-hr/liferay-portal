@@ -1,0 +1,33 @@
+{
+  MockSPI mockSPI=new MockSPI();
+  ConcurrentMap<String,Object> attributes=ProcessExecutor.ProcessContext.getAttributes();
+  attributes.put(SPI.SPI_INSTANCE_PUBLICATION_KEY,mockSPI);
+  UnicastRemoteObject.unexportObject(_getMPIImpl(),true);
+  final IOException ioException=new IOException();
+  ReflectionTestUtil.setFieldValue(MPIHelperUtil.class,"_intraband",new MockIntraband(){
+    @Override public void close() throws IOException {
+      throw ioException;
+    }
+  }
+);
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(MPIHelperUtil.class.getName(),Level.WARNING);
+  try {
+    MPIHelperUtil.shutdown();
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertEquals(3,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Assert.assertEquals("Unable to unregister from MPI",logRecord.getMessage());
+    Throwable throwable=logRecord.getThrown();
+    Assert.assertSame(RemoteException.class,throwable.getClass());
+    logRecord=logRecords.get(1);
+    Assert.assertEquals("Unable to unexport " + _getMPIImpl(),logRecord.getMessage());
+    throwable=logRecord.getThrown();
+    Assert.assertSame(NoSuchObjectException.class,throwable.getClass());
+    logRecord=logRecords.get(2);
+    Assert.assertEquals("Unable to close Intraband",logRecord.getMessage());
+    Assert.assertSame(ioException,logRecord.getThrown());
+  }
+  finally {
+    captureHandler.close();
+  }
+}

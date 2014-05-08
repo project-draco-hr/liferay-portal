@@ -1,0 +1,41 @@
+{
+  SPIRegistryUtil spiRegistryUtil=new SPIRegistryUtil();
+  spiRegistryUtil.setSPIRegistry(new SPIRegistryImpl());
+  MockIntraband mockIntraband=new MockIntraband(){
+    @Override protected Datagram processDatagram(    Datagram datagram){
+      Deserializer deserializer=new Deserializer(datagram.getDataByteBuffer());
+      try {
+        Serializer serializer=new Serializer();
+        ProcessCallable<Boolean> processCallable=deserializer.readObject();
+        Assert.assertTrue(processCallable.call());
+        Assert.assertFalse(processCallable.call());
+        serializer.writeObject(new RPCResponse(true));
+        return Datagram.createResponseDatagram(datagram,serializer.toByteBuffer());
+      }
+ catch (      Exception e) {
+        throw new RuntimeException(e);
+      }
+    }
+  }
+;
+  MockSPI mockSPI=new MockSPI();
+  mockSPI.mpi=MPIHelperUtil.getMPI();
+  mockSPI.registrationReference=new MockRegistrationReference(mockIntraband);
+  mockSPI.spiConfiguration=new SPIConfiguration("spiId",null,-1,null,new String[0],new String[0],null);
+  mockSPI.spiProviderName="spiProviderName";
+  Assert.assertTrue(MPIHelperUtil.registerSPIProvider(new MockSPIProvider(mockSPI.spiProviderName)));
+  Assert.assertTrue(MPIHelperUtil.registerSPI(mockSPI));
+  ConcurrentMap<String,Object> attributes=ProcessExecutor.ProcessContext.getAttributes();
+  attributes.put(SPI.SPI_INSTANCE_PUBLICATION_KEY,mockSPI);
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(MPIHelperUtil.class.getName(),Level.ALL);
+  try {
+    MPIHelperUtil.shutdown();
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Assert.assertEquals("Unregistered SPI " + mockSPI,logRecord.getMessage());
+  }
+  finally {
+    captureHandler.close();
+  }
+}
