@@ -2,40 +2,39 @@
   if (portalSource && !fileName.endsWith("PortletDataHandler.java")) {
     return;
   }
-  int methodIndex=content.indexOf("setDeletionSystemEventStagedModelTypes");
-  if (methodIndex < 0) {
+  int pos=content.indexOf("setDeletionSystemEventStagedModelTypes");
+  if (pos == -1) {
     return;
   }
-  String deletionSystemEventStagedModelTypes=content.substring(methodIndex,content.indexOf(");",methodIndex));
+  String deletionSystemEventStagedModelTypes=content.substring(pos,content.indexOf(");",pos));
   Matcher matcher=_stagedModelTypesPattern.matcher(deletionSystemEventStagedModelTypes);
   while (matcher.find()) {
     String stagedModelTypeEntity=matcher.group(1);
-    String entityName=null;
-    if (stagedModelTypeEntity.contains(".class")) {
-      entityName=stagedModelTypeEntity.substring(0,stagedModelTypeEntity.indexOf(".class"));
+    pos=stagedModelTypeEntity.indexOf(".class");
+    if (pos == -1) {
+      pos=stagedModelTypeEntity.indexOf("Constants");
     }
- else     if (stagedModelTypeEntity.contains("Constants")) {
-      entityName=stagedModelTypeEntity.substring(0,stagedModelTypeEntity.indexOf("Constants"));
-    }
-    if (Validator.isNull(entityName)) {
+    if (pos == -1) {
       return;
     }
+    String entityName=stagedModelTypeEntity.substring(0,pos);
     Pattern packagePattern=Pattern.compile("import (com\\.liferay\\.[a-zA-Z\\.]*)\\.model\\." + entityName + ";");
     Matcher packageMatcher=packagePattern.matcher(content);
     if (!packageMatcher.find()) {
       return;
     }
     String entityPackage=packageMatcher.group(1);
-    StringBundler sb=new StringBundler(5);
+    StringBundler sb=new StringBundler(6);
+    sb.append(BASEDIR);
     sb.append("portal-impl/src/");
-    sb.append(StringUtil.replace(entityPackage,".","/"));
+    sb.append(StringUtil.replace(entityPackage,StringPool.PERIOD,StringPool.SLASH));
     sb.append("/service/impl/");
     sb.append(entityName);
     sb.append("LocalServiceImpl.java");
     String localServiceImplFileName=sb.toString();
     String localServiceImplContent=fileUtil.read(localServiceImplFileName);
     if (!localServiceImplContent.contains("@SystemEvent")) {
-      processErrorMessage(fileName,"missing deletion system event: " + localServiceImplFileName);
+      processErrorMessage(fileName,"Missing deletion system event: " + localServiceImplFileName);
     }
   }
 }
