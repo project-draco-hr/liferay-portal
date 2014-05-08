@@ -1,6 +1,7 @@
 {
+  Map<String,Serializable> settingsMap=exportImportConfiguration.getSettingsMap();
   PermissionChecker permissionChecker=PermissionThreadLocal.getPermissionChecker();
-  User user=permissionChecker.getUser();
+  boolean secureConnection=MapUtil.getBoolean(settingsMap,"secureConnection");
   StringBundler sb=new StringBundler(4);
   if (secureConnection) {
     sb.append(Http.HTTPS_WITH_SLASH);
@@ -8,12 +9,17 @@
  else {
     sb.append(Http.HTTP_WITH_SLASH);
   }
+  String remoteAddress=MapUtil.getString(settingsMap,"remoteAddress");
+  int remotePort=MapUtil.getInteger(settingsMap,"remotePort");
+  String remotePathContext=MapUtil.getString(settingsMap,"remotePathContext");
   sb.append(remoteAddress);
   sb.append(StringPool.COLON);
   sb.append(remotePort);
   sb.append(remotePathContext);
   String url=sb.toString();
+  User user=permissionChecker.getUser();
   HttpPrincipal httpPrincipal=new HttpPrincipal(url,user.getEmailAddress(),user.getPassword(),user.getPasswordEncrypted());
+  long remoteGroupId=MapUtil.getLong(settingsMap,"remoteGroupId");
   try {
     GroupServiceHttp.checkRemoteStagingGroup(httpPrincipal,remoteGroupId);
   }
@@ -31,11 +37,8 @@ catch (  SystemException se) {
     ree.setURL(url);
     throw ree;
   }
-  Map<String,Serializable> settingsMap=ExportImportConfigurationSettingsMapFactory.buildSettingsMap(user.getUserId(),sourceGroupId,privateLayout,layoutIdMap,parameterMap,remoteAddress,remotePort,remotePathContext,secureConnection,remoteGroupId,remotePrivateLayout,startDate,endDate,null,null);
-  ServiceContext serviceContext=new ServiceContext();
-  ExportImportConfiguration exportImportConfiguration=ExportImportConfigurationLocalServiceUtil.addExportImportConfiguration(user.getUserId(),sourceGroupId,StringPool.BLANK,StringPool.BLANK,ExportImportConfigurationConstants.TYPE_PUBLISH_LAYOUT_REMOTE,settingsMap,WorkflowConstants.STATUS_DRAFT,serviceContext);
   Map<String,Serializable> taskContextMap=new HashMap<String,Serializable>();
   taskContextMap.put("exportImportConfigurationId",exportImportConfiguration.getExportImportConfigurationId());
   taskContextMap.put("httpPrincipal",httpPrincipal);
-  BackgroundTaskLocalServiceUtil.addBackgroundTask(user.getUserId(),sourceGroupId,StringPool.BLANK,null,LayoutRemoteStagingBackgroundTaskExecutor.class,taskContextMap,serviceContext);
+  BackgroundTaskLocalServiceUtil.addBackgroundTask(user.getUserId(),exportImportConfiguration.getGroupId(),StringPool.BLANK,null,LayoutRemoteStagingBackgroundTaskExecutor.class,taskContextMap,new ServiceContext());
 }
