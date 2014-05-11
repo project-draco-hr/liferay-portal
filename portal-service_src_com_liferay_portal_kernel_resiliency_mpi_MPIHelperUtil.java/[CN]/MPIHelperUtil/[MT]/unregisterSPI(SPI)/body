@@ -1,6 +1,9 @@
 {
-  _lock.lock();
   try {
+    if (spi == _unregisteringSPIThreadLocal.get()) {
+      _doUnregisterSPI(spi);
+      return true;
+    }
     MPI mpi=spi.getMPI();
     if (mpi != _mpi) {
       if (_log.isWarnEnabled()) {
@@ -9,29 +12,16 @@
       return false;
     }
     String spiProviderName=spi.getSPIProviderName();
-    SPIProvider spiProvider=_spiProviders.get(spiProviderName);
-    if (spiProvider == null) {
+    SPIProviderContainer spiProviderContainer=_spiProviderContainers.get(spiProviderName);
+    if (spiProviderContainer == null) {
       if (_log.isWarnEnabled()) {
         _log.warn("Not unregistering SPI " + spi + " with unknown SPI provider "+ spiProviderName);
       }
       return false;
     }
     SPIConfiguration spiConfiguration=spi.getSPIConfiguration();
-    String spiId=spiConfiguration.getSPIId();
-    SPIKey spiKey=new SPIKey(spiProviderName,spiId);
-    if (_spis.remove(spiKey,spi)) {
-      SPIRegistryUtil.unregisterSPI(spi);
-      for (      String servletContextName : spiConfiguration.getServletContextNames()) {
-        List<MessagingConfigurator> messagingConfigurators=MessagingConfiguratorRegistry.getMessagingConfigurators(servletContextName);
-        if (messagingConfigurators != null) {
-          for (          MessagingConfigurator messagingConfigurator : messagingConfigurators) {
-            messagingConfigurator.connect();
-          }
-        }
-      }
-      if (_log.isInfoEnabled()) {
-        _log.info("Unregistered SPI " + spi);
-      }
+    if (spiProviderContainer.removeSPI(spiConfiguration.getSPIId(),spi)) {
+      _doUnregisterSPI(spi);
       return true;
     }
     if (_log.isWarnEnabled()) {
@@ -41,8 +31,5 @@
   }
  catch (  RemoteException re) {
     throw new RuntimeException(re);
-  }
- finally {
-    _lock.unlock();
   }
 }

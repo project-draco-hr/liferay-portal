@@ -1,36 +1,34 @@
 {
-  _lock.lock();
-  try {
-    String spiProviderName=spiProvider.getName();
-    if (_spiProviders.remove(spiProviderName,spiProvider)) {
-      for (      Map.Entry<SPIKey,SPI> entry : _spis.entrySet()) {
-        SPIKey spiKey=entry.getKey();
-        if (!spiProviderName.equals(spiKey._spiProviderName)) {
-          continue;
-        }
-        SPI spi=entry.getValue();
-        try {
-          spi.stop();
-          spi.destroy();
-          if (_log.isInfoEnabled()) {
-            _log.info("Unregistered SPI " + spi + " while unregistering SPI provider "+ spiProvider);
-          }
-        }
- catch (        RemoteException re) {
-          _log.error("Unable to unregister SPI " + spi + " while unregistering SPI provider "+ spiProvider,re);
+  String spiProviderName=spiProvider.getName();
+  SPIProviderContainer spiProviderContainer=_spiProviderContainers.get(spiProviderName);
+  if ((spiProviderContainer != null) && (spiProviderContainer.getSPIProvider() == spiProvider) && _spiProviderContainers.remove(spiProviderName,spiProviderContainer)) {
+    Collection<SPI> spis=spiProviderContainer.getSPIs();
+    Iterator<SPI> iterator=spis.iterator();
+    while (iterator.hasNext()) {
+      SPI spi=iterator.next();
+      iterator.remove();
+      _unregisteringSPIThreadLocal.set(spi);
+      try {
+        spi.stop();
+        spi.destroy();
+        if (_log.isInfoEnabled()) {
+          _log.info("Unregistered SPI " + spi + " while unregistering SPI provider "+ spiProvider);
         }
       }
-      if (_log.isInfoEnabled()) {
-        _log.info("Unregistered SPI provider " + spiProvider);
+ catch (      RemoteException re) {
+        _log.error("Unable to unregister SPI " + spi + " while unregistering SPI provider "+ spiProvider,re);
       }
-      return true;
+ finally {
+        _unregisteringSPIThreadLocal.remove();
+      }
     }
-    if (_log.isWarnEnabled()) {
-      _log.warn("Not unregistering unregistered SPI provider " + spiProvider);
+    if (_log.isInfoEnabled()) {
+      _log.info("Unregistered SPI provider " + spiProvider);
     }
-    return false;
+    return true;
   }
-  finally {
-    _lock.unlock();
+  if (_log.isWarnEnabled()) {
+    _log.warn("Not unregistering unregistered SPI provider " + spiProvider);
   }
+  return false;
 }
