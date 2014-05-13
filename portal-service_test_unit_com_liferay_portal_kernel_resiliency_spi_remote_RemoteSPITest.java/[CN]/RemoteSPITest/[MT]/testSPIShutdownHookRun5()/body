@@ -1,0 +1,23 @@
+{
+  _mockRemoteSPI=new MockRemoteSPI(new SPIConfiguration("spiId",null,null,MockSPIAgent.class.getName(),8081,null,new String[0],new String[0],5000,0,Long.MAX_VALUE,null));
+  _mockRemoteSPI.countDownLatch=new CountDownLatch(1);
+  _mockRemoteSPI.registrationReference=mockRegistrationReference(false);
+  UnicastRemoteObject.exportObject(_mockRemoteSPI,0);
+  Future<?> future=actionOnMPIWaiting(false);
+  SPIShutdownHook spiShutdownHook=_mockRemoteSPI.new SPIShutdownHook();
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(RemoteSPI.class.getName(),Level.ALL);
+  try {
+    spiShutdownHook.run();
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertEquals(2,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Assert.assertEquals("Wait up to " + Long.MAX_VALUE + " ms for MPI shutdown request",logRecord.getMessage());
+    logRecord=logRecords.get(1);
+    Assert.assertEquals("Proceed with SPI shutdown",logRecord.getMessage());
+  }
+  finally {
+    captureHandler.close();
+  }
+  Assert.assertNull(future.get());
+  assertUnexported();
+}
