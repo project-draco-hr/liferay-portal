@@ -1,27 +1,26 @@
 {
+  Map<Long,LayoutRevision> layoutRevisions=new HashMap<Long,LayoutRevision>();
   List<LayoutSetBranch> layoutSetBranches=layoutSetBranchLocalService.getLayoutSetBranches(groupId,privateLayout);
-  Map<Long,LayoutRevision> publishedLayoutRevisions=new HashMap<Long,LayoutRevision>();
   for (  LayoutSetBranch layoutSetBranch : layoutSetBranches) {
     String lastPublishDateString=layoutSetBranch.getSettingsProperty("last-publish-date");
     if (Validator.isNull(lastPublishDateString)) {
       continue;
     }
     Date lastPublishDate=new Date(GetterUtil.getLong(lastPublishDateString));
-    List<LayoutRevision> headRevisions=layoutRevisionLocalService.getLayoutRevisions(layoutSetBranch.getLayoutSetBranchId(),true);
-    for (    LayoutRevision layoutRevision : headRevisions) {
-      LayoutRevision latestPublishedLayoutRevision=publishedLayoutRevisions.get(layoutRevision.getPlid());
-      if (latestPublishedLayoutRevision == null) {
-        publishedLayoutRevisions.put(layoutRevision.getPlid(),layoutRevision);
+    List<LayoutRevision> headLayoutRevisions=layoutRevisionLocalService.getLayoutRevisions(layoutSetBranch.getLayoutSetBranchId(),true);
+    for (    LayoutRevision headLayoutRevision : headLayoutRevisions) {
+      LayoutRevision layoutRevision=layoutRevisions.get(headLayoutRevision.getPlid());
+      if (layoutRevision == null) {
+        layoutRevisions.put(headLayoutRevision.getPlid(),headLayoutRevision);
         continue;
       }
-      Date statusDate=layoutRevision.getStatusDate();
-      Date lastStatusDate=latestPublishedLayoutRevision.getStatusDate();
-      if (statusDate.after(lastStatusDate) && lastPublishDate.after(statusDate)) {
-        publishedLayoutRevisions.put(layoutRevision.getPlid(),layoutRevision);
+      Date statusDate=headLayoutRevision.getStatusDate();
+      if (statusDate.after(layoutRevision.getStatusDate()) && lastPublishDate.after(statusDate)) {
+        layoutRevisions.put(headLayoutRevision.getPlid(),headLayoutRevision);
       }
     }
   }
-  for (  LayoutRevision layoutRevision : publishedLayoutRevisions.values()) {
+  for (  LayoutRevision layoutRevision : layoutRevisions.values()) {
     updateLayoutWithLayoutRevision(layoutRevision);
   }
   layoutSetBranchLocalService.deleteLayoutSetBranches(groupId,privateLayout,true);
