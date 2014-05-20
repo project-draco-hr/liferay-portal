@@ -1,0 +1,52 @@
+{
+  final Indexer indexer=Mockito.mock(Indexer.class);
+class IndexerRegistryGetIndexer implements InvocationHandler {
+    @Override public Indexer invoke(    Object proxy,    Method method,    Object[] args) throws Throwable {
+      String className=(String)args[0];
+      if (DLFILEENTRY_CLASS_NAME.equals(className)) {
+        return indexer;
+      }
+      if (DOCUMENT_CLASS_NAME.equals(className)) {
+        return null;
+      }
+      throw new IllegalArgumentException();
+    }
+  }
+  replace(method(IndexerRegistryUtil.class,"getIndexer",String.class)).with(new IndexerRegistryGetIndexer());
+  Summary summary=new Summary(null,"FileEntry Title","FileEntry Content",null);
+  doReturn(summary).when(indexer).getSummary((Document)Matchers.any(),Matchers.anyString(),(PortletURL)Matchers.any(),(PortletRequest)Matchers.isNull(),(PortletResponse)Matchers.isNull());
+class AssetRendererFactoryRegistryGetAssetRendererFactoryByClassName implements InvocationHandler {
+    @Override public AssetRendererFactory invoke(    Object proxy,    Method method,    Object[] args) throws Throwable {
+      String className=(String)args[0];
+      if (DLFILEENTRY_CLASS_NAME.equals(className)) {
+        return null;
+      }
+      if (DOCUMENT_CLASS_NAME.equals(className)) {
+        return assetRendererFactory;
+      }
+      throw new IllegalArgumentException();
+    }
+  }
+  replace(method(AssetRendererFactoryRegistryUtil.class,"getAssetRendererFactoryByClassName",String.class)).with(new AssetRendererFactoryRegistryGetAssetRendererFactoryByClassName());
+  when(assetRendererFactory.getAssetRenderer(DOCUMENT_CLASS_PK)).thenReturn(assetRenderer);
+  when(assetRenderer.getSearchSummary((Locale)Matchers.any())).thenReturn(SUMMARY_CONTENT);
+  when(assetRenderer.getTitle((Locale)Matchers.any())).thenReturn(SUMMARY_TITLE);
+  when(dlAppLocalService.getFileEntry(ENTRY_CLASS_PK)).thenReturn(fileEntry);
+  searchSingleDocument(newDocumentDLFileEntryWithAlternateKey());
+  Assert.assertEquals(DOCUMENT_CLASS_NAME,result.getClassName());
+  Assert.assertEquals(DOCUMENT_CLASS_PK,result.getClassPK());
+  Summary summaryFromResult=result.getSummary();
+  Assert.assertNotSame("Summary in result is not the same one returned by the Indexer",summary,summaryFromResult);
+  Assert.assertEquals(SUMMARY_CONTENT,summaryFromResult.getContent());
+  Assert.assertEquals(SUMMARY_TITLE,summaryFromResult.getTitle());
+  List<Tuple> tuples=result.getFileEntryTuples();
+  Assert.assertEquals(1,tuples.size());
+  Tuple tuple=tuples.get(0);
+  FileEntry fileEntryFromTuple=(FileEntry)tuple.getObject(0);
+  Summary summaryFromTuple=(Summary)tuple.getObject(1);
+  Assert.assertSame(fileEntry,fileEntryFromTuple);
+  Assert.assertSame("Summary in tuple must be the same one returned by the Indexer",summary,summaryFromTuple);
+  Assert.assertEquals("FileEntry Content",summaryFromTuple.getContent());
+  Assert.assertEquals("FileEntry Title",summaryFromTuple.getTitle());
+  assertThatEverythingUnrelatedIsEmpty();
+}
