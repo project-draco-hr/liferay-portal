@@ -1,0 +1,38 @@
+{
+  Method proxyMethod=_proxyMethods.get(key);
+  Class<?> returnClass=proxyMethod.getReturnType();
+  if (returnClass != void.class) {
+    _methodNodeGenerator.loadThis();
+    _methodNodeGenerator.loadArg(0);
+    _methodNodeGenerator.loadArg(1);
+    _methodNodeGenerator.newInstance(_RPC_RESPONSE_TYPE);
+    _methodNodeGenerator.dup();
+  }
+  _methodNodeGenerator.loadLocal(_typedTargetIndex);
+  for (  Class<?> parameterClass : proxyMethod.getParameterTypes()) {
+    _methodNodeGenerator.loadArg(2);
+    Type parameterType=Type.getType(parameterClass);
+    deserializerRead(_methodNodeGenerator,parameterType);
+    if (!parameterClass.isPrimitive() && (parameterClass != String.class) && (parameterClass != Object.class)) {
+      _methodNodeGenerator.checkCast(parameterType);
+    }
+  }
+  Class<?> declaringClass=proxyMethod.getDeclaringClass();
+  if (declaringClass.isInterface()) {
+    _methodNodeGenerator.invokeInterface(Type.getInternalName(declaringClass),proxyMethod);
+  }
+ else {
+    _methodNodeGenerator.invokeVirtual(Type.getInternalName(declaringClass),proxyMethod);
+  }
+  if (returnClass != void.class) {
+    if (returnClass.isPrimitive()) {
+      _methodNodeGenerator.box(Type.getType(returnClass));
+    }
+ else     if (Serializable.class.isAssignableFrom(returnClass)) {
+      _methodNodeGenerator.checkCast(_SERIALIZABLE_TYPE);
+    }
+    _methodNodeGenerator.invokeSpecial(_RPC_RESPONSE_TYPE.getInternalName(),"<init>",Type.VOID_TYPE,_SERIALIZABLE_TYPE);
+    _methodNodeGenerator.invokeSpecial(_owner,"_sendResponse",Type.VOID_TYPE,_REGISTRATION_REFERENCE_TYPE,_DATAGRAM_TYPE,_RPC_RESPONSE_TYPE);
+  }
+  _methodNodeGenerator.goTo(end);
+}

@@ -1,0 +1,55 @@
+{
+  MethodNodeGenerator methodNodeGenerator=new MethodNodeGenerator(method);
+  methodNodeGenerator.newInstance(_SERIALIZER_TYPE);
+  methodNodeGenerator.dup();
+  methodNodeGenerator.invokeSpecial(_SERIALIZER_TYPE.getInternalName(),"<init>",Type.VOID_TYPE);
+  int serializerIndex=methodNodeGenerator.newLocal(_SERIALIZER_TYPE);
+  methodNodeGenerator.storeLocal(serializerIndex);
+  methodNodeGenerator.loadLocal(serializerIndex);
+  methodNodeGenerator.push(skeletonId);
+  serializerWrite(methodNodeGenerator,_STRING_TYPE);
+  methodNodeGenerator.loadLocal(serializerIndex);
+  methodNodeGenerator.loadThis();
+  methodNodeGenerator.getField(stubType,"_id",_STRING_TYPE);
+  serializerWrite(methodNodeGenerator,_STRING_TYPE);
+  methodNodeGenerator.loadLocal(serializerIndex);
+  methodNodeGenerator.push(index);
+  serializerWrite(methodNodeGenerator,Type.INT_TYPE);
+  Class<?>[] parameterTypes=method.getParameterTypes();
+  for (int i=0; i < parameterTypes.length; i++) {
+    methodNodeGenerator.loadLocal(serializerIndex);
+    methodNodeGenerator.loadArg(i);
+    serializerWrite(methodNodeGenerator,Type.getType(parameterTypes[i]));
+  }
+  methodNodeGenerator.loadThis();
+  methodNodeGenerator.loadLocal(serializerIndex);
+  Class<?> returnClass=method.getReturnType();
+  if (returnClass == void.class) {
+    methodNodeGenerator.invokeSpecial(stubType.getInternalName(),"_send",Type.VOID_TYPE,_SERIALIZER_TYPE);
+    methodNodeGenerator.returnValue();
+  }
+ else {
+    methodNodeGenerator.invokeSpecial(stubType.getInternalName(),"_syncSend",_SERIALIZABLE_TYPE,_SERIALIZER_TYPE);
+    Type returnType=Type.getType(returnClass);
+    if (returnClass.isPrimitive()) {
+      int returnValueIndex=methodNodeGenerator.newLocal(_OBJECT_TYPE);
+      methodNodeGenerator.storeLocal(returnValueIndex);
+      methodNodeGenerator.loadLocal(returnValueIndex);
+      Label nullCheckLabel=new Label();
+      methodNodeGenerator.ifNull(nullCheckLabel);
+      methodNodeGenerator.loadLocal(returnValueIndex);
+      methodNodeGenerator.unbox(returnType);
+      methodNodeGenerator.returnValue();
+      methodNodeGenerator.visitLabel(nullCheckLabel);
+      ASMUtil.addDefaultReturnInsns(methodNodeGenerator,returnType);
+    }
+ else {
+      if (returnClass != Object.class) {
+        methodNodeGenerator.checkCast(returnType);
+      }
+      methodNodeGenerator.returnValue();
+    }
+  }
+  methodNodeGenerator.endMethod();
+  return methodNodeGenerator.getMethodNode();
+}

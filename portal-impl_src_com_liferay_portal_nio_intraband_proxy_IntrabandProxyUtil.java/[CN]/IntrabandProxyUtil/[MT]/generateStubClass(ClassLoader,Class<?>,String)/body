@@ -1,0 +1,54 @@
+{
+  String internalName=Type.getInternalName(clazz);
+  ClassNode classNode=ASMUtil.loadAndRename(clazz,internalName.concat(STUB_POSTFIX));
+  classNode.access&=~(Opcodes.ACC_ABSTRACT | Opcodes.ACC_INTERFACE);
+  classNode.access|=Opcodes.ACC_PUBLIC;
+  if (clazz.isInterface()) {
+    List<String> interfaces=classNode.interfaces;
+    interfaces.clear();
+    interfaces.add(internalName);
+  }
+  List<MethodNode> methodNodes=classNode.methods;
+  MethodNode defaultInitMethodNode=ASMUtil.removeMethodNode(methodNodes,"<init>",Type.VOID_TYPE);
+  ASMUtil.removeMethodNodes(methodNodes,"<init>");
+  ASMUtil.removeMethodNodes(methodNodes,Opcodes.ACC_ABSTRACT);
+  ASMUtil.removeMethodNodes(methodNodes,_annotationDescriptors);
+  ClassNode templateClassNode=ASMUtil.loadAndRename(TemplateStub.class,classNode.name);
+  List<FieldNode> templateFieldNodes=templateClassNode.fields;
+  FieldNode idFieldNode=ASMUtil.findFieldNode(templateFieldNodes,"_id");
+  idFieldNode.access|=Opcodes.ACC_FINAL;
+  ASMUtil.addFieldNodes(classNode.fields,templateFieldNodes);
+  List<MethodNode> templateMethodNodes=templateClassNode.methods;
+  MethodNode templateInitMethodNode=ASMUtil.findMethodNode(templateMethodNodes,"<init>",Type.VOID_TYPE,_STRING_TYPE,_REGISTRATION_REFERENCE_TYPE,_EXCEPTION_HANDLER_TYPE);
+  if (defaultInitMethodNode != null) {
+    ASMUtil.mergeMethods(templateInitMethodNode,defaultInitMethodNode,templateInitMethodNode);
+  }
+  MethodNode defaultClinitMethodNode=ASMUtil.removeMethodNode(methodNodes,"<clinit>",Type.VOID_TYPE);
+  if (defaultClinitMethodNode != null) {
+    MethodNode templateClinitMethodNode=ASMUtil.findMethodNode(templateMethodNodes,"<clinit>",Type.VOID_TYPE);
+    ASMUtil.mergeMethods(templateClinitMethodNode,defaultClinitMethodNode,templateClinitMethodNode);
+  }
+  methodNodes.addAll(templateMethodNodes);
+  Type stubType=Type.getType(classNode.name);
+  MethodsBag methodsBag=extractMethods(clazz);
+  for (  Method idMethod : methodsBag.idMethods) {
+    MethodNodeGenerator methodNodeGenerator=new MethodNodeGenerator(idMethod);
+    methodNodeGenerator.loadThis();
+    methodNodeGenerator.getField(stubType,"_id",_STRING_TYPE);
+    methodNodeGenerator.returnValue();
+    methodNodeGenerator.endMethod();
+    methodNodes.add(methodNodeGenerator.getMethodNode());
+  }
+  List<Method> proxyMethods=methodsBag.proxyMethods;
+  for (int i=0; i < proxyMethods.size(); i++) {
+    methodNodes.add(createProxyMethodNode(proxyMethods.get(i),i,skeletonId,stubType));
+  }
+  for (  Method emptyMethod : methodsBag.emptyMethods) {
+    MethodNodeGenerator methodNodeGenerator=new MethodNodeGenerator(emptyMethod);
+    ASMUtil.addDefaultReturnInsns(methodNodeGenerator,Type.getType(emptyMethod.getReturnType()));
+    methodNodeGenerator.endMethod();
+    methodNodes.add(methodNodeGenerator.getMethodNode());
+  }
+  rewriteGetProxyMethodSignaturesMethodNode(classNode,methodsBag.proxyMethodSignatures);
+  return toClass(classNode,classLoader);
+}
