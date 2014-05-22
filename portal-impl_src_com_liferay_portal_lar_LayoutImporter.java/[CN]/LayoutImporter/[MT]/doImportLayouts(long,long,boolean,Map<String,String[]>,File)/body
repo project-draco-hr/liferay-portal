@@ -36,9 +36,6 @@
   Map<Long,Long> groupIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(Group.class);
   groupIds.put(portletDataContext.getSourceGroupId(),groupId);
   ManifestSummary manifestSummary=ExportImportHelperUtil.getManifestSummary(portletDataContext);
-  if (BackgroundTaskThreadLocal.hasBackgroundTask()) {
-    PortletDataHandlerStatusMessageSenderUtil.sendStatusMessage("layout",manifestSummary);
-  }
   portletDataContext.setManifestSummary(manifestSummary);
   Element layoutsElement=portletDataContext.getImportDataGroupElement(Layout.class);
   String layoutSetPrototypeUuid=layoutsElement.attributeValue("layout-set-prototype-uuid");
@@ -113,6 +110,18 @@
   }
   Element portletsElement=rootElement.element("portlets");
   List<Element> portletElements=portletsElement.elements("portlet");
+  if (BackgroundTaskThreadLocal.hasBackgroundTask()) {
+    List<String> portletIds=new ArrayList();
+    for (    Element portletElement : portletElements) {
+      String portletId=portletElement.attributeValue("portlet-id");
+      Portlet portlet=PortletLocalServiceUtil.getPortletById(portletDataContext.getCompanyId(),portletId);
+      if (!portlet.isActive() || portlet.isUndeployedPortlet()) {
+        continue;
+      }
+      portletIds.add(portletId);
+    }
+    PortletDataHandlerStatusMessageSenderUtil.sendStatusMessage("layout",ArrayUtil.toStringArray(portletIds),manifestSummary);
+  }
   if (importPermissions) {
     for (    Element portletElement : portletElements) {
       String portletPath=portletElement.attributeValue("path");
@@ -196,6 +205,9 @@
     }
     portletDataContext.setPlid(plid);
     portletDataContext.setOldPlid(oldPlid);
+    if (BackgroundTaskThreadLocal.hasBackgroundTask()) {
+      PortletDataHandlerStatusMessageSenderUtil.sendStatusMessage("portlet",portletId,manifestSummary);
+    }
     Document portletDocument=SAXReaderUtil.read(portletDataContext.getZipEntryAsString(portletPath));
     portletElement=portletDocument.getRootElement();
     setPortletScope(portletDataContext,portletElement);

@@ -94,18 +94,28 @@
   }
   Map<String,Object[]> portletIds=new LinkedHashMap<String,Object[]>();
   List<Layout> layouts=LayoutLocalServiceUtil.getLayouts(groupId,privateLayout);
-  List<Portlet> portlets=getDataSiteLevelPortlets(companyId);
   if (group.isStagingGroup()) {
     group=group.getLiveGroup();
   }
-  for (  Portlet portlet : portlets) {
+  for (  Portlet portlet : getDataSiteLevelPortlets(companyId)) {
     String portletId=portlet.getRootPortletId();
     if (!group.isStagedPortlet(portletId)) {
       continue;
     }
-    String key=PortletPermissionUtil.getPrimaryKey(0,portletId);
-    if (portletIds.get(key) == null) {
-      portletIds.put(key,new Object[]{portletId,LayoutConstants.DEFAULT_PLID,groupId,StringPool.BLANK,StringPool.BLANK});
+    if (BackgroundTaskThreadLocal.hasBackgroundTask()) {
+      PortletDataHandler portletDataHandler=portlet.getPortletDataHandlerInstance();
+      portletDataHandler.prepareManifestSummary(portletDataContext);
+    }
+    portletIds.put(PortletPermissionUtil.getPrimaryKey(0,portletId),new Object[]{portletId,LayoutConstants.DEFAULT_PLID,groupId,StringPool.BLANK,StringPool.BLANK});
+    if (!portlet.isScopeable()) {
+      continue;
+    }
+    for (    Layout layout : layouts) {
+      if ((!ArrayUtil.contains(layoutIds,layout.getLayoutId()) && ArrayUtil.isNotEmpty(layoutIds)) || !layout.isTypePortlet() || !layout.hasScopeGroup()) {
+        continue;
+      }
+      Group scopeGroup=layout.getScopeGroup();
+      portletIds.put(PortletPermissionUtil.getPrimaryKey(layout.getPlid(),portlet.getPortletId()),new Object[]{portlet.getPortletId(),layout.getPlid(),scopeGroup.getGroupId(),StringPool.BLANK,layout.getUuid()});
     }
   }
   portletDataContext.addDeletionSystemEventStagedModelTypes(new StagedModelType(Layout.class));
@@ -117,7 +127,12 @@
     layoutsElement.addAttribute("layout-set-prototype-name",layoutSetPrototype.getName(LocaleUtil.getDefault()));
   }
   for (  Layout layout : layouts) {
-    exportLayout(portletDataContext,portlets,layoutIds,portletIds,layout);
+    exportLayout(portletDataContext,layoutIds,portletIds,layout);
+  }
+  if (BackgroundTaskThreadLocal.hasBackgroundTask()) {
+    ManifestSummary manifestSummary=portletDataContext.getManifestSummary();
+    PortletDataHandlerStatusMessageSenderUtil.sendStatusMessage("layout",ArrayUtil.toStringArray(portletIds.keySet()),manifestSummary);
+    manifestSummary.resetCounters();
   }
   Element portletsElement=rootElement.addElement("portlets");
   Element servicesElement=rootElement.addElement("services");
