@@ -1,20 +1,20 @@
 {
   if (serviceContext.getWorkflowAction() != WorkflowConstants.ACTION_PUBLISH) {
-    return;
+    return model;
   }
   final WorkflowHandler<T> workflowHandler=getWorkflowHandler(className);
   if (workflowHandler == null) {
     if (WorkflowThreadLocal.isEnabled()) {
       throw new WorkflowException("No workflow handler found for " + className);
     }
-    return;
+    return model;
   }
   boolean hasWorkflowInstanceInProgress=_instance._hasWorkflowInstanceInProgress(companyId,groupId,className,classPK);
   if (hasWorkflowInstanceInProgress) {
     if (_log.isWarnEnabled()) {
       _log.warn("Workflow already started for class " + className + " with primary key "+ classPK+ " in group "+ groupId);
     }
-    return;
+    return model;
   }
   WorkflowDefinitionLink workflowDefinitionLink=null;
   if (WorkflowThreadLocal.isEnabled() && WorkflowEngineManagerUtil.isDeployed()) {
@@ -33,15 +33,16 @@
   workflowContext.put(WorkflowConstants.CONTEXT_ENTRY_TYPE,workflowHandler.getType(LocaleUtil.getDefault()));
   workflowContext.put(WorkflowConstants.CONTEXT_SERVICE_CONTEXT,serviceContext);
   workflowContext.put(WorkflowConstants.CONTEXT_TASK_COMMENTS,GetterUtil.getString(serviceContext.getAttribute("comments")));
-  workflowHandler.updateStatus(status,workflowContext);
+  T updatedModel=workflowHandler.updateStatus(status,workflowContext);
   if (workflowDefinitionLink != null) {
     final Map<String,Serializable> tempWorkflowContext=workflowContext;
-    TransactionCommitCallbackRegistryUtil.registerCallback(new Callable<Object>(){
-      @Override public Object call() throws Exception {
+    TransactionCommitCallbackRegistryUtil.registerCallback(new Callable<Void>(){
+      @Override public Void call() throws Exception {
         workflowHandler.startWorkflowInstance(companyId,groupId,userId,classPK,model,tempWorkflowContext);
         return null;
       }
     }
 );
   }
+  return updatedModel;
 }
