@@ -1,0 +1,37 @@
+{
+  Connection connection=null;
+  ResultSet tableResultSet=null;
+  try {
+    connection=DataAccess.getUpgradeOptimizedConnection();
+    DatabaseMetaData databaseMetaData=connection.getMetaData();
+    tableResultSet=databaseMetaData.getTables(null,null,null,null);
+    while (tableResultSet.next()) {
+      String tableName=tableResultSet.getString("TABLE_NAME");
+      ResultSet columnResultSet=databaseMetaData.getColumns(null,null,tableName,null);
+      List<Object[]> columns=new ArrayList<Object[]>();
+      try {
+        while (columnResultSet.next()) {
+          columns.add(new Object[]{columnResultSet.getString("COLUMN_NAME"),columnResultSet.getInt("DATA_TYPE")});
+        }
+      }
+  finally {
+        DataAccess.cleanUp(columnResultSet);
+      }
+      Table table=new Table(tableName,columns.toArray(new Object[columns.size()][]));
+      table.generateTempFile(connection);
+      String tempFileName=table.getTempFileName();
+      if (tempFileName != null) {
+        File tempFile=new File(tempFileName);
+        tempFile.deleteOnExit();
+      }
+      _tables.add(table);
+      _cachedTables.put(tableName,new Table(tableName,columns.toArray(new Object[columns.size()][])));
+    }
+  }
+ catch (  Exception e) {
+    throw new RuntimeException(e);
+  }
+ finally {
+    DataAccess.cleanUp(connection,null,tableResultSet);
+  }
+}
