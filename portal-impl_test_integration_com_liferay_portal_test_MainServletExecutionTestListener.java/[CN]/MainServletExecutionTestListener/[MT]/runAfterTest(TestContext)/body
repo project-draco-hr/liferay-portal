@@ -1,0 +1,69 @@
+{
+  Map<Class<?>,List<Field>> autoRemoveFields=new HashMap<Class<?>,List<Field>>();
+  Class<?> testClass=testContext.getClazz();
+  while (testClass != null) {
+    for (    Field field : testClass.getDeclaredFields()) {
+      AutoRemove autoRemove=field.getAnnotation(AutoRemove.class);
+      if (autoRemove == null) {
+        continue;
+      }
+      Class<?> fieldType=field.getType();
+      if (!PersistedModel.class.isAssignableFrom(fieldType)) {
+        throw new IllegalArgumentException(AutoRemove.class + " can only be used to " + PersistedModel.class+ " type field, found it on field "+ field);
+      }
+      field.setAccessible(true);
+      List<Field> fields=autoRemoveFields.get(fieldType);
+      if (fields == null) {
+        fields=new ArrayList<Field>();
+        autoRemoveFields.put(fieldType,fields);
+      }
+      fields.add(field);
+    }
+    testClass=testClass.getSuperclass();
+  }
+  Object instance=testContext.getInstance();
+  Set<Map.Entry<Class<?>,List<Field>>> entrySet=autoRemoveFields.entrySet();
+  Iterator<Map.Entry<Class<?>,List<Field>>> iterator=entrySet.iterator();
+  while (iterator.hasNext()) {
+    Map.Entry<Class<?>,List<Field>> entry=iterator.next();
+    Class<?> clazz=entry.getKey();
+    if (_ORDERED_CLASSES.contains(clazz)) {
+      continue;
+    }
+    iterator.remove();
+    PersistedModelLocalService persistedModelLocalService=PersistedModelLocalServiceRegistryUtil.getPersistedModelLocalService(clazz.getName());
+    for (    Field field : entry.getValue()) {
+      try {
+        PersistedModel persistedModel=(PersistedModel)field.get(instance);
+        if (persistedModel == null) {
+          continue;
+        }
+        persistedModelLocalService.deletePersistedModel(persistedModel);
+        field.set(instance,null);
+      }
+ catch (      Exception e) {
+        _log.error("Unable to delete",e);
+      }
+    }
+  }
+  for (  Class<?> clazz : _ORDERED_CLASSES) {
+    List<Field> fields=autoRemoveFields.remove(clazz);
+    if (fields == null) {
+      continue;
+    }
+    PersistedModelLocalService persistedModelLocalService=PersistedModelLocalServiceRegistryUtil.getPersistedModelLocalService(clazz.getName());
+    for (    Field field : fields) {
+      try {
+        PersistedModel persistedModel=(PersistedModel)field.get(instance);
+        if (persistedModel == null) {
+          continue;
+        }
+        persistedModelLocalService.deletePersistedModel(persistedModel);
+        field.set(instance,null);
+      }
+ catch (      Exception e) {
+        _log.error("Unable to delete",e);
+      }
+    }
+  }
+}
