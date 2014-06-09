@@ -1,0 +1,52 @@
+{
+  Class<? extends IntrabandProxySkeleton> skeletonClass=IntrabandProxyUtil.generateSkeletonClass(_classLoader,clazz);
+  Constructor<? extends IntrabandProxySkeleton> constructor=skeletonClass.getConstructor(TargetLocator.class);
+  TestGenerateTargetLocator testGenerateTargetLocator=new TestGenerateTargetLocator(clazz);
+  IntrabandProxySkeleton intrabandProxySkeleton=constructor.newInstance(testGenerateTargetLocator);
+  Assert.assertSame(testGenerateTargetLocator,ReflectionTestUtil.getFieldValue(intrabandProxySkeleton,"_targetLocator"));
+  MockIntraband mockIntraband=new MockIntraband();
+  MockRegistrationReference mockRegistrationReference=new MockRegistrationReference(mockIntraband);
+  Datagram datagram=Datagram.createRequestDatagram(SystemDataType.PROXY.getValue(),new byte[0]);
+  String targetId="targetId";
+  List<Method> proxyMethods=_getProxyMethods(clazz);
+  for (int i=0; i < proxyMethods.size() + 1; i++) {
+    Serializer serializer=new Serializer();
+    serializer.writeString(targetId);
+    serializer.writeInt(i);
+    if (i == proxyMethods.size()) {
+      CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(skeletonClass.getName(),Level.SEVERE);
+      try {
+        intrabandProxySkeleton.dispatch(mockRegistrationReference,datagram,new Deserializer(serializer.toByteBuffer()));
+        List<LogRecord> logRecords=captureHandler.getLogRecords();
+        Assert.assertEquals(1,logRecords.size());
+        LogRecord logRecord=logRecords.get(0);
+        Assert.assertEquals("Unable to dispatch",logRecord.getMessage());
+        Throwable throwable=logRecord.getThrown();
+        Assert.assertSame(IllegalArgumentException.class,throwable.getClass());
+        Assert.assertEquals("Unknow method index " + i + " for proxy methods mappings "+ ReflectionTestUtil.getFieldValue(skeletonClass,"_proxyMethodsMapping"),throwable.getMessage());
+      }
+  finally {
+        captureHandler.close();
+      }
+      break;
+    }
+    Method proxyMethod=proxyMethods.get(i);
+    for (    Class<?> parameterType : proxyMethod.getParameterTypes()) {
+      _writeToSerializer(serializer,parameterType);
+    }
+    Deserializer deserializer=new Deserializer(serializer.toByteBuffer());
+    intrabandProxySkeleton.dispatch(mockRegistrationReference,datagram,deserializer);
+    Class<?> returnType=proxyMethod.getReturnType();
+    if (returnType == void.class) {
+      Assert.assertNull(mockIntraband.getDatagram());
+      Assert.assertNull(mockIntraband.getRegistrationReference());
+    }
+ else {
+      Datagram responseDatagram=mockIntraband.getDatagram();
+      deserializer=new Deserializer(responseDatagram.getDataByteBuffer());
+      RPCResponse rpcResponse=deserializer.readObject();
+      Assert.assertEquals(_sampleValueMap.get(returnType),rpcResponse.getResult());
+      Assert.assertSame(mockRegistrationReference,mockIntraband.getRegistrationReference());
+    }
+  }
+}

@@ -1,0 +1,65 @@
+{
+  try {
+    new TemplateStub(null,null,null);
+    Assert.fail();
+  }
+ catch (  NullPointerException npe) {
+    Assert.assertEquals("Id is null",npe.getMessage());
+  }
+  try {
+    new TemplateStub("id",null,null);
+    Assert.fail();
+  }
+ catch (  NullPointerException npe) {
+    Assert.assertEquals("Registration reference is null",npe.getMessage());
+  }
+  final AtomicReference<RPCResponse> rpcResponseReference=new AtomicReference<RPCResponse>();
+  MockIntraband mockIntraband=new MockIntraband(){
+    @Override protected Datagram processDatagram(    Datagram datagram){
+      Serializer serializer=new Serializer();
+      serializer.writeObject(rpcResponseReference.get());
+      return Datagram.createResponseDatagram(datagram,serializer.toByteBuffer());
+    }
+  }
+;
+  MockRegistrationReference mockRegistrationReference=new MockRegistrationReference(mockIntraband);
+  TemplateStub templateStub=new TemplateStub("id",mockRegistrationReference,null);
+  Assert.assertEquals("id",ReflectionTestUtil.getFieldValue(templateStub,"_id"));
+  Assert.assertSame(mockRegistrationReference,ReflectionTestUtil.getFieldValue(templateStub,"_registrationReference"));
+  Assert.assertNull(ReflectionTestUtil.getFieldValue(templateStub,"_exceptionHandler"));
+  Assert.assertSame(mockIntraband,ReflectionTestUtil.getFieldValue(templateStub,"_intraband"));
+  ExceptionHandler exceptionHandler=new WarnLogExceptionHandler();
+  templateStub=new TemplateStub("id",mockRegistrationReference,exceptionHandler);
+  Assert.assertEquals("id",ReflectionTestUtil.getFieldValue(templateStub,"_id"));
+  Assert.assertSame(mockRegistrationReference,ReflectionTestUtil.getFieldValue(templateStub,"_registrationReference"));
+  Assert.assertSame(exceptionHandler,ReflectionTestUtil.getFieldValue(templateStub,"_exceptionHandler"));
+  Assert.assertSame(mockIntraband,ReflectionTestUtil.getFieldValue(templateStub,"_intraband"));
+  ReflectionTestUtil.invoke(templateStub,"_send",new Class<?>[]{Serializer.class},new Serializer());
+  Assert.assertSame(mockRegistrationReference,mockIntraband.getRegistrationReference());
+  Datagram datagram=mockIntraband.getDatagram();
+  Assert.assertEquals(SystemDataType.PROXY.getValue(),datagram.getType());
+  rpcResponseReference.set(new RPCResponse("syncSend"));
+  Assert.assertEquals("syncSend",ReflectionTestUtil.invoke(templateStub,"_syncSend",new Class<?>[]{Serializer.class},new Serializer()));
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(WarnLogExceptionHandler.class.getName(),Level.WARNING);
+  try {
+    String message="RPC failure";
+    rpcResponseReference.set(new RPCResponse(new Exception(message)));
+    Assert.assertNull(ReflectionTestUtil.invoke(templateStub,"_syncSend",new Class<?>[]{Serializer.class},new Serializer()));
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Throwable throwable=logRecord.getThrown();
+    Assert.assertEquals(message,throwable.getMessage());
+    logRecords.clear();
+    rpcResponseReference.set(new RPCResponse((Serializable)null));
+    Assert.assertNull(ReflectionTestUtil.invoke(templateStub,"_syncSend",new Class<?>[]{Serializer.class},new Serializer()));
+    Assert.assertTrue(logRecords.isEmpty());
+    rpcResponseReference.set(null);
+    ReflectionTestUtil.setFieldValue(templateStub,"_exceptionHandler",null);
+    Assert.assertNull(ReflectionTestUtil.invoke(templateStub,"_syncSend",new Class<?>[]{Serializer.class},new Serializer()));
+    Assert.assertTrue(logRecords.isEmpty());
+  }
+  finally {
+    captureHandler.close();
+  }
+}

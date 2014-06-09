@@ -1,0 +1,40 @@
+{
+  Class<?> skeletonClass=IntrabandProxyUtil.generateSkeletonClass(_classLoader,clazz);
+  Assert.assertEquals(Modifier.PUBLIC,skeletonClass.getModifiers());
+  Assert.assertArrayEquals(new Class<?>[]{IntrabandProxySkeleton.class},skeletonClass.getInterfaces());
+  _assertDeclaredField(skeletonClass,"PROXY_METHOD_SIGNATURES",Modifier.PUBLIC | Modifier.STATIC | Modifier.FINAL,String[].class);
+  String[] proxyMethodSignatures=IntrabandProxyUtil.getProxyMethodSignatures(skeletonClass);
+  Assert.assertArrayEquals(_buildProxyMethodSignatures(clazz),proxyMethodSignatures);
+  StringBundler sb=new StringBundler(proxyMethodSignatures.length * 4 + 1);
+  sb.append(StringPool.OPEN_CURLY_BRACE);
+  for (int i=0; i < proxyMethodSignatures.length; i++) {
+    sb.append(i);
+    sb.append(" -> ");
+    sb.append(proxyMethodSignatures[i]);
+    sb.append(StringPool.COMMA_AND_SPACE);
+  }
+  if (proxyMethodSignatures.length > 0) {
+    sb.setIndex(sb.index() - 1);
+  }
+  sb.append(StringPool.CLOSE_CURLY_BRACE);
+  Field proxyMethodsMappingField=_assertDeclaredField(skeletonClass,"_proxyMethodsMapping",Modifier.PRIVATE | Modifier.STATIC | Modifier.FINAL,String.class);
+  Assert.assertEquals(sb.toString(),(String)proxyMethodsMappingField.get(null));
+  Field logField=_assertDeclaredField(skeletonClass,"_log",Modifier.PRIVATE | Modifier.STATIC,Log.class);
+  LogWrapper logWrapper=(LogWrapper)logField.get(null);
+  Jdk14LogImpl jdk14LogImpl=(Jdk14LogImpl)logWrapper.getWrappedLog();
+  Logger logger=jdk14LogImpl.getWrappedLogger();
+  Assert.assertEquals(skeletonClass.getName(),logger.getName());
+  _assertDeclaredField(skeletonClass,"_targetLocator",Modifier.PRIVATE | Modifier.FINAL,TargetLocator.class);
+  Constructor<?>[] constructors=skeletonClass.getConstructors();
+  Assert.assertEquals(1,constructors.length);
+  Constructor<?> constructor=constructors[0];
+  Assert.assertArrayEquals(new Class<?>[]{TargetLocator.class},constructor.getParameterTypes());
+  _assertDeclaredMethod(skeletonClass,"dispatch",new Class<?>[]{RegistrationReference.class,Datagram.class,Deserializer.class},Modifier.PUBLIC,void.class);
+  _assertDeclaredMethod(skeletonClass,"doDispatch",new Class<?>[]{RegistrationReference.class,Datagram.class,Deserializer.class},Modifier.PROTECTED,void.class,Exception.class);
+  _assertDeclaredMethod(skeletonClass,"_getProxyMethodSignatures",new Class<?>[0],Modifier.STATIC | Modifier.PRIVATE,String[].class);
+  _assertDeclaredMethod(skeletonClass,"_getProxyMethodsMapping",new Class<?>[]{String[].class},Modifier.STATIC | Modifier.PRIVATE,String.class);
+  _assertDeclaredMethod(skeletonClass,"_sendResponse",new Class<?>[]{RegistrationReference.class,Datagram.class,RPCResponse.class},Modifier.PRIVATE,void.class);
+  _assertDeclaredMethod(skeletonClass,"_unknownMethodIndex",new Class<?>[]{int.class},Modifier.PRIVATE,void.class);
+  Method[] declaredMethods=skeletonClass.getDeclaredMethods();
+  Assert.assertEquals(6,declaredMethods.length);
+}

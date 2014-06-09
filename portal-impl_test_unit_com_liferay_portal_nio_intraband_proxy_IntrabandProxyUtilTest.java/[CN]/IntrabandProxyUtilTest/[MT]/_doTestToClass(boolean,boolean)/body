@@ -1,0 +1,63 @@
+{
+class TestClass {
+  }
+  ClassNode classNode=_loadClass(TestClass.class);
+  MethodNode methodNode=new MethodNode(Opcodes.ACC_PUBLIC,"<clinit>","()V",null,null);
+  methodNode.visitCode();
+  methodNode.visitInsn(Opcodes.RETURN);
+  methodNode.visitEnd();
+  List<MethodNode> methodNodes=classNode.methods;
+  methodNodes.add(methodNode);
+  ClassLoader classLoader=new URLClassLoader(new URL[0],null);
+  CaptureHandler captureHandler=null;
+  if (logEnabled) {
+    captureHandler=JDKLoggerTestUtil.configureJDKLogger(IntrabandProxyUtil.class.getName(),Level.INFO);
+  }
+ else {
+    captureHandler=JDKLoggerTestUtil.configureJDKLogger(IntrabandProxyUtil.class.getName(),Level.WARNING);
+  }
+  try {
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    IntrabandProxyUtil.toClass(classNode,classLoader);
+    if (proxyClassesDumpEnabled) {
+      StringBundler sb=new StringBundler(6);
+      sb.append(SystemProperties.get(SystemProperties.TMP_DIR));
+      sb.append(StringPool.SLASH);
+      sb.append(PropsValues.INTRABAND_PROXY_DUMP_CLASSES_DIR);
+      sb.append(StringPool.SLASH);
+      sb.append(classNode.name);
+      sb.append(".class");
+      String filePath=sb.toString();
+      File classFile=new File(filePath);
+      Assert.assertTrue(classFile.exists());
+      ClassNode reloadedClassNode=_loadClass(new FileInputStream(classFile));
+      MethodNode clinitMethodNode=ASMUtil.findMethodNode(reloadedClassNode.methods,"<clinit>",Type.VOID_TYPE);
+      InsnList insnList=clinitMethodNode.instructions;
+      Assert.assertEquals(1,insnList.size());
+      _assertInsnNode(insnList.getFirst(),Opcodes.RETURN);
+      if (logEnabled) {
+        Assert.assertEquals(1,logRecords.size());
+        LogRecord logRecord=logRecords.get(0);
+        Assert.assertEquals(logRecord.getMessage(),"Dumpped class ".concat(filePath));
+      }
+    }
+    if (!proxyClassesDumpEnabled || !logEnabled) {
+      Assert.assertTrue(logRecords.isEmpty());
+    }
+  }
+  finally {
+    captureHandler.close();
+  }
+  try {
+    IntrabandProxyUtil.toClass(classNode,classLoader);
+    Assert.fail();
+  }
+ catch (  RuntimeException re) {
+    Throwable throwable=re.getCause();
+    Assert.assertSame(InvocationTargetException.class,throwable.getClass());
+    throwable=throwable.getCause();
+    Assert.assertSame(LinkageError.class,throwable.getClass());
+    String message=throwable.getMessage();
+    Assert.assertTrue(message.contains("duplicate class definition for name: \"" + Type.getInternalName(TestClass.class) + "\""));
+  }
+}

@@ -1,0 +1,118 @@
+{
+  MethodNode proxyMethodNode=IntrabandProxyUtil.createProxyMethodNode(method,index,skeletonId,Type.getType(stubInternalName));
+  _assertMethodNodeSignature(proxyMethodNode,method.getModifiers() & ~Modifier.ABSTRACT,method.getName(),Type.getMethodDescriptor(method),method.getExceptionTypes());
+  InsnList insnList=proxyMethodNode.instructions;
+  Iterator<AbstractInsnNode> iterator=insnList.iterator();
+  _assertTypeInsnNode(iterator.next(),Opcodes.NEW,Serializer.class);
+  _assertInsnNode(iterator.next(),Opcodes.DUP);
+  _assertMethodInsnNode(iterator.next(),Opcodes.INVOKESPECIAL,Type.getInternalName(Serializer.class),"<init>",Type.VOID_TYPE);
+  Type methodType=Type.getType(method);
+  int argumentsAndReturnSizes=methodType.getArgumentsAndReturnSizes();
+  int argumentsSize=argumentsAndReturnSizes >> 2;
+  _assertVarInsnNode(iterator.next(),Opcodes.ASTORE,argumentsSize);
+  _assertVarInsnNode(iterator.next(),Opcodes.ALOAD,argumentsSize);
+  _assertLdcInsnNode(iterator.next(),Opcodes.LDC,skeletonId);
+  _assertMethodInsnNode(iterator.next(),Opcodes.INVOKEVIRTUAL,Type.getInternalName(Serializer.class),"writeString",Type.VOID_TYPE,Type.getType(String.class));
+  _assertVarInsnNode(iterator.next(),Opcodes.ALOAD,argumentsSize);
+  _assertVarInsnNode(iterator.next(),Opcodes.ALOAD,0);
+  _assertFieldInsnNode(iterator.next(),Opcodes.GETFIELD,stubInternalName,"_id",String.class);
+  _assertMethodInsnNode(iterator.next(),Opcodes.INVOKEVIRTUAL,Type.getInternalName(Serializer.class),"writeString",Type.VOID_TYPE,Type.getType(String.class));
+  _assertVarInsnNode(iterator.next(),Opcodes.ALOAD,argumentsSize);
+  if (index <= 5) {
+    _assertInsnNode(iterator.next(),Opcodes.ICONST_0 + index);
+  }
+ else {
+    _assertIntInsnNode(iterator.next(),Opcodes.BIPUSH,index);
+  }
+  _assertMethodInsnNode(iterator.next(),Opcodes.INVOKEVIRTUAL,Type.getInternalName(Serializer.class),"writeInt",Type.VOID_TYPE,Type.INT_TYPE);
+  Class<?>[] parameterTypes=method.getParameterTypes();
+  int offset=1;
+  for (int i=0; i < parameterTypes.length; i++) {
+    Class<?> parameterClass=parameterTypes[i];
+    _assertVarInsnNode(iterator.next(),Opcodes.ALOAD,argumentsSize);
+    Type parameterType=Type.getType(parameterClass);
+    _assertVarInsnNode(iterator.next(),parameterType.getOpcode(Opcodes.ILOAD),offset);
+    offset+=parameterType.getSize();
+    if (parameterClass.isPrimitive() || (parameterClass == String.class)) {
+      String name=TextFormatter.format(parameterClass.getSimpleName(),TextFormatter.G);
+      _assertMethodInsnNode(iterator.next(),Opcodes.INVOKEVIRTUAL,Type.getInternalName(Serializer.class),"write".concat(name),Type.VOID_TYPE,parameterType);
+    }
+ else {
+      _assertMethodInsnNode(iterator.next(),Opcodes.INVOKEVIRTUAL,Type.getInternalName(Serializer.class),"writeObject",Type.VOID_TYPE,Type.getType(Serializable.class));
+    }
+  }
+  _assertVarInsnNode(iterator.next(),Opcodes.ALOAD,0);
+  _assertVarInsnNode(iterator.next(),Opcodes.ALOAD,argumentsSize);
+  Class<?> returnClass=method.getReturnType();
+  Type returnType=Type.getType(returnClass);
+  if (returnClass == void.class) {
+    _assertMethodInsnNode(iterator.next(),Opcodes.INVOKESPECIAL,stubInternalName,"_send",Type.VOID_TYPE,Type.getType(Serializer.class));
+    _assertInsnNode(iterator.next(),Opcodes.RETURN);
+  }
+ else {
+    _assertMethodInsnNode(iterator.next(),Opcodes.INVOKESPECIAL,stubInternalName,"_syncSend",Type.getType(Serializable.class),Type.getType(Serializer.class));
+    if (returnClass.isPrimitive()) {
+      _assertVarInsnNode(iterator.next(),Opcodes.ASTORE,argumentsSize + 1);
+      _assertVarInsnNode(iterator.next(),Opcodes.ALOAD,argumentsSize + 1);
+      LabelNode nullCheckLabelNode=_assertJumpInsnNode(iterator.next(),Opcodes.IFNULL);
+      _assertVarInsnNode(iterator.next(),Opcodes.ALOAD,argumentsSize + 1);
+      _assertTypeInsnNode(iterator.next(),Opcodes.CHECKCAST,_autoBoxingMap.get(returnClass));
+      if (returnClass == boolean.class) {
+        _assertMethodInsnNode(iterator.next(),Opcodes.INVOKEVIRTUAL,Type.getInternalName(Boolean.class),"booleanValue",Type.BOOLEAN_TYPE);
+      }
+ else       if (returnClass == byte.class) {
+        _assertMethodInsnNode(iterator.next(),Opcodes.INVOKEVIRTUAL,Type.getInternalName(Number.class),"intValue",Type.INT_TYPE);
+      }
+ else       if (returnClass == char.class) {
+        _assertMethodInsnNode(iterator.next(),Opcodes.INVOKEVIRTUAL,Type.getInternalName(Character.class),"charValue",Type.CHAR_TYPE);
+      }
+ else       if (returnClass == double.class) {
+        _assertMethodInsnNode(iterator.next(),Opcodes.INVOKEVIRTUAL,Type.getInternalName(Number.class),"doubleValue",Type.DOUBLE_TYPE);
+      }
+ else       if (returnClass == float.class) {
+        _assertMethodInsnNode(iterator.next(),Opcodes.INVOKEVIRTUAL,Type.getInternalName(Number.class),"floatValue",Type.FLOAT_TYPE);
+      }
+ else       if (returnClass == int.class) {
+        _assertMethodInsnNode(iterator.next(),Opcodes.INVOKEVIRTUAL,Type.getInternalName(Number.class),"intValue",Type.INT_TYPE);
+      }
+ else       if (returnClass == long.class) {
+        _assertMethodInsnNode(iterator.next(),Opcodes.INVOKEVIRTUAL,Type.getInternalName(Number.class),"longValue",Type.LONG_TYPE);
+      }
+ else       if (returnClass == short.class) {
+        _assertMethodInsnNode(iterator.next(),Opcodes.INVOKEVIRTUAL,Type.getInternalName(Number.class),"intValue",Type.INT_TYPE);
+      }
+      _assertInsnNode(iterator.next(),returnType.getOpcode(Opcodes.IRETURN));
+      Assert.assertSame(nullCheckLabelNode,iterator.next());
+      if (!returnClass.isPrimitive()) {
+        _assertInsnNode(iterator.next(),Opcodes.ACONST_NULL);
+        _assertInsnNode(iterator.next(),Opcodes.ARETURN);
+      }
+ else       if (returnClass == void.class) {
+        _assertInsnNode(iterator.next(),Opcodes.RETURN);
+      }
+ else       if (returnClass == float.class) {
+        _assertInsnNode(iterator.next(),Opcodes.FCONST_0);
+        _assertInsnNode(iterator.next(),Opcodes.FRETURN);
+      }
+ else       if (returnClass == double.class) {
+        _assertInsnNode(iterator.next(),Opcodes.DCONST_0);
+        _assertInsnNode(iterator.next(),Opcodes.DRETURN);
+      }
+ else       if (returnClass == long.class) {
+        _assertInsnNode(iterator.next(),Opcodes.LCONST_0);
+        _assertInsnNode(iterator.next(),Opcodes.LRETURN);
+      }
+ else {
+        _assertInsnNode(iterator.next(),Opcodes.ICONST_0);
+        _assertInsnNode(iterator.next(),Opcodes.IRETURN);
+      }
+    }
+ else {
+      if (returnClass != Object.class) {
+        _assertTypeInsnNode(iterator.next(),Opcodes.CHECKCAST,returnClass);
+      }
+      _assertInsnNode(iterator.next(),Opcodes.ARETURN);
+    }
+  }
+  Assert.assertFalse(iterator.hasNext());
+}

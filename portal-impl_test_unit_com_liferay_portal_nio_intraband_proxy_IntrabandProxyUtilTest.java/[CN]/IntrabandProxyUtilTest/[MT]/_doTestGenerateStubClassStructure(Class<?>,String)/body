@@ -1,0 +1,41 @@
+{
+  Class<?> stubClass=IntrabandProxyUtil.generateStubClass(_classLoader,clazz,skeletonId);
+  Assert.assertEquals(Modifier.PUBLIC,stubClass.getModifiers());
+  if (clazz.isInterface()) {
+    Assert.assertArrayEquals(new Class<?>[]{clazz},stubClass.getInterfaces());
+  }
+ else {
+    Assert.assertArrayEquals(clazz.getInterfaces(),stubClass.getInterfaces());
+  }
+  _assertDeclaredField(stubClass,"PROXY_METHOD_SIGNATURES",Modifier.PUBLIC | Modifier.STATIC | Modifier.FINAL,String[].class);
+  Assert.assertArrayEquals(_buildProxyMethodSignatures(clazz),IntrabandProxyUtil.getProxyMethodSignatures(stubClass));
+  _assertDeclaredField(stubClass,"_id",Modifier.PRIVATE | Modifier.FINAL,String.class);
+  Field proxyTypeField=_assertDeclaredField(stubClass,"_PROXY_TYPE",Modifier.PRIVATE | Modifier.STATIC | Modifier.FINAL,byte.class);
+  Assert.assertEquals(SystemDataType.PROXY.getValue(),proxyTypeField.getByte(null));
+  _assertDeclaredField(stubClass,"_intraband",Modifier.PRIVATE | Modifier.FINAL,Intraband.class);
+  _assertDeclaredField(stubClass,"_registrationReference",Modifier.PRIVATE | Modifier.FINAL,RegistrationReference.class);
+  _assertDeclaredField(stubClass,"_exceptionHandler",Modifier.PRIVATE | Modifier.FINAL,ExceptionHandler.class);
+  Field[] fields=stubClass.getDeclaredFields();
+  Assert.assertEquals(6,fields.length);
+  Constructor<?>[] constructors=stubClass.getConstructors();
+  Assert.assertEquals(1,constructors.length);
+  Constructor<?> constructor=constructors[0];
+  Assert.assertArrayEquals(new Class<?>[]{String.class,RegistrationReference.class,ExceptionHandler.class},constructor.getParameterTypes());
+  _assertDeclaredMethod(stubClass,"_getProxyMethodSignatures",new Class<?>[0],Modifier.STATIC | Modifier.PRIVATE,String[].class);
+  _assertDeclaredMethod(stubClass,"_syncSend",new Class<?>[]{Serializer.class},Modifier.PRIVATE,Serializable.class);
+  _assertDeclaredMethod(stubClass,"_send",new Class<?>[]{Serializer.class},Modifier.PRIVATE,void.class);
+  List<Method> idMethods=_getIdMethods(clazz);
+  for (  Method idMethod : idMethods) {
+    _assertDeclaredMethod(stubClass,idMethod.getName(),idMethod.getParameterTypes(),Modifier.PUBLIC,idMethod.getReturnType(),idMethod.getExceptionTypes());
+  }
+  List<Method> proxyMethods=_getProxyMethods(clazz);
+  for (  Method proxyMethod : proxyMethods) {
+    _assertDeclaredMethod(stubClass,proxyMethod.getName(),proxyMethod.getParameterTypes(),(proxyMethod.getModifiers() & ~Modifier.ABSTRACT),proxyMethod.getReturnType(),proxyMethod.getExceptionTypes());
+  }
+  List<Method> emptyMethods=_getEmptyMethods(clazz);
+  for (  Method emptyMethod : emptyMethods) {
+    _assertDeclaredMethod(stubClass,emptyMethod.getName(),emptyMethod.getParameterTypes(),Modifier.PUBLIC,emptyMethod.getReturnType(),emptyMethod.getExceptionTypes());
+  }
+  Method[] declaredMethods=stubClass.getDeclaredMethods();
+  Assert.assertEquals(3 + idMethods.size() + proxyMethods.size()+ emptyMethods.size(),declaredMethods.length);
+}

@@ -1,0 +1,68 @@
+{
+  String skeletonId="skeletonId";
+  String testId="testId";
+  Class<?> stubClass=IntrabandProxyUtil.generateStubClass(_classLoader,TestGenerateStubFunction1.class,skeletonId);
+  Constructor<?> constructor=stubClass.getConstructor(String.class,RegistrationReference.class,ExceptionHandler.class);
+  AutoReplyMockIntraband autoReplyMockIntraband=new AutoReplyMockIntraband(skeletonId,testId);
+  RegistrationReference registrationReference=new MockRegistrationReference(autoReplyMockIntraband);
+  ExceptionHandler exceptionHandler=new WarnLogExceptionHandler();
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(stubClass.getName(),Level.INFO);
+  Object stubObject=null;
+  try {
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    stubObject=constructor.newInstance(testId,registrationReference,exceptionHandler);
+    Assert.assertEquals(2,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Assert.assertEquals(stubClass.getName() + " in <clinit>",logRecord.getMessage());
+    logRecord=logRecords.get(1);
+    Assert.assertEquals(stubClass.getName() + " in <init>",logRecord.getMessage());
+  }
+  finally {
+    captureHandler.close();
+  }
+  Assert.assertSame(registrationReference,ReflectionTestUtil.getFieldValue(stubObject,"_registrationReference"));
+  Assert.assertSame(exceptionHandler,ReflectionTestUtil.getFieldValue(stubObject,"_exceptionHandler"));
+  Assert.assertSame(autoReplyMockIntraband,ReflectionTestUtil.getFieldValue(stubObject,"_intraband"));
+  stubClass=IntrabandProxyUtil.generateStubClass(_classLoader,TestGenerateStubFunction2.class,skeletonId);
+  constructor=stubClass.getConstructor(String.class,RegistrationReference.class,ExceptionHandler.class);
+  stubObject=constructor.newInstance(testId,registrationReference,exceptionHandler);
+  for (  Method idMethod : _getIdMethods(TestGenerateStubFunction2.class)) {
+    Assert.assertEquals(testId,ReflectionTestUtil.invoke(stubObject,idMethod.getName(),new Class<?>[0]));
+  }
+  List<Method> proxyMethods=_getProxyMethods(TestGenerateStubFunction2.class);
+  for (int i=0; i < proxyMethods.size(); i++) {
+    Method proxyMethod=proxyMethods.get(i);
+    Class<?>[] parameterTypes=proxyMethod.getParameterTypes();
+    Object[] args=new Object[parameterTypes.length];
+    for (int j=0; j < args.length; j++) {
+      args[j]=_sampleValueMap.get(parameterTypes[j]);
+    }
+    autoReplyMockIntraband.setInvocation(proxyMethod,i);
+    Object object=ReflectionTestUtil.invoke(stubObject,proxyMethod.getName(),proxyMethod.getParameterTypes(),args);
+    Assert.assertEquals(_sampleValueMap.get(proxyMethod.getReturnType()),object);
+  }
+  for (  Method emptyMethod : _getEmptyMethods(TestGenerateStubFunction2.class)) {
+    Assert.assertEquals(_defaultValueMap.get(emptyMethod.getReturnType()),ReflectionTestUtil.invoke(stubObject,emptyMethod.getName(),new Class<?>[0]));
+  }
+  List<Method> copiedMethods=_getCopiedMethods(TestGenerateStubFunction2.class);
+  Collections.sort(copiedMethods,new Comparator<Method>(){
+    @Override public int compare(    Method method1,    Method method2){
+      String name1=method1.getName();
+      String name2=method2.getName();
+      return name1.compareTo(name2);
+    }
+  }
+);
+  captureHandler=JDKLoggerTestUtil.configureJDKLogger(stubClass.getName(),Level.INFO);
+  try {
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    for (    Method copiedMethod : copiedMethods) {
+      ReflectionTestUtil.invoke(stubObject,copiedMethod.getName(),new Class<?>[0]);
+      LogRecord logRecord=logRecords.get(logRecords.size() - 1);
+      Assert.assertEquals(copiedMethod.getName(),logRecord.getMessage());
+    }
+  }
+  finally {
+    captureHandler.close();
+  }
+}
