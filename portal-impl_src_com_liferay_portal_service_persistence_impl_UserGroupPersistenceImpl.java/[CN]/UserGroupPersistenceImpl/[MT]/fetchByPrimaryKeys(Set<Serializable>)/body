@@ -1,0 +1,60 @@
+{
+  if (primaryKeys.isEmpty()) {
+    return Collections.emptyMap();
+  }
+  Map<Serializable,UserGroup> map=new HashMap<Serializable,UserGroup>();
+  if (primaryKeys.size() == 1) {
+    Iterator<Serializable> iterator=primaryKeys.iterator();
+    Serializable primaryKey=iterator.next();
+    UserGroup userGroup=fetchByPrimaryKey(primaryKey);
+    if (userGroup != null) {
+      map.put(primaryKey,userGroup);
+    }
+    return map;
+  }
+  Set<Serializable> uncachedPrimaryKeys=null;
+  for (  Serializable primaryKey : primaryKeys) {
+    UserGroup userGroup=(UserGroup)EntityCacheUtil.getResult(UserGroupModelImpl.ENTITY_CACHE_ENABLED,UserGroupImpl.class,primaryKey);
+    if (userGroup == null) {
+      if (uncachedPrimaryKeys == null) {
+        uncachedPrimaryKeys=new HashSet<Serializable>();
+      }
+      uncachedPrimaryKeys.add(primaryKey);
+    }
+ else {
+      map.put(primaryKey,userGroup);
+    }
+  }
+  if (uncachedPrimaryKeys == null) {
+    return map;
+  }
+  StringBundler query=new StringBundler((uncachedPrimaryKeys.size() * 2) + 1);
+  query.append(_SQL_SELECT_USERGROUP_WHERE_PKS_IN);
+  for (  Serializable primaryKey : uncachedPrimaryKeys) {
+    query.append(String.valueOf(primaryKey));
+    query.append(StringPool.COMMA);
+  }
+  query.setIndex(query.index() - 1);
+  query.append(StringPool.CLOSE_PARENTHESIS);
+  String sql=query.toString();
+  Session session=null;
+  try {
+    session=openSession();
+    Query q=session.createQuery(sql);
+    for (    UserGroup userGroup : (List<UserGroup>)q.list()) {
+      map.put(userGroup.getPrimaryKeyObj(),userGroup);
+      cacheResult(userGroup);
+      uncachedPrimaryKeys.remove(userGroup.getPrimaryKeyObj());
+    }
+    for (    Serializable primaryKey : uncachedPrimaryKeys) {
+      EntityCacheUtil.putResult(UserGroupModelImpl.ENTITY_CACHE_ENABLED,UserGroupImpl.class,primaryKey,_nullUserGroup);
+    }
+  }
+ catch (  Exception e) {
+    throw processException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+  return map;
+}
