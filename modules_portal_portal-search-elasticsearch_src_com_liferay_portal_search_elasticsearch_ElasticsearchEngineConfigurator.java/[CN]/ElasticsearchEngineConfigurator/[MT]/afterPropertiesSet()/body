@@ -4,10 +4,21 @@
   elasticsearchConnection.initialize();
   Client client=elasticsearchConnection.getClient();
   AdminClient adminClient=client.admin();
+  ClusterAdminClient clusterAdminClient=adminClient.cluster();
+  ClusterHealthRequestBuilder clusterHealthRequestBuilder=clusterAdminClient.prepareHealth();
+  clusterHealthRequestBuilder.setWaitForGreenStatus();
+  clusterHealthRequestBuilder.setWaitForNodes(">1");
+  clusterHealthRequestBuilder.setTimeout(TimeValue.timeValueSeconds(30));
+  Future<ClusterHealthResponse> future=clusterHealthRequestBuilder.execute();
+  ClusterHealthResponse clusterHealthResponse=null;
   try {
-    _indexFactory.createIndices(adminClient);
+    clusterHealthResponse=future.get();
   }
  catch (  Exception e) {
     throw new IllegalStateException(e);
+  }
+  ClusterHealthStatus clusterHealthStatus=clusterHealthResponse.getStatus();
+  if (clusterHealthStatus == ClusterHealthStatus.RED) {
+    throw new IllegalStateException("Elasticsearch cluster not properly initialized");
   }
 }
