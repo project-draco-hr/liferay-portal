@@ -1,0 +1,30 @@
+{
+  ServiceTracker serviceTracker=null;
+  try {
+    InputStream inputStream=_getBundleArchive(request);
+    BundleContext bundleContext=_bundle.getBundleContext();
+    Bundle bundle=bundleContext.installBundle(_location,inputStream);
+    bundle.start();
+    Filter filter=bundleContext.createFilter("(&(objectClass=javax.servlet.ServletContext)(bundle.id=" + bundle.getBundleId() + "))");
+    serviceTracker=new ServiceTracker(bundleContext,filter,null);
+    serviceTracker.open();
+    ServletContext servletContext=(ServletContext)serviceTracker.waitForService(_timeout);
+    Servlet servlet=_waitForServlet(servletContext,"ArquillianServletRunner",_timeout);
+    if (servlet == null) {
+      throw new TimeoutException("The arquillian servlet runner is taking more than " + _timeout + " to deploy");
+    }
+    response.setStatus(HttpServletResponse.SC_OK);
+    response.setContentType("text/text");
+    response.setHeader(_contextPathHeader,servletContext.getContextPath());
+  }
+ catch (  Exception e) {
+    _sendError(e,response);
+  }
+ finally {
+    if (serviceTracker != null) {
+      serviceTracker.close();
+    }
+    ServletOutputStream servletOutputStream=response.getOutputStream();
+    servletOutputStream.flush();
+  }
+}
