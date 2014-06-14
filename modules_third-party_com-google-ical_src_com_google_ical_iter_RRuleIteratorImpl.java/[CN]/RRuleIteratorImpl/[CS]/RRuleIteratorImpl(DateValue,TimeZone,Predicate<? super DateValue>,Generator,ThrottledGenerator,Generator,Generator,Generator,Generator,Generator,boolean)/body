@@ -1,0 +1,60 @@
+{
+  this.condition_=condition;
+  this.instanceGenerator_=instanceGenerator;
+  this.yearGenerator_=yearGenerator;
+  this.monthGenerator_=monthGenerator;
+  this.dtStart_=dtStart;
+  this.tzid_=tzid;
+  this.canShortcutAdvance_=canShortcutAdvance;
+  int initWorkLimit=1000;
+  DTBuilder builder=new DTBuilder(dtStart);
+  this.builder_=builder;
+  try {
+    Generator[] toInitialize;
+    if (InstanceGenerators.skipSubDayGenerators(hourGenerator,minuteGenerator,secondGenerator)) {
+      toInitialize=new Generator[]{yearGenerator,monthGenerator};
+      builder.hour=((SingleValueGenerator)hourGenerator).getValue();
+      builder.minute=((SingleValueGenerator)minuteGenerator).getValue();
+      builder.second=((SingleValueGenerator)secondGenerator).getValue();
+    }
+ else {
+      toInitialize=new Generator[]{yearGenerator,monthGenerator,dayGenerator,hourGenerator,minuteGenerator};
+    }
+    for (int i=0; i != toInitialize.length; ) {
+      if (toInitialize[i].generate(builder)) {
+        ++i;
+      }
+ else {
+        if (--i < 0) {
+          this.done_=true;
+          break;
+        }
+      }
+      if (--initWorkLimit == 0) {
+        this.done_=true;
+        break;
+      }
+    }
+  }
+ catch (  Generator.IteratorShortCircuitingException ex) {
+    this.done_=true;
+  }
+  while (!this.done_) {
+    this.pendingUtc_=this.generateInstance();
+    if (null == this.pendingUtc_) {
+      this.done_=true;
+      break;
+    }
+ else     if (this.pendingUtc_.compareTo(TimeUtils.toUtc(dtStart,tzid)) >= 0) {
+      if (!this.condition_.apply(this.pendingUtc_)) {
+        this.done_=true;
+        this.pendingUtc_=null;
+      }
+      break;
+    }
+    if (--initWorkLimit == 0) {
+      this.done_=true;
+      break;
+    }
+  }
+}

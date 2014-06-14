@@ -1,0 +1,35 @@
+{
+  final IcalObject[] contentLines=parseContentLines(rdata,tzid,strict);
+  return new RecurrenceIterable(){
+    public RecurrenceIterator iterator(){
+      List<RecurrenceIterator> inclusions=new ArrayList<RecurrenceIterator>();
+      List<RecurrenceIterator> exclusions=new ArrayList<RecurrenceIterator>();
+      inclusions.add(new RDateIteratorImpl(new DateValue[]{TimeUtils.toUtc(dtStart,tzid)}));
+      for (      IcalObject contentLine : contentLines) {
+        try {
+          String name=contentLine.getName();
+          if ("rrule".equalsIgnoreCase(name)) {
+            inclusions.add(createRecurrenceIterator((RRule)contentLine,dtStart,tzid));
+          }
+ else           if ("rdate".equalsIgnoreCase(name)) {
+            inclusions.add(createRecurrenceIterator((RDateList)contentLine));
+          }
+ else           if ("exrule".equalsIgnoreCase(name)) {
+            exclusions.add(createRecurrenceIterator((RRule)contentLine,dtStart,tzid));
+          }
+ else           if ("exdate".equalsIgnoreCase(name)) {
+            exclusions.add(createRecurrenceIterator((RDateList)contentLine));
+          }
+        }
+ catch (        IllegalArgumentException ex) {
+          if (strict) {
+            throw ex;
+          }
+          LOGGER.log(Level.SEVERE,"Dropping bad recurrence rule line: " + contentLine.toIcal(),ex);
+        }
+      }
+      return new CompoundIteratorImpl(inclusions,exclusions);
+    }
+  }
+;
+}

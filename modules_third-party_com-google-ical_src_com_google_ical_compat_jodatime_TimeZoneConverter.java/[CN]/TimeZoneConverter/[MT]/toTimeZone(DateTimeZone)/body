@@ -1,0 +1,72 @@
+{
+  TimeZone tz=new TimeZone(){
+    @Override public void setRawOffset(    int n){
+      throw new UnsupportedOperationException();
+    }
+    @Override public boolean useDaylightTime(){
+      long firstTransition=MILLIS_SINCE_1_JAN_2000_UTC;
+      return firstTransition != dtz.nextTransition(firstTransition);
+    }
+    @Override public boolean inDaylightTime(    Date d){
+      long t=d.getTime();
+      return dtz.getStandardOffset(t) != dtz.getOffset(t);
+    }
+    @Override public int getRawOffset(){
+      return dtz.getStandardOffset(0);
+    }
+    @Override public int getOffset(    long instant){
+      return dtz.getOffset(instant);
+    }
+    @Override public int getOffset(    int era,    int year,    int month,    int day,    int dayOfWeek,    int milliseconds){
+      int millis=milliseconds;
+      int hour=millis / MILLISECONDS_PER_HOUR;
+      millis%=MILLISECONDS_PER_HOUR;
+      int minute=millis / MILLISECONDS_PER_MINUTE;
+      millis%=MILLISECONDS_PER_MINUTE;
+      int second=millis / MILLISECONDS_PER_SECOND;
+      millis%=MILLISECONDS_PER_SECOND;
+      if (era == GregorianCalendar.BC) {
+        year=-(year - 1);
+      }
+      DateTime dt=null;
+      try {
+        dt=new DateTime(year,month + 1,day,hour,minute,second,millis,dtz);
+      }
+ catch (      IllegalArgumentException ex) {
+        if (hour < 23) {
+          dt=new DateTime(year,month + 1,day,hour + 1,minute,second,millis,dtz);
+        }
+ else {
+          Calendar c=new GregorianCalendar();
+          c.clear();
+          c.setTimeZone(TimeZone.getTimeZone("UTC"));
+          c.set(year,month,day,hour,minute,second);
+          c.add(Calendar.HOUR_OF_DAY,1);
+          int year2=c.get(Calendar.YEAR), month2=c.get(Calendar.MONTH), day2=c.get(Calendar.DAY_OF_MONTH), hour2=c.get(Calendar.HOUR_OF_DAY);
+          dt=new DateTime(year2,month2 + 1,day2,hour2,minute,second,millis,dtz);
+        }
+      }
+      int offset=dtz.getStandardOffset(dt.getMillis());
+      DateTime stdDt=new DateTime(year,month + 1,day,hour,minute,second,millis,DateTimeZone.forOffsetMillis(offset));
+      return getOffset(stdDt.getMillis());
+    }
+    @Override public String toString(){
+      return dtz.toString();
+    }
+    @Override public boolean equals(    Object that){
+      if (!(that instanceof TimeZone)) {
+        return false;
+      }
+      TimeZone thatTz=(TimeZone)that;
+      return getID().equals(thatTz.getID()) && hasSameRules(thatTz);
+    }
+    @Override public int hashCode(){
+      return getID().hashCode();
+    }
+    private static final long serialVersionUID=58752546800455L;
+  }
+;
+  String newTzid=cleanUpTzid(dtz.getID());
+  tz.setID(newTzid);
+  return tz;
+}

@@ -1,0 +1,116 @@
+{
+  Matcher m=VCAL_RRULE.matcher(vcalText.trim());
+  if (!m.matches()) {
+    return vcalText;
+  }
+  StringBuilder sb=new StringBuilder();
+  String nameAndParams=m.group(1), freq=m.group(2).toUpperCase(), interval=m.group(3), modifier=m.group(4).trim().toUpperCase(), count=m.group(5), until=m.group(6);
+  sb.append(nameAndParams);
+  Frequency f;
+switch (freq.charAt(0)) {
+case 'Y':
+    f=Frequency.YEARLY;
+  break;
+case 'M':
+f=Frequency.MONTHLY;
+break;
+case 'W':
+f=Frequency.WEEKLY;
+break;
+case 'D':
+f=Frequency.DAILY;
+break;
+default :
+throw new AssertionError();
+}
+sb.append("FREQ=").append(f.name());
+if (!"".equals(interval) && !"1".equals(interval)) {
+sb.append(";INTERVAL=").append(interval);
+}
+if (!"".equals(modifier)) {
+String[] parts=WHITESPACE.split(modifier);
+for (int i=0; i < parts.length; ++i) {
+String p=parts[i];
+char lastchar=p.charAt(p.length() - 1);
+switch (lastchar) {
+case '+':
+parts[i]=p.substring(0,p.length() - 1);
+break;
+case '-':
+parts[i]=lastchar + p.substring(0,p.length() - 1);
+break;
+}
+if (p.equals("LD")) {
+parts[i]="-1";
+}
+}
+switch (f) {
+case YEARLY:
+if ('D' == freq.charAt(1)) {
+sb.append(";BYYEARDAY=");
+join(sb,",",parts);
+}
+ else {
+sb.append(";BYMONTH=");
+join(sb,",",parts);
+}
+break;
+case MONTHLY:
+if ('P' == freq.charAt(1)) {
+int pos=0;
+boolean comma=false;
+sb.append(";BYDAY=");
+for (int i=0; i < parts.length; ++i) {
+if (Character.isLetter(parts[i].charAt(0))) {
+if (i > pos) {
+for (int j=pos; j < i; ++j) {
+if (comma) {
+sb.append(',');
+}
+ else {
+comma=true;
+}
+sb.append(parts[j]).append(parts[i]);
+}
+}
+ else {
+if (comma) {
+sb.append(',');
+}
+ else {
+comma=true;
+}
+sb.append(parts[i]);
+}
+pos=i + 1;
+}
+}
+}
+ else {
+sb.append(";BYMONTHDAY=");
+join(sb,",",parts);
+}
+break;
+case WEEKLY:
+sb.append(";BYDAY=");
+join(sb,",",parts);
+break;
+default :
+}
+}
+if (null != count) {
+if ("0".equals(count)) {
+}
+ else {
+sb.append(";COUNT=").append(count);
+}
+}
+ else if (null != until) {
+until=until.toUpperCase();
+sb.append(";UNTIL=").append(until);
+if (!until.endsWith("Z") && until.indexOf('T') >= 0) {
+sb.append('Z');
+}
+}
+return sb.toString();
+}

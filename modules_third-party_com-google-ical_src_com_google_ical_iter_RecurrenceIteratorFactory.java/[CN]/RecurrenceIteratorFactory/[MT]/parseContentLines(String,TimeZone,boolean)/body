@@ -1,0 +1,47 @@
+{
+  String unfolded=FOLD.matcher(rdata).replaceAll("").trim();
+  if ("".equals(unfolded)) {
+    return new IcalObject[0];
+  }
+  String[] lines=NEWLINE.split(unfolded);
+  IcalObject[] out=new IcalObject[lines.length];
+  int nbad=0;
+  for (int i=0; i < lines.length; ++i) {
+    String line=lines[i].trim();
+    try {
+      if (RULE.matcher(line).find()) {
+        out[i]=new RRule(line);
+      }
+ else       if (DATE.matcher(line).find()) {
+        out[i]=new RDateList(line,tzid);
+      }
+ else {
+        throw new ParseException(lines[i],i);
+      }
+    }
+ catch (    ParseException ex) {
+      if (strict) {
+        throw ex;
+      }
+      LOGGER.log(Level.SEVERE,"Dropping bad recurrence rule line: " + line,ex);
+      ++nbad;
+    }
+catch (    IllegalArgumentException ex) {
+      if (strict) {
+        throw ex;
+      }
+      LOGGER.log(Level.SEVERE,"Dropping bad recurrence rule line: " + line,ex);
+      ++nbad;
+    }
+  }
+  if (0 != nbad) {
+    IcalObject[] trimmed=new IcalObject[out.length - nbad];
+    for (int i=0, k=0; i < trimmed.length; ++k) {
+      if (null != out[k]) {
+        trimmed[i++]=out[k];
+      }
+    }
+    out=trimmed;
+  }
+  return out;
+}

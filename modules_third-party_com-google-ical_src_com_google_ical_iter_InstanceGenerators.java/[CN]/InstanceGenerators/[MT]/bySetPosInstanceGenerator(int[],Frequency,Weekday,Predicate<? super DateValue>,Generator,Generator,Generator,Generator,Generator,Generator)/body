@@ -1,0 +1,168 @@
+{
+  final int[] uSetPos=Util.uniquify(setPos);
+  final Generator serialInstanceGenerator=serialInstanceGenerator(filter,yearGenerator,monthGenerator,dayGenerator,hourGenerator,minuteGenerator,secondGenerator);
+  final boolean allPositive;
+  final int maxPos;
+  if (false) {
+    int mp=0;
+    boolean ap=true;
+    for (int i=setPos.length; --i >= 0; ) {
+      if (setPos[i] < 0) {
+        ap=false;
+        break;
+      }
+      mp=Math.max(setPos[i],mp);
+    }
+    maxPos=mp;
+    allPositive=ap;
+  }
+ else {
+    maxPos=uSetPos[uSetPos.length - 1];
+    allPositive=uSetPos[0] > 0;
+  }
+  return new Generator(){
+    DateValue pushback=null;
+    /** 
+ * Is this the first instance we generate?
+ * We need to know so that we don't clobber dtStart.
+ */
+    boolean first=true;
+    /** 
+ * Do we need to halt iteration once the current set has been used? 
+ */
+    boolean done=false;
+    /** 
+ * The elements in the current set, filtered by set pos 
+ */
+    List<DateValue> candidates;
+    /** 
+ * index into candidates.  The number of elements in candidates already
+ * consumed.
+ */
+    int i;
+    @Override public boolean generate(    DTBuilder builder) throws IteratorShortCircuitingException {
+      while (null == candidates || i >= candidates.size()) {
+        if (done) {
+          return false;
+        }
+        DateValue d0=null;
+        if (null != pushback) {
+          d0=pushback;
+          builder.year=d0.year();
+          builder.month=d0.month();
+          builder.day=d0.day();
+          pushback=null;
+        }
+ else         if (!first) {
+switch (freq) {
+case YEARLY:
+            if (!yearGenerator.generate(builder)) {
+              return false;
+            }
+case MONTHLY:
+          while (!monthGenerator.generate(builder)) {
+            if (!yearGenerator.generate(builder)) {
+              return false;
+            }
+          }
+        break;
+case WEEKLY:
+      DateValue nextWeek=Util.nextWeekStart(builder.toDateTime(),wkst);
+    do {
+      if (!serialInstanceGenerator.generate(builder)) {
+        return false;
+      }
+    }
+ while (builder.compareTo(nextWeek) < 0);
+  d0=builder.toDateTime();
+break;
+default :
+break;
+}
+}
+ else {
+first=false;
+}
+List<DateValue> dates=new ArrayList<DateValue>();
+if (null != d0) {
+dates.add(d0);
+}
+int limit=allPositive ? maxPos : Integer.MAX_VALUE;
+while (limit > dates.size()) {
+if (!serialInstanceGenerator.generate(builder)) {
+done=true;
+break;
+}
+DateValue d=builder.toDateTime();
+boolean contained=false;
+if (null == d0) {
+d0=d;
+contained=true;
+}
+ else {
+switch (freq) {
+case WEEKLY:
+int nb=TimeUtils.daysBetween(d,d0);
+contained=nb < 7 && ((7 + Weekday.valueOf(d).javaDayNum - wkst.javaDayNum) % 7) > ((7 + Weekday.valueOf(d0).javaDayNum - wkst.javaDayNum) % 7);
+break;
+case MONTHLY:
+contained=d0.month() == d.month() && d0.year() == d.year();
+break;
+case YEARLY:
+contained=d0.year() == d.year();
+break;
+default :
+done=true;
+return false;
+}
+}
+if (contained) {
+dates.add(d);
+}
+ else {
+pushback=d;
+break;
+}
+}
+int[] absSetPos;
+if (allPositive) {
+absSetPos=uSetPos;
+}
+ else {
+IntSet uAbsSetPos=new IntSet();
+for (int j=0; j < uSetPos.length; ++j) {
+int p=uSetPos[j];
+if (p < 0) {
+p=dates.size() + p + 1;
+}
+uAbsSetPos.add(p);
+}
+absSetPos=uAbsSetPos.toIntArray();
+}
+candidates=new ArrayList<DateValue>();
+for (int p : absSetPos) {
+if (p >= 1 && p <= dates.size()) {
+candidates.add(dates.get(p - 1));
+}
+}
+i=0;
+if (candidates.isEmpty()) {
+candidates=null;
+continue;
+}
+}
+DateValue d=candidates.get(i++);
+builder.year=d.year();
+builder.month=d.month();
+builder.day=d.day();
+if (d instanceof TimeValue) {
+TimeValue t=(TimeValue)d;
+builder.hour=t.hour();
+builder.minute=t.minute();
+builder.second=t.second();
+}
+return true;
+}
+}
+;
+}
