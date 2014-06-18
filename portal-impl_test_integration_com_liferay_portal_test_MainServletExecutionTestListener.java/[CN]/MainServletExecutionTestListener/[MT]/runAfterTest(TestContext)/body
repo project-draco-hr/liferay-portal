@@ -1,7 +1,6 @@
 {
-  Map<Class<?>,FieldsBag> deleteAfterTestRunFieldBags=new HashMap<Class<?>,FieldsBag>();
+  Map<Class<?>,FieldBag> deleteAfterTestRunFieldBags=new HashMap<Class<?>,FieldBag>();
   Class<?> testClass=testContext.getClazz();
-  Object instance=testContext.getInstance();
   while (testClass != null) {
     for (    Field field : testClass.getDeclaredFields()) {
       DeleteAfterTestRun deleteAfterTestRun=field.getAnnotation(DeleteAfterTestRun.class);
@@ -15,7 +14,7 @@
       }
       if (fieldClass.isArray()) {
         if (!PersistedModel.class.isAssignableFrom(fieldClass.getComponentType())) {
-          throw new IllegalArgumentException("Unable to annotate field " + field + " because it is not an array of type "+ PersistedModel.class);
+          throw new IllegalArgumentException("Unable to annotate field " + field + " because it is not an array of type "+ PersistedModel.class.getName());
         }
         addField(deleteAfterTestRunFieldBags,fieldClass.getComponentType(),field);
         continue;
@@ -23,41 +22,48 @@
       if (Collection.class.isAssignableFrom(fieldClass)) {
         try {
           field.setAccessible(true);
-          Collection<?> collection=(Collection<?>)field.get(instance);
+          Collection<?> collection=(Collection<?>)field.get(testContext.getInstance());
           if ((collection == null) || collection.isEmpty()) {
             continue;
           }
-          Class<?> collectionType=detectedCollectionType(collection);
+          Class<?> collectionType=getCollectionType(collection);
           if (collectionType == null) {
-            throw new IllegalArgumentException("Unable to annotate field " + field + " because it is not a Collection "+ "of type "+ PersistedModel.class);
+            throw new IllegalArgumentException("Unable to annotate field " + field + " because it is not a collection of type "+ PersistedModel.class.getName());
           }
           addField(deleteAfterTestRunFieldBags,collectionType,field);
         }
  catch (        Exception e) {
-          _log.error("Unable to detect Collection element type",e);
+          _log.error("Unable to detect collection element type",e);
         }
         continue;
       }
-      throw new IllegalArgumentException("Unable to annotate field " + field + " because it is not type of "+ PersistedModel.class+ ", either an array or collect of it");
+      StringBundler sb=new StringBundler(6);
+      sb.append("Unable to annotate field ");
+      sb.append(field);
+      sb.append(" because it is not type of ");
+      sb.append(PersistedModel.class.getName());
+      sb.append(" nor an array or collection of ");
+      sb.append(PersistedModel.class.getName());
+      throw new IllegalArgumentException(sb.toString());
     }
     testClass=testClass.getSuperclass();
   }
-  Set<Map.Entry<Class<?>,FieldsBag>> set=deleteAfterTestRunFieldBags.entrySet();
-  Iterator<Map.Entry<Class<?>,FieldsBag>> iterator=set.iterator();
+  Set<Map.Entry<Class<?>,FieldBag>> set=deleteAfterTestRunFieldBags.entrySet();
+  Iterator<Map.Entry<Class<?>,FieldBag>> iterator=set.iterator();
   while (iterator.hasNext()) {
-    Map.Entry<Class<?>,FieldsBag> entry=iterator.next();
+    Map.Entry<Class<?>,FieldBag> entry=iterator.next();
     Class<?> clazz=entry.getKey();
     if (_orderedClasses.contains(clazz)) {
       continue;
     }
     iterator.remove();
-    removeField(entry.getValue(),instance);
+    removeField(entry.getValue(),testContext.getInstance());
   }
   for (  Class<?> clazz : _orderedClasses) {
-    FieldsBag fieldsBag=deleteAfterTestRunFieldBags.remove(clazz);
-    if (fieldsBag == null) {
+    FieldBag fieldBag=deleteAfterTestRunFieldBags.remove(clazz);
+    if (fieldBag == null) {
       continue;
     }
-    removeField(fieldsBag,instance);
+    removeField(fieldBag,testContext.getInstance());
   }
 }
