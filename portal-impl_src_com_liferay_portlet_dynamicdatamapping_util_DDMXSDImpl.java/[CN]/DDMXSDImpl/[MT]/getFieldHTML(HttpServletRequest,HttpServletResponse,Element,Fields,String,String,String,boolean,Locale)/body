@@ -1,0 +1,45 @@
+{
+  Map<String,Object> freeMarkerContext=getFreeMarkerContext(request,response,portletNamespace,namespace,element,locale);
+  if (fields != null) {
+    freeMarkerContext.put("fields",fields);
+  }
+  Map<String,Object> fieldStructure=(Map<String,Object>)freeMarkerContext.get("fieldStructure");
+  int fieldRepetition=1;
+  int offset=0;
+  DDMFieldsCounter ddmFieldsCounter=getFieldsCounter(request,response,fields,portletNamespace,namespace);
+  String name=element.attributeValue("name");
+  String fieldDisplayValue=getFieldsDisplayValue(request,response,fields);
+  String[] fieldsDisplayValues=getFieldsDisplayValues(fieldDisplayValue);
+  boolean fieldDisplayable=ArrayUtil.contains(fieldsDisplayValues,name);
+  if (fieldDisplayable) {
+    Map<String,Object> parentFieldStructure=(Map<String,Object>)freeMarkerContext.get("parentFieldStructure");
+    String parentFieldName=(String)parentFieldStructure.get("name");
+    offset=getFieldOffset(fieldsDisplayValues,name,ddmFieldsCounter.get(name));
+    if (offset == fieldsDisplayValues.length) {
+      return StringPool.BLANK;
+    }
+    fieldRepetition=countFieldRepetition(fieldsDisplayValues,parentFieldName,offset);
+  }
+  StringBundler sb=new StringBundler(fieldRepetition);
+  while (fieldRepetition > 0) {
+    offset=getFieldOffset(fieldsDisplayValues,name,ddmFieldsCounter.get(name));
+    String fieldNamespace=StringUtil.randomId();
+    if (fieldDisplayable) {
+      fieldNamespace=getFieldNamespace(fieldDisplayValue,ddmFieldsCounter,offset);
+    }
+    fieldStructure.put("fieldNamespace",fieldNamespace);
+    fieldStructure.put("valueIndex",ddmFieldsCounter.get(name));
+    if (fieldDisplayable) {
+      ddmFieldsCounter.incrementKey(name);
+    }
+    String childrenHTML=getHTML(request,response,element,fields,portletNamespace,namespace,mode,readOnly,locale);
+    fieldStructure.put("children",childrenHTML);
+    boolean disabled=GetterUtil.getBoolean(fieldStructure.get("disabled"),false);
+    if (disabled) {
+      readOnly=true;
+    }
+    sb.append(processFTL(request,response,element,mode,readOnly,freeMarkerContext));
+    fieldRepetition--;
+  }
+  return sb.toString();
+}
