@@ -1,0 +1,36 @@
+{
+  try {
+    List<String> commands=new ArrayList<String>(arguments.size() + 4);
+    commands.add(java);
+    commands.add("-cp");
+    commands.add(bootstrapClassPath);
+    commands.addAll(arguments);
+    commands.add(ProcessLauncher.class.getName());
+    ProcessBuilder processBuilder=new ProcessBuilder(commands);
+    Process process=processBuilder.start();
+    DataOutputStream dataOutputStream=new DataOutputStream(process.getOutputStream());
+    dataOutputStream.writeUTF(processCallable.toString());
+    dataOutputStream.writeUTF(classPath);
+    ObjectOutputStream objectOutputStream=new ObjectOutputStream(dataOutputStream);
+    try {
+      objectOutputStream.writeObject(processCallable);
+    }
+  finally {
+      objectOutputStream.close();
+    }
+    ExecutorService executorService=_getExecutorService();
+    SubprocessReactor subprocessReactor=new SubprocessReactor(process);
+    try {
+      Future<ProcessCallable<? extends Serializable>> futureResponseProcessCallable=executorService.submit(subprocessReactor);
+      _managedProcesses.add(process);
+      return new ProcessExecutionFutureResult<T>(futureResponseProcessCallable,process);
+    }
+ catch (    RejectedExecutionException ree) {
+      process.destroy();
+      throw new ProcessException("Cancelled execution because of a concurrent destroy",ree);
+    }
+  }
+ catch (  IOException ioe) {
+    throw new ProcessException(ioe);
+  }
+}

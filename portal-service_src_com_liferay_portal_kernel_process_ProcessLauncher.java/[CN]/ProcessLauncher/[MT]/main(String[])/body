@@ -14,13 +14,20 @@ synchronized (oldOutPrintStream) {
   ProcessOutputStream errProcessOutputStream=new ProcessOutputStream(objectOutputStream,true);
   PrintStream errPrintStream=new PrintStream(errProcessOutputStream,true);
   System.setErr(errPrintStream);
+  Thread currentThread=Thread.currentThread();
+  ClassLoader contextClassLoader=currentThread.getContextClassLoader();
   try {
-    ObjectInputStream objectInputStream=new ObjectInputStream(System.in);
-    ProcessCallable<?> processCallable=(ProcessCallable<?>)objectInputStream.readObject();
-    String logPrefixString=StringPool.OPEN_BRACKET.concat(processCallable.toString()).concat(StringPool.CLOSE_BRACKET);
+    DataInputStream dataInputStream=new DataInputStream(System.in);
+    String processCallableName=dataInputStream.readUTF();
+    String logPrefixString=StringPool.OPEN_BRACKET.concat(processCallableName).concat(StringPool.CLOSE_BRACKET);
     byte[] logPrefix=logPrefixString.getBytes(StringPool.UTF8);
     outProcessOutputStream.setLogPrefix(logPrefix);
     errProcessOutputStream.setLogPrefix(logPrefix);
+    String classPath=dataInputStream.readUTF();
+    ClassLoader classLoader=new URLClassLoader(ClassPathUtil.getClassPathURLs(classPath));
+    currentThread.setContextClassLoader(classLoader);
+    ObjectInputStream objectInputStream=new ClassLoaderObjectInputStream(dataInputStream,classLoader);
+    ProcessCallable<?> processCallable=(ProcessCallable<?>)objectInputStream.readObject();
     Serializable result=processCallable.call();
     System.out.flush();
     outProcessOutputStream.writeProcessCallable(new ReturnProcessCallable<Serializable>(result));
@@ -30,5 +37,8 @@ synchronized (oldOutPrintStream) {
     errPrintStream.flush();
     errProcessOutputStream.writeProcessCallable(new ExceptionProcessCallable(pe));
     errProcessOutputStream.flush();
+  }
+ finally {
+    currentThread.setContextClassLoader(contextClassLoader);
   }
 }
