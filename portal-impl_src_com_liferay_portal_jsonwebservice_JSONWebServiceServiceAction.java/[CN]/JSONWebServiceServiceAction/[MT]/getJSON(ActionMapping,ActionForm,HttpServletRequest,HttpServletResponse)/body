@@ -3,9 +3,10 @@
   if (uploadException != null) {
     return JSONFactoryUtil.serializeThrowable(uploadException);
   }
-  JSONWebServiceAction jsonWebServiceAction=null;
+  Throwable throwable=null;
+  int returnStatusCode=200;
   try {
-    jsonWebServiceAction=getJSONWebServiceAction(request);
+    JSONWebServiceAction jsonWebServiceAction=getJSONWebServiceAction(request);
     Object returnObj=jsonWebServiceAction.invoke();
     if (returnObj != null) {
       return getReturnValue(returnObj);
@@ -15,17 +16,27 @@
     }
   }
  catch (  InvocationTargetException ite) {
-    Throwable throwable=ite.getCause();
+    throwable=ite.getCause();
     if (throwable instanceof SecurityException) {
-      throw (SecurityException)throwable;
+      returnStatusCode=HttpServletResponse.SC_FORBIDDEN;
     }
-    _log.error(throwable,throwable);
-    return JSONFactoryUtil.serializeThrowable(throwable);
+ else {
+      returnStatusCode=HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
+    }
+  }
+catch (  JSONWebServiceNotFoundException e) {
+    throwable=e;
+    returnStatusCode=HttpServletResponse.SC_NOT_FOUND;
+  }
+catch (  SecurityException e) {
+    throwable=e;
+    returnStatusCode=HttpServletResponse.SC_FORBIDDEN;
   }
 catch (  Exception e) {
-    if (_log.isWarnEnabled()) {
-      _log.warn(e,e);
-    }
-    return JSONFactoryUtil.serializeThrowable(e);
+    throwable=e;
+    returnStatusCode=HttpServletResponse.SC_INTERNAL_SERVER_ERROR;
   }
+  _log.error(throwable,throwable);
+  response.setStatus(returnStatusCode);
+  return JSONFactoryUtil.serializeThrowable(throwable);
 }
