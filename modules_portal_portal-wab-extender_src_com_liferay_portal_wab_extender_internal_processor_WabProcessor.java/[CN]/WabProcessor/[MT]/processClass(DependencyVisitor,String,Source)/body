@@ -1,0 +1,34 @@
+{
+  if (className.startsWith("java/")) {
+    return Collections.emptySet();
+  }
+  InputStream inputStream=source.getResourceAsStream(className);
+  if (inputStream == null) {
+    return Collections.emptySet();
+  }
+  Set<String> packages=new HashSet<String>();
+  try {
+    ClassReader classReader=new ClassReader(inputStream);
+    classReader.accept(dependencyVisitor,0);
+    Set<String> pkgs=dependencyVisitor.getPackages();
+    for (    String pkg : pkgs) {
+      pkg=pkg.replaceAll(StringPool.SLASH,StringPool.PERIOD);
+      if (pkg.startsWith("com.sun.") || pkg.startsWith("sun.")) {
+        continue;
+      }
+      packages.add(pkg);
+    }
+    String superName=classReader.getSuperName();
+    if (superName != null) {
+      packages.addAll(processReferencedDependencies(superName.replace('.','/') + ".class",source));
+    }
+    String[] interfaces=classReader.getInterfaces();
+    if ((interfaces != null) && (interfaces.length > 0)) {
+      packages.addAll(processInterfaces(interfaces,source));
+    }
+  }
+ catch (  Exception e) {
+    _log.error("Error processing class " + className,e);
+  }
+  return packages;
+}
