@@ -2,19 +2,35 @@
   final CharPipe charPipe=new CharPipe(_PIPE_BUFFER_SIZE);
   Thread thread=new Thread(){
     @Override public void run(){
+      Writer sampleSQLWriter=null;
+      Map<String,Object> context=null;
       try {
-        Writer sampleSQLWriter=new UnsyncTeeWriter(createUnsyncBufferedWriter(charPipe.getWriter()),createFileWriter(new File(_outputDir,"sample.sql")));
-        Map<String,Object> context=getContext();
+        sampleSQLWriter=new UnsyncTeeWriter(createUnsyncBufferedWriter(charPipe.getWriter()),createFileWriter(new File(_outputDir,"sample.sql")));
+        context=getContext();
         FreeMarkerUtil.process(_script,context,sampleSQLWriter);
-        for (        String csvFileName : _csvFileNames) {
-          Writer csvWriter=(Writer)context.get(csvFileName + "CSVWriter");
-          csvWriter.close();
-        }
-        sampleSQLWriter.close();
-        charPipe.close();
       }
  catch (      Exception e) {
         e.printStackTrace();
+      }
+ finally {
+        for (        String csvFileName : _csvFileNames) {
+          Writer csvWriter=(Writer)context.get(csvFileName + "CSVWriter");
+          try {
+            csvWriter.close();
+          }
+ catch (          IOException ioe) {
+            ioe.printStackTrace();
+          }
+        }
+        if (sampleSQLWriter != null) {
+          try {
+            sampleSQLWriter.close();
+          }
+ catch (          IOException ioe) {
+            ioe.printStackTrace();
+          }
+        }
+        charPipe.close();
       }
     }
   }
