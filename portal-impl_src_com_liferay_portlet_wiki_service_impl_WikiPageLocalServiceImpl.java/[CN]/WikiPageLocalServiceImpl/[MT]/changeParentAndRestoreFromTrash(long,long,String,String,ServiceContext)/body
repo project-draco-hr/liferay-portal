@@ -1,0 +1,28 @@
+{
+  WikiPage page=getPage(nodeId,title);
+  TrashEntry trashEntry=null;
+  WikiPage trashEntryPage=page.getParentPage();
+  while (trashEntry == null) {
+    trashEntry=trashEntryLocalService.fetchEntry(WikiPage.class.getName(),trashEntryPage.getResourcePrimKey());
+    if (trashEntry == null) {
+      trashEntryPage=trashEntryPage.getParentPage();
+      if (trashEntryPage == null) {
+        throw new NoSuchPageException();
+      }
+    }
+  }
+  String originalTitle=TrashUtil.getOriginalTitle(page.getTitle());
+  String trashtitle=page.getTitle();
+  page.setTitle(originalTitle);
+  page.setStatus(WorkflowConstants.STATUS_APPROVED);
+  wikiPagePersistence.update(page);
+  changeParent(userId,nodeId,originalTitle,newParentTitle,serviceContext);
+  Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(WikiPage.class);
+  indexer.reindex(page);
+  TrashVersion trashVersion=trashVersionLocalService.fetchVersion(trashEntry.getEntryId(),WikiPage.class.getName(),page.getPageId());
+  if (trashVersion != null) {
+    trashVersionLocalService.deleteTrashVersion(trashVersion);
+  }
+  restoreDependentChildPagesFromTrash(page,originalTitle,trashtitle,trashEntry.getEntryId());
+  restoreDependentRedirectPagesFromTrash(page,originalTitle,trashtitle,trashEntry.getEntryId());
+}
