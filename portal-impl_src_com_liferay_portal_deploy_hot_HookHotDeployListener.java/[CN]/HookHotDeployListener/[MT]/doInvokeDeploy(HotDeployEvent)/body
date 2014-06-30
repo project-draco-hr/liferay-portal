@@ -14,7 +14,6 @@
   _servletContextNames.add(servletContextName);
   Document document=SAXReaderUtil.read(xml,true);
   Element rootElement=document.getRootElement();
-  Map<Object,ServiceRegistration<?>> serviceRegistrations=getServiceRegistrations(servletContextName);
   ClassLoader portletClassLoader=hotDeployEvent.getContextClassLoader();
   initPortalProperties(servletContextName,portletClassLoader,rootElement);
   initLanguageProperties(servletContextName,portletClassLoader,rootElement);
@@ -37,11 +36,19 @@
       modelListenersContainer.registerModelListener(modelName,modelListener);
     }
   }
+  EventsContainer eventsContainer=_eventsContainerMap.get(servletContextName);
+  if (eventsContainer == null) {
+    eventsContainer=new EventsContainer();
+    _eventsContainerMap.put(servletContextName,eventsContainer);
+  }
   List<Element> eventElements=rootElement.elements("event");
   for (  Element eventElement : eventElements) {
     String eventName=eventElement.elementText("event-type");
     String eventClassName=eventElement.elementText("event-class");
-    initEvent(eventName,eventClassName,portletClassLoader,serviceRegistrations);
+    Object obj=initEvent(eventName,eventClassName,portletClassLoader);
+    if (obj != null) {
+      eventsContainer.registerEvent(eventName,obj);
+    }
   }
   registerClpMessageListeners(servletContext,portletClassLoader);
   DirectServletRegistryUtil.clearServlets();
