@@ -1,27 +1,14 @@
 {
   long classNameId=classNameLocalService.getClassNameId(DDMStructure.class);
   List<DDMTemplate> templates=ddmTemplateLocalService.getTemplates(structure.getGroupId(),classNameId,structure.getStructureId(),DDMTemplateConstants.TEMPLATE_TYPE_FORM);
+  DDMForm structureDDMForm=structure.getDDMForm();
   for (  DDMTemplate template : templates) {
-    String script=template.getScript();
-    Document templateDocument=null;
-    try {
-      templateDocument=SAXReaderUtil.read(script);
+    DDMForm templateDDMForm=DDMFormXSDDeserializerUtil.deserialize(template.getScript());
+    syncStructureTemplatesFields(structure.getDDMForm(),templateDDMForm.getDDMFormFields(),template.getMode());
+    if (template.getMode().equals(DDMTemplateConstants.TEMPLATE_MODE_CREATE)) {
+      appendNewStructureRequiredFields(structureDDMForm.getDDMFormFields(),templateDDMForm.getDDMFormFields());
     }
- catch (    DocumentException de) {
-      if (_log.isWarnEnabled()) {
-        _log.warn(de,de);
-      }
-      continue;
-    }
-    Element templateRootElement=templateDocument.getRootElement();
-    syncStructureTemplatesFields(template,templateRootElement);
-    appendNewStructureRequiredFields(structure,templateDocument);
-    try {
-      script=DDMXMLUtil.formatXML(templateDocument.asXML());
-    }
- catch (    Exception e) {
-      throw new StructureDefinitionException();
-    }
+    String script=DDMXMLUtil.formatXML(DDMFormXSDSerializerUtil.serialize(templateDDMForm));
     template.setScript(script);
     ddmTemplatePersistence.update(template);
   }
