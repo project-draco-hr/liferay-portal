@@ -1,0 +1,53 @@
+{
+  if (!isInJavaTermTypeGroup(javaTerm.getType(),TYPE_METHOD)) {
+    return;
+  }
+  String javaTermContent="\n" + javaTerm.getContent();
+  Pattern methodNameAndParametersPattern=Pattern.compile("\n" + _indent + "(private |protected |public )(.|\n)*?(\\{|;)\n");
+  Matcher matcher=methodNameAndParametersPattern.matcher(javaTermContent);
+  if (!matcher.find()) {
+    return;
+  }
+  String methodNameAndParameters=matcher.group();
+  String[] lines=StringUtil.splitLines(methodNameAndParameters);
+  if (lines.length == 1) {
+    if (methodNameAndParameters.endsWith("{\n") && javaTermContent.contains(methodNameAndParameters + "\n") && !javaTermContent.contains(methodNameAndParameters + "\n" + _indent+ StringPool.TAB+ "/*")&& !javaTermContent.contains(methodNameAndParameters + "\n" + _indent+ StringPool.TAB+ "// ")) {
+      String trimmedJavaTermContent=StringUtil.trimTrailing(javaTermContent);
+      if (!trimmedJavaTermContent.endsWith("\n\n" + _indent + StringPool.CLOSE_CURLY_BRACE)) {
+        _content=StringUtil.replace(_content,methodNameAndParameters + "\n",methodNameAndParameters);
+      }
+    }
+    return;
+  }
+  if (methodNameAndParameters.endsWith("{\n") && !javaTermContent.contains(methodNameAndParameters + "\n") && !javaTermContent.contains(methodNameAndParameters + _indent + StringPool.CLOSE_CURLY_BRACE)) {
+    _content=StringUtil.replace(_content,methodNameAndParameters,methodNameAndParameters + "\n");
+  }
+  boolean throwsException=methodNameAndParameters.contains(_indent + "throws ");
+  String newMethodNameAndParameters=methodNameAndParameters;
+  int expectedTabCount=-1;
+  for (int i=0; i < lines.length; i++) {
+    String line=lines[i];
+    if (line.contains(_indent + "throws ")) {
+      newMethodNameAndParameters=fixLeadingTabs(newMethodNameAndParameters,line,_indent.length() + 1);
+      break;
+    }
+    if (expectedTabCount == -1) {
+      if (line.endsWith(StringPool.OPEN_PARENTHESIS)) {
+        expectedTabCount=Math.max(JavaSourceProcessor.getLeadingTabCount(line),_indent.length()) + 1;
+        if (throwsException && (expectedTabCount == (_indent.length() + 1))) {
+          expectedTabCount+=1;
+        }
+      }
+    }
+ else {
+      String previousLine=lines[i - 1];
+      if (previousLine.endsWith(StringPool.COMMA) || previousLine.endsWith(StringPool.OPEN_PARENTHESIS)) {
+        newMethodNameAndParameters=fixLeadingTabs(newMethodNameAndParameters,line,expectedTabCount);
+      }
+ else {
+        newMethodNameAndParameters=fixLeadingTabs(newMethodNameAndParameters,line,JavaSourceProcessor.getLeadingTabCount(previousLine) + 1);
+      }
+    }
+  }
+  _content=StringUtil.replace(_content,methodNameAndParameters,newMethodNameAndParameters);
+}

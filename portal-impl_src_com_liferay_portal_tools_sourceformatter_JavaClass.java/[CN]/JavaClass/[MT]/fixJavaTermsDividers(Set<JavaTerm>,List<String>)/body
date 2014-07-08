@@ -1,0 +1,57 @@
+{
+  JavaTerm previousJavaTerm=null;
+  Iterator<JavaTerm> itr=javaTerms.iterator();
+  while (itr.hasNext()) {
+    JavaTerm javaTerm=itr.next();
+    if (previousJavaTerm == null) {
+      previousJavaTerm=javaTerm;
+      continue;
+    }
+    String javaTermContent=javaTerm.getContent();
+    if (javaTermContent.startsWith(_indent + "//") || javaTermContent.contains(_indent + "static {")) {
+      previousJavaTerm=javaTerm;
+      continue;
+    }
+    String previousJavaTermContent=previousJavaTerm.getContent();
+    if (previousJavaTermContent.startsWith(_indent + "//") || previousJavaTermContent.contains(_indent + "static {")) {
+      previousJavaTerm=javaTerm;
+      continue;
+    }
+    String javaTermName=javaTerm.getName();
+    if (BaseSourceProcessor.isExcluded(javaTermSortExclusions,_fileName,javaTerm.getLineCount(),javaTermName)) {
+      previousJavaTerm=javaTerm;
+      continue;
+    }
+    String previousJavaTermName=previousJavaTerm.getName();
+    boolean requiresEmptyLine=false;
+    if (previousJavaTerm.getType() != javaTerm.getType()) {
+      requiresEmptyLine=true;
+    }
+ else     if (!isInJavaTermTypeGroup(javaTerm.getType(),TYPE_VARIABLE)) {
+      requiresEmptyLine=true;
+    }
+ else     if ((StringUtil.isUpperCase(javaTermName) && !StringUtil.isLowerCase(javaTermName)) || (StringUtil.isUpperCase(previousJavaTermName) && !StringUtil.isLowerCase(previousJavaTermName))) {
+      requiresEmptyLine=true;
+    }
+ else     if (hasAnnotationCommentOrJavadoc(javaTermContent) || hasAnnotationCommentOrJavadoc(previousJavaTermContent)) {
+      requiresEmptyLine=true;
+    }
+ else     if ((previousJavaTerm.getType() == TYPE_VARIABLE_PRIVATE_STATIC) && (previousJavaTermName.equals("_instance") || previousJavaTermName.equals("_log") || previousJavaTermName.equals("_logger"))) {
+      requiresEmptyLine=true;
+    }
+ else     if (previousJavaTermContent.contains("\n\n\t") || javaTermContent.contains("\n\n\t")) {
+      requiresEmptyLine=true;
+    }
+    if (requiresEmptyLine) {
+      if (!_content.contains("\n\n" + javaTermContent)) {
+        _content=StringUtil.replace(_content,"\n" + javaTermContent,"\n\n" + javaTermContent);
+        return;
+      }
+    }
+ else     if (_content.contains("\n\n" + javaTermContent)) {
+      _content=StringUtil.replace(_content,"\n\n" + javaTermContent,"\n" + javaTermContent);
+      return;
+    }
+    previousJavaTerm=javaTerm;
+  }
+}
