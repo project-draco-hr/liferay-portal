@@ -1,32 +1,15 @@
 {
   WikiPage page=getPage(nodeId,title);
-  TrashEntry trashEntry=null;
-  WikiPage trashEntryPage=page.getParentPage();
-  while (trashEntry == null) {
-    trashEntry=trashEntryLocalService.fetchEntry(WikiPage.class.getName(),trashEntryPage.getResourcePrimKey());
-    if (trashEntry == null) {
-      trashEntryPage=trashEntryPage.getParentPage();
-      if (trashEntryPage == null) {
-        throw new NoSuchPageException();
-      }
-    }
+  if (page.isInTrashExplicitly()) {
+    restorePageFromTrash(userId,page);
   }
-  String originalTitle=TrashUtil.getOriginalTitle(page.getTitle());
-  String trashTitle=page.getTitle();
-  WikiPageResource pageResource=wikiPageResourcePersistence.findByPrimaryKey(page.getResourcePrimKey());
-  pageResource.setTitle(originalTitle);
-  wikiPageResourcePersistence.update(pageResource);
-  page.setTitle(originalTitle);
-  page.setStatus(WorkflowConstants.STATUS_APPROVED);
-  wikiPagePersistence.update(page);
-  changeParent(userId,nodeId,originalTitle,newParentTitle,serviceContext);
-  page=getPage(page.getResourcePrimKey());
-  TrashVersion trashVersion=trashVersionLocalService.fetchVersion(trashEntry.getEntryId(),WikiPage.class.getName(),page.getPageId());
-  if (trashVersion != null) {
-    trashVersionLocalService.deleteTrashVersion(trashVersion);
+ else   if (page.isInTrashImplicitly()) {
+    TrashEntry trashEntry=page.getTrashEntry();
+    restoreDependentFromTrash(page,trashEntry.getEntryId());
   }
-  Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(WikiPage.class);
-  indexer.reindex(page);
-  restoreDependentChildPagesFromTrash(page,originalTitle,trashTitle,trashEntry.getEntryId());
-  restoreDependentRedirectPagesFromTrash(page,originalTitle,trashTitle,trashEntry.getEntryId());
+ else {
+    throw new PrincipalException();
+  }
+  changeParent(userId,nodeId,TrashUtil.getOriginalTitle(page.getTitle()),newParentTitle,serviceContext);
+  return getPage(page.getResourcePrimKey());
 }
