@@ -1,0 +1,60 @@
+{
+  if (primaryKeys.isEmpty()) {
+    return Collections.emptyMap();
+  }
+  Map<Serializable,AnalyticsEvent> map=new HashMap<Serializable,AnalyticsEvent>();
+  if (primaryKeys.size() == 1) {
+    Iterator<Serializable> iterator=primaryKeys.iterator();
+    Serializable primaryKey=iterator.next();
+    AnalyticsEvent analyticsEvent=fetchByPrimaryKey(primaryKey);
+    if (analyticsEvent != null) {
+      map.put(primaryKey,analyticsEvent);
+    }
+    return map;
+  }
+  Set<Serializable> uncachedPrimaryKeys=null;
+  for (  Serializable primaryKey : primaryKeys) {
+    AnalyticsEvent analyticsEvent=(AnalyticsEvent)EntityCacheUtil.getResult(AnalyticsEventModelImpl.ENTITY_CACHE_ENABLED,AnalyticsEventImpl.class,primaryKey);
+    if (analyticsEvent == null) {
+      if (uncachedPrimaryKeys == null) {
+        uncachedPrimaryKeys=new HashSet<Serializable>();
+      }
+      uncachedPrimaryKeys.add(primaryKey);
+    }
+ else {
+      map.put(primaryKey,analyticsEvent);
+    }
+  }
+  if (uncachedPrimaryKeys == null) {
+    return map;
+  }
+  StringBundler query=new StringBundler((uncachedPrimaryKeys.size() * 2) + 1);
+  query.append(_SQL_SELECT_ANALYTICSEVENT_WHERE_PKS_IN);
+  for (  Serializable primaryKey : uncachedPrimaryKeys) {
+    query.append(String.valueOf(primaryKey));
+    query.append(StringPool.COMMA);
+  }
+  query.setIndex(query.index() - 1);
+  query.append(StringPool.CLOSE_PARENTHESIS);
+  String sql=query.toString();
+  Session session=null;
+  try {
+    session=openSession();
+    Query q=session.createQuery(sql);
+    for (    AnalyticsEvent analyticsEvent : (List<AnalyticsEvent>)q.list()) {
+      map.put(analyticsEvent.getPrimaryKeyObj(),analyticsEvent);
+      cacheResult(analyticsEvent);
+      uncachedPrimaryKeys.remove(analyticsEvent.getPrimaryKeyObj());
+    }
+    for (    Serializable primaryKey : uncachedPrimaryKeys) {
+      EntityCacheUtil.putResult(AnalyticsEventModelImpl.ENTITY_CACHE_ENABLED,AnalyticsEventImpl.class,primaryKey,_nullAnalyticsEvent);
+    }
+  }
+ catch (  Exception e) {
+    throw processException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+  return map;
+}
