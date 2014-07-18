@@ -1,32 +1,34 @@
 {
-  boolean hasError=false;
+  Throwable throwable=null;
   try {
     platformTransactionManager.commit(transactionStatus);
   }
  catch (  TransactionSystemException tse) {
     _log.error("Application exception overridden by commit exception",tse);
-    hasError=true;
+    throwable=tse;
     throw tse;
   }
 catch (  RuntimeException re) {
     _log.error("Application exception overridden by commit exception",re);
-    hasError=true;
+    throwable=re;
     throw re;
   }
 catch (  Error e) {
     _log.error("Application exception overridden by commit error",e);
-    hasError=true;
+    throwable=e;
     throw e;
   }
  finally {
     if (transactionStatus.isNewTransaction()) {
-      if (hasError) {
+      if (throwable != null) {
+        fireTransactionRollbackedEvent(transactionAttribute,transactionStatus,throwable);
         TransactionalPortalCacheHelper.rollback();
         TransactionCommitCallbackUtil.popCallbackList();
         EntityCacheUtil.clearLocalCache();
         FinderCacheUtil.clearLocalCache();
       }
  else {
+        fireTransactionCommittedEvent(transactionAttribute,transactionStatus);
         TransactionalPortalCacheHelper.commit();
         invokeCallbacks();
       }
