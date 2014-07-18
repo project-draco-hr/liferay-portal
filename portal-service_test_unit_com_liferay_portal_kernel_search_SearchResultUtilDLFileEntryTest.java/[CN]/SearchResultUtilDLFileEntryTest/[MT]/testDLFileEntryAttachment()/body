@@ -1,4 +1,21 @@
 {
+  when(assetRenderer.getSearchSummary((Locale)Matchers.any())).thenReturn(SearchTestUtil.SUMMARY_CONTENT);
+  when(assetRenderer.getTitle((Locale)Matchers.any())).thenReturn(SearchTestUtil.SUMMARY_TITLE);
+  replace(method(AssetRendererFactoryRegistryUtil.class,"getAssetRendererFactoryByClassName",String.class)).with(new InvocationHandler(){
+    @Override public AssetRendererFactory invoke(    Object proxy,    Method method,    Object[] args) throws Throwable {
+      String className=(String)args[0];
+      if (_DL_FILE_ENTRY_CLASS_NAME.equals(className)) {
+        return null;
+      }
+      if (SearchTestUtil.ATTACHMENT_OWNER_CLASS_NAME.equals(className)) {
+        return assetRendererFactory;
+      }
+      throw new IllegalArgumentException();
+    }
+  }
+);
+  when(assetRendererFactory.getAssetRenderer(SearchTestUtil.ATTACHMENT_OWNER_CLASS_PK)).thenReturn(assetRenderer);
+  when(_dlAppLocalService.getFileEntry(SearchTestUtil.ENTRY_CLASS_PK)).thenReturn(_fileEntry);
   final Indexer indexer=Mockito.mock(Indexer.class);
   replace(method(IndexerRegistryUtil.class,"getIndexer",String.class)).with(new InvocationHandler(){
     @Override public Indexer invoke(    Object proxy,    Method method,    Object[] args) throws Throwable {
@@ -17,23 +34,6 @@
   String content=RandomTestUtil.randomString();
   Summary summary=new Summary(null,title,content,null);
   doReturn(summary).when(indexer).getSummary((Document)Matchers.any(),Matchers.anyString(),(PortletURL)Matchers.any(),(PortletRequest)Matchers.isNull(),(PortletResponse)Matchers.isNull());
-  replace(method(AssetRendererFactoryRegistryUtil.class,"getAssetRendererFactoryByClassName",String.class)).with(new InvocationHandler(){
-    @Override public AssetRendererFactory invoke(    Object proxy,    Method method,    Object[] args) throws Throwable {
-      String className=(String)args[0];
-      if (_DL_FILE_ENTRY_CLASS_NAME.equals(className)) {
-        return null;
-      }
-      if (SearchTestUtil.ATTACHMENT_OWNER_CLASS_NAME.equals(className)) {
-        return assetRendererFactory;
-      }
-      throw new IllegalArgumentException();
-    }
-  }
-);
-  when(assetRendererFactory.getAssetRenderer(SearchTestUtil.ATTACHMENT_OWNER_CLASS_PK)).thenReturn(assetRenderer);
-  when(assetRenderer.getSearchSummary((Locale)Matchers.any())).thenReturn(SearchTestUtil.SUMMARY_CONTENT);
-  when(assetRenderer.getTitle((Locale)Matchers.any())).thenReturn(SearchTestUtil.SUMMARY_TITLE);
-  when(_dlAppLocalService.getFileEntry(SearchTestUtil.ENTRY_CLASS_PK)).thenReturn(_fileEntry);
   SearchResult searchResult=assertOneSearchResult(SearchTestUtil.createAttachmentDocument(_DL_FILE_ENTRY_CLASS_NAME));
   Assert.assertEquals(SearchTestUtil.ATTACHMENT_OWNER_CLASS_NAME,searchResult.getClassName());
   Assert.assertEquals(SearchTestUtil.ATTACHMENT_OWNER_CLASS_PK,searchResult.getClassPK());
