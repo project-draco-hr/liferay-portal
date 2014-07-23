@@ -1,0 +1,30 @@
+{
+  EventSource eventSource=autoFlushEvent.getSession();
+  if (!isFlushable(eventSource)) {
+    return;
+  }
+  ActionQueue actionQueue=eventSource.getActionQueue();
+  int oldSize=actionQueue.numberOfCollectionRemovals();
+  flushEverythingToExecutions(autoFlushEvent);
+  PersistenceContext persistenceContext=eventSource.getPersistenceContext();
+  if (isFlushReallyNeeded(autoFlushEvent,eventSource)) {
+    persistenceContext.setFlushing(true);
+    try {
+      performExecutions(eventSource);
+      postFlush(eventSource);
+    }
+  finally {
+      persistenceContext.setFlushing(false);
+    }
+    SessionFactoryImplementor sessionFactoryImplementor=eventSource.getFactory();
+    Statistics statistics=sessionFactoryImplementor.getStatistics();
+    if (statistics.isStatisticsEnabled()) {
+      StatisticsImplementor statisticsImplementor=sessionFactoryImplementor.getStatisticsImplementor();
+      statisticsImplementor.flush();
+    }
+  }
+ else   if (!persistenceContext.isFlushing()) {
+    actionQueue.clearFromFlushNeededCheck(oldSize);
+  }
+  autoFlushEvent.setFlushRequired(isFlushReallyNeeded(autoFlushEvent,eventSource));
+}
