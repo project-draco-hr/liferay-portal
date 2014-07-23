@@ -11,11 +11,12 @@
     return null;
   }
   String generics=signatures.substring(leftBracketIndex + 1,rightBracketIndex);
-  Class<?>[] genericTypes=new Class<?>[StringUtil.count(generics,StringPool.SEMICOLON) + 1];
-  StringBundler sb=new StringBundler(generics.length());
-  int count=0;
+  List<Class<?>> genericTypeslist=new ArrayList<>();
   int level=0;
-  for (  char c : generics.toCharArray()) {
+  int index=0;
+  while (index < generics.length()) {
+    char c=generics.charAt(index);
+    index++;
     if (c == CharPool.LESS_THAN) {
       level++;
     }
@@ -23,22 +24,33 @@
       level--;
     }
  else     if (level == 0) {
-      sb.append(c);
-      if (c == CharPool.SEMICOLON) {
-        String extractedTopLevelGenericName=_getGenericName(sb.toString());
-        if (Validator.isNotNull(extractedTopLevelGenericName)) {
-          genericTypes[count]=_getGenericType(extractedTopLevelGenericName);
+      String extractedTopLevelGenericName=null;
+      if (c == 'L') {
+        int endIndex=generics.indexOf(';',index) + 1;
+        extractedTopLevelGenericName=_getGenericName(generics.substring(index - 1,endIndex));
+        index=endIndex;
+      }
+ else       if (c == '[') {
+        char nextChar=generics.charAt(index);
+        if (_isPrimitive(nextChar)) {
+          extractedTopLevelGenericName=_getGenericName(generics.substring(index - 1,index + 1));
+          index++;
         }
-        sb.setIndex(0);
-        count++;
+ else         if (nextChar == 'L') {
+          int endIndex=generics.indexOf(';',index) + 1;
+          extractedTopLevelGenericName=_getGenericName(generics.substring(index - 1,endIndex));
+          index=endIndex;
+        }
+      }
+      if (extractedTopLevelGenericName != null) {
+        if (Validator.isNotNull(extractedTopLevelGenericName)) {
+          genericTypeslist.add(_getGenericType(extractedTopLevelGenericName));
+        }
       }
     }
   }
-  if (sb.length() > 0) {
-    String extractedTopLevelGenericName=_getGenericName(sb.toString());
-    if (Validator.isNotNull(extractedTopLevelGenericName)) {
-      genericTypes[count]=_getGenericType(extractedTopLevelGenericName);
-    }
+  if (genericTypeslist.isEmpty()) {
+    return null;
   }
-  return genericTypes;
+  return genericTypeslist.toArray(new Class<?>[genericTypeslist.size()]);
 }
