@@ -1,5 +1,11 @@
 {
-  com.liferay.portal.model.Portlet portletModel=buildPortletModel(portletId);
+  Bundle bundle=serviceReference.getBundle();
+  BundleWiring bundleWiring=bundle.adapt(BundleWiring.class);
+  ClassLoader classLoader=bundleWiring.getClassLoader();
+  ServiceRegistrations serviceRegistrations=getServiceRegistrations(bundle);
+  serviceRegistrations.counter++;
+  BundlePortletApp bundlePortletApp=createOrGetPortletApp(bundle,classLoader,serviceRegistrations);
+  com.liferay.portal.model.Portlet portletModel=buildPortletModel(bundlePortletApp,portletId);
   portletModel.setPortletName(portletName);
   String displayName=GetterUtil.getString(serviceReference.getProperty("javax.portlet.display-name"),portletName);
   portletModel.setDisplayName(displayName);
@@ -7,13 +13,12 @@
   portletModel.setPortletClass(portletClazz.getName());
   collectJxPortletFeatures(serviceReference,portletModel);
   collectLiferayFeatures(serviceReference,portletModel);
-  Bundle bundle=serviceReference.getBundle();
-  PortletBagFactory portletBagFactory=new BundlePortletBagFactory(bundle,portlet);
-  BundleWiring bundleWiring=bundle.adapt(BundleWiring.class);
-  portletBagFactory.setClassLoader(bundleWiring.getClassLoader());
-  portletBagFactory.setServletContext(_servletContext);
+  PortletBagFactory portletBagFactory=new BundlePortletBagFactory(portlet);
+  portletBagFactory.setClassLoader(classLoader);
+  portletBagFactory.setServletContext(bundlePortletApp.getServletContext());
   portletBagFactory.setWARFile(true);
   portletBagFactory.create(portletModel);
+  checkWebResources(bundle,portletModel,serviceRegistrations);
   List<Company> companies=_companyLocalService.getCompanies();
   deployPortlet(serviceReference,portletModel,companies);
   checkResources(serviceReference,portletModel,companies);
@@ -21,4 +26,5 @@
   if (_log.isInfoEnabled()) {
     _log.info("Added " + serviceReference);
   }
+  return portletModel;
 }
