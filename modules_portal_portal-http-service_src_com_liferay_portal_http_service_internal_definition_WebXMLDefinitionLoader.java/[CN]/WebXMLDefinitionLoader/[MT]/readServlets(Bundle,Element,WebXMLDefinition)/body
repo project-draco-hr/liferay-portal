@@ -1,34 +1,51 @@
 {
   List<Element> servletElements=rootElement.elements("servlet");
+  List<Element> servletMappingElements=rootElement.elements("servlet-mapping");
+  List<Element> errorPageElements=rootElement.elements("error-page");
+  Map<String,String> errorPageLocationMappings=getErrorPageLocationMappings(errorPageElements);
   for (  Element servletElement : servletElements) {
-    ServletDefinition servletDefinition=new ServletDefinition();
     String servletClassName=servletElement.elementText("servlet-class");
     Class<?> servletClass=null;
     try {
-      servletClass=bundle.loadClass(servletClassName);
+      if (WabResourceServlet.class.getName().equals(servletClassName)) {
+        servletClass=WabResourceServlet.class;
+      }
+ else {
+        servletClass=bundle.loadClass(servletClassName);
+      }
     }
  catch (    Exception e) {
       _log.error("Unable to load servlet " + servletClassName);
       continue;
     }
     Servlet servlet=(Servlet)servletClass.newInstance();
+    ServletDefinition servletDefinition=new ServletDefinition();
     servletDefinition.setServlet(servlet);
+    String servletName=servletElement.elementText("servlet-name");
+    servletDefinition.setName(servletName);
+    boolean asyncSupported=GetterUtil.getBoolean(servletElement.elementText("async-supported"));
+    servletDefinition.setAsyncSupported(asyncSupported);
     List<Element> initParamElements=servletElement.elements("init-param");
     for (    Element initParamElement : initParamElements) {
       String paramName=initParamElement.elementText("param-name");
       String paramValue=initParamElement.elementText("param-value");
       servletDefinition.setInitParameter(paramName,paramValue);
     }
-    String servletName=servletElement.elementText("servlet-name");
-    servletDefinition.setName(servletName);
-    List<Element> servletMappingElements=rootElement.elements("servlet-mapping");
+    List<String> errorPages=new ArrayList<String>();
     for (    Element servletMappingElement : servletMappingElements) {
       String servletMappingElementServletName=servletMappingElement.elementText("servlet-name");
       if (servletMappingElementServletName.equals(servletName)) {
-        String urlPattern=getURLPattern(servletMappingElement);
-        servletDefinition.addURLPattern(urlPattern);
+        List<String> urlPatterns=getURLPatterns(servletMappingElement);
+        for (        String urlPattern : urlPatterns) {
+          servletDefinition.addURLPattern(urlPattern);
+          String errorPage=errorPageLocationMappings.get(urlPattern);
+          if (errorPage != null) {
+            errorPages.add(errorPage);
+          }
+        }
       }
     }
+    servletDefinition.setErrorPages(errorPages);
     webXML.setServletDefinition(servletName,servletDefinition);
   }
 }

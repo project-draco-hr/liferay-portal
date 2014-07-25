@@ -1,7 +1,8 @@
 {
   List<Element> filterElements=rootElement.elements("filter");
+  List<Element> filterMappingElements=rootElement.elements("filter-mapping");
+  Collections.reverse(new ArrayList<Element>(filterMappingElements));
   for (  Element filterElement : filterElements) {
-    FilterDefinition filterDefinition=new FilterDefinition();
     String filterClassName=filterElement.elementText("filter-class");
     Class<?> clazz=null;
     try {
@@ -12,21 +13,29 @@
       continue;
     }
     Filter filter=(Filter)clazz.newInstance();
+    FilterDefinition filterDefinition=new FilterDefinition();
     filterDefinition.setFilter(filter);
+    String filterName=filterElement.elementText("filter-name");
+    filterDefinition.setName(filterName);
+    boolean asyncSupported=GetterUtil.getBoolean(filterElement.elementText("async-supported"));
+    filterDefinition.setAsyncSupported(asyncSupported);
     List<Element> initParamElements=filterElement.elements("init-param");
     for (    Element initParamElement : initParamElements) {
       String paramName=initParamElement.elementText("param-name");
       String paramValue=initParamElement.elementText("param-value");
       filterDefinition.setInitParameter(paramName,paramValue);
     }
-    String filterName=filterElement.elementText("filter-name");
-    filterDefinition.setName(filterName);
-    List<Element> filterMappingElements=rootElement.elements("filter-mapping");
-    for (    Element filterMappingElement : filterMappingElements) {
+    for (int i=0; i < filterMappingElements.size(); i++) {
+      Element filterMappingElement=filterMappingElements.get(i);
       String filterMappingElementFilterName=filterMappingElement.elementText("filter-name");
       if (filterMappingElementFilterName.equals(filterName)) {
-        String urlPattern=getURLPattern(filterMappingElement);
-        filterDefinition.addURLPattern(urlPattern);
+        List<String> dispatchers=getDispatchers(filterMappingElement);
+        filterDefinition.setDispatchers(dispatchers);
+        List<String> servletNames=getServletNames(filterMappingElement);
+        filterDefinition.setServletNames(servletNames);
+        List<String> urlPatterns=getURLPatterns(filterMappingElement);
+        filterDefinition.setURLPatterns(urlPatterns);
+        filterDefinition.setPriority(i);
       }
     }
     webXML.setFilterDefinition(filterName,filterDefinition);
