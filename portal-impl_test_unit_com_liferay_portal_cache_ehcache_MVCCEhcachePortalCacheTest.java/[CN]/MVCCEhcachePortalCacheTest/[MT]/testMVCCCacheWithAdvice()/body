@@ -1,0 +1,59 @@
+{
+  MemoryPortalCacheAdvice.block();
+  Thread thread1=new Thread(){
+    @Override public void run(){
+      _mvccEhcachePortalCache.put(_KEY_1,new MockMVCCModel(_VERSION_1));
+    }
+  }
+;
+  thread1.start();
+  MemoryPortalCacheAdvice.waitUntilBlock(1);
+  Thread thread2=new Thread(){
+    @Override public void run(){
+      _mvccEhcachePortalCache.put(_KEY_1,new MockMVCCModel(_VERSION_1));
+    }
+  }
+;
+  thread2.start();
+  MemoryPortalCacheAdvice.waitUntilBlock(2);
+  MemoryPortalCacheAdvice.unblock(2);
+  thread1.join();
+  thread2.join();
+  _assertVersion(_mvccEhcachePortalCache.get(_KEY_1),_VERSION_1);
+  _testCacheListener.assertPut(_KEY_1,new MockMVCCModel(_VERSION_1));
+  _testCacheListener.assertActionsNumber(1);
+  _testCacheListener.reset();
+  MemoryPortalCacheAdvice.block();
+  thread1=new Thread(){
+    @Override public void run(){
+      _mvccEhcachePortalCache.put(_KEY_1,new MockMVCCModel(_VERSION_2));
+    }
+  }
+;
+  thread1.start();
+  MemoryPortalCacheAdvice.waitUntilBlock(1);
+  thread2=new Thread(){
+    @Override public void run(){
+      _mvccEhcachePortalCache.put(_KEY_1,new MockMVCCModel(_VERSION_2));
+    }
+  }
+;
+  thread2.start();
+  MemoryPortalCacheAdvice.waitUntilBlock(2);
+  MemoryPortalCacheAdvice.unblock(2);
+  thread1.join();
+  thread2.join();
+  _assertVersion(_mvccEhcachePortalCache.get(_KEY_1),_VERSION_2);
+  _testCacheListener.assertUpdated(_KEY_1,new MockMVCCModel(_VERSION_2));
+  _testCacheListener.assertActionsNumber(1);
+  _testCacheListener.reset();
+  MemoryPortalCacheAdvice.setException();
+  try {
+    _mvccEhcachePortalCache.put(_KEY_2,new MockMVCCModel(_VERSION_1));
+    Assert.fail();
+  }
+ catch (  Exception e) {
+    Assert.assertNull(_mvccEhcachePortalCache.get(_KEY_2));
+    _testCacheListener.assertActionsNumber(0);
+  }
+}
