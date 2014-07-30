@@ -1,0 +1,34 @@
+{
+  String cacheName=portalCacheClusterEvent.getCacheName();
+  PortalCache<K,V> portalCache=(PortalCache<K,V>)_portalCacheManager.getCache(cacheName);
+  if ((portalCache == null) && (_hibernateCacheManager != null)) {
+    portalCache=(PortalCache<K,V>)_hibernateCacheManager.getCache(cacheName);
+  }
+  if (portalCache == null) {
+    return;
+  }
+  PortalCacheClusterEventType portalCacheClusterEventType=portalCacheClusterEvent.getEventType();
+  boolean replicate=ClusterReplicationThreadLocal.isReplicate();
+  ClusterReplicationThreadLocal.setReplicate(false);
+  try {
+    if (portalCacheClusterEventType.equals(PortalCacheClusterEventType.REMOVE_ALL)) {
+      portalCache.removeAll();
+    }
+ else     if (portalCacheClusterEventType.equals(PortalCacheClusterEventType.PUT) || portalCacheClusterEventType.equals(PortalCacheClusterEventType.UPDATE)) {
+      K key=(K)portalCacheClusterEvent.getElementKey();
+      V value=(V)portalCacheClusterEvent.getElementValue();
+      if (value == null) {
+        portalCache.remove(key);
+      }
+ else {
+        portalCache.put(key,value,portalCacheClusterEvent.getTimeToLive());
+      }
+    }
+ else {
+      portalCache.remove((K)portalCacheClusterEvent.getElementKey());
+    }
+  }
+  finally {
+    ClusterReplicationThreadLocal.setReplicate(replicate);
+  }
+}
