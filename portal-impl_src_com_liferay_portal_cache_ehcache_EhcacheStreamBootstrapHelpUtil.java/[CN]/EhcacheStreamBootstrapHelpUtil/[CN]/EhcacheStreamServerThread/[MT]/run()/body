@@ -16,11 +16,11 @@
     socket.shutdownInput();
     ObjectOutputStream objectOutputStream=new AnnotatedObjectOutputStream(socket.getOutputStream());
     for (    String cacheName : _cacheNames) {
-      Ehcache ehcache=_cacheManager.getCache(cacheName);
-      if (ehcache == null) {
+      PortalCache<Serializable,Serializable> portalCache=(PortalCache<Serializable,Serializable>)_portalCacheManager.getCache(cacheName);
+      if (portalCache == null) {
         EhcacheStreamBootstrapCacheLoader.setSkip();
         try {
-          _cacheManager.addCache(cacheName);
+          _portalCacheManager.getCache(cacheName);
         }
   finally {
           EhcacheStreamBootstrapCacheLoader.resetSkip();
@@ -28,27 +28,11 @@
         continue;
       }
       objectOutputStream.writeObject(cacheName);
-      List<Object> keys=ehcache.getKeys();
-      for (      Object key : keys) {
-        if (!(key instanceof Serializable)) {
-          if (_log.isWarnEnabled()) {
-            _log.warn("Key " + key + " is not serializable");
-          }
-          continue;
-        }
-        Element element=ehcache.get(key);
-        if (element == null) {
-          continue;
-        }
-        Object value=element.getObjectValue();
-        if (!(value instanceof Serializable)) {
-          if (_log.isWarnEnabled() && (value != null)) {
-            _log.warn("Value " + value + " is not serializable");
-          }
-          continue;
-        }
-        EhcacheElement ehcacheElement=new EhcacheElement((Serializable)key,(Serializable)value);
-        objectOutputStream.writeObject(ehcacheElement);
+      List<Serializable> keys=portalCache.getKeys();
+      for (      Serializable key : keys) {
+        Serializable value=portalCache.get(key);
+        CacheElement cacheElement=new CacheElement(key,value);
+        objectOutputStream.writeObject(cacheElement);
       }
     }
     objectOutputStream.writeObject(_COMMAND_SOCKET_CLOSE);

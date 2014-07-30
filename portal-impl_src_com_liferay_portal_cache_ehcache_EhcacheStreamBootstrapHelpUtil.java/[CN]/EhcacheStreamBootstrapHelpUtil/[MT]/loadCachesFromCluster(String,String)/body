@@ -9,15 +9,11 @@
     }
     return;
   }
-  EhcachePortalCacheManager<?,?> ehcachePortalCacheManager=(EhcachePortalCacheManager<?,?>)PortalBeanLocatorUtil.locate(_BEAN_NAME_MULTI_VM_PORTAL_CACHE_MANAGER);
-  CacheManager cacheManager=ehcachePortalCacheManager.getEhcacheManager();
-  List<String> cacheNames=new ArrayList<String>();
-  for (  Ehcache ehcache : ehcaches) {
-    if (cacheManager == ehcache.getCacheManager()) {
-      cacheNames.add(ehcache.getName());
-    }
+  PortalCacheManager<?,?> portalCacheManager=(PortalCacheManager<?,?>)PortalBeanLocatorUtil.locate(_BEAN_NAME_MULTI_VM_PORTAL_CACHE_MANAGER);
+  if (!cacheManagerName.equals(portalCacheManager.getName())) {
+    return;
   }
-  ClusterRequest clusterRequest=ClusterRequest.createMulticastRequest(new MethodHandler(_createServerSocketFromClusterMethodKey,cacheNames),true);
+  ClusterRequest clusterRequest=ClusterRequest.createMulticastRequest(new MethodHandler(_createServerSocketFromClusterMethodKey,Arrays.asList(cacheNames)),true);
   FutureClusterResponses futureClusterResponses=ClusterExecutorUtil.execute(clusterRequest);
   BlockingQueue<ClusterNodeResponse> clusterNodeResponses=futureClusterResponses.getPartialResults();
   ClusterNodeResponse clusterNodeResponse=null;
@@ -47,14 +43,13 @@
     socket.connect(remoteSocketAddress);
     socket.shutdownOutput();
     ObjectInputStream objectInputStream=new AnnotatedObjectInputStream(socket.getInputStream());
-    Ehcache ehcache=null;
+    PortalCache<Serializable,Serializable> portalCache=null;
     try {
       while (true) {
         Object object=objectInputStream.readObject();
-        if (object instanceof EhcacheElement) {
-          EhcacheElement ehcacheElement=(EhcacheElement)object;
-          Element element=ehcacheElement.toElement();
-          ehcache.put(element,true);
+        if (object instanceof CacheElement) {
+          CacheElement cacheElement=(CacheElement)object;
+          portalCache.putQuiet(cacheElement.getKey(),cacheElement.getValue());
         }
  else         if (object instanceof String) {
           if (_COMMAND_SOCKET_CLOSE.equals(object)) {
@@ -62,7 +57,7 @@
           }
           EhcacheStreamBootstrapCacheLoader.setSkip();
           try {
-            ehcache=cacheManager.addCacheIfAbsent((String)object);
+            portalCache=(PortalCache<Serializable,Serializable>)portalCacheManager.getCache((String)object);
           }
   finally {
             EhcacheStreamBootstrapCacheLoader.resetSkip();
