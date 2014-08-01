@@ -3,12 +3,20 @@
     Client client=_elasticsearchConnectionManager.getClient();
     BulkRequestBuilder bulkRequestBuilder=client.prepareBulk();
     for (    Document document : documents) {
+      if (deleteFirst) {
+        DeleteRequestBuilder deleteRequestBuilder=client.prepareDelete(String.valueOf(searchContext.getCompanyId()),DocumentTypes.LIFERAY,document.getUID());
+        bulkRequestBuilder.add(deleteRequestBuilder);
+      }
       UpdateRequestBuilder updateRequestBuilder=buildUpdateRequestBuilder(documentType,searchContext,document);
       bulkRequestBuilder.add(updateRequestBuilder);
+    }
+    if (PortalRunMode.isTestMode()) {
+      bulkRequestBuilder.setRefresh(true);
     }
     Future<BulkResponse> future=bulkRequestBuilder.execute();
     BulkResponse bulkResponse=future.get();
     LogUtil.logActionResponse(_log,bulkResponse);
+    return bulkResponse;
   }
  catch (  Exception e) {
     throw new SearchException("Unable to update documents " + documents,e);
