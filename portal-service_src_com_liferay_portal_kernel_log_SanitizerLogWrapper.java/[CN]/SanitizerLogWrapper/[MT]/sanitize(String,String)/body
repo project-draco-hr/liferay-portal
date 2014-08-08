@@ -5,8 +5,13 @@
   char[] chars=message.toCharArray();
   boolean hasLessThanCharacter=false;
   boolean sanitized=false;
+  boolean hasCRLF=false;
   for (int i=0; i < chars.length; i++) {
     int c=chars[i];
+    if (_allowCRLF && ((c == CharPool.NEW_LINE) || (c == CharPool.RETURN))) {
+      hasCRLF=true;
+      continue;
+    }
     if ((c >= 0) && (c < _whitelistCharacters.length) && (_whitelistCharacters[c] != 0)) {
       chars[i]=_LOG_SANITIZER_REPLACEMENT_CHARACTER;
       sanitized=true;
@@ -19,12 +24,17 @@
   if (_LOG_SANITIZER_ESCAPE_HTML_ENABLED && hasLessThanCharacter) {
     escapeHTML=true;
   }
-  if (sanitized || escapeHTML) {
+  if (sanitized || escapeHTML || hasCRLF) {
     String sanitizedMessage=new String(chars);
     if (escapeHTML) {
       sanitizedMessage=StringUtil.replace(sanitizedMessage,StringPool.LESS_THAN,_LESS_THAN_ESCAPED);
     }
-    sanitizedMessage=sanitizedMessage.concat(_SANITIZED);
+    if (sanitized) {
+      sanitizedMessage=sanitizedMessage.concat(_SANITIZED);
+    }
+    if (hasCRLF) {
+      sanitizedMessage=_CRLF_WARNING.concat(sanitizedMessage);
+    }
     return sanitizedMessage;
   }
   return defaultResult;
