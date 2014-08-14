@@ -1,0 +1,44 @@
+{
+  System.setProperty(_THREAD_ENABLED_KEY,Boolean.toString(threadEnabled));
+  String id="testObject";
+  FinalizeRecorder finalizeRecorder=new FinalizeRecorder(id);
+  MarkFinalizeAction markFinalizeAction=new MarkFinalizeAction();
+  ReferenceFactory referenceFactory=FinalizeManager.PHANTOM_REFERENCE_FACTORY;
+  if (referenceType == ReferenceType.WEAK) {
+    referenceFactory=FinalizeManager.WEAK_REFERENCE_FACTORY;
+  }
+ else   if (referenceType == ReferenceType.SOFT) {
+    referenceFactory=FinalizeManager.SOFT_REFERENCE_FACTORY;
+  }
+  Reference<FinalizeRecorder> reference=FinalizeManager.register(finalizeRecorder,markFinalizeAction,referenceFactory);
+  Assert.assertFalse(markFinalizeAction.isMarked());
+  finalizeRecorder=null;
+  if (referenceType == ReferenceType.SOFT) {
+    GCUtil.fullGC();
+  }
+ else {
+    GCUtil.gc();
+  }
+  Assert.assertEquals(id,_finalizedIds.take());
+  if (referenceType == ReferenceType.PHANTOM) {
+    Assert.assertFalse(markFinalizeAction.isMarked());
+    GCUtil.gc();
+  }
+  if (threadEnabled) {
+    waitUntilMarked(markFinalizeAction);
+  }
+ else {
+    ReflectionTestUtil.invoke(FinalizeManager.class,"_pollingCleanup",new Class<?>[0]);
+  }
+  Assert.assertTrue(markFinalizeAction.isMarked());
+  if (referenceType == ReferenceType.PHANTOM) {
+    Assert.assertEquals(id,markFinalizeAction.getId());
+  }
+ else {
+    Assert.assertNull(markFinalizeAction.getId());
+  }
+  Assert.assertNull(getReferent(reference));
+  if (threadEnabled) {
+    checkThreadState();
+  }
+}
