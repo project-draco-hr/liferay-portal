@@ -6,9 +6,14 @@
     sb.append(StringPool.OPEN_PARENTHESIS);
     sb.append(getFoldersSQL(COUNT_F_BY_G_F,groupId,queryDefinition,inlineSQLHelper));
     sb.append(") UNION ALL (");
-    sb.append(getArticlesSQL(COUNT_A_BY_G_F,groupId,queryDefinition,inlineSQLHelper));
+    sb.append(getArticlesSQL(COUNT_A_BY_G_U_F,groupId,queryDefinition,inlineSQLHelper));
     sb.append(StringPool.CLOSE_PARENTHESIS);
     String sql=updateSQL(sb.toString(),folderId);
+    String ownerClause=StringPool.BLANK;
+    if (userId > 0) {
+      ownerClause="((JournalArticle.userId = ?) AND (JournalArticle.status " + "!= ?)) OR";
+    }
+    sql=StringUtil.replace(sql,"[$OWNER$] OR ",ownerClause);
     SQLQuery q=session.createSynchronizedSQLQuery(sql);
     q.addScalar(COUNT_COLUMN_NAME,Type.LONG);
     QueryPos qPos=QueryPos.getInstance(q);
@@ -18,6 +23,10 @@
       qPos.add(folderId);
     }
     qPos.add(groupId);
+    if (userId > 0) {
+      qPos.add(userId);
+      qPos.add(WorkflowConstants.STATUS_IN_TRASH);
+    }
     qPos.add(queryDefinition.getStatus());
     if (folderId >= 0) {
       qPos.add(folderId);
