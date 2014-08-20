@@ -1,24 +1,20 @@
 {
-  EqualityWeakReference<ClassLoader> classLoaderReference=new EqualityWeakReference<ClassLoader>(classLoader);
-  ConcurrentMap<LookupKey,Reference<Class<?>>> classReferences=_classReferences.get(classLoaderReference);
+  ConcurrentMap<LookupKey,Class<?>> classReferences=_classReferences.get(classLoader);
   if (classReferences == null) {
-    classReferences=new ConcurrentHashMap<LookupKey,Reference<Class<?>>>();
-    classLoaderReference=new EqualityWeakReference<ClassLoader>(classLoader,_classLoaderReferenceQueue);
-    ConcurrentMap<LookupKey,Reference<Class<?>>> oldClassReferences=_classReferences.putIfAbsent(classLoaderReference,classReferences);
+    classReferences=new ConcurrentReferenceValueHashMap<LookupKey,Class<?>>(FinalizeManager.WEAK_REFERENCE_FACTORY);
+    ConcurrentMap<LookupKey,Class<?>> oldClassReferences=_classReferences.putIfAbsent(classLoader,classReferences);
     if (oldClassReferences != null) {
       classReferences=oldClassReferences;
-      classLoaderReference.enqueue();
     }
   }
   LookupKey lookupKey=new LookupKey(interfaceClasses);
-  Reference<Class<?>> classReference=classReferences.get(lookupKey);
-  Class<?> clazz=null;
-  if ((classReference == null) || ((clazz=classReference.get()) == null)) {
+  Class<?> clazz=classReferences.get(lookupKey);
+  if (clazz == null) {
 synchronized (classReferences) {
-      classReference=classReferences.get(lookupKey);
-      if ((classReference == null) || ((clazz=classReference.get()) == null)) {
+      clazz=classReferences.get(lookupKey);
+      if (clazz == null) {
         clazz=Proxy.getProxyClass(classLoader,interfaceClasses);
-        classReferences.put(lookupKey,new WeakReference<Class<?>>(clazz));
+        classReferences.put(lookupKey,clazz);
       }
     }
   }
@@ -30,21 +26,6 @@ synchronized (classReferences) {
  catch (  Exception e) {
     throw new InternalError(e.toString());
   }
-  EqualityWeakReference<Class<?>> proxyClassReference=new EqualityWeakReference<Class<?>>(clazz,_proxyClassReferenceQueue);
-  _constructors.putIfAbsent(proxyClassReference,constructor);
-  while (true) {
-    EqualityWeakReference<ClassLoader> staleClassLoaderReference=(EqualityWeakReference<ClassLoader>)_classLoaderReferenceQueue.poll();
-    if (staleClassLoaderReference == null) {
-      break;
-    }
-    _classReferences.remove(staleClassLoaderReference);
-  }
-  while (true) {
-    EqualityWeakReference<Class<?>> staleProxyClassReference=(EqualityWeakReference<Class<?>>)_proxyClassReferenceQueue.poll();
-    if (staleProxyClassReference == null) {
-      break;
-    }
-    _constructors.remove(staleProxyClassReference);
-  }
+  _constructors.putIfAbsent(clazz,constructor);
   return clazz;
 }
