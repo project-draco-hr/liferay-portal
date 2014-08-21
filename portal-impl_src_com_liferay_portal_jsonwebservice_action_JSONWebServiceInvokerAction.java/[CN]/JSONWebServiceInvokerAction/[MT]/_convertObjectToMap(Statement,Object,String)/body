@@ -4,11 +4,38 @@
   }
   Class<?> clazz=object.getClass();
   HashMap<Object,Object> destinationMap=new HashMap<Object,Object>();
-  BeanCopy beanCopy=BeanCopy.beans(object,destinationMap);
-  beanCopy.exclude(JSONIncludesManagerUtil.lookupExcludes(clazz));
-  beanCopy.copy();
-  object=destinationMap;
   String[] includes=JSONIncludesManagerUtil.lookupIncludes(clazz);
+  String[] excludes=JSONIncludesManagerUtil.lookupExcludes(clazz);
+  ClassDescriptor classDescriptor=ClassIntrospector.lookup(object.getClass());
+  String[] properties=classDescriptor.getAllBeanGetterNames(false);
+  for (  String property : properties) {
+    boolean includeProperty=true;
+    for (    String exclude : excludes) {
+      if (exclude.equals(StringPool.STAR)) {
+        includeProperty=false;
+        break;
+      }
+      if (property.equals(exclude)) {
+        includeProperty=false;
+        break;
+      }
+    }
+    for (    String include : includes) {
+      if (include.equals(StringPool.STAR)) {
+        includeProperty=true;
+        break;
+      }
+      if (property.equals(include)) {
+        includeProperty=true;
+        break;
+      }
+    }
+    if (includeProperty) {
+      Object value=BeanUtil.getProperty(object,property);
+      destinationMap.put(property,value);
+    }
+  }
+  object=destinationMap;
   for (  String include : includes) {
     if (Validator.isNotNull(prefix)) {
       include=prefix + StringPool.PERIOD + include;
