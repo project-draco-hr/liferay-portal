@@ -1,0 +1,43 @@
+{
+  _localProcessExecutor.destroy();
+  Assert.assertNull(_getThreadPoolExecutor());
+  ExecutorService executorService=_invokeGetThreadPoolExecutor();
+  Assert.assertNotNull(executorService);
+  Assert.assertNotNull(_getThreadPoolExecutor());
+  _localProcessExecutor.destroy();
+  Assert.assertNull(_getThreadPoolExecutor());
+  executorService=_invokeGetThreadPoolExecutor();
+  Assert.assertNotNull(executorService);
+  Assert.assertNotNull(_getThreadPoolExecutor());
+  DummyJob dummyJob=new DummyJob();
+  Future<Void> future=executorService.submit(dummyJob);
+  dummyJob.waitUntilStarted();
+  _localProcessExecutor.destroy();
+  try {
+    future.get();
+    Assert.fail();
+  }
+ catch (  ExecutionException ee) {
+    Throwable throwable=ee.getCause();
+    Assert.assertTrue(throwable instanceof InterruptedException);
+  }
+  Assert.assertNull(_getThreadPoolExecutor());
+  _invokeGetThreadPoolExecutor();
+  final LocalProcessExecutor referenceProcessExecutor=_localProcessExecutor;
+  Thread thread=new Thread(){
+    @Override public void run(){
+      referenceProcessExecutor.destroy();
+    }
+  }
+;
+synchronized (_localProcessExecutor) {
+    thread.start();
+    while (thread.getState() != Thread.State.BLOCKED)     ;
+    _localProcessExecutor.destroy();
+  }
+  thread.join();
+  _invokeGetThreadPoolExecutor();
+  _localProcessExecutor.destroy();
+  _localProcessExecutor.destroy();
+  Assert.assertNull(_getThreadPoolExecutor());
+}
