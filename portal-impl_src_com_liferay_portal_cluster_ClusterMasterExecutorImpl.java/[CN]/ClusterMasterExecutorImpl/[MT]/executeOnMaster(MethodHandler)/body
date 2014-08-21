@@ -3,19 +3,25 @@
     if (_log.isWarnEnabled()) {
       _log.warn("Executing on the local node because the cluster master " + "executor is disabled");
     }
+    DefaultNoticeableFuture<T> defaultNoticeableFuture=new DefaultNoticeableFuture<T>();
     try {
-      return new LocalFuture<T>((T)methodHandler.invoke());
+      defaultNoticeableFuture.set((T)methodHandler.invoke());
+      return defaultNoticeableFuture;
     }
  catch (    Exception e) {
       throw new SystemException(e);
     }
   }
   String masterAddressString=getMasterAddressString();
-  Address address=AddressSerializerUtil.deserialize(masterAddressString);
+  final Address address=AddressSerializerUtil.deserialize(masterAddressString);
   ClusterRequest clusterRequest=ClusterRequest.createUnicastRequest(methodHandler,address);
   try {
-    FutureClusterResponses futureClusterResponses=_clusterExecutor.execute(clusterRequest);
-    return new RemoteFuture<T>(address,futureClusterResponses);
+    return new NoticeableFutureConvertor<T,ClusterNodeResponses>(_clusterExecutor.execute(clusterRequest)){
+      @Override protected T convert(      ClusterNodeResponses clusterNodeResponses){
+        return (T)clusterNodeResponses.getClusterResponse(address);
+      }
+    }
+;
   }
  catch (  Exception e) {
     throw new SystemException("Unable to execute on master " + address.getDescription(),e);
