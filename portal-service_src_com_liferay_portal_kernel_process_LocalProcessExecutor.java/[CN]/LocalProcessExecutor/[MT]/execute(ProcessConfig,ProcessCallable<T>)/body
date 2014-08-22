@@ -8,7 +8,7 @@
     commands.addAll(arguments);
     commands.add(ProcessLauncher.class.getName());
     ProcessBuilder processBuilder=new ProcessBuilder(commands);
-    Process process=processBuilder.start();
+    final Process process=processBuilder.start();
     ObjectOutputStream bootstrapObjectOutputStream=new ObjectOutputStream(process.getOutputStream());
     bootstrapObjectOutputStream.writeObject(processCallable.toString());
     bootstrapObjectOutputStream.writeObject(processConfig.getRuntimeClassPath());
@@ -23,8 +23,25 @@
     SubprocessReactor subprocessReactor=new SubprocessReactor(process);
     try {
       NoticeableFuture<ProcessCallable<? extends Serializable>> processCallableNoticeableFuture=threadPoolExecutor.submit(subprocessReactor);
+      processCallableNoticeableFuture.addFutureListener(new FutureListener<ProcessCallable<? extends Serializable>>(){
+        @Override public void complete(        Future<ProcessCallable<? extends Serializable>> future){
+          if (future.isCancelled()) {
+            process.destroy();
+          }
+        }
+      }
+);
       _managedProcesses.add(process);
-      return _convertNoticeableFuture(processCallableNoticeableFuture,process);
+      return new NoticeableFutureConverter<T,ProcessCallable<? extends Serializable>>(processCallableNoticeableFuture){
+        @Override protected T convert(        ProcessCallable<? extends Serializable> processCallable) throws ProcessException {
+          if (processCallable instanceof ReturnProcessCallable<?>) {
+            return (T)processCallable.call();
+          }
+          ExceptionProcessCallable exceptionProcessCallable=(ExceptionProcessCallable)processCallable;
+          throw exceptionProcessCallable.call();
+        }
+      }
+;
     }
  catch (    RejectedExecutionException ree) {
       process.destroy();
