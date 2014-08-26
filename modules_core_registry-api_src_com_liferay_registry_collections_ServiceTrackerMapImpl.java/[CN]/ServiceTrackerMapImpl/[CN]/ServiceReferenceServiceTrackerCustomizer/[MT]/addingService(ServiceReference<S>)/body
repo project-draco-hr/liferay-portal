@@ -1,4 +1,6 @@
 {
+  final Registry registry=RegistryUtil.getRegistry();
+  final Holder<ServiceReferenceServiceTuple<S>> tupleHolder=new Holder<ServiceReferenceServiceTuple<S>>();
   _serviceReferenceMapper.map(serviceReference,new ServiceReferenceMapper.Emitter<K>(){
     @Override public void emit(    K key){
       ServiceTrackerBucket<S,R> serviceTrackerBucket=_serviceTrackerBuckets.get(key);
@@ -9,9 +11,19 @@
           serviceTrackerBucket=newServiceTrackerBucket;
         }
       }
-      serviceTrackerBucket.store(serviceReference);
+      ServiceReferenceServiceTuple<S> serviceReferenceServiceTuple=tupleHolder.get();
+      if (serviceReferenceServiceTuple == null) {
+        S service=registry.getService(serviceReference);
+        serviceReferenceServiceTuple=new ServiceReferenceServiceTuple<S>(serviceReference,service);
+        tupleHolder.set(serviceReferenceServiceTuple);
+      }
+      serviceTrackerBucket.store(serviceReferenceServiceTuple);
     }
   }
 );
-  return serviceReference;
+  ServiceReferenceServiceTuple<S> result=tupleHolder.get();
+  if (result == null) {
+    return null;
+  }
+  return result;
 }
