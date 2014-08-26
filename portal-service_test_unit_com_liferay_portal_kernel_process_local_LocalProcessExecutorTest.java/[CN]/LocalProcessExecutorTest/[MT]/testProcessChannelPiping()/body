@@ -1,0 +1,38 @@
+{
+  ReturnWithoutExitProcessCallable returnWithoutExitProcessCallable=new ReturnWithoutExitProcessCallable("Premature return value");
+  ProcessChannel<String> processChannel=_localProcessExecutor.execute(_createJPDAProcessConfig(_JPDA_OPTIONS1),returnWithoutExitProcessCallable);
+  Future<String> resultFuture=processChannel.write(new DummyReturnProcessCallable());
+  Assert.assertEquals(DummyReturnProcessCallable.class.getName(),resultFuture.get());
+  PrintStream oldErrPrintStream=System.err;
+  ByteArrayOutputStream errByteArrayOutputStream=new ByteArrayOutputStream();
+  PrintStream newErrPrintStream=new PrintStream(errByteArrayOutputStream,true);
+  System.setErr(newErrPrintStream);
+  try {
+    Future<Serializable> exceptionFuture=processChannel.write(new DummyExceptionProcessCallable());
+    try {
+      exceptionFuture.get();
+      Assert.fail();
+    }
+ catch (    ExecutionException ee) {
+      Throwable throwable=ee.getCause();
+      Assert.assertEquals(DummyExceptionProcessCallable.class.getName(),throwable.getMessage());
+    }
+    Future<Serializable> interruptFuture=processChannel.write(new InterruptProcessCallable());
+    Assert.assertNull(interruptFuture.get());
+  }
+  finally {
+    System.setErr(oldErrPrintStream);
+    String errLog=errByteArrayOutputStream.toString();
+    Assert.assertTrue(errLog.startsWith("[" + returnWithoutExitProcessCallable.toString() + "]"+ new ProcessException(DummyExceptionProcessCallable.class.getName())));
+  }
+  Future<String> processFuture=processChannel.getProcessNoticeableFuture();
+  try {
+    processFuture.get();
+    Assert.fail();
+  }
+ catch (  ExecutionException ee) {
+    Throwable throwable=ee.getCause();
+    throwable=throwable.getCause();
+    Assert.assertSame(InterruptedException.class,throwable.getClass());
+  }
+}
