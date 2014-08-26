@@ -13,14 +13,11 @@
     bootstrapObjectOutputStream.writeObject(processCallable.toString());
     bootstrapObjectOutputStream.writeObject(processConfig.getRuntimeClassPath());
     ObjectOutputStream objectOutputStream=new ObjectOutputStream(bootstrapObjectOutputStream);
-    try {
-      objectOutputStream.writeObject(processCallable);
-    }
-  finally {
-      objectOutputStream.close();
-    }
+    objectOutputStream.writeObject(processCallable);
+    objectOutputStream.flush();
     ThreadPoolExecutor threadPoolExecutor=_getThreadPoolExecutor();
-    SubprocessReactor subprocessReactor=new SubprocessReactor(process,processConfig.getReactClassLoader());
+    AsyncBroker<Long,Serializable> asyncBroker=new AsyncBroker<Long,Serializable>();
+    SubprocessReactor subprocessReactor=new SubprocessReactor(process,processConfig.getReactClassLoader(),asyncBroker);
     try {
       NoticeableFuture<ProcessCallable<? extends Serializable>> processCallableNoticeableFuture=threadPoolExecutor.submit(subprocessReactor);
       processCallableNoticeableFuture.addFutureListener(new FutureListener<ProcessCallable<? extends Serializable>>(){
@@ -32,7 +29,7 @@
       }
 );
       _managedProcesses.put(process,processCallableNoticeableFuture);
-      return new NoticeableFutureConverter<T,ProcessCallable<? extends Serializable>>(processCallableNoticeableFuture){
+      NoticeableFuture<T> noticeableFuture=new NoticeableFutureConverter<T,ProcessCallable<? extends Serializable>>(processCallableNoticeableFuture){
         @Override protected T convert(        ProcessCallable<? extends Serializable> processCallable) throws ProcessException {
           if (processCallable instanceof ReturnProcessCallable<?>) {
             return (T)processCallable.call();
@@ -42,6 +39,7 @@
         }
       }
 ;
+      return new LocalProcessChannel<T>(noticeableFuture,objectOutputStream,asyncBroker);
     }
  catch (    RejectedExecutionException ree) {
       process.destroy();
