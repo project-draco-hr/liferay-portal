@@ -1,20 +1,29 @@
 {
   String trashTitle=page.getTitle();
   TrashVersion trashVersion=trashVersionLocalService.fetchVersion(trashEntryId,WikiPage.class.getName(),page.getPageId());
+  long oldNode=page.getNodeId();
+  if (newNodeId == 0) {
+    newNodeId=oldNode;
+  }
+  page.setNodeId(newNodeId);
+  WikiPageResource pageResource=wikiPageResourcePersistence.findByPrimaryKey(page.getResourcePrimKey());
+  pageResource.setNodeId(newNodeId);
   if (trashVersion != null) {
     String originalTitle=TrashUtil.getOriginalTitle(page.getTitle());
-    WikiPageResource pageResource=wikiPageResourcePersistence.findByPrimaryKey(page.getResourcePrimKey());
     pageResource.setTitle(originalTitle);
-    wikiPageResourcePersistence.update(pageResource);
     page.setTitle(originalTitle);
-    wikiPagePersistence.update(page);
   }
+  wikiPageResourcePersistence.update(pageResource);
+  page.setParentTitle(newParentTitle);
+  wikiPagePersistence.update(page);
   int oldStatus=WorkflowConstants.STATUS_APPROVED;
   if (trashVersion != null) {
     oldStatus=trashVersion.getStatus();
   }
   List<WikiPage> versionPages=wikiPagePersistence.findByR_N(page.getResourcePrimKey(),page.getNodeId());
   for (  WikiPage versionPage : versionPages) {
+    versionPage.setParentTitle(newParentTitle);
+    versionPage.setNodeId(newNodeId);
     versionPage.setTitle(page.getTitle());
     trashVersion=trashVersionLocalService.fetchVersion(trashEntryId,WikiPage.class.getName(),versionPage.getPageId());
     int versionPageOldStatus=WorkflowConstants.STATUS_APPROVED;
@@ -32,6 +41,6 @@
   }
   Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(WikiPage.class);
   indexer.reindex(page);
-  restoreDependentChildPagesFromTrash(page,page.getTitle(),trashTitle,trashEntryId);
-  restoreDependentRedirectPagesFromTrash(page,page.getTitle(),trashTitle,trashEntryId);
+  restoreDependentChildPagesFromTrash(page,oldNode,page.getTitle(),trashTitle,trashEntryId);
+  restoreDependentRedirectPagesFromTrash(page,oldNode,page.getTitle(),trashTitle,trashEntryId);
 }
