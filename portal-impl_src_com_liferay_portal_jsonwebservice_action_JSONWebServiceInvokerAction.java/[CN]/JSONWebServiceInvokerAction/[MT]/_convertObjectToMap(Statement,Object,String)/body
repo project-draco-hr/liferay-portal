@@ -2,45 +2,19 @@
   if (object instanceof Map) {
     return (Map<String,Object>)object;
   }
-  Class<?> clazz=object.getClass();
-  HashMap<Object,Object> destinationMap=new HashMap<Object,Object>();
-  String[] excludes=JSONIncludesManagerUtil.lookupExcludes(clazz);
-  String[] includes=JSONIncludesManagerUtil.lookupIncludes(clazz);
-  ClassDescriptor classDescriptor=ClassIntrospector.lookup(object.getClass());
-  String[] properties=classDescriptor.getAllBeanGetterNames(false);
-  for (  String property : properties) {
-    boolean includeProperty=true;
-    for (    String exclude : excludes) {
-      if (exclude.equals(StringPool.STAR)) {
-        includeProperty=false;
-        break;
+  final Map<String,Object> destinationMap=new LinkedHashMap<>();
+  JsonContext jsonContext=new JsonSerializer().createJsonContext(null);
+  BeanSerializer beanSerializer=new BeanSerializer(jsonContext,object){
+    @Override protected void onSerializableProperty(    String propertyName,    Class propertyType,    Object value){
+      destinationMap.put(propertyName,value);
+      String include=propertyName;
+      if (prefix != null) {
+        include=prefix + "." + include;
       }
-      if (property.equals(exclude)) {
-        includeProperty=false;
-        break;
-      }
-    }
-    for (    String include : includes) {
-      if (include.equals(StringPool.STAR)) {
-        includeProperty=true;
-        break;
-      }
-      if (property.equals(include)) {
-        includeProperty=true;
-        break;
-      }
-    }
-    if (includeProperty) {
-      Object value=BeanUtil.getProperty(object,property);
-      destinationMap.put(property,value);
+      _addInclude(statement,include);
     }
   }
-  object=destinationMap;
-  for (  String include : includes) {
-    if (Validator.isNotNull(prefix)) {
-      include=prefix + StringPool.PERIOD + include;
-    }
-    _addInclude(statement,include);
-  }
-  return (Map<String,Object>)object;
+;
+  beanSerializer.serialize();
+  return destinationMap;
 }
