@@ -1,0 +1,31 @@
+{
+  UploadServletRequest uploadPortletRequest=PortalUtil.getUploadServletRequest(request);
+  ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+  UploadException uploadException=(UploadException)request.getAttribute(WebKeys.UPLOAD_EXCEPTION);
+  if (uploadException != null) {
+    if (uploadException.isExceededLiferayFileItemSizeLimit()) {
+      throw new LiferayFileItemException();
+    }
+ else     if (uploadException.isExceededSizeLimit()) {
+      throw new FileSizeException(uploadException.getCause());
+    }
+    throw new PortalException(uploadException.getCause());
+  }
+  JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+  try {
+    String fileName=uploadPortletRequest.getFileName("imageSelectorFile");
+    InputStream inputStream=uploadPortletRequest.getFileAsStream("imageSelectorFile");
+    String tempImageFolderName=getClass().getName();
+    String uniqueTempFileName=StringUtil.randomString() + fileName;
+    FileEntry fileEntry=TempFileUtil.addTempFile(themeDisplay.getScopeGroupId(),themeDisplay.getUserId(),uniqueTempFileName,tempImageFolderName,inputStream,MimeTypesUtil.getContentType(fileName));
+    JSONObject imageJSONObject=JSONFactoryUtil.createJSONObject();
+    imageJSONObject.put("id",fileEntry.getFileEntryId());
+    imageJSONObject.put("url",PortletFileRepositoryUtil.getPortletFileEntryURL(themeDisplay,fileEntry,StringPool.BLANK));
+    jsonObject.put("image",imageJSONObject);
+    jsonObject.put("success",Boolean.TRUE);
+  }
+ catch (  Exception e) {
+    jsonObject.put("success",Boolean.FALSE);
+  }
+  return jsonObject.toString();
+}
