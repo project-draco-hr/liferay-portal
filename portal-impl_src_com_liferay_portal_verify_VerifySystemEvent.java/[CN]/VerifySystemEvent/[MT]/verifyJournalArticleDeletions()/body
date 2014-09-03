@@ -1,0 +1,29 @@
+{
+  DynamicQuery dynamicQuery=SystemEventLocalServiceUtil.dynamicQuery();
+  Property classNameIdProperty=PropertyFactoryUtil.forName("classNameId");
+  dynamicQuery.add(classNameIdProperty.eq(PortalUtil.getClassNameId(JournalArticle.class)));
+  Property typeProperty=PropertyFactoryUtil.forName("type");
+  dynamicQuery.add(typeProperty.eq(SystemEventConstants.TYPE_DELETE));
+  List<SystemEvent> systemEvents=SystemEventLocalServiceUtil.dynamicQuery(dynamicQuery);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Processing " + systemEvents.size() + " JournalArticle deletion system event");
+  }
+  for (  SystemEvent systemEvent : systemEvents) {
+    JSONObject extraDataJSONObject=JSONFactoryUtil.createJSONObject(systemEvent.getExtraData());
+    if (!extraDataJSONObject.has("version") || extraDataJSONObject.has("uuid")) {
+      continue;
+    }
+    JournalArticleResource articleResource=JournalArticleResourceLocalServiceUtil.fetchJournalArticleResourceByUuidAndGroupId(systemEvent.getClassUuid(),systemEvent.getGroupId());
+    if (articleResource == null) {
+      continue;
+    }
+    JournalArticle article=JournalArticleLocalServiceUtil.fetchArticle(systemEvent.getGroupId(),articleResource.getArticleId(),extraDataJSONObject.getDouble("version"));
+    if ((article == null) || article.isInTrash()) {
+      continue;
+    }
+    SystemEventLocalServiceUtil.deleteSystemEvent(systemEvent);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("JournalArticle deletion system events verified");
+  }
+}
