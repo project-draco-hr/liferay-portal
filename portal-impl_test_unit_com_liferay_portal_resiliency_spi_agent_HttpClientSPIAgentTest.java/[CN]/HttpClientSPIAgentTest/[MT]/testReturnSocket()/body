@@ -1,61 +1,61 @@
 {
   ServerSocketChannel serverSocketChannel=SocketUtil.createServerSocketChannel(InetAddressUtil.getLoopbackInetAddress(),_spiConfiguration.getConnectorPort(),null);
   serverSocketChannel.configureBlocking(true);
-  ServerSocket serverSocket=serverSocketChannel.socket();
-  HttpClientSPIAgent httpClientSPIAgent=new HttpClientSPIAgent(new SPIConfiguration(null,null,serverSocket.getLocalPort(),_spiConfiguration.getBaseDir(),null,null,null),new MockRegistrationReference(new MockIntraband()));
-  SocketChannel socketChannel=SocketChannel.open(httpClientSPIAgent.socketAddress);
-  Socket socket=socketChannel.socket();
-  httpClientSPIAgent.returnSocket(socket,true);
-  Queue<Socket> socketBlockingQueue=httpClientSPIAgent.socketBlockingQueue;
-  Assert.assertTrue(socketBlockingQueue.isEmpty());
-  closePeers(socket,serverSocket);
-  CaptureHandler captureHandler=null;
-  try {
-    captureHandler=JDKLoggerTestUtil.configureJDKLogger(HttpClientSPIAgent.class.getName(),Level.OFF);
-    List<LogRecord> logRecords=captureHandler.getLogRecords();
-    socket=new Socket(InetAddressUtil.getLoopbackInetAddress(),_spiConfiguration.getConnectorPort());
-    SocketImpl socketImpl=swapSocketImpl(socket,null);
+  try (ServerSocket serverSocket=serverSocketChannel.socket()){
+    HttpClientSPIAgent httpClientSPIAgent=new HttpClientSPIAgent(new SPIConfiguration(null,null,serverSocket.getLocalPort(),_spiConfiguration.getBaseDir(),null,null,null),new MockRegistrationReference(new MockIntraband()));
+    SocketChannel socketChannel=SocketChannel.open(httpClientSPIAgent.socketAddress);
+    Socket socket=socketChannel.socket();
     httpClientSPIAgent.returnSocket(socket,true);
+    Queue<Socket> socketBlockingQueue=httpClientSPIAgent.socketBlockingQueue;
     Assert.assertTrue(socketBlockingQueue.isEmpty());
-    swapSocketImpl(socket,socketImpl);
     closePeers(socket,serverSocket);
-    Assert.assertTrue(logRecords.isEmpty());
-    logRecords=captureHandler.resetLogLevel(Level.WARNING);
-    socket=new Socket(InetAddressUtil.getLoopbackInetAddress(),_spiConfiguration.getConnectorPort());
-    socketImpl=swapSocketImpl(socket,null);
-    httpClientSPIAgent.returnSocket(socket,true);
-    Assert.assertTrue(socketBlockingQueue.isEmpty());
-    swapSocketImpl(socket,socketImpl);
-    closePeers(socket,serverSocket);
-    Assert.assertEquals(1,logRecords.size());
-    LogRecord logRecord=logRecords.get(0);
-    Throwable throwable=logRecord.getThrown();
-    Assert.assertSame(IOException.class,throwable.getClass());
-  }
-  finally {
-    if (captureHandler != null) {
-      captureHandler.close();
+    CaptureHandler captureHandler=null;
+    try {
+      captureHandler=JDKLoggerTestUtil.configureJDKLogger(HttpClientSPIAgent.class.getName(),Level.OFF);
+      List<LogRecord> logRecords=captureHandler.getLogRecords();
+      socket=new Socket(InetAddressUtil.getLoopbackInetAddress(),_spiConfiguration.getConnectorPort());
+      SocketImpl socketImpl=swapSocketImpl(socket,null);
+      httpClientSPIAgent.returnSocket(socket,true);
+      Assert.assertTrue(socketBlockingQueue.isEmpty());
+      swapSocketImpl(socket,socketImpl);
+      closePeers(socket,serverSocket);
+      Assert.assertTrue(logRecords.isEmpty());
+      logRecords=captureHandler.resetLogLevel(Level.WARNING);
+      socket=new Socket(InetAddressUtil.getLoopbackInetAddress(),_spiConfiguration.getConnectorPort());
+      socketImpl=swapSocketImpl(socket,null);
+      httpClientSPIAgent.returnSocket(socket,true);
+      Assert.assertTrue(socketBlockingQueue.isEmpty());
+      swapSocketImpl(socket,socketImpl);
+      closePeers(socket,serverSocket);
+      Assert.assertEquals(1,logRecords.size());
+      LogRecord logRecord=logRecords.get(0);
+      Throwable throwable=logRecord.getThrown();
+      Assert.assertSame(IOException.class,throwable.getClass());
     }
+  finally {
+      if (captureHandler != null) {
+        captureHandler.close();
+      }
+    }
+    httpClientSPIAgent.returnSocket(new Socket(),false);
+    Assert.assertTrue(socketBlockingQueue.isEmpty());
+    socketChannel=SocketChannel.open(httpClientSPIAgent.socketAddress);
+    socket=socketChannel.socket();
+    socket.shutdownInput();
+    httpClientSPIAgent.returnSocket(socket,false);
+    Assert.assertTrue(socketBlockingQueue.isEmpty());
+    closePeers(socket,serverSocket);
+    socketChannel=SocketChannel.open(httpClientSPIAgent.socketAddress);
+    socket=socketChannel.socket();
+    socket.shutdownOutput();
+    httpClientSPIAgent.returnSocket(socket,false);
+    Assert.assertTrue(socketBlockingQueue.isEmpty());
+    closePeers(socket,serverSocket);
+    socketChannel=SocketChannel.open(httpClientSPIAgent.socketAddress);
+    socket=socketChannel.socket();
+    httpClientSPIAgent.returnSocket(socket,false);
+    Assert.assertEquals(1,socketBlockingQueue.size());
+    Assert.assertSame(socket,socketBlockingQueue.poll());
+    closePeers(socket,serverSocket);
   }
-  httpClientSPIAgent.returnSocket(new Socket(),false);
-  Assert.assertTrue(socketBlockingQueue.isEmpty());
-  socketChannel=SocketChannel.open(httpClientSPIAgent.socketAddress);
-  socket=socketChannel.socket();
-  socket.shutdownInput();
-  httpClientSPIAgent.returnSocket(socket,false);
-  Assert.assertTrue(socketBlockingQueue.isEmpty());
-  closePeers(socket,serverSocket);
-  socketChannel=SocketChannel.open(httpClientSPIAgent.socketAddress);
-  socket=socketChannel.socket();
-  socket.shutdownOutput();
-  httpClientSPIAgent.returnSocket(socket,false);
-  Assert.assertTrue(socketBlockingQueue.isEmpty());
-  closePeers(socket,serverSocket);
-  socketChannel=SocketChannel.open(httpClientSPIAgent.socketAddress);
-  socket=socketChannel.socket();
-  httpClientSPIAgent.returnSocket(socket,false);
-  Assert.assertEquals(1,socketBlockingQueue.size());
-  Assert.assertSame(socket,socketBlockingQueue.poll());
-  closePeers(socket,serverSocket);
-  serverSocket.close();
-}
+ }

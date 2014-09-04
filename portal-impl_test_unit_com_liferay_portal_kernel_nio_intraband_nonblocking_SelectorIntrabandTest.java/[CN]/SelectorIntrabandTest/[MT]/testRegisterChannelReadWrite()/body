@@ -42,58 +42,56 @@
     Assert.assertEquals("Gathering byte channel is not valid for writing",iae.getMessage());
   }
   Pipe pipe=Pipe.open();
-  SourceChannel sourceChannel=pipe.source();
-  SinkChannel sinkChannel=pipe.sink();
-  final Thread mainThread=Thread.currentThread();
-  Thread wakeUpThread=new Thread(new WakeUpRunnable(_selectorIntraband));
-  Thread interruptThread=new Thread(){
-    @Override public void run(){
-      while (mainThread.getState() != Thread.State.WAITING)       ;
-      mainThread.interrupt();
+  try (SourceChannel sourceChannel=pipe.source();SinkChannel sinkChannel=pipe.sink()){
+    final Thread mainThread=Thread.currentThread();
+    Thread wakeUpThread=new Thread(new WakeUpRunnable(_selectorIntraband));
+    Thread interruptThread=new Thread(){
+      @Override public void run(){
+        while (mainThread.getState() != Thread.State.WAITING)         ;
+        mainThread.interrupt();
+      }
     }
-  }
 ;
-  wakeUpThread.start();
-  Selector selector=_selectorIntraband.selector;
+    wakeUpThread.start();
+    Selector selector=_selectorIntraband.selector;
 synchronized (selector) {
-    wakeUpThread.interrupt();
-    wakeUpThread.join();
-    interruptThread.start();
+      wakeUpThread.interrupt();
+      wakeUpThread.join();
+      interruptThread.start();
+      try {
+        _selectorIntraband.registerChannel(sourceChannel,sinkChannel);
+        Assert.fail();
+      }
+ catch (      IOException ioe) {
+        Throwable cause=ioe.getCause();
+        Assert.assertTrue(cause instanceof InterruptedException);
+      }
+      interruptThread.join();
+    }
+    _selectorIntraband.close();
+    _selectorIntraband=new SelectorIntraband(_DEFAULT_TIMEOUT);
+    SelectionKeyRegistrationReference selectionKeyRegistrationReference=(SelectionKeyRegistrationReference)_selectorIntraband.registerChannel(sourceChannel,sinkChannel);
+    Assert.assertNotNull(selectionKeyRegistrationReference);
+    SelectionKey readSelectionKey=selectionKeyRegistrationReference.readSelectionKey;
+    Assert.assertTrue(readSelectionKey.isValid());
+    Assert.assertEquals(SelectionKey.OP_READ,readSelectionKey.interestOps());
+    Assert.assertNotNull(readSelectionKey.attachment());
+    SelectionKey writeSelectionKey=selectionKeyRegistrationReference.writeSelectionKey;
+    Assert.assertTrue(writeSelectionKey.isValid());
+    Assert.assertEquals(0,writeSelectionKey.interestOps());
+    Assert.assertNotNull(writeSelectionKey.attachment());
+    Assert.assertSame(readSelectionKey.attachment(),writeSelectionKey.attachment());
+    writeSelectionKey.interestOps(SelectionKey.OP_WRITE);
+    selector=_selectorIntraband.selector;
+    selector.wakeup();
+    while (writeSelectionKey.interestOps() != 0)     ;
+    unregisterChannels(selectionKeyRegistrationReference);
+    _selectorIntraband.close();
     try {
       _selectorIntraband.registerChannel(sourceChannel,sinkChannel);
       Assert.fail();
     }
- catch (    IOException ioe) {
-      Throwable cause=ioe.getCause();
-      Assert.assertTrue(cause instanceof InterruptedException);
+ catch (    ClosedIntrabandException cibe) {
     }
-    interruptThread.join();
   }
-  _selectorIntraband.close();
-  _selectorIntraband=new SelectorIntraband(_DEFAULT_TIMEOUT);
-  SelectionKeyRegistrationReference selectionKeyRegistrationReference=(SelectionKeyRegistrationReference)_selectorIntraband.registerChannel(sourceChannel,sinkChannel);
-  Assert.assertNotNull(selectionKeyRegistrationReference);
-  SelectionKey readSelectionKey=selectionKeyRegistrationReference.readSelectionKey;
-  Assert.assertTrue(readSelectionKey.isValid());
-  Assert.assertEquals(SelectionKey.OP_READ,readSelectionKey.interestOps());
-  Assert.assertNotNull(readSelectionKey.attachment());
-  SelectionKey writeSelectionKey=selectionKeyRegistrationReference.writeSelectionKey;
-  Assert.assertTrue(writeSelectionKey.isValid());
-  Assert.assertEquals(0,writeSelectionKey.interestOps());
-  Assert.assertNotNull(writeSelectionKey.attachment());
-  Assert.assertSame(readSelectionKey.attachment(),writeSelectionKey.attachment());
-  writeSelectionKey.interestOps(SelectionKey.OP_WRITE);
-  selector=_selectorIntraband.selector;
-  selector.wakeup();
-  while (writeSelectionKey.interestOps() != 0)   ;
-  unregisterChannels(selectionKeyRegistrationReference);
-  _selectorIntraband.close();
-  try {
-    _selectorIntraband.registerChannel(sourceChannel,sinkChannel);
-    Assert.fail();
-  }
- catch (  ClosedIntrabandException cibe) {
-  }
-  sourceChannel.close();
-  sinkChannel.close();
-}
+ }
