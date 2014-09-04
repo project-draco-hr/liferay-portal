@@ -1,40 +1,40 @@
 {
   aQute.bnd.build.Project bndProject=getBndProject();
-  Builder builder=new Builder(bndProject);
-  builder.setClasspath(_classpathFiles.toArray(new File[_classpathFiles.size()]));
-  builder.setPedantic(isPedantic());
-  builder.setProperties(_file);
-  builder.setSourcepath(new File[]{_sourcePath});
-  Jar[] jars=builder.builds();
-  boolean taskFailed=report();
-  boolean bndFailed=report(builder);
-  if (taskFailed || bndFailed) {
-    throw new BuildException("bnd failed",new org.apache.tools.ant.Location(_file.getAbsolutePath()));
-  }
-  for (  Jar jar : jars) {
-    String bsn=jar.getName();
-    File outputFile=_outputPath;
-    if (_outputPath.isDirectory()) {
-      String path=builder.getProperty("-output");
-      if (path != null) {
-        outputFile=getFile(_outputPath,path);
+  try (Builder builder=new Builder(bndProject)){
+    builder.setClasspath(_classpathFiles.toArray(new File[_classpathFiles.size()]));
+    builder.setPedantic(isPedantic());
+    builder.setProperties(_file);
+    builder.setSourcepath(new File[]{_sourcePath});
+    Jar[] jars=builder.builds();
+    boolean taskFailed=report();
+    boolean bndFailed=report(builder);
+    if (taskFailed || bndFailed) {
+      throw new BuildException("bnd failed",new org.apache.tools.ant.Location(_file.getAbsolutePath()));
+    }
+    for (    Jar jar : jars) {
+      String bsn=jar.getName();
+      File outputFile=_outputPath;
+      if (_outputPath.isDirectory()) {
+        String path=builder.getProperty("-output");
+        if (path != null) {
+          outputFile=getFile(_outputPath,path);
+        }
+ else {
+          outputFile=getFile(_outputPath,bsn + ".jar");
+        }
+      }
+      if (!outputFile.exists() || (outputFile.lastModified() <= jar.lastModified())) {
+        jar.write(outputFile);
+        Map<String,Resource> resources=jar.getResources();
+        log(jar.getName() + " (" + outputFile.getName()+ ") "+ resources.size());
+        doBaselineJar(jar,outputFile,bndProject);
       }
  else {
-        outputFile=getFile(_outputPath,bsn + ".jar");
+        Map<String,Resource> resources=jar.getResources();
+        log(jar.getName() + " (" + outputFile.getName()+ ") "+ resources.size()+ " (not modified)");
       }
+      report();
+      jar.close();
     }
-    if (!outputFile.exists() || (outputFile.lastModified() <= jar.lastModified())) {
-      jar.write(outputFile);
-      Map<String,Resource> resources=jar.getResources();
-      log(jar.getName() + " (" + outputFile.getName()+ ") "+ resources.size());
-      doBaselineJar(jar,outputFile,bndProject);
-    }
- else {
-      Map<String,Resource> resources=jar.getResources();
-      log(jar.getName() + " (" + outputFile.getName()+ ") "+ resources.size()+ " (not modified)");
-    }
-    report();
-    jar.close();
   }
-  builder.close();
-}
+ }
