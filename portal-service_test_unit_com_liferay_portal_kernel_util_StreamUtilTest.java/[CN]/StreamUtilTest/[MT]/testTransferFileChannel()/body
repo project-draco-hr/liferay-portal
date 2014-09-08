@@ -1,28 +1,12 @@
 {
-  File fromFile=new File("from-file");
-  fromFile.deleteOnExit();
-  FileOutputStream fromFileOutputStream=new FileOutputStream(fromFile);
-  Random random=new Random();
-  byte[] fromBytes=new byte[1024 * 1024];
-  random.nextBytes(fromBytes);
-  fromFileOutputStream.write(fromBytes);
-  fromFileOutputStream.close();
-  File toFile=new File("to-file");
-  toFile.deleteOnExit();
-  FileInputStream fromFileInputStream=new FileInputStream(fromFile);
-  byte[] buffer=new byte[fromBytes.length / 2];
-  int length=0;
-  while ((length+=fromFileInputStream.read(buffer,length,buffer.length - length)) < buffer.length)   ;
-  FileOutputStream toFileOutputStream=new FileOutputStream(toFile);
-  toFileOutputStream.write(buffer);
-  FileChannel fromFileChannel=fromFileInputStream.getChannel();
-  StreamUtil.transferFileChannel(fromFileChannel,toFileOutputStream.getChannel(),fromBytes.length - buffer.length);
-  fromFileChannel.close();
-  toFileOutputStream.close();
-  RandomAccessFile toRandomAccessFile=new RandomAccessFile(toFile,"r");
-  Assert.assertEquals(fromBytes.length,toRandomAccessFile.length());
-  byte[] toBytes=new byte[fromBytes.length];
-  toRandomAccessFile.readFully(toBytes);
-  toRandomAccessFile.close();
-  Assert.assertArrayEquals(fromBytes,toBytes);
+  try (FileChannel fromFileChannel=FileChannel.open(_fromFilePath,StandardOpenOption.READ);FileChannel toFileChannel=FileChannel.open(_toFilePath,StandardOpenOption.CREATE,StandardOpenOption.WRITE)){
+    ByteBuffer byteBuffer=ByteBuffer.allocate(_data.length / 2);
+    while (byteBuffer.hasRemaining()) {
+      fromFileChannel.read(byteBuffer);
+    }
+    byteBuffer.flip();
+    toFileChannel.write(byteBuffer);
+    StreamUtil.transferFileChannel(fromFileChannel,toFileChannel,_data.length - byteBuffer.capacity());
+  }
+   Assert.assertArrayEquals(_data,Files.readAllBytes(_toFilePath));
 }
