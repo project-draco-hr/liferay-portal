@@ -16,8 +16,10 @@
   boolean allowPingbacks=entry.isAllowPingbacks();
   boolean allowTrackbacks=entry.isAllowTrackbacks();
   String[] trackbacks=StringUtil.split(entry.getTrackbacks());
+  long smallImageFileEntryId=0;
   String smallImageFileName=null;
   InputStream smallImageInputStream=null;
+  ServiceContext serviceContext=portletDataContext.createServiceContext(entry);
   try {
     if (entry.isSmallImage()) {
       String smallImagePath=entryElement.attributeValue("small-image-path");
@@ -28,32 +30,34 @@
  else       if (Validator.isNotNull(smallImagePath)) {
         smallImageFileName=entry.getSmallImageId() + StringPool.PERIOD + entry.getSmallImageType();
         smallImageInputStream=portletDataContext.getZipEntryAsInputStream(smallImagePath);
+        FileEntry smallImageFileEntry=TempFileUtil.addTempFile(serviceContext.getScopeGroupId(),userId,smallImageFileName,BlogsEntry.class.getName(),smallImageInputStream,MimeTypesUtil.getContentType(smallImageFileName));
+        smallImageFileEntryId=smallImageFileEntry.getFileEntryId();
       }
     }
-    List<Element> attachmentElements=portletDataContext.getReferenceDataElements(entry,DLFileEntry.class,PortletDataContext.REFERENCE_TYPE_WEAK);
-    long smallImageFileEntryId=0;
-    for (    Element attachmentElement : attachmentElements) {
-      String path=attachmentElement.attributeValue("path");
-      FileEntry fileEntry=(FileEntry)portletDataContext.getZipEntryAsObject(path);
-      if (fileEntry != null) {
-        smallImageFileEntryId=fileEntry.getFileEntryId();
+    if (smallImageFileEntryId == 0) {
+      List<Element> attachmentElements=portletDataContext.getReferenceDataElements(entry,DLFileEntry.class,PortletDataContext.REFERENCE_TYPE_WEAK);
+      for (      Element attachmentElement : attachmentElements) {
+        String path=attachmentElement.attributeValue("path");
+        FileEntry fileEntry=(FileEntry)portletDataContext.getZipEntryAsObject(path);
+        if (fileEntry != null) {
+          smallImageFileEntryId=fileEntry.getFileEntryId();
+        }
       }
     }
-    ServiceContext serviceContext=portletDataContext.createServiceContext(entry);
     BlogsEntry importedEntry=null;
     if (portletDataContext.isDataStrategyMirror()) {
       serviceContext.setAttribute("urlTitle",entry.getUrlTitle());
       BlogsEntry existingEntry=fetchStagedModelByUuidAndGroupId(entry.getUuid(),portletDataContext.getScopeGroupId());
       if (existingEntry == null) {
         serviceContext.setUuid(entry.getUuid());
-        importedEntry=BlogsEntryLocalServiceUtil.addEntry(userId,entry.getTitle(),entry.getSubtitle(),entry.getDescription(),entry.getContent(),displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,allowPingbacks,allowTrackbacks,trackbacks,entry.isSmallImage(),entry.getSmallImageURL(),smallImageFileName,smallImageInputStream,smallImageFileEntryId,serviceContext);
+        importedEntry=BlogsEntryLocalServiceUtil.addEntry(userId,entry.getTitle(),entry.getSubtitle(),entry.getDescription(),entry.getContent(),displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,allowPingbacks,allowTrackbacks,trackbacks,entry.isSmallImage(),entry.getSmallImageURL(),smallImageFileEntryId,serviceContext);
       }
  else {
-        importedEntry=BlogsEntryLocalServiceUtil.updateEntry(userId,existingEntry.getEntryId(),entry.getTitle(),entry.getSubtitle(),entry.getDescription(),entry.getContent(),displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,allowPingbacks,allowTrackbacks,trackbacks,entry.isSmallImage(),entry.getSmallImageURL(),smallImageFileName,smallImageInputStream,smallImageFileEntryId,serviceContext);
+        importedEntry=BlogsEntryLocalServiceUtil.updateEntry(userId,existingEntry.getEntryId(),entry.getTitle(),entry.getSubtitle(),entry.getDescription(),entry.getContent(),displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,allowPingbacks,allowTrackbacks,trackbacks,entry.isSmallImage(),entry.getSmallImageURL(),smallImageFileEntryId,serviceContext);
       }
     }
  else {
-      importedEntry=BlogsEntryLocalServiceUtil.addEntry(userId,entry.getTitle(),entry.getSubtitle(),entry.getDescription(),entry.getContent(),displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,allowPingbacks,allowTrackbacks,trackbacks,entry.isSmallImage(),entry.getSmallImageURL(),smallImageFileName,smallImageInputStream,smallImageFileEntryId,serviceContext);
+      importedEntry=BlogsEntryLocalServiceUtil.addEntry(userId,entry.getTitle(),entry.getSubtitle(),entry.getDescription(),entry.getContent(),displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,allowPingbacks,allowTrackbacks,trackbacks,entry.isSmallImage(),entry.getSmallImageURL(),smallImageFileEntryId,serviceContext);
     }
     portletDataContext.importClassedModel(entry,importedEntry);
   }
