@@ -2,6 +2,21 @@
   Class<?> targetObjectClass=targetObject.getClass();
   Bundle bundle=FrameworkUtil.getBundle(targetObjectClass);
   BundleContext bundleContext=bundle.getBundleContext();
+  List<Method> injectableMethods=getInjectionMethods(targetObject);
+  ArrayList<Class<?>> interfaces=new ArrayList<Class<?>>();
+  for (  Method referenceMethod : injectableMethods) {
+    Class<?> clazz=referenceMethod.getParameterTypes()[0];
+    if (clazz.isInterface()) {
+      interfaces.add(clazz);
+    }
+  }
+  ClassLoader classLoader=targetObjectClass.getClassLoader();
+  _unavailableServiceProxy=Proxy.newProxyInstance(classLoader,interfaces.toArray(new Class[0]),new InvocationHandler(){
+    @Override public Object invoke(    Object object,    Method method,    Object[] parameters) throws Throwable {
+      throw new ServiceUnavailableException();
+    }
+  }
+);
   _serviceTrackers=new ArrayList<ServiceTracker>();
   for (  Method injectableMethod : injectableMethods) {
     ServiceTracker serviceTracker=track(bundleContext,targetObject,injectableMethod);
