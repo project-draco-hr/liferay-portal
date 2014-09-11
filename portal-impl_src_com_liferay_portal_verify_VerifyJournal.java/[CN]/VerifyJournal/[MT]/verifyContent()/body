@@ -1,0 +1,55 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getUpgradeOptimizedConnection();
+    ps=con.prepareStatement("select id_ from JournalArticle where structureId != ''");
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      long id=rs.getLong("id_");
+      JournalArticle article=JournalArticleLocalServiceUtil.getArticle(id);
+      String xml=article.getContent();
+      Document doc=SAXReaderUtil.read(xml);
+      Element root=doc.getRootElement();
+      List<Element> rootElements=root.elements();
+      for (      Element element : rootElements) {
+        if (element.attributeValue("type").equals("document_library")) {
+          Element dynamicContent=element.element("dynamic-content");
+          String path=(String)dynamicContent.getData();
+          String[] pathElements=StringUtil.split(path,StringPool.SLASH);
+          if (pathElements.length == 5) {
+            long groupId=GetterUtil.getLong(pathElements[2]);
+            long folderId=GetterUtil.getLong(pathElements[3]);
+            String title=HttpUtil.decodeURL(HtmlUtil.escape(pathElements[4]));
+            if (title.contains(StringPool.SLASH)) {
+              title=StringUtil.replace(title,StringPool.SLASH,StringPool.BLANK);
+              StringBundler sb=new StringBundler(9);
+              for (int i=0; i < 4; i++) {
+                sb.append(pathElements[i]);
+                sb.append(StringPool.SLASH);
+              }
+              sb.append(title);
+              path=sb.toString();
+            }
+            try {
+              DLFileEntry dlFileEntry=DLFileEntryLocalServiceUtil.getFileEntryByTitle(groupId,folderId,title);
+              String uuid=dlFileEntry.getUuid();
+              dynamicContent.setText(path + StringPool.SLASH + uuid);
+            }
+ catch (            NoSuchFileEntryException nsfee) {
+              if (_log.isWarnEnabled()) {
+                _log.warn("No document exists with title " + title + " for dynamic content in "+ "article "+ article.getTitle());
+              }
+            }
+          }
+        }
+      }
+      article.setContent(doc.asXML());
+      JournalArticleLocalServiceUtil.updateJournalArticle(article);
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}
