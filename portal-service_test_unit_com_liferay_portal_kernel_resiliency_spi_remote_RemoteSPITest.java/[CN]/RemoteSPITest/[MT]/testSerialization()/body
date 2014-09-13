@@ -21,31 +21,21 @@
   Assert.assertEquals("false",System.getProperty("portal:" + PropsKeys.AUTO_DEPLOY_ENABLED));
   Assert.assertEquals("false",System.getProperty("portal:" + PropsKeys.CLUSTER_LINK_ENABLED));
   objectInputStream=new ObjectInputStream(new UnsyncByteArrayInputStream(data));
-  SecurityManager securityManager=System.getSecurityManager();
-  System.setSecurityManager(new SecurityManager(){
+  final SecurityException securityException=new SecurityException();
+  try (SwappableSecurityManager swappableSecurityManager=new SwappableSecurityManager(){
     @Override public void checkPermission(    Permission permission){
-      if ((permission instanceof RuntimePermission)) {
-        String name=permission.getName();
-        if (name.equals("setSecurityManager")) {
-          return;
-        }
-      }
       if (permission instanceof ReflectPermission) {
-        throw new SecurityException();
+        throw securityException;
       }
     }
   }
-);
-  try {
+){
+    swappableSecurityManager.install();
     objectInputStream.readObject();
     Assert.fail();
   }
  catch (  IOException ioe) {
     Assert.assertEquals("Unable to disable dependency management",ioe.getMessage());
-    Throwable cause=ioe.getCause();
-    Assert.assertSame(SecurityException.class,cause.getClass());
-  }
- finally {
-    System.setSecurityManager(securityManager);
+    Assert.assertSame(securityException,ioe.getCause());
   }
 }
