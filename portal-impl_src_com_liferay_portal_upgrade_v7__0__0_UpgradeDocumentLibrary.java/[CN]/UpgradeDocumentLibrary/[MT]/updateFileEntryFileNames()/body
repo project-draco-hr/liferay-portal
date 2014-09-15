@@ -4,7 +4,7 @@
   ResultSet rs=null;
   try {
     con=DataAccess.getUpgradeOptimizedConnection();
-    ps=con.prepareStatement("select fileEntryId, groupId, folderId, title, extension, " + "version from DLFileEntry");
+    ps=con.prepareStatement("select fileEntryId, groupId, folderId, extension, title, " + "version from DLFileEntry");
     rs=ps.executeQuery();
     while (rs.next()) {
       long fileEntryId=rs.getLong("fileEntryId");
@@ -13,25 +13,26 @@
       String extension=GetterUtil.getString(rs.getString("extension"));
       String title=GetterUtil.getString(rs.getString("title"));
       String version=rs.getString("version");
-      String fileName=DLUtil.getSanitizedFileName(title,extension);
+      String uniqueFileName=DLUtil.getSanitizedFileName(title,extension);
       String titleWithoutExtension=title;
       String titleExtension=StringPool.BLANK;
       if (title.endsWith(StringPool.PERIOD + extension)) {
-        titleWithoutExtension=title.substring(0,title.lastIndexOf(StringPool.PERIOD));
+        titleWithoutExtension=FileUtil.stripExtension(title);
         titleExtension=extension;
       }
+      String uniqueTitle=StringPool.BLANK;
       int count=0;
-      while (hasFileNameFileEntry(groupId,folderId,fileName)) {
+      while (hasFileNameFileEntry(groupId,folderId,uniqueFileName)) {
         count++;
-        title=titleWithoutExtension + StringPool.UNDERLINE + String.valueOf(count);
+        uniqueTitle=titleWithoutExtension + StringPool.UNDERLINE + String.valueOf(count);
         if (Validator.isNotNull(titleExtension)) {
-          title+=StringPool.PERIOD.concat(titleExtension);
+          uniqueTitle+=StringPool.PERIOD.concat(titleExtension);
         }
-        fileName=DLUtil.getSanitizedFileName(title,extension);
+        uniqueFileName=DLUtil.getSanitizedFileName(uniqueTitle,extension);
       }
-      updateFileEntryFileName(fileEntryId,fileName);
-      if (count > 0) {
-        updateFileEntryTitle(fileEntryId,title,version);
+      updateFileEntryFileName(fileEntryId,uniqueFileName);
+      if (Validator.isNotNull(uniqueTitle)) {
+        updateFileEntryTitle(fileEntryId,uniqueTitle,version);
       }
     }
   }
