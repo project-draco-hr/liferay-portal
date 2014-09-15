@@ -1,0 +1,55 @@
+{
+  try {
+    injectionPoint.reset();
+  }
+ catch (  Exception e) {
+    throw new RuntimeException("Could not unset " + injectionPoint.getName() + " on "+ target,e);
+  }
+  ServiceTracker serviceTracker=new ServiceTracker(bundleContext,injectionPoint.getParameterType(),null){
+    @Override public Object addingService(    ServiceReference reference){
+      Object service=super.addingService(reference);
+      ServiceReference currentServiceReference=getServiceReference();
+      if ((currentServiceReference == null) || (reference.compareTo(currentServiceReference) > 0)) {
+        try {
+          injectionPoint.inject(service);
+        }
+ catch (        Exception e) {
+          throw new RuntimeException("Could not set service reference using " + injectionPoint.getName() + " on "+ target,e);
+        }
+      }
+      return service;
+    }
+    @Override public void modifiedService(    ServiceReference reference,    Object service){
+      super.modifiedService(reference,service);
+      ServiceReference currentServiceReference=getServiceReference();
+      Object currentService=getService(currentServiceReference);
+      try {
+        injectionPoint.inject(currentService);
+      }
+ catch (      Exception e) {
+        throw new RuntimeException("Could not set injection point " + injectionPoint.getName() + " on "+ target,e);
+      }
+    }
+    @Override public void removedService(    ServiceReference serviceReference,    Object service){
+      try {
+        super.removedService(serviceReference,service);
+        ServiceReference currentServiceReference=getServiceReference();
+        if (currentServiceReference == null) {
+          injectionPoint.reset();
+        }
+ else {
+          Object currentService=getService(currentServiceReference);
+          injectionPoint.inject(currentService);
+        }
+      }
+ catch (      IllegalStateException ise) {
+      }
+catch (      Exception e) {
+        throw new RuntimeException("Could not set injection point " + injectionPoint.getName() + " on "+ target,e);
+      }
+    }
+  }
+;
+  serviceTracker.open();
+  return serviceTracker;
+}
