@@ -2,24 +2,24 @@
   User user=userPersistence.findByPrimaryKey(userId);
   long groupId=serviceContext.getScopeGroupId();
   Date displayDate=PortalUtil.getDate(displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,user.getTimeZone(),EntryDisplayDateException.class);
-  Date now=new Date();
+  boolean smallImage=false;
   long smallImageFileEntryId=0;
-  boolean isSmallImage=false;
   String smallImageURL=null;
   if (imageSelector != null) {
+    smallImage=!imageSelector.isRemoveSmallImage();
     smallImageFileEntryId=imageSelector.getImageId();
-    isSmallImage=!imageSelector.isRemoveSmallImage();
     smallImageURL=imageSelector.getImageURL();
   }
-  validate(title,content,smallImageFileEntryId);
   long entryId=counterLocalService.increment();
   if (smallImageFileEntryId != 0) {
-    FileEntry tempSmallImageFileEntry=PortletFileRepositoryUtil.getPortletFileEntry(smallImageFileEntryId);
-    Folder smallImageFileEntryFolder=PortletFileRepositoryUtil.addPortletFolder(groupId,userId,PortletKeys.BLOGS,DLFolderConstants.DEFAULT_PARENT_FOLDER_ID,String.valueOf(entryId),serviceContext);
-    FileEntry smallImageFileEntry=PortletFileRepositoryUtil.addPortletFileEntry(groupId,userId,BlogsEntry.class.getName(),entryId,PortletKeys.BLOGS,smallImageFileEntryFolder.getFolderId(),tempSmallImageFileEntry.getContentStream(),tempSmallImageFileEntry.getTitle(),tempSmallImageFileEntry.getMimeType(),false);
-    smallImageFileEntryId=smallImageFileEntry.getFileEntryId();
-    PortletFileRepositoryUtil.deletePortletFileEntry(tempSmallImageFileEntry.getFileEntryId());
+    FileEntry tempFileEntry=PortletFileRepositoryUtil.getPortletFileEntry(smallImageFileEntryId);
+    Folder folder=PortletFileRepositoryUtil.addPortletFolder(groupId,userId,PortletKeys.BLOGS,DLFolderConstants.DEFAULT_PARENT_FOLDER_ID,String.valueOf(entryId),serviceContext);
+    FileEntry fileEntry=PortletFileRepositoryUtil.addPortletFileEntry(groupId,userId,BlogsEntry.class.getName(),entryId,PortletKeys.BLOGS,folder.getFolderId(),tempFileEntry.getContentStream(),tempFileEntry.getTitle(),tempFileEntry.getMimeType(),false);
+    smallImageFileEntryId=fileEntry.getFileEntryId();
+    PortletFileRepositoryUtil.deletePortletFileEntry(tempFileEntry.getFileEntryId());
   }
+  Date now=new Date();
+  validate(title,content,smallImageFileEntryId);
   BlogsEntry entry=blogsEntryPersistence.create(entryId);
   entry.setUuid(serviceContext.getUuid());
   entry.setGroupId(groupId);
@@ -36,7 +36,7 @@
   entry.setDisplayDate(displayDate);
   entry.setAllowPingbacks(allowPingbacks);
   entry.setAllowTrackbacks(allowTrackbacks);
-  entry.setSmallImage(isSmallImage);
+  entry.setSmallImage(smallImage);
   entry.setSmallImageFileEntryId(smallImageFileEntryId);
   entry.setSmallImageURL(smallImageURL);
   entry.setStatus(WorkflowConstants.STATUS_DRAFT);
