@@ -9,8 +9,7 @@
     while (rs.next()) {
       long id=rs.getLong("id_");
       JournalArticle article=JournalArticleLocalServiceUtil.getArticle(id);
-      String xml=article.getContent();
-      Document document=SAXReaderUtil.read(xml);
+      Document document=SAXReaderUtil.read(article.getContent());
       Element rootElement=document.getRootElement();
       List<Element> elements=rootElement.elements();
       for (      Element element : elements) {
@@ -19,38 +18,19 @@
           continue;
         }
         Element dynamicContentElement=element.element("dynamic-content");
-        String path=(String)dynamicContentElement.getData();
-        String[] pathElements=StringUtil.split(path,StringPool.SLASH);
-        if (pathElements.length != 5) {
+        String path=dynamicContentElement.getStringValue();
+        String[] pathArray=StringUtil.split(path,CharPool.SLASH);
+        if (pathArray.length != 5) {
           continue;
         }
-        String title=HttpUtil.decodeURL(HtmlUtil.escape(pathElements[4]));
-        if (title.contains(StringPool.SLASH)) {
-          title=StringUtil.replace(title,StringPool.SLASH,StringPool.BLANK);
-          StringBundler sb=new StringBundler(9);
-          for (int i=0; i < 4; i++) {
-            sb.append(pathElements[i]);
-            sb.append(StringPool.SLASH);
-          }
-          sb.append(title);
-          path=sb.toString();
-        }
-        long folderId=GetterUtil.getLong(pathElements[3]);
-        long groupId=GetterUtil.getLong(pathElements[2]);
+        long groupId=GetterUtil.getLong(pathArray[2]);
+        long folderId=GetterUtil.getLong(pathArray[3]);
+        String title=HttpUtil.decodeURL(HtmlUtil.escape(pathArray[4]));
         DLFileEntry dlFileEntry=DLFileEntryLocalServiceUtil.fetchFileEntry(groupId,folderId,title);
         if (dlFileEntry == null) {
-          if (_log.isWarnEnabled()) {
-            StringBundler sb=new StringBundler(4);
-            sb.append("No document exists with title ");
-            sb.append(title);
-            sb.append(" for dynamic content in article ");
-            sb.append(article.getTitle());
-            _log.warn(sb.toString());
-          }
           continue;
         }
-        String uuid=dlFileEntry.getUuid();
-        dynamicContentElement.setText(path + StringPool.SLASH + uuid);
+        dynamicContentElement.setText(path + StringPool.SLASH + dlFileEntry.getUuid());
       }
       article.setContent(document.asXML());
       JournalArticleLocalServiceUtil.updateJournalArticle(article);
