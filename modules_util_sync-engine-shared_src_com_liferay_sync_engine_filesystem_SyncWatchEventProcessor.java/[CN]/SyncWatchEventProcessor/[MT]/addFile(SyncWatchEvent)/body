@@ -1,0 +1,40 @@
+{
+  Path targetFilePath=Paths.get(syncWatchEvent.getFilePathName());
+  if (Files.notExists(targetFilePath)) {
+    return;
+  }
+  Path parentTargetFilePath=targetFilePath.getParent();
+  SyncFile parentSyncFile=SyncFileService.fetchSyncFile(parentTargetFilePath.toString());
+  SyncFile syncFile=SyncFileService.fetchSyncFile(targetFilePath.toString());
+  if (syncFile == null) {
+    syncFile=SyncFileService.fetchSyncFileByFileKey(FileUtil.getFileKey(targetFilePath),_syncAccountId);
+  }
+  if (syncFile == null) {
+    SyncFileService.addFileSyncFile(targetFilePath,parentSyncFile.getTypePK(),parentSyncFile.getRepositoryId(),_syncAccountId);
+    return;
+  }
+  Path sourceFilePath=Paths.get(syncFile.getFilePathName());
+  if (targetFilePath.equals(sourceFilePath) && !FileUtil.hasFileChanged(syncFile)) {
+  }
+ else   if (Files.exists(sourceFilePath)) {
+    SyncFileService.addFileSyncFile(targetFilePath,parentSyncFile.getTypePK(),parentSyncFile.getRepositoryId(),_syncAccountId);
+    return;
+  }
+ else   if (parentTargetFilePath.equals(sourceFilePath.getParent())) {
+    SyncFileService.updateFileSyncFile(targetFilePath,_syncAccountId,syncFile,false);
+  }
+ else {
+    SyncFileService.moveFileSyncFile(targetFilePath,parentSyncFile.getTypePK(),_syncAccountId,syncFile);
+    Path sourceFileNameFilePath=sourceFilePath.getFileName();
+    if (!sourceFileNameFilePath.equals(targetFilePath.getFileName())) {
+      SyncFileService.updateFileSyncFile(targetFilePath,_syncAccountId,syncFile,false);
+    }
+  }
+  SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(_syncAccountId);
+  if (syncAccount.getState() == SyncAccount.STATE_CONNECTED) {
+    SyncWatchEvent relatedSyncWatchEvent=SyncWatchEventService.fetchSyncWatchEvent(SyncWatchEvent.EVENT_TYPE_DELETE,syncWatchEvent.getFilePathName(),syncWatchEvent.getTimestamp());
+    if (relatedSyncWatchEvent != null) {
+      _processedSyncWatchEventIds.add(relatedSyncWatchEvent.getSyncWatchEventId());
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  if (Files.notExists(targetFilePath)) {
+    return null;
+  }
+  FileInputStream targetInputStream=null;
+  FileChannel targetFileChannel=null;
+  Path patchedFilePath=null;
+  OutputStream patchedFileOutputStream=null;
+  WritableByteChannel patchedWritableByteChannel=null;
+  ReadableByteChannel deltaReadableByteChannel=null;
+  try {
+    targetInputStream=new FileInputStream(targetFilePath.toString());
+    targetFileChannel=targetInputStream.getChannel();
+    patchedFilePath=Files.createTempFile(String.valueOf(targetFilePath.getFileName()),".tmp");
+    patchedFileOutputStream=Files.newOutputStream(patchedFilePath);
+    patchedWritableByteChannel=Channels.newChannel(patchedFileOutputStream);
+    deltaReadableByteChannel=Channels.newChannel(deltaInputStream);
+    ByteChannelReader deltaByteChannelReader=new ByteChannelReader(deltaReadableByteChannel);
+    DeltaUtil.patch(targetFileChannel,patchedWritableByteChannel,deltaByteChannelReader);
+  }
+ catch (  IOException ioe) {
+    _logger.error(ioe.getMessage(),ioe);
+    return null;
+  }
+ finally {
+    StreamUtil.cleanUp(targetInputStream);
+    StreamUtil.cleanUp(targetFileChannel);
+    StreamUtil.cleanUp(patchedFileOutputStream);
+    StreamUtil.cleanUp(patchedWritableByteChannel);
+    StreamUtil.cleanUp(deltaReadableByteChannel);
+  }
+  try {
+    Files.move(patchedFilePath,targetFilePath,StandardCopyOption.REPLACE_EXISTING);
+    return targetFilePath;
+  }
+ catch (  IOException ioe) {
+    _logger.error(ioe.getMessage(),ioe);
+    return null;
+  }
+}

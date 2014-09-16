@@ -1,0 +1,50 @@
+{
+  if (OSDetector.isWindows()) {
+    FileUtil.writeFileKey(filePath,String.valueOf(syncFile.getSyncFileId()));
+  }
+  Path deltaFilePath=null;
+  String name=_getName(filePath,syncFile);
+  String sourceChecksum=syncFile.getChecksum();
+  String sourceFileName=syncFile.getName();
+  String sourceVersion=syncFile.getVersion();
+  String targetChecksum=FileUtil.getChecksum(filePath);
+  if (!sourceChecksum.equals(targetChecksum) && !IODeltaUtil.isIgnoredFilePatchingExtension(syncFile)) {
+    deltaFilePath=Files.createTempFile(String.valueOf(filePath.getFileName()),".tmp");
+    deltaFilePath=IODeltaUtil.delta(filePath,IODeltaUtil.getChecksumsFilePath(syncFile),deltaFilePath);
+  }
+  syncFile.setChecksum(targetChecksum);
+  syncFile.setFilePathName(filePath.toString());
+  syncFile.setName(name);
+  syncFile.setUiEvent(SyncFile.UI_EVENT_UPDATED_LOCAL);
+  update(syncFile);
+  if (syncFile.getState() == SyncFile.STATE_ERROR) {
+    return syncFile;
+  }
+  Map<String,Object> parameters=new HashMap<String,Object>();
+  parameters.put("changeLog",syncFile.getChangeLog());
+  parameters.put("checksum",targetChecksum);
+  parameters.put("description",syncFile.getDescription());
+  parameters.put("fileEntryId",syncFile.getTypePK());
+  parameters.put("majorVersion",false);
+  parameters.put("mimeType",syncFile.getMimeType());
+  parameters.put("sourceFileName",name);
+  parameters.put("syncFile",syncFile);
+  parameters.put("title",name);
+  if (sourceChecksum.equals(targetChecksum) && !force) {
+    parameters.put("-file",null);
+  }
+ else {
+    if ((deltaFilePath != null) && (Files.size(filePath) / Files.size(deltaFilePath)) >= PropsValues.SYNC_FILE_PATCHING_THRESHOLD_SIZE_RATIO) {
+      parameters.put("deltaFilePath",deltaFilePath);
+      parameters.put("sourceFileName",sourceFileName);
+      parameters.put("sourceVersion",sourceVersion);
+      PatchFileEntryEvent patchFileEntryEvent=new PatchFileEntryEvent(syncAccountId,parameters);
+      patchFileEntryEvent.run();
+      return syncFile;
+    }
+    parameters.put("filePath",filePath);
+  }
+  UpdateFileEntryEvent updateFileEntryEvent=new UpdateFileEntryEvent(syncAccountId,parameters);
+  updateFileEntryEvent.run();
+  return syncFile;
+}

@@ -1,0 +1,34 @@
+{
+  Path targetFilePath=Paths.get(syncWatchEvent.getFilePathName());
+  Path parentTargetFilePath=targetFilePath.getParent();
+  SyncFile parentSyncFile=SyncFileService.fetchSyncFile(parentTargetFilePath.toString());
+  SyncFile syncFile=SyncFileService.fetchSyncFileByFileKey(FileUtil.getFileKey(targetFilePath),_syncAccountId);
+  if (syncFile == null) {
+    SyncFileService.addFolderSyncFile(targetFilePath,parentSyncFile.getTypePK(),parentSyncFile.getRepositoryId(),_syncAccountId);
+    return;
+  }
+  Path sourceFilePath=Paths.get(syncFile.getFilePathName());
+  if (targetFilePath.equals(sourceFilePath)) {
+  }
+ else   if (Files.exists(sourceFilePath)) {
+    SyncFileService.addFolderSyncFile(targetFilePath,parentSyncFile.getTypePK(),parentSyncFile.getRepositoryId(),_syncAccountId);
+    return;
+  }
+ else   if (parentTargetFilePath.equals(sourceFilePath.getParent())) {
+    SyncFileService.updateFolderSyncFile(targetFilePath,_syncAccountId,syncFile);
+  }
+ else {
+    SyncFileService.moveFolderSyncFile(targetFilePath,parentSyncFile.getTypePK(),_syncAccountId,syncFile);
+    Path sourceFileNameFilePath=sourceFilePath.getFileName();
+    if (!sourceFileNameFilePath.equals(targetFilePath.getFileName())) {
+      SyncFileService.updateFolderSyncFile(targetFilePath,_syncAccountId,syncFile);
+    }
+  }
+  SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(_syncAccountId);
+  if (syncAccount.getState() == SyncAccount.STATE_CONNECTED) {
+    SyncWatchEvent relatedSyncWatchEvent=SyncWatchEventService.fetchSyncWatchEvent(SyncWatchEvent.EVENT_TYPE_DELETE,syncWatchEvent.getFilePathName(),syncWatchEvent.getTimestamp());
+    if (relatedSyncWatchEvent != null) {
+      _processedSyncWatchEventIds.add(relatedSyncWatchEvent.getSyncWatchEventId());
+    }
+  }
+}

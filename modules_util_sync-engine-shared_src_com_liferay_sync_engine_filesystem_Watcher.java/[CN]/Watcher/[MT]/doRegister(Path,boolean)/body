@@ -1,0 +1,48 @@
+{
+  if (isIgnoredFilePath(filePath)) {
+    return;
+  }
+  if (recursive) {
+    Files.walkFileTree(filePath,new SimpleFileVisitor<Path>(){
+      @Override public FileVisitResult preVisitDirectory(      Path filePath,      BasicFileAttributes basicFileAttributes) throws IOException {
+        doRegister(filePath,false);
+        return FileVisitResult.CONTINUE;
+      }
+      @Override public FileVisitResult visitFile(      Path filePath,      BasicFileAttributes basicFileAttributes) throws IOException {
+        if (Files.notExists(filePath) || isIgnoredFilePath(filePath)) {
+          return FileVisitResult.CONTINUE;
+        }
+        SyncFile syncFile=SyncFileService.fetchSyncFile(filePath.toString());
+        if (syncFile == null) {
+          fireWatchEventListener(SyncWatchEvent.EVENT_TYPE_CREATE,filePath);
+        }
+ else         if (FileUtil.hasFileChanged(syncFile,filePath)) {
+          fireWatchEventListener(SyncWatchEvent.EVENT_TYPE_MODIFY,filePath);
+        }
+        return FileVisitResult.CONTINUE;
+      }
+    }
+);
+  }
+ else {
+    SyncFile syncFile=SyncFileService.fetchSyncFile(filePath.toString());
+    if (syncFile == null) {
+      fireWatchEventListener(SyncWatchEvent.EVENT_TYPE_CREATE,filePath);
+    }
+    if (OSDetector.isWindows() && !_filePaths.isEmpty()) {
+      return;
+    }
+    WatchKey watchKey=null;
+    name.pachler.nio.file.Path jpathwatchFilePath=Paths.get(filePath.toString());
+    if (OSDetector.isWindows()) {
+      watchKey=jpathwatchFilePath.register(_watchService,new WatchEvent.Kind[]{ExtendedWatchEventKind.KEY_INVALID,StandardWatchEventKind.ENTRY_CREATE,StandardWatchEventKind.ENTRY_DELETE,StandardWatchEventKind.ENTRY_MODIFY},ExtendedWatchEventModifier.FILE_TREE);
+    }
+ else {
+      watchKey=jpathwatchFilePath.register(_watchService,ExtendedWatchEventKind.KEY_INVALID,StandardWatchEventKind.ENTRY_CREATE,StandardWatchEventKind.ENTRY_DELETE,StandardWatchEventKind.ENTRY_MODIFY);
+    }
+    _filePaths.put(watchKey,filePath);
+    if (_logger.isTraceEnabled()) {
+      _logger.trace("Registered file path {}",filePath);
+    }
+  }
+}

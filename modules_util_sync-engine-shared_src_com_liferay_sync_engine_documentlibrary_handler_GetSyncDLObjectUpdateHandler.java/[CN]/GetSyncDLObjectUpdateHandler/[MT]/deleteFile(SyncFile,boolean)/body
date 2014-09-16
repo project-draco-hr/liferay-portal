@@ -1,0 +1,33 @@
+{
+  SyncFile sourceSyncFile=SyncFileService.fetchSyncFile(targetSyncFile.getRepositoryId(),getSyncAccountId(),targetSyncFile.getTypePK());
+  if (sourceSyncFile == null) {
+    return;
+  }
+  if (trashed) {
+    sourceSyncFile.setUiEvent(SyncFile.UI_EVENT_TRASHED_REMOTE);
+  }
+ else {
+    sourceSyncFile.setUiEvent(SyncFile.UI_EVENT_DELETED_REMOTE);
+  }
+  SyncFileService.deleteSyncFile(sourceSyncFile);
+  Path sourceFilePath=Paths.get(sourceSyncFile.getFilePathName());
+  if (Files.notExists(sourceFilePath)) {
+    return;
+  }
+  final Watcher watcher=WatcherRegistry.getWatcher(getSyncAccountId());
+  Files.walkFileTree(sourceFilePath,new SimpleFileVisitor<Path>(){
+    @Override public FileVisitResult postVisitDirectory(    Path filePath,    IOException ioe) throws IOException {
+      Files.deleteIfExists(filePath);
+      return FileVisitResult.CONTINUE;
+    }
+    @Override public FileVisitResult preVisitDirectory(    Path filePath,    BasicFileAttributes basicFileAttributes) throws IOException {
+      watcher.unregisterFilePath(filePath);
+      return super.preVisitDirectory(filePath,basicFileAttributes);
+    }
+    @Override public FileVisitResult visitFile(    Path filePath,    BasicFileAttributes basicFileAttributes) throws IOException {
+      Files.deleteIfExists(filePath);
+      return FileVisitResult.CONTINUE;
+    }
+  }
+);
+}

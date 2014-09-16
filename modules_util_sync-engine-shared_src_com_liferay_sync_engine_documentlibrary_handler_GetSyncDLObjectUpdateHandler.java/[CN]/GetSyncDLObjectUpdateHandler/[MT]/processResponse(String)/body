@@ -1,0 +1,46 @@
+{
+  ObjectMapper objectMapper=new ObjectMapper();
+  SyncDLObjectUpdate syncDLObjectUpdate=objectMapper.readValue(response,new TypeReference<SyncDLObjectUpdate>(){
+  }
+);
+  for (  SyncFile syncFile : syncDLObjectUpdate.getSyncDLObjects()) {
+    SyncFile parentSyncFile=SyncFileService.fetchSyncFile(syncFile.getRepositoryId(),getSyncAccountId(),syncFile.getParentFolderId());
+    if (parentSyncFile == null) {
+      continue;
+    }
+    String filePathName="";
+    try {
+      filePathName=FileUtil.getFilePathName(parentSyncFile.getFilePathName(),FileUtil.getSanitizedFileName(syncFile.getName(),syncFile.getExtension()));
+      String event=syncFile.getEvent();
+      if (event.equals(SyncFile.EVENT_ADD) || event.equals(SyncFile.EVENT_GET) || event.equals(SyncFile.EVENT_RESTORE)) {
+        addFile(syncFile,filePathName);
+      }
+ else       if (event.equals(SyncFile.EVENT_DELETE)) {
+        deleteFile(syncFile,false);
+      }
+ else       if (event.equals(SyncFile.EVENT_MOVE)) {
+        moveFile(syncFile,filePathName);
+      }
+ else       if (event.equals(SyncFile.EVENT_TRASH)) {
+        deleteFile(syncFile,true);
+      }
+ else       if (event.equals(SyncFile.EVENT_UPDATE)) {
+        updateFile(syncFile,filePathName);
+      }
+    }
+ catch (    Exception e) {
+      _logger.error(e.getMessage(),e);
+      if (e instanceof FileSystemException) {
+        String message=e.getMessage();
+        if (message.contains("File name too long")) {
+          syncFile.setState(SyncFile.STATE_ERROR);
+          syncFile.setUiEvent(SyncFile.UI_EVENT_FILE_NAME_TOO_LONG);
+          SyncFileService.update(syncFile);
+        }
+      }
+    }
+  }
+  SyncSite syncSite=SyncSiteService.fetchSyncSite((Long)getParameterValue("repositoryId"),getSyncAccountId());
+  syncSite.setRemoteSyncTime(syncDLObjectUpdate.getLastAccessTime());
+  SyncSiteService.update(syncSite);
+}

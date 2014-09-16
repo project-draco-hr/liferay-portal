@@ -1,0 +1,62 @@
+{
+  SyncWatchEvent lastSyncWatchEvent=SyncWatchEventService.fetchLastSyncWatchEvent(_syncAccountId);
+  if (lastSyncWatchEvent == null) {
+    return;
+  }
+  long delta=System.currentTimeMillis() - lastSyncWatchEvent.getTimestamp();
+  if (delta <= 500) {
+    _inProgress=true;
+    return;
+  }
+  if (_logger.isTraceEnabled()) {
+    _logger.trace("Processing sync watch events");
+  }
+  List<SyncWatchEvent> syncWatchEvents=SyncWatchEventService.findBySyncAccountId(_syncAccountId,"eventType",true);
+  for (  SyncWatchEvent syncWatchEvent : syncWatchEvents) {
+    SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(_syncAccountId);
+    if (syncAccount.getState() != SyncAccount.STATE_CONNECTED) {
+      continue;
+    }
+    if (_processedSyncWatchEventIds.contains(syncWatchEvent.getSyncWatchEventId())) {
+      SyncWatchEventService.deleteSyncWatchEvent(syncWatchEvent.getSyncWatchEventId());
+      continue;
+    }
+    if (_logger.isDebugEnabled()) {
+      _logger.debug("Event type {} file path {} file type {} timestamp {}",syncWatchEvent.getEventType(),syncWatchEvent.getFilePathName(),syncWatchEvent.getFileType(),syncWatchEvent.getTimestamp());
+    }
+    String fileType=syncWatchEvent.getFileType();
+    String eventType=syncWatchEvent.getEventType();
+    try {
+      if (eventType.equals(SyncWatchEvent.EVENT_TYPE_CREATE)) {
+        if (fileType.equals(SyncFile.TYPE_FILE)) {
+          addFile(syncWatchEvent);
+        }
+ else {
+          addFolder(syncWatchEvent);
+        }
+      }
+ else       if (eventType.equals(SyncWatchEvent.EVENT_TYPE_DELETE)) {
+        if (fileType.equals(SyncFile.TYPE_FILE)) {
+          deleteFile(syncWatchEvent);
+        }
+ else {
+          deleteFolder(syncWatchEvent);
+        }
+      }
+ else       if (eventType.equals(SyncWatchEvent.EVENT_TYPE_MODIFY)) {
+        if (fileType.equals(SyncFile.TYPE_FILE)) {
+          modifyFile(syncWatchEvent);
+        }
+      }
+    }
+ catch (    Exception e) {
+      _logger.error(e.getMessage(),e);
+    }
+    syncAccount=SyncAccountService.fetchSyncAccount(_syncAccountId);
+    if (syncAccount.getState() == SyncAccount.STATE_CONNECTED) {
+      SyncWatchEventService.deleteSyncWatchEvent(syncWatchEvent.getSyncWatchEventId());
+    }
+  }
+  _inProgress=false;
+  _processedSyncWatchEventIds.clear();
+}

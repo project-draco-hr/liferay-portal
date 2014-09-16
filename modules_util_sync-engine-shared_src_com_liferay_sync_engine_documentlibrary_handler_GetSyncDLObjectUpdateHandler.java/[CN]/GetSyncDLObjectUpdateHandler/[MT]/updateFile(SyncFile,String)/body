@@ -1,0 +1,37 @@
+{
+  SyncFile sourceSyncFile=SyncFileService.fetchSyncFile(targetSyncFile.getRepositoryId(),getSyncAccountId(),targetSyncFile.getTypePK());
+  if (sourceSyncFile == null) {
+    addFile(targetSyncFile,filePathName);
+    return;
+  }
+  String sourceVersion=sourceSyncFile.getVersion();
+  Path sourceFilePath=Paths.get(sourceSyncFile.getFilePathName());
+  boolean filePathChanged=processFilePathChange(sourceSyncFile,targetSyncFile);
+  sourceSyncFile.setChangeLog(targetSyncFile.getChangeLog());
+  sourceSyncFile.setChecksum(targetSyncFile.getChecksum());
+  sourceSyncFile.setDescription(targetSyncFile.getDescription());
+  sourceSyncFile.setExtension(targetSyncFile.getExtension());
+  sourceSyncFile.setExtraSettings(targetSyncFile.getExtraSettings());
+  sourceSyncFile.setLockExpirationDate(targetSyncFile.getLockExpirationDate());
+  sourceSyncFile.setLockUserId(targetSyncFile.getLockUserId());
+  sourceSyncFile.setLockUserName(targetSyncFile.getLockUserName());
+  sourceSyncFile.setModifiedTime(targetSyncFile.getModifiedTime());
+  sourceSyncFile.setSize(targetSyncFile.getSize());
+  sourceSyncFile.setUiEvent(SyncFile.UI_EVENT_UPDATED_REMOTE);
+  sourceSyncFile.setVersion(targetSyncFile.getVersion());
+  SyncFileService.update(sourceSyncFile);
+  if (filePathChanged && !Files.exists(sourceFilePath)) {
+    if (targetSyncFile.isFolder()) {
+      Path targetFilePath=Paths.get(filePathName);
+      Files.createDirectories(targetFilePath);
+      SyncFileService.update(sourceSyncFile);
+      SyncFileService.updateFileKeySyncFile(sourceSyncFile);
+    }
+ else {
+      downloadFile(sourceSyncFile,null,false);
+    }
+  }
+ else   if (targetSyncFile.isFile() && FileUtil.hasFileChanged(targetSyncFile,sourceFilePath)) {
+    downloadFile(sourceSyncFile,sourceVersion,!IODeltaUtil.isIgnoredFilePatchingExtension(targetSyncFile));
+  }
+}

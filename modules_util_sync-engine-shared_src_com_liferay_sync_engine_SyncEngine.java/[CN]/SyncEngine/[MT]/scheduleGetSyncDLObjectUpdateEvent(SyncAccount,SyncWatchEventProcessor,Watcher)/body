@@ -1,0 +1,23 @@
+{
+  Runnable runnable=new Runnable(){
+    @Override public void run(){
+      SyncAccount updatedSyncAccount=SyncAccountService.fetchSyncAccount(syncAccount.getSyncAccountId());
+      if ((updatedSyncAccount.getState() != SyncAccount.STATE_CONNECTED) || syncWatchEventProcessor.isInProgress()) {
+        return;
+      }
+      Set<Long> syncSiteIds=SyncSiteService.getActiveSyncSiteIds(syncAccount.getSyncAccountId());
+      for (      long syncSiteId : syncSiteIds) {
+        SyncSite syncSite=SyncSiteService.fetchSyncSite(syncSiteId);
+        Map<String,Object> parameters=new HashMap<String,Object>();
+        parameters.put("companyId",syncSite.getCompanyId());
+        parameters.put("repositoryId",syncSite.getGroupId());
+        parameters.put("syncSite",syncSite);
+        GetSyncDLObjectUpdateEvent getSyncDLObjectUpdateEvent=new GetSyncDLObjectUpdateEvent(syncAccount.getSyncAccountId(),parameters);
+        getSyncDLObjectUpdateEvent.run();
+      }
+    }
+  }
+;
+  ScheduledFuture<?> scheduledFuture=_eventScheduledExecutorService.scheduleAtFixedRate(runnable,0,syncAccount.getPollInterval(),TimeUnit.SECONDS);
+  _syncAccountTasks.put(syncAccount.getSyncAccountId(),new Object[]{watcher,scheduledFuture});
+}

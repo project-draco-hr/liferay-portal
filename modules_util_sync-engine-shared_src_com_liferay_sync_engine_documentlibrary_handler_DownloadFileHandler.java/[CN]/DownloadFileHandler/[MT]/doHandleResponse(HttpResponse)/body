@@ -1,0 +1,45 @@
+{
+  Header header=httpResponse.getFirstHeader("Sync-JWT");
+  if (header != null) {
+    Session session=SessionManager.getSession(getSyncAccountId());
+    session.setToken(header.getValue());
+  }
+  InputStream inputStream=null;
+  SyncFile syncFile=(SyncFile)getParameterValue("syncFile");
+  try {
+    Path filePath=Paths.get(syncFile.getFilePathName());
+    HttpEntity httpEntity=httpResponse.getEntity();
+    inputStream=httpEntity.getContent();
+    Path tempFilePath=Files.createTempFile(String.valueOf(syncFile.getSyncFileId()),".tmp");
+    if (Files.exists(filePath)) {
+      Files.copy(filePath,tempFilePath,StandardCopyOption.REPLACE_EXISTING);
+    }
+    if ((Boolean)getParameterValue("patch")) {
+      IODeltaUtil.patch(tempFilePath,inputStream);
+    }
+ else {
+      Files.copy(inputStream,tempFilePath,StandardCopyOption.REPLACE_EXISTING);
+    }
+    Files.move(tempFilePath,filePath,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
+    if (syncFile.getFileKey() == null) {
+      syncFile.setUiEvent(SyncFile.UI_EVENT_DOWNLOADED_NEW);
+    }
+ else {
+      syncFile.setUiEvent(SyncFile.UI_EVENT_DOWNLOADED_UPDATE);
+    }
+    syncFile.setState(SyncFile.STATE_SYNCED);
+    SyncFileService.update(syncFile);
+    SyncFileService.updateFileKeySyncFile(syncFile);
+  }
+ catch (  FileSystemException fse) {
+    String message=fse.getMessage();
+    if (message.contains("File name too long")) {
+      syncFile.setState(SyncFile.STATE_ERROR);
+      syncFile.setUiEvent(SyncFile.UI_EVENT_FILE_NAME_TOO_LONG);
+      SyncFileService.update(syncFile);
+    }
+  }
+ finally {
+    StreamUtil.cleanUp(inputStream);
+  }
+}

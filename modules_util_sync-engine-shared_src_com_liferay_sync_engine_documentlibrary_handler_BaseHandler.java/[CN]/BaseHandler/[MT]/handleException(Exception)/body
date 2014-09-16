@@ -1,0 +1,36 @@
+{
+  SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(getSyncAccountId());
+  if (e instanceof FileNotFoundException) {
+    SyncFile syncFile=(SyncFile)getParameterValue("syncFile");
+    if (syncFile.getVersion() == null) {
+      SyncFileService.deleteSyncFile(syncFile);
+    }
+  }
+ else   if ((e instanceof HttpHostConnectException) || (e instanceof NoHttpResponseException) || (e instanceof SocketException)) {
+    syncAccount.setState(SyncAccount.STATE_DISCONNECTED);
+    syncAccount.setUiEvent(SyncAccount.UI_EVENT_CONNECTION_EXCEPTION);
+    SyncAccountService.update(syncAccount);
+    retryServerConnection();
+  }
+ else   if (e instanceof HttpResponseException) {
+    syncAccount.setState(SyncAccount.STATE_DISCONNECTED);
+    HttpResponseException hre=(HttpResponseException)e;
+    int statusCode=hre.getStatusCode();
+    if (statusCode == HttpStatus.SC_UNAUTHORIZED) {
+      syncAccount.setUiEvent(SyncAccount.UI_EVENT_AUTHENTICATION_EXCEPTION);
+      SyncAccountService.update(syncAccount);
+    }
+ else {
+      syncAccount.setUiEvent(SyncAccount.UI_EVENT_CONNECTION_EXCEPTION);
+      SyncAccountService.update(syncAccount);
+      retryServerConnection();
+    }
+  }
+ else {
+    _logger.error(e.getMessage(),e);
+    syncAccount.setState(SyncAccount.STATE_DISCONNECTED);
+    syncAccount.setUiEvent(SyncAccount.UI_EVENT_CONNECTION_EXCEPTION);
+    SyncAccountService.update(syncAccount);
+    retryServerConnection();
+  }
+}
