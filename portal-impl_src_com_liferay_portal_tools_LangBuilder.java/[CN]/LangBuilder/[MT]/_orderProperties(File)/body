@@ -3,50 +3,48 @@
     return null;
   }
   String content=FileUtil.read(propertiesFile);
-  UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new UnsyncStringReader(content));
-  UnsyncBufferedWriter unsyncBufferedWriter=new UnsyncBufferedWriter(new FileWriter(propertiesFile));
-  Map<String,String> messages=new TreeMap<String,String>(new NaturalOrderStringComparator(true,true));
-  boolean begin=false;
-  boolean firstLine=true;
-  String line=null;
-  while ((line=unsyncBufferedReader.readLine()) != null) {
-    int pos=line.indexOf("=");
-    if (pos != -1) {
-      String key=line.substring(0,pos);
-      String value=line.substring(pos + 1);
-      if (Validator.isNotNull(value)) {
-        value=_fixTranslation(line.substring(pos + 1));
-        value=_fixEnglishTranslation(key,value);
-        if (_portalLanguageProperties != null) {
-          String portalValue=String.valueOf(_portalLanguageProperties.get(key));
-          if (value.equals(portalValue)) {
-            System.out.println("Duplicate key " + key);
+  try (UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new UnsyncStringReader(content));UnsyncBufferedWriter unsyncBufferedWriter=new UnsyncBufferedWriter(new FileWriter(propertiesFile))){
+    Map<String,String> messages=new TreeMap<String,String>(new NaturalOrderStringComparator(true,true));
+    boolean begin=false;
+    boolean firstLine=true;
+    String line=null;
+    while ((line=unsyncBufferedReader.readLine()) != null) {
+      int pos=line.indexOf("=");
+      if (pos != -1) {
+        String key=line.substring(0,pos);
+        String value=line.substring(pos + 1);
+        if (Validator.isNotNull(value)) {
+          value=_fixTranslation(line.substring(pos + 1));
+          value=_fixEnglishTranslation(key,value);
+          if (_portalLanguageProperties != null) {
+            String portalValue=String.valueOf(_portalLanguageProperties.get(key));
+            if (value.equals(portalValue)) {
+              System.out.println("Duplicate key " + key);
+            }
           }
+          messages.put(key,value);
         }
-        messages.put(key,value);
-      }
-    }
- else {
-      if (begin && line.equals(StringPool.BLANK)) {
-        _sortAndWrite(unsyncBufferedWriter,messages,firstLine);
-      }
-      if (line.equals(StringPool.BLANK)) {
-        begin=!begin;
-      }
-      if (firstLine) {
-        firstLine=false;
       }
  else {
-        unsyncBufferedWriter.newLine();
+        if (begin && line.equals(StringPool.BLANK)) {
+          _sortAndWrite(unsyncBufferedWriter,messages,firstLine);
+        }
+        if (line.equals(StringPool.BLANK)) {
+          begin=!begin;
+        }
+        if (firstLine) {
+          firstLine=false;
+        }
+ else {
+          unsyncBufferedWriter.newLine();
+        }
+        unsyncBufferedWriter.write(line);
       }
-      unsyncBufferedWriter.write(line);
+      unsyncBufferedWriter.flush();
     }
-    unsyncBufferedWriter.flush();
+    if (!messages.isEmpty()) {
+      _sortAndWrite(unsyncBufferedWriter,messages,firstLine);
+    }
   }
-  if (!messages.isEmpty()) {
-    _sortAndWrite(unsyncBufferedWriter,messages,firstLine);
-  }
-  unsyncBufferedReader.close();
-  unsyncBufferedWriter.close();
-  return FileUtil.read(propertiesFile);
+   return FileUtil.read(propertiesFile);
 }

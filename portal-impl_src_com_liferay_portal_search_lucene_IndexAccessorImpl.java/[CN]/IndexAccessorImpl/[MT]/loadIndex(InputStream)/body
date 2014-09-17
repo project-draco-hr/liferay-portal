@@ -1,28 +1,26 @@
 {
   File tempFile=FileUtil.createTempFile();
-  Directory tempDirectory=FSDirectory.open(tempFile);
-  IndexCommitSerializationUtil.deserializeIndex(inputStream,tempDirectory);
-  _deleteDirectory();
-  IndexReader indexReader=IndexReader.open(tempDirectory,false);
-  if (indexReader.numDocs() > 0) {
-    IndexSearcher indexSearcher=new IndexSearcher(indexReader);
-    try {
-      TopDocs topDocs=indexSearcher.search(new MatchAllDocsQuery(),indexReader.numDocs());
-      ScoreDoc[] scoreDocs=topDocs.scoreDocs;
-      for (      ScoreDoc scoreDoc : scoreDocs) {
-        Document document=indexSearcher.doc(scoreDoc.doc);
-        addDocument(document);
+  try (Directory tempDirectory=FSDirectory.open(tempFile)){
+    IndexCommitSerializationUtil.deserializeIndex(inputStream,tempDirectory);
+    _deleteDirectory();
+    try (IndexReader indexReader=IndexReader.open(tempDirectory,false)){
+      if (indexReader.numDocs() > 0) {
+        try (IndexSearcher indexSearcher=new IndexSearcher(indexReader)){
+          TopDocs topDocs=indexSearcher.search(new MatchAllDocsQuery(),indexReader.numDocs());
+          ScoreDoc[] scoreDocs=topDocs.scoreDocs;
+          for (          ScoreDoc scoreDoc : scoreDocs) {
+            Document document=indexSearcher.doc(scoreDoc.doc);
+            addDocument(document);
+          }
+        }
+ catch (        IllegalArgumentException iae) {
+          if (_log.isDebugEnabled()) {
+            _log.debug(iae.getMessage());
+          }
+        }
       }
+      indexReader.flush();
     }
- catch (    IllegalArgumentException iae) {
-      if (_log.isDebugEnabled()) {
-        _log.debug(iae.getMessage());
-      }
-    }
-    indexSearcher.close();
-  }
-  indexReader.flush();
-  indexReader.close();
-  tempDirectory.close();
-  FileUtil.deltree(tempFile);
+   }
+   FileUtil.deltree(tempFile);
 }

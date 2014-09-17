@@ -6,21 +6,21 @@
   Map<String,Writer> insertSQLWriters=new HashMap<String,Writer>();
   Map<String,StringBundler> insertSQLs=new HashMap<String,StringBundler>();
   List<String> miscSQLs=new ArrayList<String>();
-  UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(reader);
-  String s=null;
-  while ((_freemarkerException == null) && ((s=unsyncBufferedReader.readLine()) != null)) {
-    s=s.trim();
-    if (s.length() > 0) {
-      if (s.startsWith("insert into ")) {
-        compressSQL(db,dir,insertSQLWriters,insertSQLs,s.substring(12));
-      }
+  try (UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(reader)){
+    String s=null;
+    while ((_freemarkerException == null) && ((s=unsyncBufferedReader.readLine()) != null)) {
+      s=s.trim();
+      if (s.length() > 0) {
+        if (s.startsWith("insert into ")) {
+          compressSQL(db,dir,insertSQLWriters,insertSQLs,s.substring(12));
+        }
  else {
-        miscSQLs.add(s);
+          miscSQLs.add(s);
+        }
       }
     }
   }
-  unsyncBufferedReader.close();
-  if (_freemarkerException != null) {
+   if (_freemarkerException != null) {
     throw new Exception("Unable to process freemarker template ",_freemarkerException);
   }
   for (  Map.Entry<String,StringBundler> entry : insertSQLs.entrySet()) {
@@ -31,15 +31,15 @@
     }
     String insertSQL=db.buildSQL(sb.toString());
     writeToInsertSQLFile(dir,tableName,insertSQLWriters,insertSQL);
-    Writer insertSQLWriter=insertSQLWriters.remove(tableName);
-    insertSQLWriter.write(";\n");
-    insertSQLWriter.close();
+    try (Writer insertSQLWriter=insertSQLWriters.remove(tableName)){
+      insertSQLWriter.write(";\n");
+    }
+   }
+  try (Writer miscSQLWriter=new FileWriter(new File(dir,"misc.sql"))){
+    for (    String miscSQL : miscSQLs) {
+      miscSQL=db.buildSQL(miscSQL);
+      miscSQLWriter.write(miscSQL);
+      miscSQLWriter.write(StringPool.NEW_LINE);
+    }
   }
-  Writer miscSQLWriter=new FileWriter(new File(dir,"misc.sql"));
-  for (  String miscSQL : miscSQLs) {
-    miscSQL=db.buildSQL(miscSQL);
-    miscSQLWriter.write(miscSQL);
-    miscSQLWriter.write(StringPool.NEW_LINE);
-  }
-  miscSQLWriter.close();
-}
+ }
