@@ -47,48 +47,46 @@
     }
   }
   Pipe pipe=Pipe.open();
-  SourceChannel sourceChannel=pipe.source();
-  SinkChannel sinkChannel=pipe.sink();
-  sourceChannel.configureBlocking(false);
-  sinkChannel.configureBlocking(false);
-  int bufferSize=1024 * 1024 * 10;
-  ByteBuffer sendByteBuffer=ByteBuffer.allocate(bufferSize);
-  ByteBuffer receiveByteBuffer=ByteBuffer.allocate(bufferSize + 14);
-  channelContext=new ChannelContext(new LinkedList<Datagram>());
-  channelContext.setWritingDatagram(Datagram.createRequestDatagram(_type,sendByteBuffer));
-  int count=0;
-  while (!_mockIntraband.handleWriting(sinkChannel,channelContext)) {
-    count++;
-    sourceChannel.read(receiveByteBuffer);
-    Assert.assertTrue(sendByteBuffer.hasRemaining());
-  }
-  sourceChannel.read(receiveByteBuffer);
-  Assert.assertFalse(sendByteBuffer.hasRemaining());
-  Assert.assertFalse(receiveByteBuffer.hasRemaining());
-  Assert.assertTrue(count > 0);
-  sourceChannel.configureBlocking(true);
-  sinkChannel.configureBlocking(true);
-  channelContext=new ChannelContext(new LinkedList<Datagram>());
-  requestDatagram=Datagram.createRequestDatagram(_type,_data);
-  Object attachment=new Object();
-  requestDatagram.attachment=attachment;
-  recordCompletionHandler=new RecordCompletionHandler<Object>();
-  requestDatagram.completionHandler=recordCompletionHandler;
-  requestDatagram.completionTypes=EnumSet.of(CompletionType.SUBMITTED);
-  channelContext.setWritingDatagram(requestDatagram);
-  Assert.assertTrue(_mockIntraband.handleWriting(sinkChannel,channelContext));
-  recordCompletionHandler.waitUntilSubmitted();
-  Assert.assertSame(attachment,recordCompletionHandler.getAttachment());
   Queue<Datagram> sendingQueue=new LinkedList<Datagram>();
-  channelContext=new ChannelContext(sendingQueue);
-  requestDatagram=Datagram.createRequestDatagram(_type,_data);
-  requestDatagram.completionTypes=EnumSet.of(CompletionType.REPLIED);
-  channelContext.setWritingDatagram(requestDatagram);
-  Assert.assertTrue(_mockIntraband.handleWriting(sinkChannel,channelContext));
-  Assert.assertNull(requestDatagram.getDataByteBuffer());
-  String requestDatagramString=requestDatagram.toString();
-  Assert.assertTrue(requestDatagramString.contains("dataChunk=null"));
-  sourceChannel.close();
-  sinkChannel.close();
-  Assert.assertSame(sendingQueue,channelContext.getSendingQueue());
+  try (SourceChannel sourceChannel=pipe.source();SinkChannel sinkChannel=pipe.sink()){
+    sourceChannel.configureBlocking(false);
+    sinkChannel.configureBlocking(false);
+    int bufferSize=1024 * 1024 * 10;
+    ByteBuffer sendByteBuffer=ByteBuffer.allocate(bufferSize);
+    ByteBuffer receiveByteBuffer=ByteBuffer.allocate(bufferSize + 14);
+    channelContext=new ChannelContext(new LinkedList<Datagram>());
+    channelContext.setWritingDatagram(Datagram.createRequestDatagram(_type,sendByteBuffer));
+    int count=0;
+    while (!_mockIntraband.handleWriting(sinkChannel,channelContext)) {
+      count++;
+      sourceChannel.read(receiveByteBuffer);
+      Assert.assertTrue(sendByteBuffer.hasRemaining());
+    }
+    sourceChannel.read(receiveByteBuffer);
+    Assert.assertFalse(sendByteBuffer.hasRemaining());
+    Assert.assertFalse(receiveByteBuffer.hasRemaining());
+    Assert.assertTrue(count > 0);
+    sourceChannel.configureBlocking(true);
+    sinkChannel.configureBlocking(true);
+    channelContext=new ChannelContext(new LinkedList<Datagram>());
+    requestDatagram=Datagram.createRequestDatagram(_type,_data);
+    Object attachment=new Object();
+    requestDatagram.attachment=attachment;
+    recordCompletionHandler=new RecordCompletionHandler<Object>();
+    requestDatagram.completionHandler=recordCompletionHandler;
+    requestDatagram.completionTypes=EnumSet.of(CompletionType.SUBMITTED);
+    channelContext.setWritingDatagram(requestDatagram);
+    Assert.assertTrue(_mockIntraband.handleWriting(sinkChannel,channelContext));
+    recordCompletionHandler.waitUntilSubmitted();
+    Assert.assertSame(attachment,recordCompletionHandler.getAttachment());
+    channelContext=new ChannelContext(sendingQueue);
+    requestDatagram=Datagram.createRequestDatagram(_type,_data);
+    requestDatagram.completionTypes=EnumSet.of(CompletionType.REPLIED);
+    channelContext.setWritingDatagram(requestDatagram);
+    Assert.assertTrue(_mockIntraband.handleWriting(sinkChannel,channelContext));
+    Assert.assertNull(requestDatagram.getDataByteBuffer());
+    String requestDatagramString=requestDatagram.toString();
+    Assert.assertTrue(requestDatagramString.contains("dataChunk=null"));
+  }
+   Assert.assertSame(sendingQueue,channelContext.getSendingQueue());
 }
