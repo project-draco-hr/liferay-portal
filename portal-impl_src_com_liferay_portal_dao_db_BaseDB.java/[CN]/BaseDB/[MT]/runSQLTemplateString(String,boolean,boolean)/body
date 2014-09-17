@@ -10,71 +10,69 @@
   try (UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new UnsyncStringReader(template))){
     StringBundler sb=new StringBundler();
     String line=null;
-    while ((line=unsyncBufferedReader.readLine()) != null) {
-      if (!line.startsWith("##")) {
-        if (line.startsWith("@include ")) {
-          int pos=line.indexOf(" ");
-          String includeFileName=line.substring(pos + 1);
-          ClassLoader classLoader=ClassLoaderUtil.getContextClassLoader();
-          InputStream is=classLoader.getResourceAsStream("com/liferay/portal/tools/sql/dependencies/" + includeFileName);
-          if (is == null) {
-            is=classLoader.getResourceAsStream(includeFileName);
-          }
-          String include=StringUtil.read(is);
-          if (includeFileName.endsWith(".vm")) {
-            try {
-              include=evaluateVM(include);
-            }
- catch (            Exception e) {
-              _log.error(e,e);
-            }
-          }
-          include=convertTimestamp(include);
-          include=replaceTemplate(include,getTemplate());
-          runSQLTemplateString(include,false,true);
+    while (((line=unsyncBufferedReader.readLine()) != null) && !line.startsWith("##")) {
+      if (line.startsWith("@include ")) {
+        int pos=line.indexOf(" ");
+        String includeFileName=line.substring(pos + 1);
+        ClassLoader classLoader=ClassLoaderUtil.getContextClassLoader();
+        InputStream is=classLoader.getResourceAsStream("com/liferay/portal/tools/sql/dependencies/" + includeFileName);
+        if (is == null) {
+          is=classLoader.getResourceAsStream(includeFileName);
         }
+        String include=StringUtil.read(is);
+        if (includeFileName.endsWith(".vm")) {
+          try {
+            include=evaluateVM(include);
+          }
+ catch (          Exception e) {
+            _log.error(e,e);
+          }
+        }
+        include=convertTimestamp(include);
+        include=replaceTemplate(include,getTemplate());
+        runSQLTemplateString(include,false,true);
+      }
  else {
-          sb.append(line);
-          if (line.endsWith(";")) {
-            String sql=sb.toString();
-            sb.setIndex(0);
-            try {
-              if (!sql.equals("COMMIT_TRANSACTION;")) {
-                runSQL(sql);
-              }
+        sb.append(line);
+        if (line.endsWith(";")) {
+          String sql=sb.toString();
+          sb.setIndex(0);
+          try {
+            if (!sql.equals("COMMIT_TRANSACTION;")) {
+              runSQL(sql);
+            }
  else {
-                if (_log.isDebugEnabled()) {
-                  _log.debug("Skip commit sql");
-                }
+              if (_log.isDebugEnabled()) {
+                _log.debug("Skip commit sql");
               }
             }
- catch (            IOException ioe) {
-              if (failOnError) {
-                throw ioe;
-              }
- else               if (_log.isWarnEnabled()) {
-                _log.warn(ioe.getMessage());
-              }
+          }
+ catch (          IOException ioe) {
+            if (failOnError) {
+              throw ioe;
             }
-catch (            SecurityException se) {
-              if (failOnError) {
-                throw se;
-              }
- else               if (_log.isWarnEnabled()) {
-                _log.warn(se.getMessage());
-              }
+ else             if (_log.isWarnEnabled()) {
+              _log.warn(ioe.getMessage());
             }
-catch (            SQLException sqle) {
-              if (failOnError) {
-                throw sqle;
-              }
-              String message=GetterUtil.getString(sqle.getMessage());
-              if (!message.startsWith("Duplicate key name") && _log.isWarnEnabled()) {
-                _log.warn(message + ": " + buildSQL(sql));
-              }
-              if (message.startsWith("Duplicate entry") || message.startsWith("Specified key was too long")) {
-                _log.error(line);
-              }
+          }
+catch (          SecurityException se) {
+            if (failOnError) {
+              throw se;
+            }
+ else             if (_log.isWarnEnabled()) {
+              _log.warn(se.getMessage());
+            }
+          }
+catch (          SQLException sqle) {
+            if (failOnError) {
+              throw sqle;
+            }
+            String message=GetterUtil.getString(sqle.getMessage());
+            if (!message.startsWith("Duplicate key name") && _log.isWarnEnabled()) {
+              _log.warn(message + ": " + buildSQL(sql));
+            }
+            if (message.startsWith("Duplicate entry") || message.startsWith("Specified key was too long")) {
+              _log.error(line);
             }
           }
         }
