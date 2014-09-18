@@ -3,22 +3,20 @@
   if (Validator.isNull(factoryClassName)) {
     return null;
   }
-  try {
-    CacheEventListenerFactory cacheEventListenerFactory=_cacheEventListenerFactories.get(factoryClassName);
-    if (cacheEventListenerFactory == null) {
+  CacheEventListenerFactory cacheEventListenerFactory=_cacheEventListenerFactories.get(factoryClassName);
+  if (cacheEventListenerFactory == null) {
+    try {
       cacheEventListenerFactory=(CacheEventListenerFactory)InstanceFactory.newInstance(ClassLoaderUtil.getPortalClassLoader(),factoryClassName);
-      _cacheEventListenerFactories.put(factoryClassName,cacheEventListenerFactory);
     }
-    CacheEventListener cacheEventListener=cacheEventListenerFactory.createCacheEventListener(properties);
-    if (cacheEventListener instanceof net.sf.ehcache.distribution.CacheReplicator) {
-      return new EhcacheCacheReplicatorAdapter(cacheEventListener);
+ catch (    Exception e) {
+      _log.error("Unable to instantiate cache event listener factory " + factoryClassName,e);
+      return null;
     }
- else {
-      return new EhcacheCacheListenerAdapter(cacheEventListener);
-    }
+    _cacheEventListenerFactories.put(factoryClassName,cacheEventListenerFactory);
   }
- catch (  Exception e) {
-    _log.error(e,e);
+  CacheEventListener cacheEventListener=cacheEventListenerFactory.createCacheEventListener(properties);
+  if (cacheEventListener instanceof net.sf.ehcache.distribution.CacheReplicator) {
+    return new EhcacheCacheReplicatorAdapter<Serializable,Serializable>(cacheEventListener);
   }
-  return null;
+  return new EhcacheCacheListenerAdapter<Serializable,Serializable>(cacheEventListener);
 }
