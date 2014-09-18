@@ -1,0 +1,28 @@
+{
+  String factoryClassName=properties.getProperty(EhcacheConstants.CACHE_MANAGER_LISTENER_FACTORY_CLASS_NAME);
+  if (Validator.isNull(factoryClassName)) {
+    return null;
+  }
+  String portalCacheManagerName=properties.getProperty(EhcacheConstants.PORTAL_CACHE_MANAGER_NAME);
+  if (Validator.isNull(portalCacheManagerName)) {
+    return null;
+  }
+  PortalCacheManager<?,?> portalCacheManager=PortalCacheProvider.getPortalCacheManager(portalCacheManagerName);
+  if (!(portalCacheManager instanceof EhcachePortalCacheManager)) {
+    throw new IllegalArgumentException("PortalCacheManager is not a " + EhcachePortalCacheManager.class.getName());
+  }
+  EhcachePortalCacheManager<?,?> ehcachePortalCacheManager=(EhcachePortalCacheManager<?,?>)portalCacheManager;
+  try {
+    CacheManagerEventListenerFactory cacheManagerEventListenerFactory=_cacheManagerEventListenerFactories.get(factoryClassName);
+    if (cacheManagerEventListenerFactory == null) {
+      cacheManagerEventListenerFactory=(CacheManagerEventListenerFactory)InstanceFactory.newInstance(ClassLoaderUtil.getPortalClassLoader(),factoryClassName);
+      _cacheManagerEventListenerFactories.put(factoryClassName,cacheManagerEventListenerFactory);
+    }
+    CacheManagerEventListener cacheManagerEventListener=cacheManagerEventListenerFactory.createCacheManagerEventListener(ehcachePortalCacheManager.getEhcacheManager(),properties);
+    return new EhcacheCacheManagerListenerAdapter(cacheManagerEventListener);
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+  return null;
+}
