@@ -1,0 +1,42 @@
+{
+  com.thoughtworks.qdox.model.Type javaClassType=javaClass.asType();
+  if (javaClass.isEnum() && (javaClassType.equals(javaField.getType()))) {
+    return content;
+  }
+  if (!javaField.isPrivate() || javaField.isFinal()) {
+    return content;
+  }
+  StringBundler sb=new StringBundler(4);
+  sb.append("(\\b|\\.)");
+  sb.append(javaField.getName());
+  sb.append(" (=)|(\\+\\+)|(--)|(\\+=)|(-=)|(\\*=)|(/=)|(%=)");
+  sb.append("|(\\|=)|(&=)|(^=) ");
+  Pattern pattern=Pattern.compile(sb.toString());
+  for (  com.thoughtworks.qdox.model.JavaClass javaSubClass : javaClasses) {
+    for (    JavaMethod javaMethod : javaSubClass.getMethods()) {
+      if (javaMethod.isConstructor() && (javaSubClass == javaClass)) {
+        continue;
+      }
+      Matcher matcher=pattern.matcher(javaMethod.getCodeBlock());
+      if (matcher.find()) {
+        return content;
+      }
+    }
+  }
+  String[] lines=StringUtil.splitLines(content);
+  String line=lines[javaField.getLineNumber() - 1];
+  if (javaField.isStatic()) {
+    lines[javaField.getLineNumber() - 1]=StringUtil.replace(line,"private static ","private static final ");
+  }
+ else {
+    lines[javaField.getLineNumber() - 1]=StringUtil.replace(line,"private ","private final ");
+  }
+  sb=new StringBundler(2 * lines.length);
+  for (  String contentLine : lines) {
+    sb.append(contentLine);
+    sb.append(StringPool.NEW_LINE);
+  }
+  sb.setIndex(sb.index() - 1);
+  content=sb.toString();
+  return content;
+}

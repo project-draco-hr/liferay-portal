@@ -1,0 +1,29 @@
+{
+  Type type=javaField.getType();
+  String fieldTypeName=type.getFullyQualifiedName();
+  if (_immutableFieldTypes == null) {
+    _immutableFieldTypes=getImmutableFieldTypes();
+  }
+  if (!javaField.isPrivate() || !javaField.isFinal() || !_immutableFieldTypes.contains(fieldTypeName)) {
+    return content;
+  }
+  String oldName=javaField.getName();
+  if (!type.isArray() && javaField.isStatic() && !oldName.equals("serialVersionUID")) {
+    Matcher matcher=_camelCasePattern.matcher(oldName);
+    String newName=matcher.replaceAll("$1_$2");
+    newName=StringUtil.toUpperCase(newName);
+    if (newName.charAt(0) != CharPool.UNDERLINE) {
+      newName=StringPool.UNDERLINE.concat(newName);
+    }
+    content=content.replaceAll("(?<=[\\W&&[^.\"]])(" + oldName + ")\\b",newName);
+  }
+  String[] lines=StringUtil.splitLines(content);
+  String initializationExpression=StringUtil.trim(javaField.getInitializationExpression());
+  if (javaField.isStatic() || initializationExpression.isEmpty() || type.isArray()) {
+    return content;
+  }
+  String line=lines[javaField.getLineNumber() - 1];
+  String newLine=StringUtil.replace(line,"private final","private static final");
+  content=StringUtil.replace(content,line,newLine);
+  return content;
+}
