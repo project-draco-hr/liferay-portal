@@ -1,0 +1,22 @@
+{
+  System.setProperty(_THREAD_ENABLED_KEY,StringPool.FALSE);
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(AsyncBroker.class.getName(),Level.SEVERE);
+  try {
+    AsyncBroker<String,String> asyncBroker=new AsyncBroker<String,String>();
+    asyncBroker.post(_key);
+    GCUtil.gc();
+    Field field=ReflectionTestUtil.getFieldValue(AsyncBroker.class,"_REFERENT_FIELD");
+    field.setAccessible(false);
+    ReflectionTestUtil.invoke(FinalizeManager.class,"_pollingCleanup",new Class<?>[0]);
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    String message=logRecord.getMessage();
+    Assert.assertTrue(message.startsWith("Unable to access referent of "));
+    Throwable throwable=logRecord.getThrown();
+    Assert.assertSame(IllegalAccessException.class,throwable.getClass());
+  }
+  finally {
+    captureHandler.close();
+  }
+}

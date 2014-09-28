@@ -1,0 +1,30 @@
+{
+  System.setProperty(_THREAD_ENABLED_KEY,StringPool.FALSE);
+  AsyncBroker<String,String> asyncBroker=new AsyncBroker<String,String>();
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(AsyncBroker.class.getName(),Level.OFF);
+  try {
+    asyncBroker.post(_key);
+    GCUtil.gc();
+    ReflectionTestUtil.invoke(FinalizeManager.class,"_pollingCleanup",new Class<?>[0]);
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertTrue(logRecords.isEmpty());
+  }
+  finally {
+    captureHandler.close();
+  }
+  captureHandler=JDKLoggerTestUtil.configureJDKLogger(AsyncBroker.class.getName(),Level.WARNING);
+  try {
+    NoticeableFuture<String> noticeableFuture=asyncBroker.post(_key);
+    String toString=noticeableFuture.toString();
+    noticeableFuture=null;
+    GCUtil.gc();
+    ReflectionTestUtil.invoke(FinalizeManager.class,"_pollingCleanup",new Class<?>[0]);
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Assert.assertEquals("Cancelled an orphan NoticeableFuture : " + toString + " under key : "+ _key,logRecord.getMessage());
+  }
+  finally {
+    captureHandler.close();
+  }
+}
