@@ -1,39 +1,14 @@
 {
-  ServletFiltersContainer servletFiltersContainer=_servletFiltersContainerMap.get(servletContextName);
-  if (servletFiltersContainer == null) {
-    servletFiltersContainer=new ServletFiltersContainer();
-    _servletFiltersContainerMap.put(servletContextName,servletFiltersContainer);
-  }
   List<Element> servletFilterElements=parentElement.elements("servlet-filter");
   if (!servletFilterElements.isEmpty() && !checkPermission(PACLConstants.PORTAL_HOOK_PERMISSION_SERVLET_FILTERS,portletClassLoader,null,"Rejecting servlet filters")) {
     return;
   }
-  for (  Element servletFilterElement : servletFilterElements) {
-    String servletFilterName=servletFilterElement.elementText("servlet-filter-name");
-    String servletFilterImpl=servletFilterElement.elementText("servlet-filter-impl");
-    List<Element> initParamElements=servletFilterElement.elements("init-param");
-    Map<String,String> initParameterMap=new HashMap<String,String>();
-    for (    Element initParamElement : initParamElements) {
-      String paramName=initParamElement.elementText("param-name");
-      String paramValue=initParamElement.elementText("param-value");
-      initParameterMap.put(paramName,paramValue);
-    }
-    Filter filter=initServletFilter(servletFilterImpl,portletClassLoader);
-    FilterConfig filterConfig=new InvokerFilterConfig(servletContext,servletFilterName,initParameterMap);
-    filter.init(filterConfig);
-    servletFiltersContainer.registerFilter(servletFilterName,filter,filterConfig);
-  }
+  Map<String,Tuple> _filterMappings=new HashMap<String,Tuple>();
   List<Element> servletFilterMappingElements=parentElement.elements("servlet-filter-mapping");
   for (  Element servletFilterMappingElement : servletFilterMappingElements) {
     String servletFilterName=servletFilterMappingElement.elementText("servlet-filter-name");
     String afterFilter=servletFilterMappingElement.elementText("after-filter");
     String beforeFilter=servletFilterMappingElement.elementText("before-filter");
-    String positionFilterName=beforeFilter;
-    boolean after=false;
-    if (Validator.isNotNull(afterFilter)) {
-      positionFilterName=afterFilter;
-      after=true;
-    }
     List<Element> urlPatternElements=servletFilterMappingElement.elements("url-pattern");
     List<String> urlPatterns=new ArrayList<String>();
     for (    Element urlPatternElement : urlPatternElements) {
@@ -47,6 +22,26 @@
       dispatcher=StringUtil.toUpperCase(dispatcher);
       dispatchers.add(dispatcher);
     }
-    servletFiltersContainer.registerFilterMapping(servletFilterName,urlPatterns,dispatchers,positionFilterName,after);
+    _filterMappings.put(servletFilterName,new Tuple(afterFilter,beforeFilter,dispatchers,urlPatterns));
+  }
+  for (  Element servletFilterElement : servletFilterElements) {
+    String servletFilterName=servletFilterElement.elementText("servlet-filter-name");
+    String servletFilterImpl=servletFilterElement.elementText("servlet-filter-impl");
+    List<Element> initParamElements=servletFilterElement.elements("init-param");
+    Map<String,Object> properties=new HashMap<String,Object>();
+    for (    Element initParamElement : initParamElements) {
+      String paramName=initParamElement.elementText("param-name");
+      String paramValue=initParamElement.elementText("param-value");
+      properties.put("init.param." + paramName,paramValue);
+    }
+    Tuple tuple=_filterMappings.get(servletFilterName);
+    properties.put("servlet-context-name",PortalContextLoaderListener.getPortalServletContextName());
+    properties.put("servlet-filter-name",servletFilterName);
+    properties.put("after-filter",tuple.getObject(0));
+    properties.put("before-filter",tuple.getObject(1));
+    properties.put("dispatcher",tuple.getObject(2));
+    properties.put("url-pattern",tuple.getObject(3));
+    Filter filter=initServletFilter(servletFilterImpl,portletClassLoader);
+    registerService(servletContextName,servletFilterName,Filter.class,filter,properties);
   }
 }

@@ -1,0 +1,40 @@
+{
+  Registry registry=RegistryUtil.getRegistry();
+  Filter filter=registry.getService(serviceReference);
+  String afterFilter=GetterUtil.getString(serviceReference.getProperty("after-filter"));
+  String beforeFilter=GetterUtil.getString(serviceReference.getProperty("before-filter"));
+  List<String> dispatchers=StringPlus.asList(serviceReference.getProperty("dispatcher"));
+  String servletContextName=GetterUtil.getString(serviceReference.getProperty("servlet-context-name"),StringPool.BLANK);
+  String servletFilterName=GetterUtil.getString(serviceReference.getProperty("servlet-filter-name"));
+  List<String> urlPatterns=StringPlus.asList(serviceReference.getProperty("url-pattern"));
+  String positionFilterName=beforeFilter;
+  boolean after=false;
+  if (Validator.isNotNull(afterFilter)) {
+    positionFilterName=afterFilter;
+    after=true;
+  }
+  Map<String,Object> properties=serviceReference.getProperties();
+  Map<String,String> initParameterMap=new HashMap<String,String>();
+  for (  String key : properties.keySet()) {
+    if (!key.startsWith("init.param.")) {
+      continue;
+    }
+    String value=GetterUtil.getString(serviceReference.getProperty(key));
+    initParameterMap.put(key,value);
+  }
+  ServletContext servletContext=ServletContextPool.get(servletContextName);
+  FilterConfig filterConfig=new InvokerFilterConfig(servletContext,servletFilterName,initParameterMap);
+  try {
+    filter.init(filterConfig);
+  }
+ catch (  ServletException e) {
+    _log.error(e,e);
+    registry.ungetService(serviceReference);
+    return null;
+  }
+  _filterConfigs.put(servletFilterName,filterConfig);
+  registerFilter(servletFilterName,filter);
+  FilterMapping filterMapping=new FilterMapping(filter,filterConfig,urlPatterns,dispatchers);
+  registerFilterMapping(filterMapping,positionFilterName,after);
+  return filterMapping;
+}
