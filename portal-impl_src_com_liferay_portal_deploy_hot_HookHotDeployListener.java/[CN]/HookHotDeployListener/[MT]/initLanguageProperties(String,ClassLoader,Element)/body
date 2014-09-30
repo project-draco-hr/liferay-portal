@@ -1,9 +1,7 @@
 {
   List<Element> languagePropertiesElements=parentElement.elements("language-properties");
-  Map<String,Object> baseLanguageMap=null;
-  String baseLanguagePropertiesLocation=null;
+  ResourceBundle parentResourceBundle=null;
   for (  Element languagePropertiesElement : languagePropertiesElements) {
-    Properties properties=null;
     String languagePropertiesLocation=languagePropertiesElement.getText();
     Locale locale=getLocale(languagePropertiesLocation);
     if (locale != null) {
@@ -11,43 +9,32 @@
         continue;
       }
     }
+    ResourceBundle languageResourceBundle;
+    URL url;
     try {
-      URL url=portletClassLoader.getResource(languagePropertiesLocation);
+      url=portletClassLoader.getResource(languagePropertiesLocation);
       if (url == null) {
         continue;
       }
-      try (InputStream is=url.openStream()){
-        properties=PropertiesUtil.load(is,StringPool.UTF8);
-      }
-     }
+    }
  catch (    Exception e) {
       _log.error("Unable to read " + languagePropertiesLocation,e);
       continue;
     }
-    Map<String,Object> languageMap=new HashMap<String,Object>();
-    if (baseLanguageMap != null) {
-      languageMap.putAll(baseLanguageMap);
+    if (parentResourceBundle != null) {
+      languageResourceBundle=new LiferayResourceBundle(parentResourceBundle,url.openStream(),StringPool.UTF8);
     }
-    for (    Map.Entry<Object,Object> entry : properties.entrySet()) {
-      String key=(String)entry.getKey();
-      String value=(String)entry.getValue();
-      value=LanguageResources.fixValue(value);
-      languageMap.put(key,value);
+ else {
+      languageResourceBundle=new LiferayResourceBundle(url.openStream(),StringPool.UTF8);
     }
     if (locale != null) {
       String languageId=LocaleUtil.toLanguageId(locale);
-      languageMap.put("language.id",languageId);
-      registerService(servletContextName,languagePropertiesLocation,Object.class,new Object(),languageMap);
+      Properties serviceProperties=new Properties();
+      serviceProperties.put("language.id",languageId);
+      registerService(servletContextName,languagePropertiesLocation,ResourceBundle.class,languageResourceBundle,serviceProperties);
     }
- else     if (!languageMap.isEmpty()) {
-      baseLanguageMap=languageMap;
-      baseLanguagePropertiesLocation=languagePropertiesLocation;
+ else     if (languageResourceBundle != null) {
+      parentResourceBundle=languageResourceBundle;
     }
-  }
-  if (baseLanguageMap != null) {
-    Locale locale=new Locale(StringPool.BLANK);
-    String languageId=LocaleUtil.toLanguageId(locale);
-    baseLanguageMap.put("language.id",languageId);
-    registerService(servletContextName,baseLanguagePropertiesLocation,Object.class,new Object(),baseLanguageMap);
   }
 }
