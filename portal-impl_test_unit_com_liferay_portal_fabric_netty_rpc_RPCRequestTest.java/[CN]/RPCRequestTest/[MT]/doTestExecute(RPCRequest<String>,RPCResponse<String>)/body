@@ -1,0 +1,24 @@
+{
+  rpcRequest.execute(_embeddedChannel);
+  Queue<Object> messages=_embeddedChannel.outboundMessages();
+  Assert.assertEquals(1,messages.size());
+  Object message=messages.poll();
+  Assert.assertTrue(message instanceof RPCResponse);
+  Assert.assertEquals(rpcResponse.toString(),message.toString());
+  _embeddedChannel.close();
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(RPCRequest.class.getName(),Level.SEVERE);
+  try {
+    rpcRequest.execute(_embeddedChannel);
+    messages=_embeddedChannel.outboundMessages();
+    Assert.assertTrue(messages.isEmpty());
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Assert.assertEquals("Unable to send RPC response: " + rpcResponse.toString(),logRecord.getMessage());
+    Throwable throwable=logRecord.getThrown();
+    Assert.assertSame(ClosedChannelException.class,throwable.getClass());
+  }
+  finally {
+    captureHandler.close();
+  }
+}
