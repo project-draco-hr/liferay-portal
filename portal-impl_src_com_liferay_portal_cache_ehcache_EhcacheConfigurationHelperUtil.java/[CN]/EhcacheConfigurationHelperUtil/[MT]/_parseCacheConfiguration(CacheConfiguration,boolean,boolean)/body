@@ -1,0 +1,45 @@
+{
+  String portalCacheName=cacheConfiguration.getName();
+  if (portalCacheName == null) {
+    portalCacheName=PortalCacheConfiguration.DEFAULT_PORTAL_CACHE_NAME;
+  }
+  Map<CallbackConfiguration,CacheListenerScope> cacheListenerConfigurations=new HashMap<CallbackConfiguration,CacheListenerScope>();
+  List<CacheEventListenerFactoryConfiguration> cacheEventListenerConfigurations=cacheConfiguration.getCacheEventListenerConfigurations();
+  for (  CacheEventListenerFactoryConfiguration cacheEventListenerFactoryConfiguration : cacheEventListenerConfigurations) {
+    String fullyQualifiedClassPath=cacheEventListenerFactoryConfiguration.getFullyQualifiedClassPath();
+    Properties properties=_parseProperties(cacheEventListenerFactoryConfiguration.getProperties(),cacheEventListenerFactoryConfiguration.getPropertySeparator());
+    CacheListenerScope cacheListenerScope=_getCacheListenerScope(cacheEventListenerFactoryConfiguration.getListenFor());
+    if (fullyQualifiedClassPath.contains("LiferayCacheEventListenerFactory") || fullyQualifiedClassPath.contains("net.sf.ehcache.distribution")) {
+      if (clusterAware && PropsValues.CLUSTER_LINK_ENABLED) {
+        if (PropsValues.EHCACHE_CLUSTER_LINK_REPLICATION_ENABLED) {
+          cacheListenerConfigurations.put(new CallbackConfiguration(ClusterLinkCallbackFactory.INSTANCE,properties),cacheListenerScope);
+        }
+ else {
+          properties.put(EhcacheConstants.CACHE_EVENT_LISTENER_FACTORY_CLASS_NAME,cacheEventListenerFactoryConfiguration.getFullyQualifiedClassPath());
+          cacheListenerConfigurations.put(new CallbackConfiguration(EhcacheCallbackFactory.INSTANCE,properties),cacheListenerScope);
+        }
+      }
+    }
+ else     if (!usingDefault) {
+      properties.put(EhcacheConstants.CACHE_EVENT_LISTENER_FACTORY_CLASS_NAME,cacheEventListenerFactoryConfiguration.getFullyQualifiedClassPath());
+      cacheListenerConfigurations.put(new CallbackConfiguration(EhcacheCallbackFactory.INSTANCE,properties),cacheListenerScope);
+    }
+  }
+  cacheEventListenerConfigurations.clear();
+  CallbackConfiguration bootstrapLoaderConfiguration=null;
+  BootstrapCacheLoaderFactoryConfiguration bootstrapCacheLoaderFactoryConfiguration=cacheConfiguration.getBootstrapCacheLoaderFactoryConfiguration();
+  if (bootstrapCacheLoaderFactoryConfiguration != null) {
+    Properties properties=_parseProperties(bootstrapCacheLoaderFactoryConfiguration.getProperties(),bootstrapCacheLoaderFactoryConfiguration.getPropertySeparator());
+    if (clusterAware && PropsValues.CLUSTER_LINK_ENABLED) {
+      if (PropsValues.EHCACHE_CLUSTER_LINK_REPLICATION_ENABLED) {
+        bootstrapLoaderConfiguration=new CallbackConfiguration(ClusterLinkCallbackFactory.INSTANCE,properties);
+      }
+ else {
+        properties.put(EhcacheConstants.BOOTSTRAP_CACHE_LOADER_FACTORY_CLASS_NAME,bootstrapCacheLoaderFactoryConfiguration.getFullyQualifiedClassPath());
+        bootstrapLoaderConfiguration=new CallbackConfiguration(EhcacheCallbackFactory.INSTANCE,properties);
+      }
+    }
+    cacheConfiguration.addBootstrapCacheLoaderFactory(null);
+  }
+  return new PortalCacheConfiguration(portalCacheName,cacheListenerConfigurations,bootstrapLoaderConfiguration);
+}

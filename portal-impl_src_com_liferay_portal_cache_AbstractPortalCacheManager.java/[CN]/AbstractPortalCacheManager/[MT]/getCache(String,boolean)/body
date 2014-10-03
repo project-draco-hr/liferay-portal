@@ -1,0 +1,29 @@
+{
+  PortalCache<K,V> portalCache=_portalCaches.get(name);
+  if (portalCache != null) {
+    return portalCache;
+  }
+  portalCache=createPortalCache(name);
+  PortalCacheConfiguration portalCacheConfiguration=_portalCacheManagerConfiguration.getPortalCacheConfiguration(portalCache.getName());
+  if (portalCacheConfiguration == null) {
+    portalCacheConfiguration=_portalCacheManagerConfiguration.getDefaultPortalCacheConfiguration();
+  }
+  _initPortalCacheListeners(portalCache,portalCacheConfiguration);
+  if (PropsValues.TRANSACTIONAL_CACHE_ENABLED && isTransactionalPortalCache(name)) {
+    portalCache=new TransactionalPortalCache<K,V>(portalCache);
+  }
+  if (PropsValues.EHCACHE_BLOCKING_CACHE_ALLOWED && blocking) {
+    portalCache=new BlockingPortalCache<K,V>(portalCache);
+  }
+  if ((_portalCaches.putIfAbsent(name,portalCache) == null) && PropsValues.EHCACHE_BOOTSTRAP_CACHE_LOADER_ENABLED && (portalCacheConfiguration != null)) {
+    CallbackConfiguration bootstrapConfiguration=portalCacheConfiguration.getBootstrapLoaderConfiguration();
+    if (bootstrapConfiguration != null) {
+      CallbackFactory callbackFactory=bootstrapConfiguration.getCallbackFactory();
+      BootstrapLoader bootstrapLoader=callbackFactory.createBootstrapLoader(bootstrapConfiguration.getProperties());
+      if (bootstrapLoader != null) {
+        bootstrapLoader.load(getName(),name);
+      }
+    }
+  }
+  return _portalCaches.get(name);
+}
