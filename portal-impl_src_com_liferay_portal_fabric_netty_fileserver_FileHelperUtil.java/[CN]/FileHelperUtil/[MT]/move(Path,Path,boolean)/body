@@ -1,0 +1,47 @@
+{
+  final AtomicBoolean atomicMove=new AtomicBoolean(tryAtomicMove);
+  final AtomicBoolean touched=new AtomicBoolean();
+  final Map<Path,FileTime> fileTimes=new HashMap<Path,FileTime>();
+  try {
+    Files.walkFileTree(fromPath,new SimpleFileVisitor<Path>(){
+      @Override public FileVisitResult postVisitDirectory(      Path dir,      IOException ioe) throws IOException {
+        Files.setLastModifiedTime(toPath.resolve(fromPath.relativize(dir)),fileTimes.remove(dir));
+        if (atomicMove.get()) {
+          Files.delete(dir);
+        }
+        return FileVisitResult.CONTINUE;
+      }
+      @Override public FileVisitResult visitFile(      Path file,      BasicFileAttributes basicFileAttributes) throws IOException {
+        Path toFile=toPath.resolve(fromPath.relativize(file));
+        if (atomicMove.get()) {
+          try {
+            Files.move(file,toFile,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
+            touched.set(true);
+            return FileVisitResult.CONTINUE;
+          }
+ catch (          AtomicMoveNotSupportedException amnse) {
+            atomicMove.set(false);
+          }
+        }
+        Files.copy(file,toFile,StandardCopyOption.COPY_ATTRIBUTES,StandardCopyOption.REPLACE_EXISTING);
+        return FileVisitResult.CONTINUE;
+      }
+      @Override public FileVisitResult preVisitDirectory(      Path dir,      BasicFileAttributes basicFileAttributes) throws IOException {
+        Files.copy(dir,toPath.resolve(fromPath.relativize(dir)),StandardCopyOption.COPY_ATTRIBUTES,StandardCopyOption.REPLACE_EXISTING);
+        fileTimes.put(dir,Files.getLastModifiedTime(dir));
+        return FileVisitResult.CONTINUE;
+      }
+    }
+);
+  }
+ catch (  IOException ioe) {
+    delete(true,toPath);
+    if (touched.get()) {
+      throw new IOException("Source path " + fromPath + " has been left in "+ "inconsistent state.",ioe);
+    }
+    throw ioe;
+  }
+  if (!atomicMove.get()) {
+    delete(false,fromPath);
+  }
+}

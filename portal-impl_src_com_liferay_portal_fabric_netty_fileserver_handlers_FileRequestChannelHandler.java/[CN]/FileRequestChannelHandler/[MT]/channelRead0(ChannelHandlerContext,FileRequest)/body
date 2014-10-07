@@ -1,0 +1,31 @@
+{
+  Path path=fileRequest.getPath();
+  BasicFileAttributes basicFileAttributes=null;
+  try {
+    basicFileAttributes=Files.readAttributes(path,BasicFileAttributes.class);
+  }
+ catch (  NoSuchFileException nsfe) {
+    channelHandlerContext.writeAndFlush(new FileResponse(path,FileResponse.FILE_NOT_FOUND,-1,false));
+    return;
+  }
+  FileTime fileTime=basicFileAttributes.lastModifiedTime();
+  if (fileTime.toMillis() <= fileRequest.getLastModifiedTime()) {
+    channelHandlerContext.writeAndFlush(new FileResponse(path,FileResponse.FILE_NOT_MODIFIED,-1,false));
+    return;
+  }
+  FileChannel fileChannel=null;
+  if (basicFileAttributes.isDirectory()) {
+    fileChannel=FileChannel.open(FileHelperUtil.zip(path,FileHelperUtil.TEMP_DIR_PATH,_compressionLevel),StandardOpenOption.DELETE_ON_CLOSE);
+    if (fileRequest.isDeleteAfterFetch()) {
+      FileHelperUtil.delete(path);
+    }
+  }
+ else   if (fileRequest.isDeleteAfterFetch()) {
+    fileChannel=FileChannel.open(path,StandardOpenOption.DELETE_ON_CLOSE);
+  }
+ else {
+    fileChannel=FileChannel.open(path);
+  }
+  channelHandlerContext.write(new FileResponse(path,fileChannel.size(),fileTime.toMillis(),basicFileAttributes.isDirectory()));
+  channelHandlerContext.writeAndFlush(new DefaultFileRegion(fileChannel,0,fileChannel.size()));
+}

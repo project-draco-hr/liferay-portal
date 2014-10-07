@@ -1,0 +1,21 @@
+{
+  final AtomicLong rawSize=new AtomicLong();
+  try (ZipInputStream autoCloseZipInputStream=zipInputStream){
+    ZipEntry zipEntry=null;
+    while ((zipEntry=autoCloseZipInputStream.getNextEntry()) != null) {
+      if (zipEntry.isDirectory()) {
+        continue;
+      }
+      Path entryPath=destPath.resolve(zipEntry.getName());
+      Files.createDirectories(entryPath.getParent());
+      long size=Files.copy(autoCloseZipInputStream,entryPath);
+      rawSize.addAndGet(size);
+      Files.setLastModifiedTime(entryPath,FileTime.fromMillis(BigEndianCodec.getLong(zipEntry.getExtra(),0)));
+      long length=BigEndianCodec.getLong(zipEntry.getExtra(),8);
+      if (size != length) {
+        throw new IOException("Corrupted zip stream for entry " + zipEntry.getName() + ", expected size "+ length+ ", actual size "+ size);
+      }
+    }
+  }
+   return rawSize.get();
+}

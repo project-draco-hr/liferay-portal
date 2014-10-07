@@ -1,0 +1,23 @@
+{
+  final AtomicLong rawSize=new AtomicLong();
+  final byte[] buffer=new byte[16];
+  try (ZipOutputStream autoClosezipOutputStream=zipOutputStream){
+    Files.walkFileTree(sourcePath,new SimpleFileVisitor<Path>(){
+      @Override public FileVisitResult visitFile(      Path file,      BasicFileAttributes basicFileAttributes) throws IOException {
+        Path relativePath=sourcePath.relativize(file);
+        ZipEntry zipEntry=new ZipEntry(relativePath.toString());
+        FileTime fileTime=basicFileAttributes.lastModifiedTime();
+        rawSize.addAndGet(basicFileAttributes.size());
+        BigEndianCodec.putLong(buffer,0,fileTime.toMillis());
+        BigEndianCodec.putLong(buffer,8,basicFileAttributes.size());
+        zipEntry.setExtra(buffer);
+        autoClosezipOutputStream.putNextEntry(zipEntry);
+        Files.copy(file,autoClosezipOutputStream);
+        autoClosezipOutputStream.closeEntry();
+        return FileVisitResult.CONTINUE;
+      }
+    }
+);
+  }
+   return rawSize.get();
+}
