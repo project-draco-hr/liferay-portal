@@ -1,0 +1,71 @@
+{
+  MockEventLoopGroup mockEventLoopGroup=new MockEventLoopGroup();
+  ReflectionTestUtil.setFieldValue(_embeddedChannel,"eventLoop",mockEventLoopGroup.next());
+  DefaultNoticeableFuture<Object> defaultNoticeableFuture=new DefaultNoticeableFuture<Object>();
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(NettyUtil.class.getName(),Level.OFF);
+  try {
+    NettyUtil.scheduleCancellation(_embeddedChannel,defaultNoticeableFuture,Time.HOUR);
+    ScheduledFuture<?> scheduledFuture=mockEventLoopGroup.getScheduledFuture();
+    Assert.assertNotNull(scheduledFuture);
+    Assert.assertFalse(scheduledFuture.isDone());
+    defaultNoticeableFuture.set(new Object());
+    Assert.assertTrue(scheduledFuture.isDone());
+    Assert.assertTrue(scheduledFuture.isCancelled());
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertTrue(logRecords.isEmpty());
+  }
+  finally {
+    captureHandler.close();
+  }
+  defaultNoticeableFuture=new DefaultNoticeableFuture<Object>();
+  captureHandler=JDKLoggerTestUtil.configureJDKLogger(NettyUtil.class.getName(),Level.FINEST);
+  try {
+    NettyUtil.scheduleCancellation(_embeddedChannel,defaultNoticeableFuture,Time.HOUR);
+    ScheduledFuture<?> scheduledFuture=mockEventLoopGroup.getScheduledFuture();
+    Assert.assertNotNull(scheduledFuture);
+    Assert.assertFalse(scheduledFuture.isDone());
+    defaultNoticeableFuture.set(new Object());
+    Assert.assertTrue(scheduledFuture.isDone());
+    Assert.assertTrue(scheduledFuture.isCancelled());
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Assert.assertEquals("Cancelled scheduled cancellation for " + defaultNoticeableFuture,logRecord.getMessage());
+  }
+  finally {
+    captureHandler.close();
+  }
+  defaultNoticeableFuture=new DefaultNoticeableFuture<Object>();
+  captureHandler=JDKLoggerTestUtil.configureJDKLogger(NettyUtil.class.getName(),Level.OFF);
+  try {
+    NettyUtil.scheduleCancellation(_embeddedChannel,defaultNoticeableFuture,0);
+    ScheduledFuture<?> scheduledFuture=mockEventLoopGroup.getScheduledFuture();
+    Assert.assertNotNull(scheduledFuture);
+    scheduledFuture.get(1,TimeUnit.HOURS);
+    Assert.assertFalse(scheduledFuture.isCancelled());
+    Assert.assertTrue(defaultNoticeableFuture.isCancelled());
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertTrue(logRecords.isEmpty());
+  }
+  finally {
+    captureHandler.close();
+  }
+  defaultNoticeableFuture=new DefaultNoticeableFuture<Object>();
+  captureHandler=JDKLoggerTestUtil.configureJDKLogger(NettyUtil.class.getName(),Level.WARNING);
+  try {
+    NettyUtil.scheduleCancellation(_embeddedChannel,defaultNoticeableFuture,0);
+    ScheduledFuture<?> scheduledFuture=mockEventLoopGroup.getScheduledFuture();
+    Assert.assertNotNull(scheduledFuture);
+    scheduledFuture.get(1,TimeUnit.HOURS);
+    Assert.assertFalse(scheduledFuture.isCancelled());
+    Assert.assertTrue(defaultNoticeableFuture.isCancelled());
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Assert.assertEquals("Cancelled timeout " + defaultNoticeableFuture,logRecord.getMessage());
+  }
+  finally {
+    captureHandler.close();
+  }
+  mockEventLoopGroup.shutdownGracefully();
+}
