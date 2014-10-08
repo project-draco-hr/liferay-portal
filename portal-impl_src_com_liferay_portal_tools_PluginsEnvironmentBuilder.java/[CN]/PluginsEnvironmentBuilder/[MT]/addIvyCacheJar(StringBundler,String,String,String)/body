@@ -1,0 +1,65 @@
+{
+  System.out.println("Adding " + dependencyName + " "+ version);
+  if (version.equals("latest.integration")) {
+    File dir=new File(ivyDirName + "/cache/" + dependencyName);
+    File[] files=dir.listFiles();
+    Arrays.sort(files,new FileComparator());
+    for (int i=files.length - 1; i >= 0; i--) {
+      File file=files[i];
+      if (!file.isFile()) {
+        continue;
+      }
+      String fileName=file.getName();
+      if (!fileName.endsWith(".xml")) {
+        continue;
+      }
+      version=fileName.substring(4,fileName.length() - 4);
+      System.out.println("Substituting " + version + " for latest.integration");
+    }
+  }
+  String ivyFileName=ivyDirName + "/cache/" + dependencyName+ "/ivy-"+ version+ ".xml";
+  if (_fileUtil.exists(ivyFileName)) {
+    Document document=_saxReaderUtil.read(new File(ivyFileName));
+    Element rootElement=document.getRootElement();
+    Element dependenciesElement=rootElement.element("dependencies");
+    if (dependenciesElement != null) {
+      List<Element> dependencyElements=dependenciesElement.elements("dependency");
+      for (      Element dependencyElement : dependencyElements) {
+        String conf=GetterUtil.getString(dependencyElement.attributeValue("conf"));
+        if (!conf.startsWith("compile")) {
+          continue;
+        }
+        String name=GetterUtil.getString(dependencyElement.attributeValue("name"));
+        String org=GetterUtil.getString(dependencyElement.attributeValue("org"));
+        String rev=GetterUtil.getString(dependencyElement.attributeValue("rev"));
+        String string=sb.toString();
+        if (string.contains(name)) {
+          continue;
+        }
+        addIvyCacheJar(sb,ivyDirName,org + "/" + name,rev);
+      }
+    }
+  }
+  String dirName=ivyDirName + "/cache/" + dependencyName+ "/bundles";
+  if (!_fileUtil.exists(dirName)) {
+    dirName=ivyDirName + "/cache/" + dependencyName+ "/jars";
+    if (!_fileUtil.exists(dirName)) {
+      System.out.println("Unable to find jars in " + dirName);
+      return;
+    }
+  }
+  File dir=new File(dirName);
+  File[] files=dir.listFiles();
+  for (  File file : files) {
+    if (!file.isFile()) {
+      continue;
+    }
+    String fileName=file.getName();
+    if (!fileName.endsWith("-" + version + ".jar")) {
+      continue;
+    }
+    addClasspathEntry(sb,dirName + "/" + fileName);
+    return;
+  }
+  System.out.println("Unable to find jars in " + dirName + " for "+ version);
+}
