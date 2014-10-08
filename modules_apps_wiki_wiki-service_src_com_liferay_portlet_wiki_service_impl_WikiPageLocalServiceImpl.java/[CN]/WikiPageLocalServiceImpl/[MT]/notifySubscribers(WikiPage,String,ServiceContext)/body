@@ -1,0 +1,77 @@
+{
+  if (!page.isApproved() || Validator.isNull(pageURL)) {
+    return;
+  }
+  WikiSettings wikiSettings=WikiSettings.getInstance(page.getGroupId());
+  boolean update=false;
+  if (page.getVersion() > WikiPageConstants.VERSION_DEFAULT) {
+    update=true;
+  }
+  if (!update && wikiSettings.isEmailPageAddedEnabled()) {
+  }
+ else   if (update && wikiSettings.isEmailPageUpdatedEnabled()) {
+  }
+ else {
+    return;
+  }
+  String portalURL=serviceContext.getPortalURL();
+  WikiPage previousVersionPage=getPreviousVersionPage(page);
+  String attachmentURLPrefix=WikiUtil.getAttachmentURLPrefix(serviceContext.getPathMain(),serviceContext.getPlid(),page.getNodeId(),page.getTitle());
+  attachmentURLPrefix=portalURL + attachmentURLPrefix;
+  String pageDiffs=StringPool.BLANK;
+  try {
+    pageDiffs=WikiUtil.diffHtml(previousVersionPage,page,null,null,attachmentURLPrefix);
+  }
+ catch (  Exception e) {
+  }
+  String pageContent=null;
+  if (Validator.equals(page.getFormat(),"creole")) {
+    pageContent=WikiUtil.convert(page,null,null,attachmentURLPrefix);
+  }
+ else {
+    pageContent=page.getContent();
+    pageContent=WikiUtil.processContent(pageContent);
+  }
+  String pageTitle=page.getTitle();
+  String fromName=wikiSettings.getEmailFromName();
+  String fromAddress=wikiSettings.getEmailFromAddress();
+  LocalizedValuesMap subjectLocalizedValuesMap=null;
+  LocalizedValuesMap bodyLocalizedValuesMap=null;
+  if (update) {
+    subjectLocalizedValuesMap=wikiSettings.getEmailPageUpdatedSubject();
+    bodyLocalizedValuesMap=wikiSettings.getEmailPageUpdatedBody();
+  }
+ else {
+    subjectLocalizedValuesMap=wikiSettings.getEmailPageAddedSubject();
+    bodyLocalizedValuesMap=wikiSettings.getEmailPageAddedBody();
+  }
+  SubscriptionSender subscriptionSender=new SubscriptionSender();
+  subscriptionSender.setClassName(page.getModelClassName());
+  subscriptionSender.setClassPK(page.getPageId());
+  subscriptionSender.setCompanyId(page.getCompanyId());
+  subscriptionSender.setContextAttribute("[$PAGE_CONTENT$]",pageContent,false);
+  subscriptionSender.setContextAttribute("[$PAGE_DIFFS$]",DiffHtmlUtil.replaceStyles(pageDiffs),false);
+  WikiNode node=page.getNode();
+  subscriptionSender.setContextAttributes("[$DIFFS_URL$]",getDiffsURL(page,previousVersionPage,serviceContext),"[$NODE_NAME$]",node.getName(),"[$PAGE_DATE_UPDATE$]",page.getModifiedDate(),"[$PAGE_ID$]",page.getPageId(),"[$PAGE_SUMMARY$]",page.getSummary(),"[$PAGE_TITLE$]",pageTitle,"[$PAGE_URL$]",pageURL);
+  subscriptionSender.setContextUserPrefix("PAGE");
+  subscriptionSender.setEntryTitle(pageTitle);
+  subscriptionSender.setEntryURL(pageURL);
+  subscriptionSender.setFrom(fromAddress,fromName);
+  subscriptionSender.setHtmlFormat(true);
+  subscriptionSender.setLocalizedBodyMap(bodyLocalizedValuesMap);
+  subscriptionSender.setLocalizedSubjectMap(subjectLocalizedValuesMap);
+  subscriptionSender.setMailId("wiki_page",page.getNodeId(),page.getPageId());
+  int notificationType=UserNotificationDefinition.NOTIFICATION_TYPE_ADD_ENTRY;
+  if (serviceContext.isCommandUpdate()) {
+    notificationType=UserNotificationDefinition.NOTIFICATION_TYPE_UPDATE_ENTRY;
+  }
+  subscriptionSender.setNotificationType(notificationType);
+  subscriptionSender.setPortletId(WikiPortletKeys.WIKI);
+  subscriptionSender.setReplyToAddress(fromAddress);
+  subscriptionSender.setScopeGroupId(page.getGroupId());
+  subscriptionSender.setServiceContext(serviceContext);
+  subscriptionSender.setUserId(page.getUserId());
+  subscriptionSender.addPersistedSubscribers(WikiNode.class.getName(),page.getNodeId());
+  subscriptionSender.addPersistedSubscribers(WikiPage.class.getName(),page.getResourcePrimKey());
+  subscriptionSender.flushNotificationsAsync();
+}

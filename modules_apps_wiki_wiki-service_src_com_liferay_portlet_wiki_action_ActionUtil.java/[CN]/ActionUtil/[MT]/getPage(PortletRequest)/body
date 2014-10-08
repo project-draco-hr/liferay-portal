@@ -1,0 +1,47 @@
+{
+  HttpServletRequest request=PortalUtil.getHttpServletRequest(portletRequest);
+  long nodeId=ParamUtil.getLong(request,"nodeId");
+  String title=ParamUtil.getString(request,"title");
+  double version=ParamUtil.getDouble(request,"version");
+  WikiNode node=null;
+  try {
+    if (nodeId > 0) {
+      node=WikiNodeServiceUtil.getNode(nodeId);
+    }
+  }
+ catch (  NoSuchNodeException nsne) {
+  }
+  if (node == null) {
+    node=(WikiNode)request.getAttribute(WikiWebKeys.WIKI_NODE);
+    if (node != null) {
+      nodeId=node.getNodeId();
+    }
+  }
+  if (Validator.isNull(title)) {
+    title=WikiPageConstants.FRONT_PAGE;
+  }
+  WikiPage page=null;
+  try {
+    page=WikiPageServiceUtil.getPage(nodeId,title,version);
+    if (page.isDraft()) {
+      StringBundler sb=new StringBundler(7);
+      sb.append("{nodeId=");
+      sb.append(nodeId);
+      sb.append(", title=");
+      sb.append(title);
+      sb.append(", version=");
+      sb.append(version);
+      sb.append("}");
+      throw new NoSuchPageException(sb.toString());
+    }
+  }
+ catch (  NoSuchPageException nspe) {
+    if (title.equals(WikiPageConstants.FRONT_PAGE) && (version == 0)) {
+      page=getFirstVisiblePage(nodeId,portletRequest);
+    }
+ else {
+      throw nspe;
+    }
+  }
+  request.setAttribute(WikiWebKeys.WIKI_PAGE,page);
+}
