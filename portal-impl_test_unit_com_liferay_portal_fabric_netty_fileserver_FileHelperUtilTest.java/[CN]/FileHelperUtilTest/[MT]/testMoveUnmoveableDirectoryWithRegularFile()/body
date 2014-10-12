@@ -1,0 +1,62 @@
+{
+  final Path unmoveableFromDirectoryPath=Paths.get("UnmoveableDirectory");
+  Path regularFromFilePath=unmoveableFromDirectoryPath.resolve("RegularFromFile");
+  Path regularToDirectoryPath=Paths.get("RegularToDirectoryPath");
+  Path regularToFilePath=regularToDirectoryPath.resolve(unmoveableFromDirectoryPath.relativize(regularFromFilePath));
+  final Path newRegularFilePath=unmoveableFromDirectoryPath.resolve("NewRegularFile");
+  createFile(regularFromFilePath);
+  try (SwappableSecurityManager swappableSecurityManager=new SwappableSecurityManager(){
+    @Override public void checkDelete(    String file){
+      if (!file.equals(unmoveableFromDirectoryPath.toString())) {
+        return;
+      }
+      createFile(newRegularFilePath);
+    }
+  }
+){
+    swappableSecurityManager.install();
+    FileHelperUtil.move(unmoveableFromDirectoryPath,regularToDirectoryPath,false);
+    Assert.fail();
+  }
+ catch (  DirectoryNotEmptyException dnee) {
+  }
+ finally {
+    Assert.assertTrue(Files.exists(regularToFilePath));
+    Assert.assertTrue(Files.exists(regularToDirectoryPath));
+    Assert.assertTrue(Files.notExists(regularFromFilePath));
+    Assert.assertTrue(Files.exists(newRegularFilePath));
+    Assert.assertTrue(Files.exists(unmoveableFromDirectoryPath));
+    Files.delete(regularToFilePath);
+    Files.delete(regularToDirectoryPath);
+    Files.delete(newRegularFilePath);
+    Files.delete(unmoveableFromDirectoryPath);
+  }
+  createFile(regularFromFilePath);
+  try (SwappableSecurityManager swappableSecurityManager=new SwappableSecurityManager(){
+    @Override public void checkDelete(    String file){
+      if (!file.equals(unmoveableFromDirectoryPath.toString())) {
+        return;
+      }
+      createFile(newRegularFilePath);
+    }
+  }
+){
+    swappableSecurityManager.install();
+    FileHelperUtil.move(unmoveableFromDirectoryPath,regularToDirectoryPath);
+    Assert.fail();
+  }
+ catch (  IOException ioe) {
+    Assert.assertEquals("Source path " + unmoveableFromDirectoryPath + " was left in an inconsistent state",ioe.getMessage());
+    Throwable throwable=ioe.getCause();
+    Assert.assertSame(DirectoryNotEmptyException.class,throwable.getClass());
+  }
+ finally {
+    Assert.assertTrue(Files.notExists(regularToFilePath));
+    Assert.assertTrue(Files.notExists(regularToDirectoryPath));
+    Assert.assertTrue(Files.notExists(regularFromFilePath));
+    Assert.assertTrue(Files.exists(newRegularFilePath));
+    Assert.assertTrue(Files.exists(unmoveableFromDirectoryPath));
+    Files.delete(newRegularFilePath);
+    Files.delete(unmoveableFromDirectoryPath);
+  }
+}

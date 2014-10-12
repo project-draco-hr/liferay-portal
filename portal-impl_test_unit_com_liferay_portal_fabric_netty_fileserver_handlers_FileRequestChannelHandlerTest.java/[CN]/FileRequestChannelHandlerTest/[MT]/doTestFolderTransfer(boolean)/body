@@ -1,0 +1,18 @@
+{
+  Path path=FileServerTestUtil.createFolderWithFiles(Paths.get("testFolder"));
+  FileTime fileTime=Files.getLastModifiedTime(path);
+  _embeddedChannel.writeInbound(new FileRequest(path,0,deleteAfterFetch));
+  Queue<Object> queue=_embeddedChannel.outboundMessages();
+  Assert.assertEquals(2,queue.size());
+  if (deleteAfterFetch) {
+    Assert.assertTrue(Files.notExists(path));
+  }
+  FileResponse fileResponse=(FileResponse)queue.poll();
+  Assert.assertEquals(new FileResponse(path,fileResponse.getSize(),fileTime.toMillis(),true),fileResponse);
+  if (deleteAfterFetch) {
+    Assert.assertTrue(queue.poll() instanceof FileRegion);
+  }
+ else {
+    _assertZipStream(path,new UnsyncByteArrayInputStream(_readFileRegion((FileRegion)queue.poll())));
+  }
+}

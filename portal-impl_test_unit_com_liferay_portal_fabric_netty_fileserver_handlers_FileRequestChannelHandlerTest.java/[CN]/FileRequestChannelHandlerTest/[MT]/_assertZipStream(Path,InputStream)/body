@@ -1,0 +1,27 @@
+{
+  final List<Path> files=new ArrayList<Path>();
+  try (ZipInputStream zipInputStream=new ZipInputStream(inputStream)){
+    ZipEntry zipEntry=null;
+    while ((zipEntry=zipInputStream.getNextEntry()) != null) {
+      if (zipEntry.isDirectory()) {
+        continue;
+      }
+      Path expectedFile=expectedRootFolder.resolve(zipEntry.getName());
+      expectedFile=expectedFile.toAbsolutePath();
+      Assert.assertTrue("Zip entry file " + expectedFile + " does not exist",Files.exists(expectedFile));
+      FileTime fileTime=Files.getLastModifiedTime(expectedFile);
+      Assert.assertEquals("Last modified time mismatch",fileTime.toMillis(),BigEndianCodec.getLong(zipEntry.getExtra(),0));
+      Assert.assertEquals("File size mismatch",Files.size(expectedFile),BigEndianCodec.getLong(zipEntry.getExtra(),8));
+      Assert.assertArrayEquals("File content mismatch",Files.readAllBytes(expectedFile),_readInputStream(zipInputStream));
+      files.add(expectedFile);
+    }
+  }
+   Files.walkFileTree(expectedRootFolder,new SimpleFileVisitor<Path>(){
+    @Override public FileVisitResult visitFile(    Path file,    BasicFileAttributes attrs){
+      file=file.toAbsolutePath();
+      Assert.assertTrue("Miss file " + file + " from zip stream",files.contains(file));
+      return FileVisitResult.CONTINUE;
+    }
+  }
+);
+}

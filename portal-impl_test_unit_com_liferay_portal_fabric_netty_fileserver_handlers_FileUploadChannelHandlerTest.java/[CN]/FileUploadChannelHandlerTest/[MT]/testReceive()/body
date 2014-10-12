@@ -1,0 +1,29 @@
+{
+  byte[] data=FileServerTestUtil.createRandomData(20);
+  FileResponse fileResponse=new FileResponse(Paths.get("testFile"),data.length,-1,false);
+  FileUploadChannelHandler fileUploadChannelHandler=new FileUploadChannelHandler(_asyncBroker,fileResponse,_embeddedChannel.eventLoop());
+  FileServerTestUtil.registerForCleanUp(fileResponse.getLocalFile());
+  final UnsyncByteArrayOutputStream unsyncByteArrayOutputStream=new UnsyncByteArrayOutputStream();
+  ReflectionTestUtil.setFieldValue(fileUploadChannelHandler,"fileChannel",new FileChannelWrapper(fileUploadChannelHandler.fileChannel){
+    @Override public int write(    ByteBuffer byteBuffer){
+      unsyncByteArrayOutputStream.write(byteBuffer.get());
+      return 1;
+    }
+    @Override public long position(){
+      return unsyncByteArrayOutputStream.size();
+    }
+  }
+);
+  ByteBuf byteBuf=FileServerTestUtil.wrapFirstHalf(data);
+  Assert.assertEquals(1,byteBuf.refCnt());
+  Assert.assertFalse(fileUploadChannelHandler.receive(byteBuf));
+  Assert.assertEquals(0,byteBuf.refCnt());
+  byteBuf=Unpooled.buffer();
+  byteBuf.writeBytes(FileServerTestUtil.wrapSecondHalf(data));
+  byteBuf.writeBytes(data);
+  Assert.assertEquals(1,byteBuf.refCnt());
+  Assert.assertTrue(fileUploadChannelHandler.receive(byteBuf));
+  Assert.assertEquals(1,byteBuf.refCnt());
+  Assert.assertArrayEquals(data,unsyncByteArrayOutputStream.toByteArray());
+  Assert.assertEquals(Unpooled.wrappedBuffer(data),byteBuf);
+}

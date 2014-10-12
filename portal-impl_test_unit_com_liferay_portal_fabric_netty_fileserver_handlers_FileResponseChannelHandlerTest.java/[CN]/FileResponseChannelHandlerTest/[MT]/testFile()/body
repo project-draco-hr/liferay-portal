@@ -1,0 +1,21 @@
+{
+  byte[] data=FileServerTestUtil.createRandomData(1024);
+  long lastModified=FileServerTestUtil.getFileSystemTime(System.currentTimeMillis() - Time.DAY);
+  FileResponse fileResponse=new FileResponse(_path,data.length,lastModified,false);
+  NoticeableFuture<FileResponse> noticeableFuture=_asyncBroker.post(_path.toAbsolutePath());
+  _fileResponseChannelHandler.channelRead(_channelHandlerContext,fileResponse,FileServerTestUtil.wrapFirstHalf(data));
+  ChannelHandler channelHandler=_channelPipeline.first();
+  Assert.assertTrue(channelHandler instanceof FileUploadChannelHandler);
+  FileUploadChannelHandler fileUploadChannelHandler=(FileUploadChannelHandler)channelHandler;
+  _channelPipeline.fireChannelRead(FileServerTestUtil.wrapSecondHalf(data));
+  channelHandler=_channelPipeline.first();
+  Assert.assertFalse(channelHandler instanceof FileUploadChannelHandler);
+  Assert.assertSame(fileResponse,fileUploadChannelHandler.fileResponse);
+  Assert.assertSame(fileResponse,noticeableFuture.get());
+  Path localFile=fileResponse.getLocalFile();
+  Assert.assertNotNull(localFile);
+  FileTime fileTime=Files.getLastModifiedTime(localFile);
+  Assert.assertEquals(lastModified,fileTime.toMillis());
+  Assert.assertArrayEquals(data,Files.readAllBytes(localFile));
+  Files.delete(localFile);
+}

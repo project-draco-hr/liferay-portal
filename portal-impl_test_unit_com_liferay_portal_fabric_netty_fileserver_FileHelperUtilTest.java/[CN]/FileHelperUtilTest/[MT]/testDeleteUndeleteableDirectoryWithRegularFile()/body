@@ -1,0 +1,29 @@
+{
+  final Path undeleteableDirectoryPath=Paths.get("UndeleteableDirectory");
+  Path regularFilePath=undeleteableDirectoryPath.resolve("RegularFile");
+  final Path newRegularFilePath=undeleteableDirectoryPath.resolve("NewRegularFile");
+  createFile(regularFilePath);
+  try (SwappableSecurityManager swappableSecurityManager=new SwappableSecurityManager(){
+    @Override public void checkDelete(    String file){
+      if (!file.equals(undeleteableDirectoryPath.toString())) {
+        return;
+      }
+      createFile(newRegularFilePath);
+    }
+  }
+){
+    swappableSecurityManager.install();
+    FileHelperUtil.delete(true,undeleteableDirectoryPath);
+    Files.delete(newRegularFilePath);
+    createFile(regularFilePath);
+    FileHelperUtil.delete(undeleteableDirectoryPath);
+    Assert.fail();
+  }
+ catch (  Exception e) {
+    Assert.assertSame(DirectoryNotEmptyException.class,e.getClass());
+  }
+ finally {
+    Files.delete(newRegularFilePath);
+    Files.delete(undeleteableDirectoryPath);
+  }
+}

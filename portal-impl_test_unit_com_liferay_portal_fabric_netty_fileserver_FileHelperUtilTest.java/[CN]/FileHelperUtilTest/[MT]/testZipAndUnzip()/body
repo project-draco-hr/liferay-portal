@@ -1,0 +1,43 @@
+{
+  String folderName="TestFolder";
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(FileHelperUtil.class.getName(),Level.FINEST);
+  try {
+    Path folderPath=FileServerTestUtil.createFolderWithFiles(Paths.get(folderName));
+    Path zipFilePath=FileServerTestUtil.registerForCleanUp(FileHelperUtil.zip(folderPath,FileHelperUtil.TEMP_DIR_PATH,CompressionLevel.BEST_COMPRESSION));
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.remove(0);
+    String message=logRecord.getMessage();
+    Assert.assertTrue(message.startsWith("Zipped"));
+    try (FileSystem fileSystem=FileSystems.newFileSystem(zipFilePath,null)){
+      Files.createDirectory(fileSystem.getPath("EmptyFolder"));
+      FileServerTestUtil.assertFileEquals(folderPath,fileSystem.getPath("/"));
+    }
+     Path unzipFolderPath=FileServerTestUtil.registerForCleanUp(FileHelperUtil.unzip(zipFilePath,FileHelperUtil.TEMP_DIR_PATH));
+    Assert.assertEquals(1,logRecords.size());
+    logRecord=logRecords.remove(0);
+    message=logRecord.getMessage();
+    Assert.assertTrue(message.startsWith("Unzipped"));
+    FileServerTestUtil.assertFileEquals(folderPath,unzipFolderPath);
+  }
+  finally {
+    captureHandler.close();
+  }
+  captureHandler=JDKLoggerTestUtil.configureJDKLogger(FileHelperUtil.class.getName(),Level.OFF);
+  try {
+    Path folderPath=FileServerTestUtil.createFolderWithFiles(Paths.get(folderName));
+    Path zipFilePath=FileServerTestUtil.registerForCleanUp(FileHelperUtil.zip(folderPath,FileHelperUtil.TEMP_DIR_PATH,CompressionLevel.BEST_COMPRESSION));
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertTrue(logRecords.isEmpty());
+    try (FileSystem fileSystem=FileSystems.newFileSystem(zipFilePath,null)){
+      Files.createDirectory(fileSystem.getPath("EmptyFolder"));
+      FileServerTestUtil.assertFileEquals(folderPath,fileSystem.getPath("/"));
+    }
+     Path unzipFolderPath=FileServerTestUtil.registerForCleanUp(FileHelperUtil.unzip(zipFilePath,FileHelperUtil.TEMP_DIR_PATH));
+    Assert.assertTrue(logRecords.isEmpty());
+    FileServerTestUtil.assertFileEquals(folderPath,unzipFolderPath);
+  }
+  finally {
+    captureHandler.close();
+  }
+}

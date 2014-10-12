@@ -1,0 +1,23 @@
+{
+  Path corrupttedZipFilePath=FileServerTestUtil.registerForCleanUp(FileServerTestUtil.createEmptyFile(Paths.get("CorrupttedZipFile")));
+  String fileEntryName="CorrupttedFile";
+  int annotatedSize=1024;
+  int actualSize=512;
+  try (ZipOutputStream zipOutputStream=new ZipOutputStream(Files.newOutputStream(corrupttedZipFilePath))){
+    ZipEntry zipEntry=new ZipEntry(fileEntryName);
+    byte[] buffer=new byte[16];
+    BigEndianCodec.putLong(buffer,0,System.currentTimeMillis());
+    BigEndianCodec.putLong(buffer,8,annotatedSize);
+    zipEntry.setExtra(buffer);
+    zipOutputStream.putNextEntry(zipEntry);
+    zipOutputStream.write(FileServerTestUtil.createRandomData(actualSize));
+    zipOutputStream.closeEntry();
+  }
+   try {
+    FileHelperUtil.unzip(corrupttedZipFilePath,FileHelperUtil.TEMP_DIR_PATH);
+    Assert.fail();
+  }
+ catch (  IOException ioe) {
+    Assert.assertEquals("Zip stream for entry " + fileEntryName + " is "+ actualSize+ " bytes but should "+ annotatedSize+ " bytes",ioe.getMessage());
+  }
+}
