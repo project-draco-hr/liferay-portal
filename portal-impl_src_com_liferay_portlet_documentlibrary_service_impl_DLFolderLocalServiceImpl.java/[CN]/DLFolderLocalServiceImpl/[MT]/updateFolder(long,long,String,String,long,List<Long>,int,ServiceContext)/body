@@ -1,0 +1,46 @@
+{
+  boolean hasLock=hasFolderLock(serviceContext.getUserId(),folderId);
+  Lock lock=null;
+  if (!hasLock) {
+    lock=lockFolder(serviceContext.getUserId(),folderId,null,false,DLFolderImpl.LOCK_EXPIRATION_TIME);
+  }
+  try {
+    DLFolder dlFolder=null;
+    Set<Long> originalDLFileEntryTypeIds=new HashSet<Long>();
+    if (folderId > DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+      originalDLFileEntryTypeIds=getDLFileEntryTypeIds(dlFolderPersistence.getDLFileEntryTypes(folderId));
+      dlFolder=dlFolderLocalService.updateFolderAndFileEntryTypes(serviceContext.getUserId(),folderId,parentFolderId,name,description,defaultFileEntryTypeId,fileEntryTypeIds,restrictionType,serviceContext);
+      dlFileEntryTypeLocalService.cascadeFileEntryTypes(serviceContext.getUserId(),dlFolder);
+    }
+    List<ObjectValuePair<Long,String>> workflowDefinitionOVPs=new ArrayList<ObjectValuePair<Long,String>>();
+    if (restrictionType == DLFolderConstants.RESTRICTION_TYPE_FILE_ENTRY_TYPES_AND_WORKFLOW) {
+      workflowDefinitionOVPs.add(new ObjectValuePair<Long,String>(DLFileEntryTypeConstants.FILE_ENTRY_TYPE_ID_ALL,StringPool.BLANK));
+      for (      long fileEntryTypeId : fileEntryTypeIds) {
+        String workflowDefinition=ParamUtil.getString(serviceContext,"workflowDefinition" + fileEntryTypeId);
+        workflowDefinitionOVPs.add(new ObjectValuePair<Long,String>(fileEntryTypeId,workflowDefinition));
+      }
+    }
+ else     if (restrictionType == DLFolderConstants.RESTRICTION_TYPE_INHERIT) {
+      if (originalDLFileEntryTypeIds.isEmpty()) {
+        originalDLFileEntryTypeIds.add(DLFileEntryTypeConstants.FILE_ENTRY_TYPE_ID_ALL);
+      }
+      for (      long originalDLFileEntryTypeId : originalDLFileEntryTypeIds) {
+        workflowDefinitionOVPs.add(new ObjectValuePair<Long,String>(originalDLFileEntryTypeId,StringPool.BLANK));
+      }
+    }
+ else     if (restrictionType == DLFolderConstants.RESTRICTION_TYPE_WORKFLOW) {
+      String workflowDefinition=ParamUtil.getString(serviceContext,"workflowDefinition" + DLFileEntryTypeConstants.FILE_ENTRY_TYPE_ID_ALL);
+      workflowDefinitionOVPs.add(new ObjectValuePair<Long,String>(DLFileEntryTypeConstants.FILE_ENTRY_TYPE_ID_ALL,workflowDefinition));
+      for (      long originalDLFileEntryTypeId : originalDLFileEntryTypeIds) {
+        workflowDefinitionOVPs.add(new ObjectValuePair<Long,String>(originalDLFileEntryTypeId,StringPool.BLANK));
+      }
+    }
+    workflowDefinitionLinkLocalService.updateWorkflowDefinitionLinks(serviceContext.getUserId(),serviceContext.getCompanyId(),serviceContext.getScopeGroupId(),DLFolder.class.getName(),folderId,workflowDefinitionOVPs);
+    return dlFolder;
+  }
+  finally {
+    if (!hasLock) {
+      unlockFolder(folderId,lock.getUuid());
+    }
+  }
+}
