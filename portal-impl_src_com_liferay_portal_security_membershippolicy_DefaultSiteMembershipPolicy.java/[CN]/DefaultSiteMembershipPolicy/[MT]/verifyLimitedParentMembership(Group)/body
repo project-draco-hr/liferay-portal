@@ -1,17 +1,16 @@
 {
-  int count=UserLocalServiceUtil.getGroupUsersCount(group.getGroupId());
-  int pages=count / DELETE_INTERVAL;
-  int start=0;
-  for (int i=0; i <= pages; i++) {
-    int end=start + DELETE_INTERVAL;
-    List<User> users=UserLocalServiceUtil.getGroupUsers(group.getGroupId(),start,end);
-    for (    User user : users) {
-      if (!UserLocalServiceUtil.hasGroupUser(group.getParentGroupId(),user.getUserId())) {
-        UserLocalServiceUtil.unsetGroupUsers(group.getGroupId(),new long[]{user.getUserId()},null);
-      }
- else {
-        start++;
+  final List<Long> userIds=new ArrayList<Long>();
+  ActionableDynamicQuery userActionableDynamicQuery=UserLocalServiceUtil.getActionableDynamicQuery();
+  userActionableDynamicQuery.setCompanyId(group.getCompanyId());
+  userActionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod(){
+    @Override public void performAction(    Object object) throws PortalException {
+      User user=(User)object;
+      if (UserLocalServiceUtil.hasGroupUser(group.getGroupId(),user.getUserId()) && !UserLocalServiceUtil.hasGroupUser(group.getParentGroupId(),user.getUserId())) {
+        userIds.add(user.getUserId());
       }
     }
   }
+);
+  userActionableDynamicQuery.performActions();
+  UserLocalServiceUtil.unsetGroupUsers(group.getGroupId(),ArrayUtil.toArray(userIds.toArray(new Long[userIds.size()])),null);
 }
