@@ -1,0 +1,38 @@
+{
+  final DefaultNoticeableFuture<Map<Path,Path>> defaultNoticeableFuture=new DefaultNoticeableFuture<Map<Path,Path>>();
+  if (pathMap.isEmpty()) {
+    defaultNoticeableFuture.set(pathMap);
+    return defaultNoticeableFuture;
+  }
+  final Map<Path,Path> resultPathMap=new ConcurrentHashMap<Path,Path>();
+  final AtomicInteger counter=new AtomicInteger(pathMap.size());
+  for (  Map.Entry<Path,Path> entry : pathMap.entrySet()) {
+    final Path remoteFilePath=entry.getKey();
+    NoticeableFuture<Path> noticeableFuture=getFile(remoteFilePath,entry.getValue(),deleteAfterFetch);
+    noticeableFuture.addFutureListener(new FutureListener<Path>(){
+      @Override public void complete(      Future<Path> future){
+        if (future.isCancelled()) {
+          defaultNoticeableFuture.cancel(true);
+          return;
+        }
+        try {
+          Path localFilePath=future.get();
+          if (localFilePath != null) {
+            resultPathMap.put(remoteFilePath,localFilePath);
+          }
+          if (counter.decrementAndGet() <= 0) {
+            defaultNoticeableFuture.set(resultPathMap);
+          }
+        }
+ catch (        Throwable t) {
+          if (t instanceof ExecutionException) {
+            t=t.getCause();
+          }
+          defaultNoticeableFuture.setException(t);
+        }
+      }
+    }
+);
+  }
+  return defaultNoticeableFuture;
+}

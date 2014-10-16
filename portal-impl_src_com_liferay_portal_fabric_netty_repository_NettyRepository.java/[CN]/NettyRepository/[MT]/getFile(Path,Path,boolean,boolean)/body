@@ -1,0 +1,50 @@
+{
+  if (_log.isDebugEnabled()) {
+    _log.debug("Fetching remote file " + remoteFilePath);
+  }
+  final Path cachedLocalFilePath=pathMap.get(remoteFilePath);
+  final NoticeableFuture<FileResponse> noticeableFuture=asyncBroker.post(remoteFilePath);
+  NettyUtil.scheduleCancellation(channel,noticeableFuture,getFileTimeout);
+  ChannelFuture channelFuture=channel.writeAndFlush(new FileRequest(remoteFilePath,getLastModifiedTime(cachedLocalFilePath),deleteAfterFetch));
+  channelFuture.addListener(new ChannelFutureListener(){
+    @Override public void operationComplete(    ChannelFuture channelFuture){
+      if (channelFuture.isSuccess()) {
+        return;
+      }
+      if (channelFuture.isCancelled()) {
+        noticeableFuture.cancel(true);
+        return;
+      }
+      Throwable throwable=new IOException("Unable to fetch remote file " + remoteFilePath,channelFuture.cause());
+      if (!asyncBroker.takeWithException(remoteFilePath,throwable)) {
+        _log.error("Unable to place exception because no future " + "exists with ID " + remoteFilePath,throwable);
+      }
+    }
+  }
+);
+  return new NoticeableFutureConverter<Path,FileResponse>(noticeableFuture){
+    @Override protected Path convert(    FileResponse fileResponse) throws IOException {
+      if (fileResponse.isFileNotFound()) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Remote file " + remoteFilePath + " is not found");
+        }
+        return null;
+      }
+      if (fileResponse.isFileNotModified()) {
+        if (_log.isDebugEnabled()) {
+          _log.debug("Remote file " + remoteFilePath + " is not modified, use cached local file "+ cachedLocalFilePath);
+        }
+        return cachedLocalFilePath;
+      }
+      FileHelperUtil.move(fileResponse.getLocalFile(),localFilePath);
+      if (populateCache) {
+        pathMap.put(remoteFilePath,localFilePath);
+      }
+      if (_log.isDebugEnabled()) {
+        _log.debug("Fetched remote file " + remoteFilePath + " to "+ localFilePath);
+      }
+      return localFilePath;
+    }
+  }
+;
+}
