@@ -1,0 +1,139 @@
+{
+  if (Validator.isNull(line) || Validator.isNull(previousLine) || isExcluded(_fitOnSingleLineExclusions,absolutePath,lineCount)) {
+    return null;
+  }
+  String trimmedPreviousLine=StringUtil.trimLeading(previousLine);
+  if (trimmedLine.startsWith("// ") || trimmedPreviousLine.startsWith("// ")) {
+    return null;
+  }
+  if (previousLine.endsWith(" extends")) {
+    return getCombinedLinesContent(content,fileName,line,trimmedLine,lineLength,lineCount,previousLine,"extends",false,false);
+  }
+  if (previousLine.endsWith(" implements")) {
+    return getCombinedLinesContent(content,fileName,line,trimmedLine,lineLength,lineCount,previousLine,"implements ",false,false);
+  }
+  if (trimmedLine.startsWith("+ ") || trimmedLine.startsWith("- ") || trimmedLine.startsWith("|| ")|| trimmedLine.startsWith("&& ")) {
+    int pos=trimmedLine.indexOf(StringPool.SPACE);
+    String linePart=trimmedLine.substring(0,pos);
+    return getCombinedLinesContent(content,fileName,line,trimmedLine,lineLength,lineCount,previousLine,linePart,true,true);
+  }
+  int previousLineLength=getLineLength(previousLine);
+  if ((trimmedLine.length() + previousLineLength) < _MAX_LINE_LENGTH) {
+    if (trimmedPreviousLine.startsWith("for ") && previousLine.endsWith(StringPool.COLON) && line.endsWith(StringPool.OPEN_CURLY_BRACE)) {
+      return getCombinedLinesContent(content,fileName,line,trimmedLine,lineLength,lineCount,previousLine,null,false,true);
+    }
+    if ((previousLine.endsWith(StringPool.EQUAL) || previousLine.endsWith(StringPool.PERIOD) || trimmedPreviousLine.equals("return")) && line.endsWith(StringPool.SEMICOLON)) {
+      return getCombinedLinesContent(content,fileName,line,trimmedLine,lineLength,lineCount,previousLine,null,false,true);
+    }
+    if ((trimmedPreviousLine.startsWith("if ") || trimmedPreviousLine.startsWith("else ")) && (previousLine.endsWith("||") || previousLine.endsWith("&&")) && line.endsWith(StringPool.OPEN_CURLY_BRACE)) {
+      return getCombinedLinesContent(content,fileName,line,trimmedLine,lineLength,lineCount,previousLine,null,false,true);
+    }
+    if ((trimmedLine.startsWith("extends ") || trimmedLine.startsWith("implements ") || trimmedLine.startsWith("throws")) && (line.endsWith(StringPool.OPEN_CURLY_BRACE) || line.endsWith(StringPool.SEMICOLON)) && (lineTabCount == (previousLineTabCount + 1))) {
+      return getCombinedLinesContent(content,fileName,line,trimmedLine,lineLength,lineCount,previousLine,null,false,true);
+    }
+  }
+  if (previousLine.endsWith(StringPool.EQUAL) && line.endsWith(StringPool.SEMICOLON)) {
+    String tempLine=trimmedLine;
+    for (int pos=0; ; ) {
+      pos=tempLine.indexOf(StringPool.DASH);
+      if (pos == -1) {
+        pos=tempLine.indexOf(StringPool.PLUS);
+      }
+      if (pos == -1) {
+        pos=tempLine.indexOf(StringPool.SLASH);
+      }
+      if (pos == -1) {
+        pos=tempLine.indexOf(StringPool.STAR);
+      }
+      if (pos == -1) {
+        pos=tempLine.indexOf("||");
+      }
+      if (pos == -1) {
+        pos=tempLine.indexOf("&&");
+      }
+      if (pos == -1) {
+        break;
+      }
+      String linePart=tempLine.substring(0,pos);
+      int openParenthesisCount=StringUtil.count(linePart,StringPool.OPEN_PARENTHESIS);
+      int closeParenthesisCount=StringUtil.count(linePart,StringPool.CLOSE_PARENTHESIS);
+      if (openParenthesisCount == closeParenthesisCount) {
+        return null;
+      }
+      tempLine=tempLine.substring(0,pos) + tempLine.substring(pos + 1);
+    }
+    int x=trimmedLine.indexOf(StringPool.OPEN_PARENTHESIS);
+    if (x == 0) {
+      x=trimmedLine.indexOf(StringPool.OPEN_PARENTHESIS,1);
+    }
+    if (x != -1) {
+      int y=trimmedLine.indexOf(StringPool.CLOSE_PARENTHESIS,x);
+      int z=trimmedLine.indexOf(StringPool.QUOTE);
+      if (((x + 1) != y) && ((z == -1) || (z > x))) {
+        char previousChar=trimmedLine.charAt(x - 1);
+        if ((previousChar != CharPool.CLOSE_PARENTHESIS) && (previousChar != CharPool.OPEN_PARENTHESIS) && (previousChar != CharPool.SPACE)&& (previousLineLength + 1 + x) < _MAX_LINE_LENGTH) {
+          String linePart=trimmedLine.substring(0,x + 1);
+          if (linePart.startsWith(StringPool.OPEN_PARENTHESIS) && !linePart.contains(StringPool.CLOSE_PARENTHESIS)) {
+            return null;
+          }
+          return getCombinedLinesContent(content,fileName,line,trimmedLine,lineLength,lineCount,previousLine,linePart,true,true);
+        }
+      }
+    }
+  }
+  if (previousLine.endsWith(StringPool.COMMA) && (previousLineTabCount == lineTabCount) && !previousLine.contains(StringPool.CLOSE_CURLY_BRACE)&& !line.endsWith(StringPool.OPEN_CURLY_BRACE)) {
+    int x=trimmedLine.indexOf(StringPool.COMMA);
+    if (x != -1) {
+      while ((previousLineLength + 1 + x) < _MAX_LINE_LENGTH) {
+        String linePart=trimmedLine.substring(0,x + 1);
+        if (isValidJavaParameter(linePart)) {
+          if (trimmedLine.equals(linePart)) {
+            return getCombinedLinesContent(content,fileName,line,trimmedLine,lineLength,lineCount,previousLine,null,false,true);
+          }
+ else {
+            return getCombinedLinesContent(content,fileName,line,trimmedLine,lineLength,lineCount,previousLine,linePart + StringPool.SPACE,true,true);
+          }
+        }
+        String partAfterComma=trimmedLine.substring(x + 1);
+        int pos=partAfterComma.indexOf(StringPool.COMMA);
+        if (pos == -1) {
+          break;
+        }
+        x=x + pos + 1;
+      }
+    }
+ else     if (!line.endsWith(StringPool.OPEN_PARENTHESIS) && !line.endsWith(StringPool.PLUS) && !line.endsWith(StringPool.PERIOD)&& (!trimmedLine.startsWith("new ") || !line.endsWith(StringPool.OPEN_CURLY_BRACE))&& ((trimmedLine.length() + previousLineLength) < _MAX_LINE_LENGTH)) {
+      return getCombinedLinesContent(content,fileName,line,trimmedLine,lineLength,lineCount,previousLine,null,false,true);
+    }
+  }
+  if (!previousLine.endsWith(StringPool.OPEN_PARENTHESIS)) {
+    return null;
+  }
+  if (StringUtil.count(previousLine,StringPool.OPEN_PARENTHESIS) > 1) {
+    int pos=trimmedPreviousLine.lastIndexOf(StringPool.OPEN_PARENTHESIS,trimmedPreviousLine.length() - 2);
+    if ((pos > 0) && Character.isLetterOrDigit(trimmedPreviousLine.charAt(pos - 1))) {
+      String filePart=trimmedPreviousLine.substring(pos + 1);
+      if (!filePart.contains(StringPool.CLOSE_PARENTHESIS) && !filePart.contains(StringPool.QUOTE)) {
+        return getCombinedLinesContent(content,fileName,line,trimmedLine,lineLength,lineCount,previousLine,filePart,false,false);
+      }
+    }
+  }
+  if ((trimmedLine.length() + previousLineLength) > _MAX_LINE_LENGTH) {
+    return null;
+  }
+  if (line.endsWith(StringPool.SEMICOLON)) {
+    return getCombinedLinesContent(content,fileName,line,trimmedLine,lineLength,lineCount,previousLine,null,false,false);
+  }
+  if (line.endsWith(StringPool.COMMA)) {
+    String strippedQuotesLine=stripQuotes(trimmedLine,CharPool.QUOTE);
+    int openParenthesisCount=StringUtil.count(strippedQuotesLine,StringPool.OPEN_PARENTHESIS);
+    int closeParenthesisCount=StringUtil.count(strippedQuotesLine,StringPool.CLOSE_PARENTHESIS);
+    if (closeParenthesisCount > openParenthesisCount) {
+      return getCombinedLinesContent(content,fileName,line,trimmedLine,lineLength,lineCount,previousLine,null,false,false);
+    }
+  }
+  if (((line.endsWith(StringPool.OPEN_CURLY_BRACE) && !trimmedLine.startsWith("new ")) || line.endsWith(StringPool.CLOSE_PARENTHESIS)) && (trimmedPreviousLine.startsWith("else ") || trimmedPreviousLine.startsWith("if ") || trimmedPreviousLine.startsWith("private ")|| trimmedPreviousLine.startsWith("protected ")|| trimmedPreviousLine.startsWith("public "))) {
+    return getCombinedLinesContent(content,fileName,line,trimmedLine,lineLength,lineCount,previousLine,null,false,false);
+  }
+  return null;
+}
