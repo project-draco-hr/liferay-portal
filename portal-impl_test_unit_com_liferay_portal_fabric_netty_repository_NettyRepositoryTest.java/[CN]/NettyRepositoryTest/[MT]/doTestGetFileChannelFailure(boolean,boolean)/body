@@ -1,0 +1,50 @@
+{
+  final Exception exception=new Exception();
+  final Path remoteFilePath=Paths.get("remoteFile");
+  _channelPipeline.addLast(new ChannelOutboundHandlerAdapter(){
+    @Override public void write(    ChannelHandlerContext channelHandlerContext,    Object message,    ChannelPromise channelPromise){
+      if (asyncBrokerFailure) {
+        _asyncBroker.takeWithException(remoteFilePath,exception);
+      }
+      channelPromise.setFailure(exception);
+    }
+  }
+);
+  CaptureHandler captureHandler=null;
+  if (logging) {
+    captureHandler=JDKLoggerTestUtil.configureJDKLogger(NettyRepository.class.getName(),Level.ALL);
+  }
+ else {
+    captureHandler=JDKLoggerTestUtil.configureJDKLogger(NettyRepository.class.getName(),Level.OFF);
+  }
+  try {
+    NoticeableFuture<Path> noticeableFuture=_nettyRepository.getFile(remoteFilePath,Paths.get("localFile"),false,false);
+    try {
+      noticeableFuture.get();
+    }
+ catch (    ExecutionException ee) {
+      Throwable throwable=ee.getCause();
+      if (!asyncBrokerFailure) {
+        Assert.assertEquals("Unable to fetch remote file " + remoteFilePath,throwable.getMessage());
+        throwable=throwable.getCause();
+      }
+      Assert.assertSame(exception,throwable);
+    }
+    if (logging) {
+      List<LogRecord> logRecords=captureHandler.getLogRecords();
+      LogRecord logRecord=logRecords.remove(0);
+      Assert.assertEquals("Fetching remote file " + remoteFilePath,logRecord.getMessage());
+      if (asyncBrokerFailure) {
+        logRecord=logRecords.remove(0);
+        Assert.assertEquals("Unable to place exception because no future exists " + "with ID " + remoteFilePath,logRecord.getMessage());
+        Throwable throwable=logRecord.getThrown();
+        Assert.assertEquals("Unable to fetch remote file " + remoteFilePath,throwable.getMessage());
+        Assert.assertSame(exception,throwable.getCause());
+      }
+      Assert.assertTrue(logRecords.isEmpty());
+    }
+  }
+  finally {
+    captureHandler.close();
+  }
+}

@@ -1,0 +1,30 @@
+{
+  Path remoteFilePath=Paths.get("remoteFile");
+  Path tempFilePath=FileServerTestUtil.createFileWithData(Paths.get("tempFile"));
+  Map<Path,Path> pathMap=_nettyRepository.pathMap;
+  FileServerTestUtil.createFileWithData(tempFilePath);
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(NettyRepository.class.getName(),Level.OFF);
+  try {
+    NoticeableFuture<Path> noticeableFuture=_nettyRepository.getFile(remoteFilePath,null,false);
+    FileResponse fileResponse=new FileResponse(remoteFilePath,System.currentTimeMillis(),0,false);
+    fileResponse.setLocalFile(tempFilePath);
+    _asyncBroker.takeWithResult(remoteFilePath,fileResponse);
+    Path localFilePath=noticeableFuture.get();
+    Assert.assertNotNull(localFilePath);
+    Assert.assertTrue(Files.notExists(tempFilePath));
+    Assert.assertTrue(Files.exists(localFilePath));
+    Assert.assertEquals(1,pathMap.size());
+    Assert.assertSame(localFilePath,pathMap.get(remoteFilePath));
+    _nettyRepository.dispose(false);
+    Assert.assertTrue(Files.notExists(localFilePath));
+    Assert.assertTrue(pathMap.isEmpty());
+    Assert.assertTrue(Files.exists(_repositoryPath));
+    _nettyRepository.dispose(true);
+    Assert.assertTrue(Files.notExists(_repositoryPath));
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertTrue(logRecords.isEmpty());
+  }
+  finally {
+    captureHandler.close();
+  }
+}
