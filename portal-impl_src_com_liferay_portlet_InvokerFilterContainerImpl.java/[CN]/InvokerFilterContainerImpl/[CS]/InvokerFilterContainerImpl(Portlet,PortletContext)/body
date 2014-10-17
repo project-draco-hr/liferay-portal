@@ -1,40 +1,22 @@
 {
   String rootPortletId=portlet.getRootPortletId();
-  String filterString="(javax.portlet.name=" + rootPortletId + ")";
-  Map<String,Object> properties=new HashMap<String,Object>();
-  properties.put("javax.portlet.name",rootPortletId);
-  _actionFilters=ServiceTrackerCollections.list(ActionFilter.class,filterString,new PortletFilterServiceTrackerCustomizer<ActionFilter>(portletContext),properties);
-  _eventFilters=ServiceTrackerCollections.list(EventFilter.class,filterString,new PortletFilterServiceTrackerCustomizer<EventFilter>(portletContext),properties);
-  _renderFilters=ServiceTrackerCollections.list(RenderFilter.class,filterString,new PortletFilterServiceTrackerCustomizer<RenderFilter>(portletContext),properties);
-  _resourceFilters=ServiceTrackerCollections.list(ResourceFilter.class,filterString,new PortletFilterServiceTrackerCustomizer<ResourceFilter>(portletContext),properties);
+  Registry registry=RegistryUtil.getRegistry();
+  Filter filter=registry.getFilter("(&(javax.portlet.name=" + rootPortletId + ")(objectClass="+ PortletFilter.class+ "))");
+  ServiceTracker<PortletFilter,PortletFilter> _serviceTracker=registry.trackServices(filter,new PortletFilterServiceTrackerCustomizer(portletContext));
+  _serviceTracker.open();
   PortletApp portletApp=portlet.getPortletApp();
   PortletContextBag portletContextBag=PortletContextBagPool.get(portletApp.getServletContextName());
   if (portletApp.isWARFile() && (portletContextBag == null)) {
     return;
   }
-  properties=new HashMap<String,Object>();
+  Map<String,Object> properties=new HashMap<String,Object>();
   properties.put("javax.portlet.name",rootPortletId);
   properties.put(_PRE_INITIALIZED_FILTER,Boolean.TRUE);
-  Registry registry=RegistryUtil.getRegistry();
   Map<String,com.liferay.portal.model.PortletFilter> portletFilters=portlet.getPortletFilters();
   for (  Map.Entry<String,com.liferay.portal.model.PortletFilter> entry : portletFilters.entrySet()) {
     com.liferay.portal.model.PortletFilter portletFilterModel=entry.getValue();
     PortletFilter portletFilter=PortletFilterFactory.create(portletFilterModel,portletContext);
-    Set<String> lifecycles=portletFilterModel.getLifecycles();
-    List<String> lifecycleInterfaces=new ArrayList<>();
-    if (lifecycles.contains(PortletRequest.ACTION_PHASE)) {
-      lifecycleInterfaces.add(ActionFilter.class.getName());
-    }
-    if (lifecycles.contains(PortletRequest.EVENT_PHASE)) {
-      lifecycleInterfaces.add(EventFilter.class.getName());
-    }
-    if (lifecycles.contains(PortletRequest.RENDER_PHASE)) {
-      lifecycleInterfaces.add(RenderFilter.class.getName());
-    }
-    if (lifecycles.contains(PortletRequest.RESOURCE_PHASE)) {
-      lifecycleInterfaces.add(ResourceFilter.class.getName());
-    }
-    ServiceRegistration<PortletFilter> serviceRegistration=registry.registerService(lifecycleInterfaces.toArray(new String[0]),portletFilter,properties);
+    ServiceRegistration<PortletFilter> serviceRegistration=registry.registerService(PortletFilter.class,portletFilter,properties);
     _portletFilterRegistrations.add(serviceRegistration);
   }
   ClassLoader classLoader=ClassLoaderUtil.getContextClassLoader();
@@ -43,20 +25,7 @@
     for (    String portletFilterClassName : PropsValues.PORTLET_FILTERS_SYSTEM) {
       com.liferay.portal.model.PortletFilter portletFilterModel=new PortletFilterImpl(portletFilterClassName,portletFilterClassName,Collections.<String>emptySet(),Collections.<String,String>emptyMap(),portletApp);
       PortletFilter portletFilter=PortletFilterFactory.create(portletFilterModel,portletContext);
-      List<String> lifecycleInterfaces=new ArrayList<>();
-      if (portletFilter instanceof ActionFilter) {
-        lifecycleInterfaces.add(ActionFilter.class.getName());
-      }
-      if (portletFilter instanceof EventFilter) {
-        lifecycleInterfaces.add(EventFilter.class.getName());
-      }
-      if (portletFilter instanceof RenderFilter) {
-        lifecycleInterfaces.add(RenderFilter.class.getName());
-      }
-      if (portletFilter instanceof ResourceFilter) {
-        lifecycleInterfaces.add(ResourceFilter.class.getName());
-      }
-      ServiceRegistration<PortletFilter> serviceRegistration=registry.registerService(lifecycleInterfaces.toArray(new String[0]),portletFilter,properties);
+      ServiceRegistration<PortletFilter> serviceRegistration=registry.registerService(PortletFilter.class,portletFilter,properties);
       _portletFilterRegistrations.add(serviceRegistration);
     }
   }
