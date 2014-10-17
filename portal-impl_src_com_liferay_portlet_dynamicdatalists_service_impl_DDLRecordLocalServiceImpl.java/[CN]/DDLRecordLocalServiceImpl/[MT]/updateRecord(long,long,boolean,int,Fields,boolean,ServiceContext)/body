@@ -1,29 +1,11 @@
 {
-  User user=userPersistence.findByPrimaryKey(userId);
   DDLRecord record=ddlRecordPersistence.findByPrimaryKey(recordId);
-  record.setModifiedDate(serviceContext.getModifiedDate(null));
-  ddlRecordPersistence.update(record);
+  DDLRecordSet recordSet=record.getRecordSet();
   DDLRecordVersion recordVersion=record.getLatestRecordVersion();
-  if (recordVersion.isApproved()) {
-    DDLRecordSet recordSet=record.getRecordSet();
-    if (mergeFields) {
-      Fields existingFields=StorageEngineUtil.getFields(recordVersion.getDDMStorageId());
-      fields=DDMUtil.mergeFields(fields,existingFields);
-    }
-    long ddmStorageId=StorageEngineUtil.create(recordSet.getCompanyId(),recordSet.getDDMStructureId(),fields,serviceContext);
-    String version=getNextVersion(recordVersion.getVersion(),majorVersion,serviceContext.getWorkflowAction());
-    recordVersion=addRecordVersion(user,record,ddmStorageId,version,displayIndex,WorkflowConstants.STATUS_DRAFT);
+  if (mergeFields) {
+    Fields existingFields=StorageEngineUtil.getFields(recordVersion.getDDMStorageId());
+    fields=DDMUtil.mergeFields(fields,existingFields);
   }
- else {
-    StorageEngineUtil.update(recordVersion.getDDMStorageId(),fields,mergeFields,serviceContext);
-    String version=recordVersion.getVersion();
-    updateRecordVersion(user,recordVersion,version,displayIndex,recordVersion.getStatus(),serviceContext);
-  }
-  if (isKeepRecordVersionLabel(record.getRecordVersion(),recordVersion,serviceContext)) {
-    ddlRecordVersionPersistence.remove(recordVersion);
-    StorageEngineUtil.deleteByClass(recordVersion.getDDMStorageId());
-    return record;
-  }
-  WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),record.getGroupId(),userId,DDLRecord.class.getName(),recordVersion.getRecordVersionId(),recordVersion,serviceContext);
-  return record;
+  DDMFormValues ddmFormValues=FieldsToDDMFormValuesConverterUtil.convert(recordSet.getDDMStructure(),fields);
+  return ddlRecordLocalService.updateRecord(userId,recordId,majorVersion,displayIndex,ddmFormValues,serviceContext);
 }

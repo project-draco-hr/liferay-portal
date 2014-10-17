@@ -1,0 +1,27 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  Date now=new Date();
+  DDLRecordSet recordSet=ddlRecordSetPersistence.findByPrimaryKey(recordSetId);
+  long recordId=counterLocalService.increment();
+  DDLRecord record=ddlRecordPersistence.create(recordId);
+  record.setUuid(serviceContext.getUuid());
+  record.setGroupId(groupId);
+  record.setCompanyId(user.getCompanyId());
+  record.setUserId(user.getUserId());
+  record.setUserName(user.getFullName());
+  record.setVersionUserId(user.getUserId());
+  record.setVersionUserName(user.getFullName());
+  record.setCreateDate(serviceContext.getCreateDate(now));
+  record.setModifiedDate(serviceContext.getModifiedDate(now));
+  long ddmStorageId=StorageEngineUtil.create(recordSet.getCompanyId(),recordSet.getDDMStructureId(),ddmFormValues,serviceContext);
+  record.setDDMStorageId(ddmStorageId);
+  record.setRecordSetId(recordSetId);
+  record.setVersion(DDLRecordConstants.VERSION_DEFAULT);
+  record.setDisplayIndex(displayIndex);
+  ddlRecordPersistence.update(record);
+  DDLRecordVersion recordVersion=addRecordVersion(user,record,ddmStorageId,DDLRecordConstants.VERSION_DEFAULT,displayIndex,WorkflowConstants.STATUS_DRAFT);
+  Locale locale=serviceContext.getLocale();
+  updateAsset(userId,record,recordVersion,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames(),locale);
+  WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),groupId,userId,DDLRecord.class.getName(),recordVersion.getRecordVersionId(),recordVersion,serviceContext);
+  return record;
+}
