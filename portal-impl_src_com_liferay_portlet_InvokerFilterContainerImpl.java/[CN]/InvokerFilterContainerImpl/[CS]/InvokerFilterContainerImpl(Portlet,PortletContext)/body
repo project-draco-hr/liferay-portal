@@ -1,2 +1,56 @@
 {
+  String filterString="(javax.portlet.name=" + _portletId + ")";
+  Map<String,Object> properties=new HashMap<String,Object>();
+  properties.put("javax.portlet.name",_portletId);
+  _actionFilters=ServiceTrackerCollections.list(ActionFilter.class,filterString,new PortletFilterServiceTrackerCustomizer<ActionFilter>(_liferayPortletContext),properties);
+  _eventFilters=ServiceTrackerCollections.list(EventFilter.class,filterString,new PortletFilterServiceTrackerCustomizer<EventFilter>(_liferayPortletContext),properties);
+  _renderFilters=ServiceTrackerCollections.list(RenderFilter.class,filterString,new PortletFilterServiceTrackerCustomizer<RenderFilter>(_liferayPortletContext),properties);
+  _resourceFilters=ServiceTrackerCollections.list(ResourceFilter.class,filterString,new PortletFilterServiceTrackerCustomizer<ResourceFilter>(_liferayPortletContext),properties);
+  PortletApp portletApp=_portletModel.getPortletApp();
+  PortletContextBag portletContextBag=PortletContextBagPool.get(portletApp.getServletContextName());
+  if (portletApp.isWARFile() && (portletContextBag == null)) {
+    return;
+  }
+  Map<String,com.liferay.portal.model.PortletFilter> portletFilters=_portletModel.getPortletFilters();
+  for (  Map.Entry<String,com.liferay.portal.model.PortletFilter> entry : portletFilters.entrySet()) {
+    com.liferay.portal.model.PortletFilter portletFilterModel=entry.getValue();
+    PortletFilter portletFilter=PortletFilterFactory.create(portletFilterModel,_liferayPortletContext);
+    Set<String> lifecycles=portletFilterModel.getLifecycles();
+    if (lifecycles.contains(PortletRequest.ACTION_PHASE)) {
+      _actionFilters.add((ActionFilter)portletFilter);
+    }
+    if (lifecycles.contains(PortletRequest.EVENT_PHASE)) {
+      _eventFilters.add((EventFilter)portletFilter);
+    }
+    if (lifecycles.contains(PortletRequest.RENDER_PHASE)) {
+      _renderFilters.add((RenderFilter)portletFilter);
+    }
+    if (lifecycles.contains(PortletRequest.RESOURCE_PHASE)) {
+      _resourceFilters.add((ResourceFilter)portletFilter);
+    }
+  }
+  ClassLoader classLoader=ClassLoaderUtil.getContextClassLoader();
+  try {
+    ClassLoaderUtil.setContextClassLoader(ClassLoaderUtil.getPortalClassLoader());
+    for (    String portletFilterClassName : PropsValues.PORTLET_FILTERS_SYSTEM) {
+      com.liferay.portal.model.PortletFilter portletFilterModel=new PortletFilterImpl(portletFilterClassName,portletFilterClassName,Collections.<String>emptySet(),Collections.<String,String>emptyMap(),portletApp);
+      PortletFilter portletFilter=PortletFilterFactory.create(portletFilterModel,_liferayPortletContext);
+      _systemPortletFilters.add(portletFilter);
+      if (portletFilter instanceof ActionFilter) {
+        _actionFilters.add((ActionFilter)portletFilter);
+      }
+      if (portletFilter instanceof EventFilter) {
+        _eventFilters.add((EventFilter)portletFilter);
+      }
+      if (portletFilter instanceof RenderFilter) {
+        _renderFilters.add((RenderFilter)portletFilter);
+      }
+      if (portletFilter instanceof ResourceFilter) {
+        _resourceFilters.add((ResourceFilter)portletFilter);
+      }
+    }
+  }
+  finally {
+    ClassLoaderUtil.setContextClassLoader(classLoader);
+  }
 }
