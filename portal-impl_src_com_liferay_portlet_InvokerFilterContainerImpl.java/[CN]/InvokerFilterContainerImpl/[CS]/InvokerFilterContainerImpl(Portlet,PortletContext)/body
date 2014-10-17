@@ -12,23 +12,27 @@
   if (portletApp.isWARFile() && (portletContextBag == null)) {
     return;
   }
+  Registry registry=RegistryUtil.getRegistry();
   Map<String,com.liferay.portal.model.PortletFilter> portletFilters=portlet.getPortletFilters();
   for (  Map.Entry<String,com.liferay.portal.model.PortletFilter> entry : portletFilters.entrySet()) {
     com.liferay.portal.model.PortletFilter portletFilterModel=entry.getValue();
     PortletFilter portletFilter=PortletFilterFactory.create(portletFilterModel,portletContext);
     Set<String> lifecycles=portletFilterModel.getLifecycles();
+    List<String> lifecycleInterfaces=new ArrayList<>();
     if (lifecycles.contains(PortletRequest.ACTION_PHASE)) {
-      _actionFilters.add((ActionFilter)portletFilter);
+      lifecycleInterfaces.add(ActionFilter.class.getName());
     }
     if (lifecycles.contains(PortletRequest.EVENT_PHASE)) {
-      _eventFilters.add((EventFilter)portletFilter);
+      lifecycleInterfaces.add(EventFilter.class.getName());
     }
     if (lifecycles.contains(PortletRequest.RENDER_PHASE)) {
-      _renderFilters.add((RenderFilter)portletFilter);
+      lifecycleInterfaces.add(RenderFilter.class.getName());
     }
     if (lifecycles.contains(PortletRequest.RESOURCE_PHASE)) {
-      _resourceFilters.add((ResourceFilter)portletFilter);
+      lifecycleInterfaces.add(ResourceFilter.class.getName());
     }
+    ServiceRegistration<PortletFilter> serviceRegistration=registry.registerService(lifecycleInterfaces.toArray(new String[0]),portletFilter,properties);
+    _portletFilterRegistrations.add(serviceRegistration);
   }
   ClassLoader classLoader=ClassLoaderUtil.getContextClassLoader();
   try {
@@ -36,19 +40,21 @@
     for (    String portletFilterClassName : PropsValues.PORTLET_FILTERS_SYSTEM) {
       com.liferay.portal.model.PortletFilter portletFilterModel=new PortletFilterImpl(portletFilterClassName,portletFilterClassName,Collections.<String>emptySet(),Collections.<String,String>emptyMap(),portletApp);
       PortletFilter portletFilter=PortletFilterFactory.create(portletFilterModel,portletContext);
-      _systemPortletFilters.add(portletFilter);
+      List<String> lifecycleInterfaces=new ArrayList<>();
       if (portletFilter instanceof ActionFilter) {
-        _actionFilters.add((ActionFilter)portletFilter);
+        lifecycleInterfaces.add(ActionFilter.class.getName());
       }
       if (portletFilter instanceof EventFilter) {
-        _eventFilters.add((EventFilter)portletFilter);
+        lifecycleInterfaces.add(EventFilter.class.getName());
       }
       if (portletFilter instanceof RenderFilter) {
-        _renderFilters.add((RenderFilter)portletFilter);
+        lifecycleInterfaces.add(RenderFilter.class.getName());
       }
       if (portletFilter instanceof ResourceFilter) {
-        _resourceFilters.add((ResourceFilter)portletFilter);
+        lifecycleInterfaces.add(ResourceFilter.class.getName());
       }
+      ServiceRegistration<PortletFilter> serviceRegistration=registry.registerService(lifecycleInterfaces.toArray(new String[0]),portletFilter,properties);
+      _portletFilterRegistrations.add(serviceRegistration);
     }
   }
   finally {
