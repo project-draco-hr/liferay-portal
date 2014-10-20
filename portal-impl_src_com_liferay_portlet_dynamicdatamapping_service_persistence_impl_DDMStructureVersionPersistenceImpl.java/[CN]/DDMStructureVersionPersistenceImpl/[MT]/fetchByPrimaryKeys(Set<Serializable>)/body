@@ -1,0 +1,60 @@
+{
+  if (primaryKeys.isEmpty()) {
+    return Collections.emptyMap();
+  }
+  Map<Serializable,DDMStructureVersion> map=new HashMap<Serializable,DDMStructureVersion>();
+  if (primaryKeys.size() == 1) {
+    Iterator<Serializable> iterator=primaryKeys.iterator();
+    Serializable primaryKey=iterator.next();
+    DDMStructureVersion ddmStructureVersion=fetchByPrimaryKey(primaryKey);
+    if (ddmStructureVersion != null) {
+      map.put(primaryKey,ddmStructureVersion);
+    }
+    return map;
+  }
+  Set<Serializable> uncachedPrimaryKeys=null;
+  for (  Serializable primaryKey : primaryKeys) {
+    DDMStructureVersion ddmStructureVersion=(DDMStructureVersion)EntityCacheUtil.getResult(DDMStructureVersionModelImpl.ENTITY_CACHE_ENABLED,DDMStructureVersionImpl.class,primaryKey);
+    if (ddmStructureVersion == null) {
+      if (uncachedPrimaryKeys == null) {
+        uncachedPrimaryKeys=new HashSet<Serializable>();
+      }
+      uncachedPrimaryKeys.add(primaryKey);
+    }
+ else {
+      map.put(primaryKey,ddmStructureVersion);
+    }
+  }
+  if (uncachedPrimaryKeys == null) {
+    return map;
+  }
+  StringBundler query=new StringBundler((uncachedPrimaryKeys.size() * 2) + 1);
+  query.append(_SQL_SELECT_DDMSTRUCTUREVERSION_WHERE_PKS_IN);
+  for (  Serializable primaryKey : uncachedPrimaryKeys) {
+    query.append(String.valueOf(primaryKey));
+    query.append(StringPool.COMMA);
+  }
+  query.setIndex(query.index() - 1);
+  query.append(StringPool.CLOSE_PARENTHESIS);
+  String sql=query.toString();
+  Session session=null;
+  try {
+    session=openSession();
+    Query q=session.createQuery(sql);
+    for (    DDMStructureVersion ddmStructureVersion : (List<DDMStructureVersion>)q.list()) {
+      map.put(ddmStructureVersion.getPrimaryKeyObj(),ddmStructureVersion);
+      cacheResult(ddmStructureVersion);
+      uncachedPrimaryKeys.remove(ddmStructureVersion.getPrimaryKeyObj());
+    }
+    for (    Serializable primaryKey : uncachedPrimaryKeys) {
+      EntityCacheUtil.putResult(DDMStructureVersionModelImpl.ENTITY_CACHE_ENABLED,DDMStructureVersionImpl.class,primaryKey,_nullDDMStructureVersion);
+    }
+  }
+ catch (  Exception e) {
+    throw processException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+  return map;
+}
