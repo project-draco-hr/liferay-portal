@@ -1,4 +1,6 @@
 {
+  Assert.assertNull(_mvccPortalCache.get(_KEY_1));
+  Assert.assertNull(_mvccPortalCache.get(_KEY_2));
   MemoryPortalCacheAdvice.block();
   Thread thread1=new Thread(){
     @Override public void run(){
@@ -20,13 +22,17 @@
   thread1.join();
   thread2.join();
   _assertVersion(_VERSION_1,_mvccPortalCache.get(_KEY_1));
-  _testCacheListener.assertPut(_KEY_1,new MockMVCCModel(_VERSION_1));
+  Assert.assertNull(_mvccPortalCache.get(_KEY_2));
   _testCacheListener.assertActionsCount(1);
+  _testCacheListener.assertPut(_KEY_1,new MockMVCCModel(_VERSION_1));
   _testCacheListener.reset();
+  _testCacheReplicator.assertActionsCount(1);
+  _testCacheReplicator.assertPut(_KEY_1,new MockMVCCModel(_VERSION_1));
+  _testCacheReplicator.reset();
   MemoryPortalCacheAdvice.block();
   thread1=new Thread(){
     @Override public void run(){
-      _mvccPortalCache.put(_KEY_1,new MockMVCCModel(_VERSION_2));
+      PortalCacheHelperUtil.putWithoutReplicator(_mvccPortalCache,_KEY_1,new MockMVCCModel(_VERSION_2));
     }
   }
 ;
@@ -34,7 +40,7 @@
   MemoryPortalCacheAdvice.waitUntilBlock(1);
   thread2=new Thread(){
     @Override public void run(){
-      _mvccPortalCache.put(_KEY_1,new MockMVCCModel(_VERSION_2));
+      PortalCacheHelperUtil.putWithoutReplicator(_mvccPortalCache,_KEY_1,new MockMVCCModel(_VERSION_2));
     }
   }
 ;
@@ -44,16 +50,9 @@
   thread1.join();
   thread2.join();
   _assertVersion(_VERSION_2,_mvccPortalCache.get(_KEY_1));
-  _testCacheListener.assertUpdated(_KEY_1,new MockMVCCModel(_VERSION_2));
+  Assert.assertNull(_mvccPortalCache.get(_KEY_2));
   _testCacheListener.assertActionsCount(1);
+  _testCacheListener.assertUpdated(_KEY_1,new MockMVCCModel(_VERSION_2));
   _testCacheListener.reset();
-  MemoryPortalCacheAdvice.setException();
-  try {
-    _mvccPortalCache.put(_KEY_2,new MockMVCCModel(_VERSION_1));
-    Assert.fail();
-  }
- catch (  Exception e) {
-    Assert.assertNull(_mvccPortalCache.get(_KEY_2));
-    _testCacheListener.assertActionsCount(0);
-  }
+  _testCacheReplicator.assertActionsCount(0);
 }
