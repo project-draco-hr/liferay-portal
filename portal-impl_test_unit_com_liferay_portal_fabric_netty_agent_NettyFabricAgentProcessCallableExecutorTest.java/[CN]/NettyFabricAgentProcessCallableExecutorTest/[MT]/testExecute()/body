@@ -1,0 +1,31 @@
+{
+  EmbeddedChannel embeddedChannel=NettyTestUtil.createEmptyEmbeddedChannel();
+  ChannelPipeline channelPipeline=embeddedChannel.pipeline();
+  channelPipeline.addFirst(NettyRPCChannelHandler.NAME,NettyRPCChannelHandler.INSTANCE);
+  ProcessCallableExecutor processCallableExecutor=new NettyFabricAgentProcessCallableExecutor(embeddedChannel);
+  NoticeableFuture<Serializable> noticeableFuture=processCallableExecutor.execute(new ProcessCallable<Serializable>(){
+    @Override public Serializable call(){
+      return StringPool.BLANK;
+    }
+  }
+);
+  embeddedChannel.writeInbound(embeddedChannel.readOutbound());
+  embeddedChannel.writeInbound(embeddedChannel.readOutbound());
+  Assert.assertEquals(StringPool.BLANK,noticeableFuture.get());
+  final ProcessException processException=new ProcessException("");
+  noticeableFuture=processCallableExecutor.execute(new ProcessCallable<Serializable>(){
+    @Override public Serializable call() throws ProcessException {
+      throw processException;
+    }
+  }
+);
+  embeddedChannel.writeInbound(embeddedChannel.readOutbound());
+  embeddedChannel.writeInbound(embeddedChannel.readOutbound());
+  try {
+    noticeableFuture.get();
+    Assert.fail();
+  }
+ catch (  ExecutionException ee) {
+    Assert.assertSame(processException,ee.getCause());
+  }
+}
