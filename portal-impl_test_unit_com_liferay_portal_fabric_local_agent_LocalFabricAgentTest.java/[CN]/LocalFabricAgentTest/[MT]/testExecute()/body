@@ -1,0 +1,37 @@
+{
+  FabricAgent fabricAgent=new LocalFabricAgent(new EmbeddedProcessExecutor());
+  Collection<? extends FabricWorker<?>> fabricWorkers=fabricAgent.getFabricWorkers();
+  Assert.assertTrue(fabricWorkers.isEmpty());
+  final String result="Test result";
+  FabricWorker<String> fabricWorker=fabricAgent.execute(null,new ProcessCallable<String>(){
+    @Override public String call(){
+      return result;
+    }
+  }
+);
+  Assert.assertEquals(1,fabricWorkers.size());
+  Assert.assertTrue(fabricWorkers.contains(fabricWorker));
+  DefaultNoticeableFuture<String> defaultNoticeableFuture=(DefaultNoticeableFuture<String>)fabricWorker.getProcessNoticeableFuture();
+  defaultNoticeableFuture.run();
+  Assert.assertEquals(result,defaultNoticeableFuture.get());
+  Assert.assertTrue(fabricWorkers.isEmpty());
+  final ProcessException processException=new ProcessException("Test exception");
+  fabricWorker=fabricAgent.execute(null,new ProcessCallable<String>(){
+    @Override public String call() throws ProcessException {
+      throw processException;
+    }
+  }
+);
+  Assert.assertEquals(1,fabricWorkers.size());
+  Assert.assertTrue(fabricWorkers.contains(fabricWorker));
+  defaultNoticeableFuture=(DefaultNoticeableFuture<String>)fabricWorker.getProcessNoticeableFuture();
+  defaultNoticeableFuture.run();
+  try {
+    defaultNoticeableFuture.get();
+    Assert.fail();
+  }
+ catch (  ExecutionException ee) {
+    Assert.assertSame(processException,ee.getCause());
+  }
+  Assert.assertTrue(fabricWorkers.isEmpty());
+}
