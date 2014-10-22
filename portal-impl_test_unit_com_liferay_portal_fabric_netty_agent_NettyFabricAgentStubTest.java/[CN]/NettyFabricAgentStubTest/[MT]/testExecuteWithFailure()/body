@@ -1,0 +1,28 @@
+{
+  final Throwable throwable=new Throwable();
+  ChannelPipeline channelPipeline=_embeddedChannel.pipeline();
+  channelPipeline.addFirst(new ChannelOutboundHandlerAdapter(){
+    @Override public void write(    ChannelHandlerContext channelHandlerContext,    Object object,    ChannelPromise channelPromise){
+      channelPromise.setFailure(throwable);
+    }
+  }
+);
+  try {
+    NettyFabricAgentStub nettyFabricAgentStub=new NettyFabricAgentStub(_embeddedChannel,new MockRepository(),Paths.get("RepositoryPath"),0);
+    Builder builder=new Builder();
+    FabricWorker<String> fabricWorker=nettyFabricAgentStub.execute(builder.build(),new ReturnProcessCallable<String>("Test result"));
+    NoticeableFuture<String> noticeableFuture=fabricWorker.getProcessNoticeableFuture();
+    try {
+      noticeableFuture.get();
+      Assert.fail();
+    }
+ catch (    ExecutionException ee) {
+      Assert.assertSame(throwable,ee.getCause());
+    }
+    Collection<? extends FabricWorker<?>> fabricWorkers=nettyFabricAgentStub.getFabricWorkers();
+    Assert.assertTrue(fabricWorkers.isEmpty());
+  }
+  finally {
+    channelPipeline.removeFirst();
+  }
+}
