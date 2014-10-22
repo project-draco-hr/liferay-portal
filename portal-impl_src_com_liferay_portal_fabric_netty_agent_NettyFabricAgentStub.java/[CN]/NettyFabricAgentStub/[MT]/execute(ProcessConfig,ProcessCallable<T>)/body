@@ -1,0 +1,42 @@
+{
+  final long id=_idGenerator.getAndIncrement();
+  FabricResourceMappingVisitor fabricResourceMappingVisitor=new FabricResourceMappingVisitor(OutputResource.class,_remoteRepositoryPath);
+  ObjectGraphUtil.walkObjectGraph(processCallable,fabricResourceMappingVisitor);
+  NettyFabricWorkerStub<T> nettyFabricWorkerStub=new NettyFabricWorkerStub<T>(id,_channel,_repository,fabricResourceMappingVisitor.getResourceMap(),_rpcRelayTimeout);
+  final DefaultNoticeableFuture<Object> startupNoticeableFuture=new DefaultNoticeableFuture<Object>();
+  _startupNoticeableFutures.put(id,startupNoticeableFuture);
+  startupNoticeableFuture.addFutureListener(new FutureListener<Object>(){
+    @Override public void complete(    Future<Object> future){
+      _startupNoticeableFutures.remove(id);
+    }
+  }
+);
+  ChannelFuture channelFuture=_channel.writeAndFlush(new NettyFabricWorkerConfig<T>(id,processConfig,processCallable));
+  channelFuture.addListener(new ChannelFutureListener(){
+    @Override public void operationComplete(    ChannelFuture channelFuture){
+      if (channelFuture.isSuccess()) {
+        return;
+      }
+      if (channelFuture.isCancelled()) {
+        startupNoticeableFuture.cancel(true);
+        return;
+      }
+      startupNoticeableFuture.setException(channelFuture.cause());
+    }
+  }
+);
+  try {
+    startupNoticeableFuture.get();
+    _nettyFabricWorkerStubs.put(id,nettyFabricWorkerStub);
+  }
+ catch (  CancellationException ce) {
+    nettyFabricWorkerStub.setCancel();
+  }
+catch (  Throwable t) {
+    if (t instanceof ExecutionException) {
+      t=t.getCause();
+    }
+    nettyFabricWorkerStub.setException(t);
+  }
+  return nettyFabricWorkerStub;
+}
