@@ -1,10 +1,10 @@
 {
-  Path targetFilePath=Paths.get(syncWatchEvent.getFilePathName());
+  final Path targetFilePath=Paths.get(syncWatchEvent.getFilePathName());
   if (Files.notExists(targetFilePath)) {
     return true;
   }
   Path parentTargetFilePath=targetFilePath.getParent();
-  SyncFile parentSyncFile=SyncFileService.fetchSyncFile(parentTargetFilePath.toString());
+  final SyncFile parentSyncFile=SyncFileService.fetchSyncFile(parentTargetFilePath.toString());
   if ((parentSyncFile == null) || (parentSyncFile.getState() == SyncFile.STATE_ERROR)) {
     return true;
   }
@@ -16,7 +16,18 @@
     syncFile=SyncFileService.fetchSyncFileByFileKey(FileUtil.getFileKey(targetFilePath),_syncAccountId);
   }
   if (syncFile == null) {
-    SyncFileService.addFileSyncFile(targetFilePath,parentSyncFile.getTypePK(),parentSyncFile.getRepositoryId(),_syncAccountId);
+    Runnable runnable=new Runnable(){
+      @Override public void run(){
+        try {
+          SyncFileService.addFileSyncFile(targetFilePath,parentSyncFile.getTypePK(),parentSyncFile.getRepositoryId(),_syncAccountId);
+        }
+ catch (        Exception e) {
+          _logger.error(e.getMessage(),e);
+        }
+      }
+    }
+;
+    _executorService.execute(runnable);
     return true;
   }
   Path sourceFilePath=Paths.get(syncFile.getFilePathName());
