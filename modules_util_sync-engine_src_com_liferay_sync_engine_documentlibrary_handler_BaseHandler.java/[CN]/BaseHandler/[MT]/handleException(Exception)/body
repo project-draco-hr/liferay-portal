@@ -1,29 +1,27 @@
 {
   SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(getSyncAccountId());
+  if (!RetryUtil.retryInProgress(getSyncAccountId()) && _logger.isDebugEnabled()) {
+    _logger.debug("Handling exception {}",e.toString());
+  }
   if (e instanceof FileNotFoundException) {
     SyncFile syncFile=(SyncFile)getParameterValue("syncFile");
     if (syncFile.getVersion() == null) {
       SyncFileService.deleteSyncFile(syncFile);
     }
   }
- else   if ((e instanceof HttpHostConnectException) || (e instanceof NoHttpResponseException) || (e instanceof SocketException)) {
-    syncAccount.setState(SyncAccount.STATE_DISCONNECTED);
-    syncAccount.setUiEvent(SyncAccount.UI_EVENT_CONNECTION_EXCEPTION);
-    SyncAccountService.update(syncAccount);
-    retryServerConnection();
+ else   if ((e instanceof HttpHostConnectException) || (e instanceof NoHttpResponseException) || (e instanceof SocketException)|| (e instanceof UnknownHostException)) {
+    retryServerConnection(SyncAccount.UI_EVENT_CONNECTION_EXCEPTION);
   }
  else   if (e instanceof HttpResponseException) {
-    syncAccount.setState(SyncAccount.STATE_DISCONNECTED);
     HttpResponseException hre=(HttpResponseException)e;
     int statusCode=hre.getStatusCode();
     if (statusCode == HttpStatus.SC_UNAUTHORIZED) {
+      syncAccount.setState(SyncAccount.STATE_DISCONNECTED);
       syncAccount.setUiEvent(SyncAccount.UI_EVENT_AUTHENTICATION_EXCEPTION);
       SyncAccountService.update(syncAccount);
     }
  else {
-      syncAccount.setUiEvent(SyncAccount.UI_EVENT_CONNECTION_EXCEPTION);
-      SyncAccountService.update(syncAccount);
-      retryServerConnection();
+      retryServerConnection(SyncAccount.UI_EVENT_CONNECTION_EXCEPTION);
     }
   }
  else {
