@@ -1,0 +1,19 @@
+{
+  Throwable throwable=future.cause();
+  if (throwable != null) {
+    sendResult(_channel,_nettyFabricWorkerConfig.getId(),null,throwable);
+    return;
+  }
+  FabricWorker<Serializable> fabricWorker=future.get();
+  NettyChannelAttributes.putFabricWorker(_channel,_nettyFabricWorkerConfig.getId(),fabricWorker);
+  NoticeableFuture<Serializable> noticeableFuture=RPCUtil.execute(_channel,new SyncProcessRPCCallable<Serializable>(new FabricAgentFinishStartupProcessCallable(_nettyFabricWorkerConfig.getId())));
+  NettyUtil.scheduleCancellation(_channel,noticeableFuture,_executionTimeout);
+  noticeableFuture.addFutureListener(new BaseFutureListener<Serializable>(){
+    @Override public void completeWithException(    Future<Serializable> future,    Throwable throwable){
+      _log.error("Unable to finish fabric worker startup",throwable);
+    }
+  }
+);
+  NoticeableFuture<Serializable> processNoticeableFuture=fabricWorker.getProcessNoticeableFuture();
+  processNoticeableFuture.addFutureListener(new PostFabricWorkerFinishFutureListener(_channel,_nettyFabricWorkerConfig,_loadedResources));
+}

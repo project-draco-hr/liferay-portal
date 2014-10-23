@@ -1,0 +1,45 @@
+{
+  Map<Path,Path> mergedResources=new HashMap<Path,Path>();
+  ProcessConfig processConfig=nettyFabricWorkerConfig.getProcessConfig();
+  final Map<Path,Path> bootstrapResources=new LinkedHashMap<Path,Path>();
+  for (  String pathString : StringUtil.split(processConfig.getBootstrapClassPath(),File.pathSeparatorChar)) {
+    bootstrapResources.put(Paths.get(pathString),null);
+  }
+  mergedResources.putAll(bootstrapResources);
+  final Map<Path,Path> runtimeResources=new LinkedHashMap<Path,Path>();
+  for (  String pathString : StringUtil.split(processConfig.getRuntimeClassPath(),File.pathSeparatorChar)) {
+    runtimeResources.put(Paths.get(pathString),null);
+  }
+  mergedResources.putAll(runtimeResources);
+  FabricResourceMappingVisitor fabricResourceMappingVisitor=new FabricResourceMappingVisitor(InputResource.class,_repository.getRepositoryPath());
+  ObjectGraphUtil.walkObjectGraph(nettyFabricWorkerConfig.getProcessCallable(),fabricResourceMappingVisitor);
+  final Map<Path,Path> inputResources=fabricResourceMappingVisitor.getResourceMap();
+  mergedResources.putAll(inputResources);
+  return new NoticeableFutureConverter<LoadedResources,Map<Path,Path>>(_repository.getFiles(mergedResources,false)){
+    @Override protected LoadedResources convert(    Map<Path,Path> mergedResources){
+      Map<Path,Path> loadedInputResources=new HashMap<Path,Path>();
+      for (      Path path : inputResources.keySet()) {
+        Path loadedInputResource=mergedResources.get(path);
+        if (loadedInputResource != null) {
+          loadedInputResources.put(path,loadedInputResource);
+        }
+      }
+      List<Path> loadedBootstrapResources=new ArrayList<Path>();
+      for (      Path path : bootstrapResources.keySet()) {
+        Path loadedBootstrapResource=mergedResources.get(path);
+        if (loadedBootstrapResource != null) {
+          loadedBootstrapResources.add(loadedBootstrapResource);
+        }
+      }
+      List<Path> loadedRuntimeResources=new ArrayList<Path>();
+      for (      Path path : runtimeResources.keySet()) {
+        Path loadedRuntimeResource=mergedResources.get(path);
+        if (loadedRuntimeResource != null) {
+          loadedRuntimeResources.add(loadedRuntimeResource);
+        }
+      }
+      return new LoadedResources(loadedInputResources,StringUtil.merge(loadedBootstrapResources,File.pathSeparator),StringUtil.merge(loadedRuntimeResources,File.pathSeparator));
+    }
+  }
+;
+}
