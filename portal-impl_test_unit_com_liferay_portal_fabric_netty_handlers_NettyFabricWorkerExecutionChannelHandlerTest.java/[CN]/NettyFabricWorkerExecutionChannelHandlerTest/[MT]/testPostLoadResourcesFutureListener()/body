@@ -1,0 +1,32 @@
+{
+  ChannelPipeline channelPipeline=_embeddedChannel.pipeline();
+  NettyFabricWorkerExecutionChannelHandler nettyFabricWorkerExecutionChannelHandler=new NettyFabricWorkerExecutionChannelHandler(new MockRepository(),new EmbeddedProcessExecutor(),Long.MAX_VALUE);
+  channelPipeline.addLast(nettyFabricWorkerExecutionChannelHandler);
+  ChannelHandlerContext channelHandlerContext=channelPipeline.lastContext();
+  PostLoadResourcesFutureListener postLoadResourcesFutureListener=nettyFabricWorkerExecutionChannelHandler.new PostLoadResourcesFutureListener(channelHandlerContext,createNettyFabricWorkerConfig());
+  DefaultNoticeableFuture<LoadedResources> defaultNoticeableFuture=new DefaultNoticeableFuture<LoadedResources>();
+  Throwable throwable=new Throwable();
+  defaultNoticeableFuture.setException(throwable);
+  installNettyFabricAgentStub();
+  NettyFabricWorkerStub<Serializable> nettyFabricWorkerStub=installNettyFabricWorkerStub();
+  NoticeableFuture<Serializable> noticeableFuture=nettyFabricWorkerStub.getProcessNoticeableFuture();
+  defaultNoticeableFuture.addFutureListener(postLoadResourcesFutureListener);
+  invokeRPC();
+  try {
+    noticeableFuture.get();
+    Assert.fail();
+  }
+ catch (  ExecutionException ee) {
+    Assert.assertSame(throwable,ee.getCause());
+  }
+  defaultNoticeableFuture=new DefaultNoticeableFuture<LoadedResources>();
+  defaultNoticeableFuture.set(new LoadedResources(Collections.<Path,Path>emptyMap(),null,null));
+  nettyFabricWorkerStub=installNettyFabricWorkerStub();
+  noticeableFuture=nettyFabricWorkerStub.getProcessNoticeableFuture();
+  defaultNoticeableFuture.addFutureListener(postLoadResourcesFutureListener);
+  _embeddedChannel.runPendingTasks();
+  FabricAgent fabricAgent=ReflectionTestUtil.getFieldValue(nettyFabricWorkerExecutionChannelHandler,"_fabricAgent");
+  Collection<? extends FabricWorker<?>> fabricWorkers=fabricAgent.getFabricWorkers();
+  Assert.assertEquals(1,fabricWorkers.size());
+  Assert.assertFalse(noticeableFuture.isDone());
+}

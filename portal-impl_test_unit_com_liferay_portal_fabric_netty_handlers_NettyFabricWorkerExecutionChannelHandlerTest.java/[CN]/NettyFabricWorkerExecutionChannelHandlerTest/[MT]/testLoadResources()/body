@@ -1,0 +1,52 @@
+{
+  final Map<Path,Path> mergedResources=new HashMap<Path,Path>();
+  final Path inputResource1=getAbsolutePath("inputResources1");
+  Path mappedInputResource1=getAbsolutePath("mappedInputResource1");
+  final Path inputResource2=getAbsolutePath("inputResources2");
+  mergedResources.put(inputResource1,mappedInputResource1);
+  Path bootstrapResource1=getAbsolutePath("bootstrapResource1");
+  Path mappedBootstrapResource1=getAbsolutePath("mappedBootstrapResource1");
+  Path bootstrapResource2=getAbsolutePath("bootstrapResource2");
+  Path bootstrapResource3=getAbsolutePath("bootstrapResource3");
+  Path mappedBootstrapResource3=getAbsolutePath("mappedBootstrapResource3");
+  mergedResources.put(bootstrapResource1,mappedBootstrapResource1);
+  mergedResources.put(bootstrapResource3,mappedBootstrapResource3);
+  Path runtimeResource1=getAbsolutePath("runtimeResource1");
+  Path mappedRuntimeResource1=getAbsolutePath("mappedRuntimeResource1");
+  Path runtimeResource2=getAbsolutePath("runtimeResource2");
+  Path runtimeResource3=getAbsolutePath("runtimeResource3");
+  Path mappedRuntimeResource3=getAbsolutePath("mappedRuntimeResource3");
+  mergedResources.put(runtimeResource1,mappedRuntimeResource1);
+  mergedResources.put(runtimeResource3,mappedRuntimeResource3);
+  NettyFabricWorkerExecutionChannelHandler nettyFabricWorkerExecutionChannelHandler=new NettyFabricWorkerExecutionChannelHandler(new MockRepository(){
+    @Override public NoticeableFuture<Map<Path,Path>> getFiles(    Map<Path,Path> pathMap,    boolean deleteAfterFetch){
+      DefaultNoticeableFuture<Map<Path,Path>> defaultNoticeableFuture=new DefaultNoticeableFuture<Map<Path,Path>>();
+      defaultNoticeableFuture.set(mergedResources);
+      return defaultNoticeableFuture;
+    }
+    @Override public Path getRepositoryPath(){
+      return getAbsolutePath("repository");
+    }
+  }
+,new EmbeddedProcessExecutor(),0);
+  Builder builder=new Builder();
+  builder.setBootstrapClassPath(bootstrapResource1 + File.pathSeparator + bootstrapResource2+ File.pathSeparator+ bootstrapResource3);
+  builder.setRuntimeClassPath(runtimeResource1 + File.pathSeparator + runtimeResource2+ File.pathSeparator+ runtimeResource3);
+  ProcessConfig processConfig=builder.build();
+  ProcessCallable<Serializable> processCallable=new ProcessCallable<Serializable>(){
+    @Override public Serializable call(){
+      return null;
+    }
+    @InputResource private final File _inputFile1=inputResource1.toFile();
+    @InputResource private final File _inputFile2=inputResource2.toFile();
+  }
+;
+  NoticeableFuture<LoadedResources> noticeableFuture=nettyFabricWorkerExecutionChannelHandler.loadResources(new NettyFabricWorkerConfig<Serializable>(0,processConfig,processCallable));
+  LoadedResources loadedResources=noticeableFuture.get();
+  Map<Path,Path> loadedInputResources=loadedResources.getInputResources();
+  Assert.assertEquals(1,loadedInputResources.size());
+  Assert.assertEquals(mappedInputResource1,loadedInputResources.get(inputResource1));
+  processConfig=loadedResources.toProcessConfig(processConfig);
+  Assert.assertEquals(mappedBootstrapResource1 + File.pathSeparator + mappedBootstrapResource3,processConfig.getBootstrapClassPath());
+  Assert.assertEquals(mappedRuntimeResource1 + File.pathSeparator + mappedRuntimeResource3,processConfig.getRuntimeClassPath());
+}

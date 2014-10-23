@@ -1,0 +1,46 @@
+{
+  NettyFabricWorkerExecutionChannelHandler nettyFabricWorkerExecutionChannelHandler=new NettyFabricWorkerExecutionChannelHandler(new MockRepository(),new EmbeddedProcessExecutor(),Long.MAX_VALUE);
+  PostFabricWorkerExecutionFutureListener postFabricWorkerExecutionFutureListener=nettyFabricWorkerExecutionChannelHandler.new PostFabricWorkerExecutionFutureListener(_embeddedChannel,null,createNettyFabricWorkerConfig());
+  DefaultPromise<FabricWorker<Serializable>> defaultPromise=new DefaultPromise<FabricWorker<Serializable>>(_embeddedChannel.eventLoop());
+  Throwable throwable=new Throwable();
+  defaultPromise.setFailure(throwable);
+  installNettyFabricAgentStub();
+  NettyFabricWorkerStub<Serializable> nettyFabricWorkerStub=installNettyFabricWorkerStub();
+  NoticeableFuture<Serializable> noticeableFuture=nettyFabricWorkerStub.getProcessNoticeableFuture();
+  defaultPromise.addListener(postFabricWorkerExecutionFutureListener);
+  invokeRPC();
+  try {
+    noticeableFuture.get();
+    Assert.fail();
+  }
+ catch (  ExecutionException ee) {
+    Assert.assertEquals(throwable,ee.getCause());
+  }
+  _embeddedChannel.close();
+  postFabricWorkerExecutionFutureListener=nettyFabricWorkerExecutionChannelHandler.new PostFabricWorkerExecutionFutureListener(_embeddedChannel,null,createNettyFabricWorkerConfig());
+  defaultPromise=new DefaultPromise<FabricWorker<Serializable>>(_embeddedChannel.eventLoop());
+  DefaultNoticeableFuture<Serializable> processNoticeableFuture=new DefaultNoticeableFuture<Serializable>();
+  FabricWorker<Serializable> fabricWorker=new LocalFabricWorker<Serializable>(new EmbeddedProcessChannel<Serializable>(processNoticeableFuture));
+  defaultPromise.setSuccess(fabricWorker);
+  nettyFabricWorkerStub=installNettyFabricWorkerStub();
+  noticeableFuture=nettyFabricWorkerStub.getProcessNoticeableFuture();
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(NettyFabricWorkerExecutionChannelHandler.class.getName(),Level.SEVERE);
+  try {
+    defaultPromise.addListener(postFabricWorkerExecutionFutureListener);
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Assert.assertEquals("Unable to finish fabric worker startup",logRecord.getMessage());
+  }
+  finally {
+    captureHandler.close();
+  }
+  Assert.assertSame(fabricWorker,NettyChannelAttributes.getFabricWorker(_embeddedChannel,0));
+  Set<FutureListener<Serializable>> futureListeners=ReflectionTestUtil.getFieldValue(processNoticeableFuture,"_futureListeners");
+  Assert.assertEquals(2,futureListeners.size());
+  Iterator<FutureListener<Serializable>> iterator=futureListeners.iterator();
+  iterator.next();
+  FutureListener<Serializable> futureListener=iterator.next();
+  futureListener=ReflectionTestUtil.getFieldValue(futureListener,"_futureListener");
+  Assert.assertSame(PostFabricWorkerFinishFutureListener.class,futureListener.getClass());
+}

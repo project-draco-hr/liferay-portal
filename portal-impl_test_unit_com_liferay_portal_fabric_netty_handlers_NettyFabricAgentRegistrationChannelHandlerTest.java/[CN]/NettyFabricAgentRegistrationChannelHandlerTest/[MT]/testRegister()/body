@@ -1,0 +1,39 @@
+{
+  FabricAgentRegistry fabricAgentRegistry=new FabricAgentRegistry(new LocalFabricAgent(new EmbeddedProcessExecutor()));
+  Path repositoryParentPath=FileServerTestUtil.registerForCleanUp(Files.createDirectory(Paths.get("RepositoryParentPath")));
+  EmbeddedChannel embeddedChannel=new EmbeddedChannel(new NettyFabricAgentRegistrationChannelHandler(fabricAgentRegistry,repositoryParentPath,new DefaultEventExecutorGroup(1),0,0));
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(NettyFabricAgentRegistrationChannelHandler.class.getName(),Level.OFF);
+  try {
+    embeddedChannel.writeInbound(new NettyFabricAgentConfig(new File("RepositoryFolder")));
+    List<FabricAgent> fabricAgents=fabricAgentRegistry.getFabricAgents();
+    Assert.assertEquals(1,fabricAgents.size());
+    Assert.assertSame(fabricAgents.get(0),NettyChannelAttributes.getNettyFabricAgentStub(embeddedChannel));
+    embeddedChannel.close();
+    fabricAgents=fabricAgentRegistry.getFabricAgents();
+    Assert.assertTrue(fabricAgents.isEmpty());
+  }
+  finally {
+    captureHandler.close();
+  }
+  embeddedChannel=new EmbeddedChannel(new NettyFabricAgentRegistrationChannelHandler(fabricAgentRegistry,repositoryParentPath,new DefaultEventExecutorGroup(1),0,0));
+  captureHandler=JDKLoggerTestUtil.configureJDKLogger(NettyFabricAgentRegistrationChannelHandler.class.getName(),Level.INFO);
+  try {
+    embeddedChannel.writeInbound(new NettyFabricAgentConfig(new File("RepositoryFolder")));
+    List<FabricAgent> fabricAgents=fabricAgentRegistry.getFabricAgents();
+    Assert.assertEquals(1,fabricAgents.size());
+    Assert.assertSame(fabricAgents.get(0),NettyChannelAttributes.getNettyFabricAgentStub(embeddedChannel));
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.remove(0);
+    Assert.assertEquals("Registered fabric agent on " + embeddedChannel,logRecord.getMessage());
+    embeddedChannel.close();
+    Assert.assertEquals(1,logRecords.size());
+    logRecord=logRecords.remove(0);
+    Assert.assertEquals("Unregistered fabric agent on " + embeddedChannel,logRecord.getMessage());
+    fabricAgents=fabricAgentRegistry.getFabricAgents();
+    Assert.assertTrue(fabricAgents.isEmpty());
+  }
+  finally {
+    captureHandler.close();
+  }
+}
