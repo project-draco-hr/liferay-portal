@@ -1,0 +1,40 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getUpgradeOptimizedConnection();
+    DatabaseMetaData databaseMetaData=con.getMetaData();
+    boolean supportsBatchUpdates=databaseMetaData.supportsBatchUpdates();
+    ps=con.prepareStatement("select classNameId, classPK, count(1) as totalEntries, " + "sum(re.score) as totalScore, sum(re.score) / count(1) " + "as averageScore from RatingsEntry re group by "+ "classNameId, classPK");
+    rs=ps.executeQuery();
+    ps=con.prepareStatement("update RatingsStats set totalEntries = ?, totalScore = ?, " + "averageScore = ? where classNameId = ? and classPK = ?");
+    int count=0;
+    while (rs.next()) {
+      ps.setInt(1,rs.getInt("totalEntries"));
+      ps.setDouble(2,rs.getDouble("totalScore"));
+      ps.setDouble(3,rs.getDouble("averageScore"));
+      ps.setLong(4,rs.getLong("classNameId"));
+      ps.setLong(5,rs.getLong("classPK"));
+      if (supportsBatchUpdates) {
+        ps.addBatch();
+        if (count == PropsValues.HIBERNATE_JDBC_BATCH_SIZE) {
+          ps.executeBatch();
+          count=0;
+        }
+ else {
+          count++;
+        }
+      }
+ else {
+        ps.executeUpdate();
+      }
+    }
+    if (supportsBatchUpdates && (count > 0)) {
+      ps.executeBatch();
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}
