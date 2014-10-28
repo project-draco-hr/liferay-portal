@@ -1,8 +1,8 @@
 {
   final Map<Path,Path> mergedResources=new HashMap<Path,Path>();
-  final Path inputResource1=getAbsolutePath("inputResources1");
+  Path inputResource1=getAbsolutePath("inputResources1");
   Path mappedInputResource1=getAbsolutePath("mappedInputResource1");
-  final Path inputResource2=getAbsolutePath("inputResources2");
+  Path inputResource2=getAbsolutePath("inputResources2");
   mergedResources.put(inputResource1,mappedInputResource1);
   Path bootstrapResource1=getAbsolutePath("bootstrapResource1");
   Path mappedBootstrapResource1=getAbsolutePath("mappedBootstrapResource1");
@@ -33,15 +33,10 @@
   builder.setBootstrapClassPath(bootstrapResource1 + File.pathSeparator + bootstrapResource2+ File.pathSeparator+ bootstrapResource3);
   builder.setRuntimeClassPath(runtimeResource1 + File.pathSeparator + runtimeResource2+ File.pathSeparator+ runtimeResource3);
   ProcessConfig processConfig=builder.build();
-  ProcessCallable<Serializable> processCallable=new ProcessCallable<Serializable>(){
-    @Override public Serializable call(){
-      return null;
-    }
-    @InputResource private final File _inputFile1=inputResource1.toFile();
-    @InputResource private final File _inputFile2=inputResource2.toFile();
-  }
-;
-  NoticeableFuture<LoadedResources> noticeableFuture=nettyFabricWorkerExecutionChannelHandler.loadResources(new NettyFabricWorkerConfig<Serializable>(0,processConfig,processCallable));
+  ProcessCallable<Serializable> processCallable=new LoadResourceProcessCallable(inputResource1.toFile(),inputResource2.toFile());
+  FabricResourceMappingVisitor fabricResourceMappingVisitor=new FabricResourceMappingVisitor(InputResource.class,getAbsolutePath("repository"));
+  ObjectGraphUtil.walkObjectGraph(processCallable,fabricResourceMappingVisitor);
+  NoticeableFuture<LoadedResources> noticeableFuture=nettyFabricWorkerExecutionChannelHandler.loadResources(new NettyFabricWorkerConfig<Serializable>(0,processConfig,processCallable,fabricResourceMappingVisitor.getResourceMap()));
   LoadedResources loadedResources=noticeableFuture.get();
   Map<Path,Path> loadedInputResources=loadedResources.getInputResources();
   Assert.assertEquals(1,loadedInputResources.size());
