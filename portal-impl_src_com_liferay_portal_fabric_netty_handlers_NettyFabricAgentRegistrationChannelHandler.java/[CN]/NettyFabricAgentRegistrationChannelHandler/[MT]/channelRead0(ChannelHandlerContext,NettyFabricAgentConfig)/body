@@ -1,11 +1,11 @@
 {
-  final Channel channel=channelHandlerContext.channel();
+  Channel channel=channelHandlerContext.channel();
   SocketAddress socketAddress=channel.localAddress();
   Path repositoryPath=Paths.get(_repositoryParentPath.toString(),socketAddress.toString());
   Files.createDirectories(repositoryPath);
-  final Repository repository=new NettyRepository(repositoryPath,channel,_eventExecutorGroup,_getFileTimeout);
-  final NettyFabricAgentStub nettyFabricAgentStub=new NettyFabricAgentStub(channel,repository,nettyFabricAgentConfig.getRepositoryPath(),_rpcRelayTimeout);
-  if (!_fabricAgentRegistry.registerFabricAgent(nettyFabricAgentStub)) {
+  Repository repository=new NettyRepository(repositoryPath,channel,_eventExecutorGroup,_getFileTimeout);
+  NettyFabricAgentStub nettyFabricAgentStub=new NettyFabricAgentStub(channel,repository,nettyFabricAgentConfig.getRepositoryPath(),_rpcRelayTimeout);
+  if (!_fabricAgentRegistry.registerFabricAgent(nettyFabricAgentStub,new OnRegistration(channel,nettyFabricAgentStub,repository))) {
     if (_log.isWarnEnabled()) {
       _log.warn("Rejected duplicated fabric agent on " + channel);
     }
@@ -14,20 +14,4 @@
   if (_log.isInfoEnabled()) {
     _log.info("Registered fabric agent on " + channel);
   }
-  NettyChannelAttributes.setNettyFabricAgentStub(channel,nettyFabricAgentStub);
-  ChannelFuture channelFuture=channel.closeFuture();
-  channelFuture.addListener(new ChannelFutureListener(){
-    @Override public void operationComplete(    ChannelFuture channelFuture){
-      if (_fabricAgentRegistry.unregisterFabricAgent(nettyFabricAgentStub)) {
-        if (_log.isInfoEnabled()) {
-          _log.info("Unregistered fabric agent on " + channel);
-        }
-      }
- else       if (_log.isWarnEnabled()) {
-        _log.warn("Unable to unregister fabric agent on " + channel);
-      }
-      repository.dispose(true);
-    }
-  }
-);
 }
