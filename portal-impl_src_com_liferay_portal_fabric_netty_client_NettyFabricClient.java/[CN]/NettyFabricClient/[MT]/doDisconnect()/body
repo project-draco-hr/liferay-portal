@@ -1,0 +1,44 @@
+{
+  if (_channel == null) {
+    throw new IllegalStateException("Netty fabric client has not started");
+  }
+  try {
+    ChannelFuture channelFuture=_channel.close();
+    channelFuture.sync();
+  }
+  finally {
+    disposeRepository(_channel);
+    EventLoop eventLoop=_channel.eventLoop();
+    EventLoopGroup eventLoopGroup=eventLoop.parent();
+    if (_reconnectCounter.getAndDecrement() > 0) {
+      eventLoopGroup.schedule(new Callable<Void>(){
+        @Override public Void call(){
+          doConnect();
+          return null;
+        }
+      }
+,_nettyFabricClientConfig.getReconnectInterval(),TimeUnit.MILLISECONDS);
+      if (_log.isInfoEnabled()) {
+        _log.info("Try to reconnect " + _nettyFabricClientConfig.getReconnectInterval() + "ms later");
+      }
+    }
+ else {
+      if (_log.isInfoEnabled()) {
+        _log.info("Shutting down netty fabric client on " + _channel);
+      }
+      try {
+        eventLoopGroup.shutdownGracefully();
+        shutdownEventExecutorGroup(_channel,_executionEventExecutorGroupAttributeKey);
+        shutdownEventExecutorGroup(_channel,_fileServerEventExecutorGroupAttributeKey);
+        shutdownEventExecutorGroup(_channel,_rpcEventExecutorGroupAttributeKey);
+        _channel=null;
+        _bootstrap=null;
+      }
+  finally {
+        _nettyFabricClientShutdownCallback.shutdown();
+        Runtime runtime=Runtime.getRuntime();
+        runtime.removeShutdownHook(_shutdownHook);
+      }
+    }
+  }
+}
