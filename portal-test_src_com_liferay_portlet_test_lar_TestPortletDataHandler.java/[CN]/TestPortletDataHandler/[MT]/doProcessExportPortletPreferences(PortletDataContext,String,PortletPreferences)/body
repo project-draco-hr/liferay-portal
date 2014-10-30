@@ -1,0 +1,34 @@
+{
+  String articleId=portletPreferences.getValue("articleId",null);
+  if (articleId == null) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("No article ID found in preferences of portlet " + portletId);
+    }
+    return portletPreferences;
+  }
+  long articleGroupId=GetterUtil.getLong(portletPreferences.getValue("groupId",StringPool.BLANK));
+  if (articleGroupId <= 0) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("No group ID found in preferences of portlet " + portletId);
+    }
+    return portletPreferences;
+  }
+  long previousScopeGroupId=portletDataContext.getScopeGroupId();
+  if (articleGroupId != previousScopeGroupId) {
+    portletDataContext.setScopeGroupId(articleGroupId);
+  }
+  JournalArticle article=JournalArticleLocalServiceUtil.fetchLatestArticle(articleGroupId,articleId,WorkflowConstants.STATUS_APPROVED);
+  if (article == null) {
+    article=JournalArticleLocalServiceUtil.fetchLatestArticle(articleGroupId,articleId,WorkflowConstants.STATUS_EXPIRED);
+  }
+  if (article == null) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Portlet " + portletId + " refers to an invalid article ID "+ articleId);
+    }
+    portletDataContext.setScopeGroupId(previousScopeGroupId);
+    return portletPreferences;
+  }
+  StagedModelDataHandlerUtil.exportReferenceStagedModel(portletDataContext,portletId,article);
+  portletDataContext.setScopeGroupId(previousScopeGroupId);
+  return portletPreferences;
+}
