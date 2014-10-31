@@ -1,19 +1,16 @@
 {
-  Entry<K,V> newEntry=new Entry<K,V>(increasableEntry);
+  K key=increasableEntry.getKey();
   while (true) {
-    if (_doIncrease(increasableEntry)) {
+    IncreasableEntryWrapper<K,V> previousIncreasableEntryWrapper=concurrentMap.putIfAbsent(key,new IncreasableEntryWrapper<K,V>(increasableEntry));
+    if (previousIncreasableEntryWrapper == null) {
+      queue.offer(increasableEntry);
+      return true;
+    }
+    IncreasableEntry<K,V> previousIncreasableEntry=previousIncreasableEntryWrapper.increasableEntry;
+    IncreasableEntry<K,V> newIncreasableEntry=increasableEntry.increase(previousIncreasableEntry.getValue());
+    if (concurrentMap.replace(key,previousIncreasableEntryWrapper,new IncreasableEntryWrapper<K,V>(newIncreasableEntry))) {
+      queue.offer(newIncreasableEntry);
       return false;
-    }
-    Entry<K,V> lastEntryLink=_lastEntryReference.get();
-    Entry<K,V> nextEntryLink=lastEntryLink._nextEntry.getReference();
-    if (nextEntryLink == null) {
-      if (lastEntryLink._nextEntry.compareAndSet(null,newEntry,false,false)) {
-        _lastEntryReference.set(newEntry);
-        return true;
-      }
-    }
- else {
-      _lastEntryReference.compareAndSet(lastEntryLink,nextEntryLink);
     }
   }
 }
