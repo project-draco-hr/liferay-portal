@@ -1,0 +1,60 @@
+{
+  if (primaryKeys.isEmpty()) {
+    return Collections.emptyMap();
+  }
+  Map<Serializable,MeetupsEntry> map=new HashMap<Serializable,MeetupsEntry>();
+  if (primaryKeys.size() == 1) {
+    Iterator<Serializable> iterator=primaryKeys.iterator();
+    Serializable primaryKey=iterator.next();
+    MeetupsEntry meetupsEntry=fetchByPrimaryKey(primaryKey);
+    if (meetupsEntry != null) {
+      map.put(primaryKey,meetupsEntry);
+    }
+    return map;
+  }
+  Set<Serializable> uncachedPrimaryKeys=null;
+  for (  Serializable primaryKey : primaryKeys) {
+    MeetupsEntry meetupsEntry=(MeetupsEntry)EntityCacheUtil.getResult(MeetupsEntryModelImpl.ENTITY_CACHE_ENABLED,MeetupsEntryImpl.class,primaryKey);
+    if (meetupsEntry == null) {
+      if (uncachedPrimaryKeys == null) {
+        uncachedPrimaryKeys=new HashSet<Serializable>();
+      }
+      uncachedPrimaryKeys.add(primaryKey);
+    }
+ else {
+      map.put(primaryKey,meetupsEntry);
+    }
+  }
+  if (uncachedPrimaryKeys == null) {
+    return map;
+  }
+  StringBundler query=new StringBundler((uncachedPrimaryKeys.size() * 2) + 1);
+  query.append(_SQL_SELECT_MEETUPSENTRY_WHERE_PKS_IN);
+  for (  Serializable primaryKey : uncachedPrimaryKeys) {
+    query.append(String.valueOf(primaryKey));
+    query.append(StringPool.COMMA);
+  }
+  query.setIndex(query.index() - 1);
+  query.append(StringPool.CLOSE_PARENTHESIS);
+  String sql=query.toString();
+  Session session=null;
+  try {
+    session=openSession();
+    Query q=session.createQuery(sql);
+    for (    MeetupsEntry meetupsEntry : (List<MeetupsEntry>)q.list()) {
+      map.put(meetupsEntry.getPrimaryKeyObj(),meetupsEntry);
+      cacheResult(meetupsEntry);
+      uncachedPrimaryKeys.remove(meetupsEntry.getPrimaryKeyObj());
+    }
+    for (    Serializable primaryKey : uncachedPrimaryKeys) {
+      EntityCacheUtil.putResult(MeetupsEntryModelImpl.ENTITY_CACHE_ENABLED,MeetupsEntryImpl.class,primaryKey,_nullMeetupsEntry);
+    }
+  }
+ catch (  Exception e) {
+    throw processException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+  return map;
+}
