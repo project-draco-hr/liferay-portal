@@ -1,0 +1,36 @@
+{
+  Properties properties=PropsUtil.getProperties(PropsKeys.XUGGLER_JAR_FILE,false);
+  Set<Object> jarFiles=SetUtil.fromCollection(properties.values());
+  jarFiles.remove(getXugglerJarFileName());
+  Thread currentThread=Thread.currentThread();
+  ClassLoader contextClassLoader=currentThread.getContextClassLoader();
+  Set<URL> urls=ClassPathUtil.getClassPathURLs(contextClassLoader);
+  Iterator<URL> iterator=urls.iterator();
+  while (iterator.hasNext()) {
+    URL url=iterator.next();
+    String protocol=url.getProtocol();
+    if (protocol.equals("file")) {
+      File file=new File(url.getPath());
+      Matcher matcher=_pattern.matcher(file.getName());
+      if (matcher.matches()) {
+        if (jarFiles.contains(matcher.replaceAll("$1$2"))) {
+          file.delete();
+          iterator.remove();
+        }
+      }
+    }
+  }
+  URLClassLoader urlClassLoader=new URLClassLoader(urls.toArray(new URL[urls.size()]),null);
+  currentThread.setContextClassLoader(urlClassLoader);
+  try {
+    Class<Callable<Boolean>> clazz=(Class<Callable<Boolean>>)urlClassLoader.loadClass(IsNativeLibraryInstalledCallable.class.getName());
+    Callable<Boolean> callable=clazz.newInstance();
+    return callable.call();
+  }
+ catch (  Exception e) {
+    return false;
+  }
+ finally {
+    currentThread.setContextClassLoader(contextClassLoader);
+  }
+}
