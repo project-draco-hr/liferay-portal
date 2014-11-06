@@ -13,10 +13,9 @@
   Assert.assertEquals(_type,receiveDatagram.getType());
   ByteBuffer dataByteBuffer=receiveDatagram.getDataByteBuffer();
   Assert.assertArrayEquals(_data,dataByteBuffer.array());
-  CaptureHandler captureHandler=null;
+  CaptureHandler captureHandler1=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.WARNING);
   try {
-    captureHandler=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.WARNING);
-    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    List<LogRecord> logRecords=captureHandler1.getLogRecords();
     recordCompletionHandler=new RecordCompletionHandler<Object>();
     _selectorIntraband.sendDatagram(registrationReference,Datagram.createRequestDatagram(_type,_data),attachment,EnumSet.of(CompletionType.DELIVERED),recordCompletionHandler,10,TimeUnit.MILLISECONDS);
     Selector selector=_selectorIntraband.selector;
@@ -24,7 +23,7 @@
     Assert.assertSame(attachment,recordCompletionHandler.getAttachment());
     Assert.assertEquals(1,logRecords.size());
     IntrabandTestUtil.assertMessageStartWith(logRecords.get(0),"Removed timeout response waiting datagram");
-    logRecords=captureHandler.resetLogLevel(Level.OFF);
+    logRecords=captureHandler1.resetLogLevel(Level.OFF);
     recordCompletionHandler=new RecordCompletionHandler<Object>();
     _selectorIntraband.sendDatagram(registrationReference,Datagram.createRequestDatagram(_type,_data),attachment,EnumSet.of(CompletionType.DELIVERED),recordCompletionHandler,10,TimeUnit.MILLISECONDS);
     recordCompletionHandler.waitUntilTimeouted(selector);
@@ -32,13 +31,11 @@
     Assert.assertTrue(logRecords.isEmpty());
   }
   finally {
-    if (captureHandler != null) {
-      captureHandler.close();
-    }
+    captureHandler1.close();
   }
-  captureHandler=JDKLoggerTestUtil.configureJDKLogger(SelectorIntraband.class.getName(),Level.SEVERE);
+  captureHandler1=JDKLoggerTestUtil.configureJDKLogger(SelectorIntraband.class.getName(),Level.SEVERE);
   try {
-    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    List<LogRecord> logRecords1=captureHandler1.getLogRecords();
     recordCompletionHandler=new RecordCompletionHandler<Object>(){
       @Override public void timedOut(      Object attachment){
         super.timedOut(attachment);
@@ -48,29 +45,31 @@
 ;
     Jdk14LogImplAdvice.reset();
     Selector selector=_selectorIntraband.selector;
+    Datagram datagram=Datagram.createRequestDatagram(_type,_data);
     try {
-      _selectorIntraband.sendDatagram(registrationReference,Datagram.createRequestDatagram(_type,_data),attachment,EnumSet.of(CompletionType.DELIVERED),recordCompletionHandler,10,TimeUnit.MILLISECONDS);
+      _selectorIntraband.sendDatagram(registrationReference,datagram,attachment,EnumSet.of(CompletionType.DELIVERED),recordCompletionHandler,10,TimeUnit.MILLISECONDS);
     }
   finally {
-      CaptureHandler baseCaptureHandler=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.WARNING);
+      CaptureHandler captureHandler2=JDKLoggerTestUtil.configureJDKLogger(BaseIntraband.class.getName(),Level.WARNING);
       try {
         recordCompletionHandler.waitUntilTimeouted(selector);
-        List<LogRecord> baseLogRecords=baseCaptureHandler.getLogRecords();
-        Assert.assertEquals(1,baseLogRecords.size());
-        IntrabandTestUtil.assertMessageStartWith(baseLogRecords.get(0),"Removed timeout response waiting datagram");
+        List<LogRecord> logRecords2=captureHandler2.getLogRecords();
+        Assert.assertEquals(1,logRecords2.size());
+        LogRecord logRecord=logRecords2.get(0);
+        Assert.assertEquals("Removed timeout response waiting datagram " + datagram,logRecord.getMessage());
       }
   finally {
-        baseCaptureHandler.close();
+        captureHandler2.close();
       }
       Jdk14LogImplAdvice.waitUntilErrorCalled();
     }
     Assert.assertFalse(selector.isOpen());
-    Assert.assertEquals(1,logRecords.size());
-    IntrabandTestUtil.assertMessageStartWith(logRecords.get(0),SelectorIntraband.class + ".threadFactory-1 exiting exceptionally");
+    Assert.assertEquals(1,logRecords1.size());
+    IntrabandTestUtil.assertMessageStartWith(logRecords1.get(0),SelectorIntraband.class + ".threadFactory-1 exiting exceptionally");
     gatheringByteChannel.close();
     scatteringByteChannel.close();
   }
   finally {
-    captureHandler.close();
+    captureHandler1.close();
   }
 }
