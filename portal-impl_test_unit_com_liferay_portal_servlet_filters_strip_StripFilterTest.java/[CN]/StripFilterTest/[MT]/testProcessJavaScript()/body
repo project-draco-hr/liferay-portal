@@ -3,8 +3,19 @@
   _mockCacheGenerationUtil();
   CharBuffer charBuffer=CharBuffer.wrap("script>abc");
   StringWriter stringWriter=new StringWriter();
-  stripFilter.processJavaScript("test.js",charBuffer,stringWriter,"script".toCharArray());
-  Assert.assertEquals("script>",stringWriter.toString());
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(StripFilter.class.getName(),Level.WARNING);
+  try {
+    stripFilter.processJavaScript("test.js",charBuffer,stringWriter,"script".toCharArray());
+    List<LogRecord> logRecords1=captureHandler.getLogRecords();
+    Assert.assertEquals(1,logRecords1.size());
+    LogRecord logRecord1=logRecords1.get(0);
+    Assert.assertEquals(logRecord1.getMessage(),"Missing </script>");
+    Assert.assertEquals("script>",stringWriter.toString());
+    logRecords1=captureHandler.resetLogLevel(Level.WARNING);
+  }
+  finally {
+    captureHandler.close();
+  }
   Assert.assertEquals(7,charBuffer.position());
   charBuffer=CharBuffer.wrap("script></script>");
   stringWriter=new StringWriter();
@@ -17,16 +28,34 @@
   Assert.assertEquals("script></script>",stringWriter.toString());
   Assert.assertEquals(20,charBuffer.position());
   String code="function(){ var abcd; var efgh; }";
-  String minifiedCode=MinifierUtil.minifyJavaScript("test.js",code);
-  charBuffer=CharBuffer.wrap("script>" + code + "</script>");
-  stringWriter=new StringWriter();
-  stripFilter.processJavaScript("test.js",charBuffer,stringWriter,"script".toCharArray());
-  Assert.assertEquals("script>" + minifiedCode + "</script>",stringWriter.toString());
-  Assert.assertEquals(code.length() + 16,charBuffer.position());
-  charBuffer=CharBuffer.wrap("script>" + code + "</script> \t\r\n");
-  stringWriter=new StringWriter();
-  stripFilter.processJavaScript("test.js",charBuffer,stringWriter,"script".toCharArray());
-  Assert.assertEquals("script>" + minifiedCode + "</script> ",stringWriter.toString());
+  captureHandler=JDKLoggerTestUtil.configureJDKLogger(GoogleJavaScriptMinifier.class.getName(),Level.SEVERE);
+  try {
+    String minifiedCode=MinifierUtil.minifyJavaScript("test.js",code);
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertEquals(2,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Assert.assertEquals(logRecord.getMessage(),"(test.js:1): Parse error. unnamed function statement");
+    logRecord=logRecords.get(1);
+    Assert.assertEquals(logRecord.getMessage(),"{0} error(s), {1} warning(s)");
+    logRecords=captureHandler.resetLogLevel(Level.SEVERE);
+    charBuffer=CharBuffer.wrap("script>" + code + "</script>");
+    stringWriter=new StringWriter();
+    stripFilter.processJavaScript("test.js",charBuffer,stringWriter,"script".toCharArray());
+    Assert.assertEquals(2,logRecords.size());
+    logRecord=logRecords.get(0);
+    Assert.assertEquals(logRecord.getMessage(),"(test.js:1): Parse error. unnamed function statement");
+    logRecord=logRecords.get(1);
+    Assert.assertEquals(logRecord.getMessage(),"{0} error(s), {1} warning(s)");
+    Assert.assertEquals("script>" + minifiedCode + "</script>",stringWriter.toString());
+    Assert.assertEquals(code.length() + 16,charBuffer.position());
+    charBuffer=CharBuffer.wrap("script>" + code + "</script> \t\r\n");
+    stringWriter=new StringWriter();
+    stripFilter.processJavaScript("test.js",charBuffer,stringWriter,"script".toCharArray());
+    Assert.assertEquals("script>" + minifiedCode + "</script> ",stringWriter.toString());
+  }
+  finally {
+    captureHandler.close();
+  }
   Assert.assertEquals(code.length() + 20,charBuffer.position());
   verifyStatic(Mockito.times(5));
 }
