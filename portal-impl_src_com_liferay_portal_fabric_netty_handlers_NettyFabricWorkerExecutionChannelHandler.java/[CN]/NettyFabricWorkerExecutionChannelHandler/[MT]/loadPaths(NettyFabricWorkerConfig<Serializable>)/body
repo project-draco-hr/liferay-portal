@@ -1,0 +1,64 @@
+{
+  Map<Path,Path> mergedPaths=new HashMap<Path,Path>();
+  ProcessConfig processConfig=nettyFabricWorkerConfig.getProcessConfig();
+  final Map<Path,Path> bootstrapPaths=new LinkedHashMap<Path,Path>();
+  for (  String pathString : StringUtil.split(processConfig.getBootstrapClassPath(),File.pathSeparatorChar)) {
+    bootstrapPaths.put(Paths.get(pathString),null);
+  }
+  mergedPaths.putAll(bootstrapPaths);
+  final Map<Path,Path> runtimePaths=new LinkedHashMap<Path,Path>();
+  for (  String pathString : StringUtil.split(processConfig.getRuntimeClassPath(),File.pathSeparatorChar)) {
+    runtimePaths.put(Paths.get(pathString),null);
+  }
+  mergedPaths.putAll(runtimePaths);
+  final Map<Path,Path> inputPaths=nettyFabricWorkerConfig.getInputPathMap();
+  mergedPaths.putAll(inputPaths);
+  return new NoticeableFutureConverter<LoadedPaths,Map<Path,Path>>(_repository.getFiles(mergedPaths,false)){
+    @Override protected LoadedPaths convert(    Map<Path,Path> mergedPaths) throws IOException {
+      Map<Path,Path> loadedInputPaths=new HashMap<Path,Path>();
+      List<Path> missedInputPaths=new ArrayList<Path>();
+      for (      Path path : inputPaths.keySet()) {
+        Path loadedInputPath=mergedPaths.get(path);
+        if (loadedInputPath == null) {
+          missedInputPaths.add(path);
+        }
+ else {
+          loadedInputPaths.put(path,loadedInputPath);
+        }
+      }
+      if (!missedInputPaths.isEmpty()) {
+        throw new IOException("Unable to get input paths: " + missedInputPaths);
+      }
+      List<Path> loadedBootstrapPaths=new ArrayList<Path>();
+      List<Path> missedBootstrapPaths=new ArrayList<Path>();
+      for (      Path path : bootstrapPaths.keySet()) {
+        Path loadedBootstrapPath=mergedPaths.get(path);
+        if (loadedBootstrapPath == null) {
+          missedBootstrapPaths.add(path);
+        }
+ else {
+          loadedBootstrapPaths.add(loadedBootstrapPath);
+        }
+      }
+      if (!missedBootstrapPaths.isEmpty() && _log.isWarnEnabled()) {
+        _log.warn("Incomplete bootstrap classpath loaded, missed: " + missedBootstrapPaths);
+      }
+      List<Path> loadedRuntimePaths=new ArrayList<Path>();
+      List<Path> missedRuntimePaths=new ArrayList<Path>();
+      for (      Path path : runtimePaths.keySet()) {
+        Path loadedRuntimePath=mergedPaths.get(path);
+        if (loadedRuntimePath == null) {
+          missedRuntimePaths.add(path);
+        }
+ else {
+          loadedRuntimePaths.add(loadedRuntimePath);
+        }
+      }
+      if (!missedRuntimePaths.isEmpty() && _log.isWarnEnabled()) {
+        _log.warn("Incomplete runtime classpath loaded, missed: " + missedRuntimePaths);
+      }
+      return new LoadedPaths(loadedInputPaths,StringUtil.merge(loadedBootstrapPaths,File.pathSeparator),StringUtil.merge(loadedRuntimePaths,File.pathSeparator));
+    }
+  }
+;
+}
