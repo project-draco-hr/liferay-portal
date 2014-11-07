@@ -1,0 +1,34 @@
+{
+  final Map<Path,Path> mergedResources=new HashMap<Path,Path>();
+  Path inputResource1=getAbsolutePath("inputResources1");
+  Path mappedInputResource1=getAbsolutePath("mappedInputResource1");
+  Path inputResource2=getAbsolutePath("inputResources2");
+  mergedResources.put(inputResource1,mappedInputResource1);
+  NettyFabricWorkerExecutionChannelHandler nettyFabricWorkerExecutionChannelHandler=new NettyFabricWorkerExecutionChannelHandler(new MockRepository(){
+    @Override public NoticeableFuture<Map<Path,Path>> getFiles(    Map<Path,Path> pathMap,    boolean deleteAfterFetch){
+      DefaultNoticeableFuture<Map<Path,Path>> defaultNoticeableFuture=new DefaultNoticeableFuture<Map<Path,Path>>();
+      defaultNoticeableFuture.set(mergedResources);
+      return defaultNoticeableFuture;
+    }
+    @Override public Path getRepositoryPath(){
+      return getAbsolutePath("repository");
+    }
+  }
+,new EmbeddedProcessExecutor(),0);
+  Builder builder=new Builder();
+  builder.setBootstrapClassPath(StringPool.BLANK);
+  builder.setRuntimeClassPath(StringPool.BLANK);
+  ProcessConfig processConfig=builder.build();
+  ProcessCallable<Serializable> processCallable=new LoadResourceProcessCallable(inputResource1.toFile(),inputResource2.toFile());
+  FabricResourceMappingVisitor fabricResourceMappingVisitor=new FabricResourceMappingVisitor(InputResource.class,getAbsolutePath("repository"));
+  ObjectGraphUtil.walkObjectGraph(processCallable,fabricResourceMappingVisitor);
+  NoticeableFuture<LoadedResources> noticeableFuture=nettyFabricWorkerExecutionChannelHandler.loadResources(new NettyFabricWorkerConfig<Serializable>(0,processConfig,processCallable,fabricResourceMappingVisitor.getResourceMap()));
+  try {
+    noticeableFuture.get();
+  }
+ catch (  ExecutionException ee) {
+    Throwable throwable=ee.getCause();
+    Assert.assertSame(IOException.class,throwable.getClass());
+    Assert.assertEquals("Unable to get input resources :" + Arrays.asList(inputResource2),throwable.getMessage());
+  }
+}
