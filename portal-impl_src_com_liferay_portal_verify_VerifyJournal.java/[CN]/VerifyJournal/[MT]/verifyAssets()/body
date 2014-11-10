@@ -1,0 +1,42 @@
+{
+  List<JournalArticle> journalArticles=JournalArticleLocalServiceUtil.getNoAssetArticles();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Processing " + journalArticles.size() + " articles with no asset");
+  }
+  for (  JournalArticle journalArticle : journalArticles) {
+    try {
+      JournalArticleLocalServiceUtil.updateAsset(journalArticle.getUserId(),journalArticle,null,null,null);
+    }
+ catch (    Exception e) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Unable to update asset for article " + journalArticle.getId() + ": "+ e.getMessage());
+      }
+    }
+  }
+  ActionableDynamicQuery actionableDynamicQuery=JournalArticleLocalServiceUtil.getActionableDynamicQuery();
+  actionableDynamicQuery.setAddCriteriaMethod(new ActionableDynamicQuery.AddCriteriaMethod(){
+    @Override public void addCriteria(    DynamicQuery dynamicQuery){
+      Property status=PropertyFactoryUtil.forName("status");
+      dynamicQuery.add(status.eq(WorkflowConstants.STATUS_DRAFT));
+      Property version=PropertyFactoryUtil.forName("version");
+      dynamicQuery.add(version.eq(JournalArticleConstants.VERSION_DEFAULT));
+    }
+  }
+);
+  actionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod(){
+    @Override public void performAction(    Object object) throws PortalException {
+      JournalArticle article=(JournalArticle)object;
+      AssetEntry assetEntry=AssetEntryLocalServiceUtil.fetchEntry(JournalArticle.class.getName(),article.getResourcePrimKey());
+      AssetEntryLocalServiceUtil.updateEntry(assetEntry.getClassName(),assetEntry.getClassPK(),null,assetEntry.isVisible());
+    }
+  }
+);
+  long count=actionableDynamicQuery.performCount();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Processing " + count + " default article versions in draft mode");
+  }
+  actionableDynamicQuery.performActions();
+  if (_log.isDebugEnabled()) {
+    _log.debug("Assets verified for articles");
+  }
+}
