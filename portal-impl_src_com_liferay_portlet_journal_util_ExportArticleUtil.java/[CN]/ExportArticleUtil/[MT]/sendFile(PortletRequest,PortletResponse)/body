@@ -1,0 +1,48 @@
+{
+  long groupId=ParamUtil.getLong(portletRequest,"groupId");
+  String articleId=ParamUtil.getString(portletRequest,"articleId");
+  String targetExtension=ParamUtil.getString(portletRequest,"targetExtension");
+  PortletPreferences portletPreferences=portletRequest.getPreferences();
+  String[] allowedExtensions=StringUtil.split(portletPreferences.getValue("extensions",null));
+  String languageId=LanguageUtil.getLanguageId(portletRequest);
+  PortletRequestModel portletRequestModel=new PortletRequestModel(portletRequest,portletResponse);
+  ThemeDisplay themeDisplay=(ThemeDisplay)portletRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  HttpServletRequest request=PortalUtil.getHttpServletRequest(portletRequest);
+  HttpServletResponse response=PortalUtil.getHttpServletResponse(portletResponse);
+  JournalArticleDisplay articleDisplay=JournalContentUtil.getDisplay(groupId,articleId,null,"export",languageId,1,portletRequestModel,themeDisplay);
+  int pages=articleDisplay.getNumberOfPages();
+  StringBundler sb=new StringBundler(pages + 12);
+  sb.append("<html>");
+  sb.append("<head>");
+  sb.append("<meta content=\"");
+  sb.append(ContentTypes.TEXT_HTML_UTF8);
+  sb.append("\" http-equiv=\"content-type\" />");
+  sb.append("<base href=\"");
+  sb.append(themeDisplay.getPortalURL());
+  sb.append("\" />");
+  sb.append("</head>");
+  sb.append("<body>");
+  sb.append(articleDisplay.getContent());
+  for (int i=2; i <= pages; i++) {
+    articleDisplay=JournalContentUtil.getDisplay(groupId,articleId,"export",languageId,i,themeDisplay);
+    sb.append(articleDisplay.getContent());
+  }
+  sb.append("</body>");
+  sb.append("</html>");
+  InputStream is=new UnsyncByteArrayInputStream(sb.toString().getBytes(StringPool.UTF8));
+  String title=articleDisplay.getTitle();
+  String sourceExtension="html";
+  String fileName=title.concat(StringPool.PERIOD).concat(sourceExtension);
+  String contentType=MimeTypesUtil.getContentType(fileName);
+  if (Validator.isNull(targetExtension) || !ArrayUtil.contains(allowedExtensions,targetExtension)) {
+    ServletResponseUtil.sendFile(request,response,fileName,is,contentType);
+    return;
+  }
+  String id=DLUtil.getTempFileId(articleDisplay.getId(),String.valueOf(articleDisplay.getVersion()),languageId);
+  File convertedFile=DocumentConversionUtil.convert(id,is,sourceExtension,targetExtension);
+  if (convertedFile != null) {
+    fileName=title.concat(StringPool.PERIOD).concat(targetExtension);
+    is=new FileInputStream(convertedFile);
+  }
+  ServletResponseUtil.sendFile(request,response,fileName,is,contentType);
+}
