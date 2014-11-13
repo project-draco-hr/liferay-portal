@@ -1,24 +1,21 @@
 {
-  Map<String,Serializable> taskContextMap=backgroundTask.getTaskContextMap();
-  long userId=MapUtil.getLong(taskContextMap,"userId");
-  long targetPlid=MapUtil.getLong(taskContextMap,"targetPlid");
-  long targetGroupId=MapUtil.getLong(taskContextMap,"targetGroupId");
-  String portletId=MapUtil.getString(taskContextMap,"portletId");
-  Map<String,String[]> parameterMap=(Map<String,String[]>)taskContextMap.get("parameterMap");
-  long sourcePlid=MapUtil.getLong(taskContextMap,"sourcePlid");
-  long sourceGroupId=MapUtil.getLong(taskContextMap,"sourceGroupId");
-  Date startDate=(Date)taskContextMap.get("startDate");
-  Date endDate=(Date)taskContextMap.get("endDate");
-  File larFile=LayoutLocalServiceUtil.exportPortletInfoAsFile(sourcePlid,sourceGroupId,portletId,parameterMap,startDate,endDate);
-  markBackgroundTask(backgroundTask.getBackgroundTaskId(),"exported");
   MissingReferences missingReferences=null;
   try {
-    missingReferences=LayoutLocalServiceUtil.validateImportPortletInfo(userId,targetPlid,targetGroupId,portletId,parameterMap,larFile);
-    markBackgroundTask(backgroundTask.getBackgroundTaskId(),"validated");
-    LayoutLocalServiceUtil.importPortletInfo(userId,targetPlid,targetGroupId,portletId,parameterMap,larFile);
+    ExportImportThreadLocal.setPortletStagingInProcess(true);
+    Callable<MissingReferences> portletStagingCallable=new PortletStagingCallable(backgroundTask.getBackgroundTaskId());
+    missingReferences=TransactionalCallableUtil.call(transactionAttribute,portletStagingCallable);
   }
-  finally {
-    larFile.delete();
+ catch (  Throwable t) {
+    if (_log.isDebugEnabled()) {
+      _log.debug(t,t);
+    }
+ else     if (_log.isWarnEnabled()) {
+      _log.warn("Unable to publish portlet: " + t.getMessage());
+    }
+    throw new SystemException(t);
+  }
+ finally {
+    ExportImportThreadLocal.setPortletStagingInProcess(false);
   }
   return processMissingReferences(backgroundTask.getBackgroundTaskId(),missingReferences);
 }
