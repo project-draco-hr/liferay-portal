@@ -2,12 +2,28 @@
   if (!isEnabled()) {
     return;
   }
+  _secure=StringUtil.equalsIgnoreCase(Http.HTTPS,PropsValues.WEB_SERVER_PROTOCOL);
   _executorService=PortalExecutorManagerUtil.getPortalExecutor(CLUSTER_EXECUTOR_CALLBACK_THREAD_POOL);
   PortalUtil.addPortalInetSocketAddressEventListener(this);
-  _localAddress=new AddressImpl(_controlJChannel.getAddress());
-  initLocalClusterNode();
-  memberJoined(_localAddress,_localClusterNode);
-  sendNotifyRequest();
-  ClusterRequestReceiver clusterRequestReceiver=(ClusterRequestReceiver)_controlJChannel.getReceiver();
-  clusterRequestReceiver.openLatch();
+  if (PropsValues.CLUSTER_EXECUTOR_DEBUG_ENABLED) {
+    addClusterEventListener(new DebuggingClusterEventListenerImpl());
+  }
+  if (PropsValues.LIVE_USERS_ENABLED) {
+    addClusterEventListener(new LiveUsersClusterEventListenerImpl());
+  }
+  try {
+    initControlChannel();
+    _localAddress=new AddressImpl(_controlJChannel.getAddress());
+    initLocalClusterNode();
+    memberJoined(_localAddress,_localClusterNode);
+    sendNotifyRequest();
+    BaseReceiver baseReceiver=(BaseReceiver)_controlJChannel.getReceiver();
+    baseReceiver.openLatch();
+  }
+ catch (  Exception e) {
+    if (_log.isErrorEnabled()) {
+      _log.error("Unable to initialize",e);
+    }
+    throw new IllegalStateException(e);
+  }
 }
