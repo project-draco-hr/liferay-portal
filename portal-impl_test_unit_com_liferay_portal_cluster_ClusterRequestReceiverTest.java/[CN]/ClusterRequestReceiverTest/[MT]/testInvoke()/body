@@ -1,0 +1,35 @@
+{
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(ClusterRequestReceiver.class.getName(),Level.OFF);
+  ClusterExecutorImpl clusterExecutorImpl1=null;
+  ClusterExecutorImpl clusterExecutorImpl2=null;
+  try {
+    clusterExecutorImpl1=getClusterExecutorImpl();
+    clusterExecutorImpl2=getClusterExecutorImpl();
+    ClusterRequest clusterRequest=ClusterRequest.createUnicastRequest(new MethodHandler(testMethod1MethodKey,StringPool.BLANK),clusterExecutorImpl2.getLocalClusterNodeAddress());
+    FutureClusterResponses futureClusterResponses=clusterExecutorImpl1.execute(clusterRequest);
+    assertFutureClusterResponsesWithoutException(futureClusterResponses.get(),clusterRequest.getUuid(),null,clusterExecutorImpl2.getLocalClusterNodeAddress());
+    String timestamp=String.valueOf(System.currentTimeMillis());
+    clusterRequest=ClusterRequest.createUnicastRequest(new MethodHandler(testMethod1MethodKey,timestamp),clusterExecutorImpl2.getLocalClusterNodeAddress());
+    futureClusterResponses=clusterExecutorImpl1.execute(clusterRequest);
+    assertFutureClusterResponsesWithoutException(futureClusterResponses.get(),clusterRequest.getUuid(),timestamp,clusterExecutorImpl2.getLocalClusterNodeAddress());
+    clusterRequest=ClusterRequest.createUnicastRequest(new MethodHandler(testMethod2MethodKey),clusterExecutorImpl2.getLocalClusterNodeAddress());
+    futureClusterResponses=clusterExecutorImpl1.execute(clusterRequest);
+    assertFutureClusterResponsesWithException(futureClusterResponses,clusterRequest.getUuid(),clusterExecutorImpl2.getLocalClusterNodeAddress(),"Return value is not serializable");
+    timestamp=String.valueOf(System.currentTimeMillis());
+    clusterRequest=ClusterRequest.createUnicastRequest(new MethodHandler(testMethod3MethodKey,timestamp),clusterExecutorImpl2.getLocalClusterNodeAddress());
+    futureClusterResponses=clusterExecutorImpl1.execute(clusterRequest);
+    assertFutureClusterResponsesWithException(futureClusterResponses,clusterRequest.getUuid(),clusterExecutorImpl2.getLocalClusterNodeAddress(),timestamp);
+    clusterRequest=ClusterRequest.createUnicastRequest(null,clusterExecutorImpl2.getLocalClusterNodeAddress());
+    futureClusterResponses=clusterExecutorImpl1.execute(clusterRequest);
+    assertFutureClusterResponsesWithException(futureClusterResponses,clusterRequest.getUuid(),clusterExecutorImpl2.getLocalClusterNodeAddress(),"Payload is not of type " + MethodHandler.class.getName());
+  }
+  finally {
+    captureHandler.close();
+    if (clusterExecutorImpl1 != null) {
+      clusterExecutorImpl1.destroy();
+    }
+    if (clusterExecutorImpl2 != null) {
+      clusterExecutorImpl2.destroy();
+    }
+  }
+}
