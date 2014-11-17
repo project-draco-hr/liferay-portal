@@ -1,5 +1,5 @@
 {
-  if (!attributeAndValue.endsWith("\"false\"") && !attributeAndValue.endsWith("\"true\"")) {
+  if (!attributeAndValue.endsWith(StringPool.QUOTE) || attributeAndValue.contains("\"<%=")) {
     return line;
   }
   if (tag.startsWith("liferay-")) {
@@ -9,14 +9,17 @@
   if (tagJavaClass == null) {
     return line;
   }
-  int pos=attributeAndValue.indexOf(StringPool.EQUAL);
+  int pos=attributeAndValue.indexOf("=\"");
   String attribute=attributeAndValue.substring(0,pos);
   String setAttributeMethodName="set" + TextFormatter.format(attribute,TextFormatter.G);
-  Type javaType=new Type("boolean");
-  JavaMethod setAttributeMethod=tagJavaClass.getMethodBySignature(setAttributeMethodName,new Type[]{javaType},true);
-  if (setAttributeMethod == null) {
-    return line;
+  for (  String dataType : getPrimitiveTagAttributeDataTypes()) {
+    Type javaType=new Type(dataType);
+    JavaMethod setAttributeMethod=tagJavaClass.getMethodBySignature(setAttributeMethodName,new Type[]{javaType},true);
+    if (setAttributeMethod != null) {
+      String value=attributeAndValue.substring(pos + 2,attributeAndValue.length() - 1);
+      String newAttributeAndValue=StringUtil.replace(attributeAndValue,StringPool.QUOTE + value + StringPool.QUOTE,"\"<%= " + value + " %>\"");
+      return StringUtil.replace(line,attributeAndValue,newAttributeAndValue);
+    }
   }
-  String newAttributeAndValue=StringUtil.replace(attributeAndValue,new String[]{"\"false\"","\"true\""},new String[]{"\"<%= false %>\"","\"<%= true %>\""});
-  return StringUtil.replace(line,attributeAndValue,newAttributeAndValue);
+  return line;
 }
