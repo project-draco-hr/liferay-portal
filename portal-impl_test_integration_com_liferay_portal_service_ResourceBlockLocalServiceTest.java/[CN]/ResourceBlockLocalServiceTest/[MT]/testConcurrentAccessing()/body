@@ -2,12 +2,13 @@
   PermissionedModel permissionedModel=new MockPermissionedModel();
   ResourceBlockPermissionsContainer resourceBlockPermissionsContainer=new ResourceBlockPermissionsContainer();
   resourceBlockPermissionsContainer.addPermission(_ROLE_ID,_ACTION_IDS);
-  String permissionsHash=resourceBlockPermissionsContainer.getPermissionsHash();
   Semaphore semaphore=new Semaphore(0);
-  List<Callable<Void>> callables=new ArrayList<Callable<Void>>();
+  Callable<Void> updateResourceBlockIdCallable=new UpdateResourceBlockIdCallable(permissionedModel,resourceBlockPermissionsContainer,semaphore);
+  Callable<Void> releaseResourceBlockCallable=new ReleaseResourceBlockCallable(permissionedModel,semaphore);
+  List<Callable<Void>> callables=new ArrayList<Callable<Void>>(_REFERENCE_COUNT * 2);
   for (int i=0; i < _REFERENCE_COUNT; i++) {
-    callables.add(new UpdateResourceBlockIdCallable(permissionedModel,permissionsHash,resourceBlockPermissionsContainer,semaphore));
-    callables.add(new ReleaseResourceBlockCallable(permissionedModel,semaphore));
+    callables.add(updateResourceBlockIdCallable);
+    callables.add(releaseResourceBlockCallable);
   }
   ExecutorService executorService=Executors.newFixedThreadPool(_THREAD_COUNT,new NamedThreadFactory("Concurrent Accessing-",Thread.NORM_PRIORITY,null));
   List<Future<Void>> futures=executorService.invokeAll(callables);
