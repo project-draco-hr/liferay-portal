@@ -1,25 +1,36 @@
 {
   HttpServletRequest request=(HttpServletRequest)pageContext.getRequest();
   ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
-  long groupId=ParamUtil.getLong(request,"groupId");
-  Group group=GroupLocalServiceUtil.fetchGroup(groupId);
-  if (group == null) {
-    group=(Group)request.getAttribute(WebKeys.GROUP);
-  }
-  if (group == null) {
-    group=themeDisplay.getScopeGroup();
-  }
-  if (group == null) {
+  Group group=themeDisplay.getScopeGroup();
+  pageContext.setAttribute("group",group);
+  pageContext.setAttribute("groupId",group.getGroupId());
+  pageContext.setAttribute("liveGroup",null);
+  pageContext.setAttribute("liveGroupId",0L);
+  pageContext.setAttribute("stagingGroup",null);
+  pageContext.setAttribute("stagingGroupId",0L);
+  Layout layout=themeDisplay.getLayout();
+  boolean privateLayout=GetterUtil.getBoolean(ParamUtil.getBoolean(request,"privateLayout",layout.isPrivateLayout()));
+  pageContext.setAttribute("privateLayout",privateLayout);
+  if (!group.isStaged() && !group.isStagedRemotely() && !group.hasLocalOrRemoteStagingGroup()) {
     return SKIP_BODY;
   }
   Group liveGroup=StagingUtil.getLiveGroup(group.getGroupId());
   Group stagingGroup=StagingUtil.getStagingGroup(group.getGroupId());
-  pageContext.setAttribute("group",group);
-  pageContext.setAttribute("groupId",group.getGroupId());
   pageContext.setAttribute("liveGroup",liveGroup);
   pageContext.setAttribute("liveGroupId",liveGroup.getGroupId());
-  pageContext.setAttribute("privateLayout",ParamUtil.getBoolean(request,"privateLayout"));
   pageContext.setAttribute("stagingGroup",stagingGroup);
   pageContext.setAttribute("stagingGroupId",stagingGroup.getGroupId());
+  if (Validator.isNotNull(_portletId)) {
+    boolean isStagedPortlet=liveGroup.isStagedPortlet(_portletId);
+    if (group.isStagedRemotely()) {
+      isStagedPortlet=stagingGroup.isStagedPortlet(_portletId);
+    }
+    if (isStagedPortlet) {
+      pageContext.setAttribute("group",stagingGroup);
+      pageContext.setAttribute("groupId",stagingGroup.getGroupId());
+      pageContext.setAttribute("scopeGroup",stagingGroup);
+      pageContext.setAttribute("scopeGroupId",stagingGroup.getGroupId());
+    }
+  }
   return SKIP_BODY;
 }
