@@ -2,11 +2,18 @@
   ActionableDynamicQuery actionableDynamicQuery=DLFileVersionLocalServiceUtil.getActionableDynamicQuery();
   actionableDynamicQuery.setAddCriteriaMethod(new ActionableDynamicQuery.AddCriteriaMethod(){
     @Override public void addCriteria(    DynamicQuery dynamicQuery){
-      Property property=PropertyFactoryUtil.forName("mimeType");
-      dynamicQuery.add(property.eq(originalMimeType));
+      Criterion originalMimeTypeCriterion=RestrictionsFactoryUtil.eq("mimeType",originalMimeTypes[0]);
+      for (int i=1; i < originalMimeTypes.length; i++) {
+        originalMimeTypeCriterion=RestrictionsFactoryUtil.or(originalMimeTypeCriterion,RestrictionsFactoryUtil.eq("mimeType",originalMimeTypes[i]));
+      }
+      dynamicQuery.add(originalMimeTypeCriterion);
     }
   }
 );
+  if (_log.isDebugEnabled()) {
+    long count=actionableDynamicQuery.performCount();
+    _log.debug("Processing " + count + " documents for mime types: "+ StringUtil.merge(originalMimeTypes,StringPool.COMMA));
+  }
   actionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod(){
     @Override public void performAction(    Object object){
       DLFileVersion dlFileVersion=(DLFileVersion)object;
@@ -33,11 +40,24 @@
       }
       String title=DLUtil.getTitleWithExtension(dlFileVersion.getTitle(),dlFileVersion.getExtension());
       String mimeType=getMimeType(inputStream,title);
+      String originalMimeType=dlFileVersion.getMimeType();
       if (mimeType.equals(originalMimeType)) {
         return;
       }
       dlFileVersion.setMimeType(mimeType);
       DLFileVersionLocalServiceUtil.updateDLFileVersion(dlFileVersion);
+      try {
+        DLFileEntry dlFileEntry=dlFileVersion.getFileEntry();
+        if (dlFileEntry.getVersion().equals(dlFileVersion.getVersion())) {
+          dlFileEntry.setMimeType(mimeType);
+          DLFileEntryLocalServiceUtil.updateDLFileEntry(dlFileEntry);
+        }
+      }
+ catch (      PortalException e) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Unable to find file entry " + dlFileVersion.getFileEntryId(),e);
+        }
+      }
     }
   }
 );
