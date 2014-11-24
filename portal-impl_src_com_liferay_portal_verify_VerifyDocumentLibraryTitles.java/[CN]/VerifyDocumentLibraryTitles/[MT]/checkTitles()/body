@@ -1,30 +1,41 @@
 {
   ActionableDynamicQuery actionableDynamicQuery=DLFileEntryLocalServiceUtil.getActionableDynamicQuery();
-  actionableDynamicQuery.setAddCriteriaMethod(new ActionableDynamicQuery.AddCriteriaMethod(){
-    @Override public void addCriteria(    DynamicQuery dynamicQuery){
-      Property titleProperty=PropertyFactoryUtil.forName("title");
-      dynamicQuery.add(titleProperty.like("%\\\\%"));
-      Property statusProperty=PropertyFactoryUtil.forName("status");
-      dynamicQuery.add(statusProperty.ne(WorkflowConstants.STATUS_IN_TRASH));
-    }
-  }
-);
   actionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod(){
     @Override public void performAction(    Object object){
       DLFileEntry dlFileEntry=(DLFileEntry)object;
-      String title=dlFileEntry.getTitle();
-      String newTitle=title.replace(StringPool.BACK_SLASH,StringPool.UNDERLINE);
-      try {
-        renameTitle(dlFileEntry,newTitle);
+      if (dlFileEntry.isInTrash()) {
+        return;
       }
- catch (      Exception e) {
-        if (_log.isWarnEnabled()) {
-          _log.warn("Unable to rename duplicate title for " + "file entry " + dlFileEntry.getFileEntryId() + ": "+ e.getMessage(),e);
+      String title=dlFileEntry.getTitle();
+      if (StringUtil.contains(title,StringPool.DOUBLE_BACK_SLASH)) {
+        String newTitle=title.replace(StringPool.BACK_SLASH,StringPool.UNDERLINE);
+        try {
+          dlFileEntry=renameTitle(dlFileEntry,newTitle);
+        }
+ catch (        Exception e) {
+          if (_log.isWarnEnabled()) {
+            _log.warn("Unable to rename duplicate title for " + "file entry " + dlFileEntry.getFileEntryId() + ": "+ e.getMessage(),e);
+          }
+        }
+      }
+      try {
+        DLFileEntryLocalServiceUtil.validateFile(dlFileEntry.getGroupId(),dlFileEntry.getFolderId(),dlFileEntry.getFileEntryId(),dlFileEntry.getFileName(),dlFileEntry.getTitle());
+      }
+ catch (      PortalException pe) {
+        if (!(pe instanceof DuplicateFileException) && !(pe instanceof DuplicateFolderNameException)) {
+          return;
+        }
+        try {
+          renameDuplicateTitle(dlFileEntry);
+        }
+ catch (        Exception e) {
+          if (_log.isWarnEnabled()) {
+            _log.warn("Unable to rename duplicate title for " + "file entry " + dlFileEntry.getFileEntryId() + ": "+ e.getMessage(),e);
+          }
         }
       }
     }
   }
 );
   actionableDynamicQuery.performActions();
-  checkDuplicateTitles();
 }
