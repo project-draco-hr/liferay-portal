@@ -1,15 +1,30 @@
 {
-  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(DLFileEntry.class);
-  dynamicQuery.add(RestrictionsFactoryUtil.like("title","%\\\\%"));
-  List<DLFileEntry> dlFileEntries=DLFileEntryLocalServiceUtil.dynamicQuery(dynamicQuery);
-  for (  DLFileEntry dlFileEntry : dlFileEntries) {
-    TrashEntry trashEntry=TrashEntryLocalServiceUtil.fetchEntry(dlFileEntry.getModelClassName(),dlFileEntry.getFileEntryId());
-    if (trashEntry != null) {
-      continue;
+  ActionableDynamicQuery actionableDynamicQuery=DLFileEntryLocalServiceUtil.getActionableDynamicQuery();
+  actionableDynamicQuery.setAddCriteriaMethod(new ActionableDynamicQuery.AddCriteriaMethod(){
+    @Override public void addCriteria(    DynamicQuery dynamicQuery){
+      Property titleProperty=PropertyFactoryUtil.forName("title");
+      dynamicQuery.add(titleProperty.like("%\\\\%"));
+      Property statusProperty=PropertyFactoryUtil.forName("status");
+      dynamicQuery.add(statusProperty.ne(WorkflowConstants.STATUS_IN_TRASH));
     }
-    String title=dlFileEntry.getTitle();
-    String newTitle=title.replace(StringPool.BACK_SLASH,StringPool.UNDERLINE);
-    renameTitle(dlFileEntry,newTitle);
   }
+);
+  actionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod(){
+    @Override public void performAction(    Object object){
+      DLFileEntry dlFileEntry=(DLFileEntry)object;
+      String title=dlFileEntry.getTitle();
+      String newTitle=title.replace(StringPool.BACK_SLASH,StringPool.UNDERLINE);
+      try {
+        renameTitle(dlFileEntry,newTitle);
+      }
+ catch (      Exception e) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Unable to rename duplicate title for " + "file entry " + dlFileEntry.getFileEntryId() + ": "+ e.getMessage(),e);
+        }
+      }
+    }
+  }
+);
+  actionableDynamicQuery.performActions();
   checkDuplicateTitles();
 }
