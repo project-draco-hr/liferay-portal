@@ -1,0 +1,34 @@
+{
+  ClusterMasterExecutorImpl clusterMasterExecutorImpl=new ClusterMasterExecutorImpl();
+  MockClusterExecutor mockClusterExecutor=new MockClusterExecutor(true);
+  clusterMasterExecutorImpl.setClusterExecutor(mockClusterExecutor);
+  clusterMasterExecutorImpl.initialize();
+  List<ClusterEventListener> clusterEventListeners=mockClusterExecutor.getClusterEventListeners();
+  Assert.assertEquals(1,clusterEventListeners.size());
+  Assert.assertNotNull(_mockLockLocalService.getLock());
+  clusterMasterExecutorImpl.destroy();
+  Assert.assertTrue(clusterEventListeners.isEmpty());
+  Assert.assertNull(_mockLockLocalService.getLock());
+  clusterMasterExecutorImpl=new ClusterMasterExecutorImpl();
+  clusterMasterExecutorImpl.setClusterExecutor(new MockClusterExecutor(false));
+  clusterMasterExecutorImpl.initialize();
+  clusterMasterExecutorImpl.destroy();
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(ClusterMasterExecutorImpl.class.getName(),Level.WARNING);
+  try {
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    clusterMasterExecutorImpl=new ClusterMasterExecutorImpl();
+    clusterMasterExecutorImpl.setClusterExecutor(new MockClusterExecutor(true));
+    clusterMasterExecutorImpl.initialize();
+    _mockLockLocalService.setUnlockError(true);
+    clusterMasterExecutorImpl.destroy();
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Assert.assertEquals("Unable to destroy the cluster master executor",logRecord.getMessage());
+    logRecords=captureHandler.resetLogLevel(Level.OFF);
+    clusterMasterExecutorImpl.destroy();
+    Assert.assertTrue(logRecords.isEmpty());
+  }
+  finally {
+    captureHandler.close();
+  }
+}
