@@ -1,4 +1,5 @@
 {
+  ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
   long entryId=ParamUtil.getLong(actionRequest,"entryId");
   String title=ParamUtil.getString(actionRequest,"title");
   String subtitle=ParamUtil.getString(actionRequest,"subtitle");
@@ -33,8 +34,20 @@
   BlogsEntry entry=null;
   String oldUrlTitle=StringPool.BLANK;
   ServiceContext serviceContext=ServiceContextFactory.getInstance(BlogsEntry.class.getName(),actionRequest);
+  List<BlogsEntryAttachmentReference> blogsEntryAttachmentReferences=new ArrayList<>();
   if (entryId <= 0) {
     entry=BlogsEntryServiceUtil.addEntry(title,subtitle,description,content,displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,allowPingbacks,allowTrackbacks,trackbacks,coverImageImageSelector,smallImageImageSelector,serviceContext);
+    BlogsEntryAttachmentHelper blogsEntryAttachmentHelper=new BlogsEntryAttachmentHelper();
+    List<FileEntry> tempBlogsEntryAttachments=blogsEntryAttachmentHelper.getTempBlogsEntryAttachments(content);
+    if (!tempBlogsEntryAttachments.isEmpty()) {
+      blogsEntryAttachmentReferences=blogsEntryAttachmentHelper.addBlogsEntryAttachments(entry.getGroupId(),themeDisplay.getUserId(),entry.getEntryId(),tempBlogsEntryAttachments);
+      content=blogsEntryAttachmentHelper.updateContent(content,blogsEntryAttachmentReferences);
+      entry.setContent(content);
+      BlogsEntryLocalServiceUtil.updateBlogsEntry(entry);
+    }
+    for (    FileEntry tempBlogsEntryAttachment : tempBlogsEntryAttachments) {
+      PortletFileRepositoryUtil.deletePortletFileEntry(tempBlogsEntryAttachment.getFileEntryId());
+    }
     AssetPublisherUtil.addAndStoreSelection(actionRequest,BlogsEntry.class.getName(),entry.getEntryId(),-1);
   }
  else {
@@ -44,11 +57,20 @@
     serviceContext.setAttribute("emailEntryUpdatedComment",emailEntryUpdatedComment);
     entry=BlogsEntryLocalServiceUtil.getEntry(entryId);
     String tempOldUrlTitle=entry.getUrlTitle();
-    entry=BlogsEntryServiceUtil.updateEntry(entryId,title,subtitle,description,content,displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,allowPingbacks,allowTrackbacks,trackbacks,coverImageImageSelector,smallImageImageSelector,serviceContext);
+    BlogsEntryAttachmentHelper blogsEntryAttachmentHelper=new BlogsEntryAttachmentHelper();
+    List<FileEntry> tempBlogsEntryAttachments=blogsEntryAttachmentHelper.getTempBlogsEntryAttachments(content);
+    if (!tempBlogsEntryAttachments.isEmpty()) {
+      blogsEntryAttachmentReferences=blogsEntryAttachmentHelper.addBlogsEntryAttachments(entry.getGroupId(),themeDisplay.getUserId(),entry.getEntryId(),tempBlogsEntryAttachments);
+      content=blogsEntryAttachmentHelper.updateContent(content,blogsEntryAttachmentReferences);
+      entry=BlogsEntryServiceUtil.updateEntry(entryId,title,subtitle,description,content,displayDateMonth,displayDateDay,displayDateYear,displayDateHour,displayDateMinute,allowPingbacks,allowTrackbacks,trackbacks,coverImageImageSelector,smallImageImageSelector,serviceContext);
+    }
+    for (    FileEntry tempBlogsEntryAttachment : tempBlogsEntryAttachments) {
+      PortletFileRepositoryUtil.deletePortletFileEntry(tempBlogsEntryAttachment.getFileEntryId());
+    }
     if (!tempOldUrlTitle.equals(entry.getUrlTitle())) {
       oldUrlTitle=tempOldUrlTitle;
     }
     AssetPublisherUtil.addAndStoreSelection(actionRequest,BlogsEntry.class.getName(),entry.getEntryId(),-1);
   }
-  return new Object[]{entry,oldUrlTitle};
+  return new Object[]{entry,oldUrlTitle,blogsEntryAttachmentReferences};
 }
