@@ -1,11 +1,11 @@
 {
-  boolean exportPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PERMISSIONS);
+  boolean exportPermissions=MapUtil.getBoolean(portletDataContext.getParameterMap(),PortletDataHandlerKeys.PERMISSIONS);
   if (_log.isDebugEnabled()) {
     _log.debug("Export permissions " + exportPermissions);
   }
   StopWatch stopWatch=new StopWatch();
   stopWatch.start();
-  Layout layout=LayoutLocalServiceUtil.getLayout(plid);
+  Layout layout=LayoutLocalServiceUtil.getLayout(portletDataContext.getPlid());
   if (!layout.isTypeControlPanel() && !layout.isTypePanel() && !layout.isTypePortlet()) {
     throw new LayoutImportException("Layout type " + layout.getType() + " is not valid");
   }
@@ -18,10 +18,9 @@
     serviceContext.setUserId(defaultUserId);
     ServiceContextThreadLocal.pushServiceContext(serviceContext);
   }
-  long layoutSetBranchId=MapUtil.getLong(parameterMap,"layoutSetBranchId");
+  long layoutSetBranchId=MapUtil.getLong(portletDataContext.getParameterMap(),"layoutSetBranchId");
   serviceContext.setAttribute("layoutSetBranchId",layoutSetBranchId);
-  ZipWriter zipWriter=ZipWriterFactoryUtil.getZipWriter();
-  long scopeGroupId=groupId;
+  long scopeGroupId=portletDataContext.getGroupId();
   javax.portlet.PortletPreferences jxPortletPreferences=PortletPreferencesFactoryUtil.getLayoutPortletSetup(layout,portletId);
   String scopeType=GetterUtil.getString(jxPortletPreferences.getValue("lfrScopeType",null));
   String scopeLayoutUuid=GetterUtil.getString(jxPortletPreferences.getValue("lfrScopeLayoutUuid",null));
@@ -37,10 +36,6 @@
       scopeGroupId=scopeGroup.getGroupId();
     }
   }
-  PortletDataContext portletDataContext=PortletDataContextFactoryUtil.createExportPortletDataContext(layout.getCompanyId(),scopeGroupId,parameterMap,startDate,endDate,zipWriter);
-  portletDataContext.setPortetDataContextListener(new PortletDataContextListenerImpl(portletDataContext));
-  portletDataContext.setPlid(plid);
-  portletDataContext.setOldPlid(plid);
   portletDataContext.setScopeType(scopeType);
   portletDataContext.setScopeLayoutUuid(scopeLayoutUuid);
   Document document=SAXReaderUtil.createDocument();
@@ -63,7 +58,7 @@
   headerElement.addAttribute("root-portlet-id",PortletConstants.getRootPortletId(portletId));
   Element missingReferencesElement=rootElement.addElement("missing-references");
   portletDataContext.setMissingReferencesElement(missingReferencesElement);
-  Map<String,Boolean> exportPortletControlsMap=ExportImportHelperUtil.getExportPortletControlsMap(layout.getCompanyId(),portletId,parameterMap);
+  Map<String,Boolean> exportPortletControlsMap=ExportImportHelperUtil.getExportPortletControlsMap(layout.getCompanyId(),portletId,portletDataContext.getParameterMap());
   exportPortlet(portletDataContext,portletId,layout,rootElement,exportPermissions,exportPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_ARCHIVED_SETUPS),exportPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_DATA),exportPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_SETUP),exportPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_USER_PREFERENCES));
   exportService(portletDataContext,portletId,rootElement,exportPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_SETUP));
   exportAssetLinks(portletDataContext);
@@ -84,5 +79,6 @@
  catch (  IOException ioe) {
     throw new SystemException(ioe);
   }
+  ZipWriter zipWriter=portletDataContext.getZipWriter();
   return zipWriter.getFile();
 }

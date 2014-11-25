@@ -1,4 +1,5 @@
 {
+  Map<String,String[]> parameterMap=portletDataContext.getParameterMap();
   boolean exportIgnoreLastPublishDate=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.IGNORE_LAST_PUBLISH_DATE);
   boolean exportPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PERMISSIONS);
   boolean exportLogo=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.LOGO);
@@ -6,7 +7,7 @@
   if (_log.isDebugEnabled()) {
     _log.debug("Export permissions " + exportPermissions);
   }
-  LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(groupId,privateLayout);
+  LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(portletDataContext.getGroupId(),portletDataContext.isPrivateLayout());
   long companyId=layoutSet.getCompanyId();
   long defaultUserId=UserLocalServiceUtil.getDefaultUserId(companyId);
   ServiceContext serviceContext=ServiceContextThreadLocal.popServiceContext();
@@ -21,13 +22,11 @@
   serviceContext.setAttribute("layoutSetBranchId",layoutSetBranchId);
   ServiceContextThreadLocal.pushServiceContext(serviceContext);
   if (exportIgnoreLastPublishDate) {
-    endDate=null;
-    startDate=null;
+    portletDataContext.setStartDate(null);
+    portletDataContext.setEndDate(null);
   }
   StopWatch stopWatch=new StopWatch();
   stopWatch.start();
-  ZipWriter zipWriter=ZipWriterFactoryUtil.getZipWriter();
-  PortletDataContext portletDataContext=PortletDataContextFactoryUtil.createExportPortletDataContext(companyId,groupId,parameterMap,startDate,endDate,zipWriter);
   portletDataContext.setPortetDataContextListener(new PortletDataContextListenerImpl(portletDataContext));
   Document document=SAXReaderUtil.createDocument();
   Element rootElement=document.addElement("root");
@@ -42,9 +41,9 @@
   }
   headerElement.addAttribute("company-id",String.valueOf(portletDataContext.getCompanyId()));
   headerElement.addAttribute("company-group-id",String.valueOf(portletDataContext.getCompanyGroupId()));
-  headerElement.addAttribute("group-id",String.valueOf(groupId));
+  headerElement.addAttribute("group-id",String.valueOf(portletDataContext.getGroupId()));
   headerElement.addAttribute("user-personal-site-group-id",String.valueOf(portletDataContext.getUserPersonalSiteGroupId()));
-  headerElement.addAttribute("private-layout",String.valueOf(privateLayout));
+  headerElement.addAttribute("private-layout",String.valueOf(portletDataContext.isPrivateLayout()));
   Group group=layoutSet.getGroup();
   String type="layout-set";
   if (group.isLayoutPrototype()) {
@@ -92,7 +91,7 @@
     }
   }
   Map<String,Object[]> portletIds=new LinkedHashMap<String,Object[]>();
-  List<Layout> layouts=LayoutLocalServiceUtil.getLayouts(groupId,privateLayout);
+  List<Layout> layouts=LayoutLocalServiceUtil.getLayouts(portletDataContext.getGroupId(),portletDataContext.isPrivateLayout());
   if (group.isStagingGroup()) {
     group=group.getLiveGroup();
   }
@@ -105,7 +104,7 @@
       PortletDataHandler portletDataHandler=portlet.getPortletDataHandlerInstance();
       portletDataHandler.prepareManifestSummary(portletDataContext);
     }
-    portletIds.put(PortletPermissionUtil.getPrimaryKey(0,portletId),new Object[]{portletId,LayoutConstants.DEFAULT_PLID,groupId,StringPool.BLANK,StringPool.BLANK});
+    portletIds.put(PortletPermissionUtil.getPrimaryKey(0,portletId),new Object[]{portletId,LayoutConstants.DEFAULT_PLID,portletDataContext.getGroupId(),StringPool.BLANK,StringPool.BLANK});
     if (!portlet.isScopeable()) {
       continue;
     }
@@ -160,7 +159,7 @@
     if (layout == null) {
       layout=new LayoutImpl();
       layout.setCompanyId(companyId);
-      layout.setGroupId(groupId);
+      layout.setGroupId(portletDataContext.getGroupId());
     }
     portletDataContext.setPlid(plid);
     portletDataContext.setOldPlid(plid);
@@ -168,8 +167,16 @@
     portletDataContext.setScopeType(scopeType);
     portletDataContext.setScopeLayoutUuid(scopeLayoutUuid);
     Map<String,Boolean> exportPortletControlsMap=ExportImportHelperUtil.getExportPortletControlsMap(companyId,portletId,parameterMap,type);
-    _portletExporter.exportPortlet(portletDataContext,portletId,layout,portletsElement,exportPermissions,exportPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_ARCHIVED_SETUPS),exportPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_DATA),exportPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_SETUP),exportPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_USER_PREFERENCES));
-    _portletExporter.exportService(portletDataContext,portletId,servicesElement,exportPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_SETUP));
+    try {
+      ExportImportLifecycleManager.fireExportImportLifecycleEvent(ExportImportLifecycleConstants.EVENT_PORTLET_EXPORT_STARTED,portletDataContext);
+      _portletExporter.exportPortlet(portletDataContext,portletId,layout,portletsElement,exportPermissions,exportPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_ARCHIVED_SETUPS),exportPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_DATA),exportPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_SETUP),exportPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_USER_PREFERENCES));
+      _portletExporter.exportService(portletDataContext,portletId,servicesElement,exportPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_SETUP));
+      ExportImportLifecycleManager.fireExportImportLifecycleEvent(ExportImportLifecycleConstants.EVENT_PORTLET_EXPORT_FINISHED,portletDataContext);
+    }
+ catch (    Throwable t) {
+      ExportImportLifecycleManager.fireExportImportLifecycleEvent(ExportImportLifecycleConstants.EVENT_PORTLET_EXPORT_FAILED,portletDataContext,t);
+      throw t;
+    }
   }
   portletDataContext.setScopeGroupId(previousScopeGroupId);
   _portletExporter.exportAssetLinks(portletDataContext);
@@ -186,8 +193,9 @@
   }
   boolean updateLastPublishDate=MapUtil.getBoolean(portletDataContext.getParameterMap(),PortletDataHandlerKeys.UPDATE_LAST_PUBLISH_DATE);
   if (updateLastPublishDate) {
-    TransactionCommitCallbackRegistryUtil.registerCallback(new UpdateLayoutSetLastPublishDateCallable(portletDataContext.getDateRange(),groupId,privateLayout));
+    TransactionCommitCallbackRegistryUtil.registerCallback(new UpdateLayoutSetLastPublishDateCallable(portletDataContext.getDateRange(),portletDataContext.getGroupId(),portletDataContext.isPrivateLayout()));
   }
   portletDataContext.addZipEntry("/manifest.xml",document.formattedString());
+  ZipWriter zipWriter=portletDataContext.getZipWriter();
   return zipWriter.getFile();
 }
