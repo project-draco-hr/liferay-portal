@@ -3,28 +3,41 @@
   clusterMasterExecutorImpl.setClusterExecutor(new MockClusterExecutor(false));
   clusterMasterExecutorImpl.initialize();
   Assert.assertFalse(clusterMasterExecutorImpl.isEnabled());
+  String timeString=String.valueOf(System.currentTimeMillis());
+  MethodHandler methodHandler=new MethodHandler(testMethodMethodKey,timeString);
   CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(ClusterMasterExecutorImpl.class.getName(),Level.WARNING);
   try {
-    List<LogRecord> logRecords=captureHandler.getLogRecords();
-    String timeString=String.valueOf(System.currentTimeMillis());
-    MethodHandler methodHandler=new MethodHandler(testMethodMethodKey,timeString);
     NoticeableFuture<String> noticeableFuture=clusterMasterExecutorImpl.executeOnMaster(methodHandler);
     Assert.assertSame(timeString,noticeableFuture.get());
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
     Assert.assertEquals(1,logRecords.size());
     LogRecord logRecord=logRecords.get(0);
     Assert.assertEquals("Executing on the local node because the cluster master " + "executor is disabled",logRecord.getMessage());
-    logRecords=captureHandler.resetLogLevel(Level.OFF);
-    noticeableFuture=clusterMasterExecutorImpl.executeOnMaster(methodHandler);
-    Assert.assertSame(timeString,noticeableFuture.get());
-    Assert.assertTrue(logRecords.isEmpty());
-    try {
-      clusterMasterExecutorImpl.executeOnMaster(null);
-      Assert.fail();
-    }
- catch (    SystemException e) {
-    }
   }
   finally {
     captureHandler.close();
+  }
+  captureHandler=JDKLoggerTestUtil.configureJDKLogger(ClusterMasterExecutorImpl.class.getName(),Level.OFF);
+  try {
+    NoticeableFuture<String> noticeableFuture=clusterMasterExecutorImpl.executeOnMaster(methodHandler);
+    Assert.assertSame(timeString,noticeableFuture.get());
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertTrue(logRecords.isEmpty());
+  }
+  finally {
+    captureHandler.close();
+  }
+  captureHandler=JDKLoggerTestUtil.configureJDKLogger(ClusterMasterExecutorImpl.class.getName(),Level.WARNING);
+  try {
+    clusterMasterExecutorImpl.executeOnMaster(null);
+    Assert.fail();
+  }
+ catch (  SystemException se) {
+    Throwable throwable=se.getCause();
+    Assert.assertSame(NullPointerException.class,throwable.getClass());
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Assert.assertEquals("Executing on the local node because the cluster master " + "executor is disabled",logRecord.getMessage());
   }
 }
