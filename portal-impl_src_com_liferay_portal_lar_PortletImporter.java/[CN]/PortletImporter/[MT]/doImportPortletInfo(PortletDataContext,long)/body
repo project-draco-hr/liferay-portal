@@ -1,0 +1,95 @@
+{
+  Map<String,String[]> parameterMap=portletDataContext.getParameterMap();
+  boolean deletePortletData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.DELETE_PORTLET_DATA);
+  boolean importPermissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PERMISSIONS);
+  StopWatch stopWatch=new StopWatch();
+  stopWatch.start();
+  ServiceContext serviceContext=ServiceContextThreadLocal.getServiceContext();
+  if (serviceContext == null) {
+    serviceContext=new ServiceContext();
+    serviceContext.setCompanyId(portletDataContext.getCompanyId());
+    serviceContext.setSignedIn(false);
+    serviceContext.setUserId(userId);
+    ServiceContextThreadLocal.pushServiceContext(serviceContext);
+  }
+  validateFile(portletDataContext.getCompanyId(),portletDataContext.getGroupId(),portletDataContext.getPortletId(),portletDataContext.getZipReader());
+  Map<Long,Long> groupIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(Group.class);
+  groupIds.put(portletDataContext.getSourceGroupId(),portletDataContext.getGroupId());
+  ManifestSummary manifestSummary=ExportImportHelperUtil.getManifestSummary(portletDataContext);
+  if (BackgroundTaskThreadLocal.hasBackgroundTask()) {
+    PortletDataHandlerStatusMessageSenderUtil.sendStatusMessage("portlet",portletDataContext.getPortletId(),manifestSummary);
+  }
+  portletDataContext.setManifestSummary(manifestSummary);
+  Element rootElement=portletDataContext.getImportDataRootElement();
+  Element portletElement=null;
+  try {
+    portletElement=rootElement.element("portlet");
+    Document portletDocument=SAXReaderUtil.read(portletDataContext.getZipEntryAsString(portletElement.attributeValue("path")));
+    portletElement=portletDocument.getRootElement();
+  }
+ catch (  DocumentException de) {
+    throw new SystemException(de);
+  }
+  LayoutCache layoutCache=new LayoutCache();
+  if (importPermissions) {
+    _permissionImporter.checkRoles(layoutCache,portletDataContext.getCompanyId(),portletDataContext.getGroupId(),userId,portletElement);
+    _permissionImporter.readPortletDataPermissions(portletDataContext);
+  }
+  readAssetTags(portletDataContext);
+  readExpandoTables(portletDataContext);
+  readLocks(portletDataContext);
+  if (_log.isDebugEnabled()) {
+    _log.debug("Deleting portlet data");
+  }
+  if (deletePortletData) {
+    deletePortletData(portletDataContext);
+  }
+  Element portletDataElement=portletElement.element("portlet-data");
+  Map<String,Boolean> importPortletControlsMap=ExportImportHelperUtil.getImportPortletControlsMap(portletDataContext.getCompanyId(),portletDataContext.getPortletId(),parameterMap,portletDataElement,manifestSummary);
+  Layout layout=LayoutLocalServiceUtil.getLayout(portletDataContext.getPlid());
+  try {
+    importPortletPreferences(portletDataContext,layout.getCompanyId(),portletDataContext.getGroupId(),layout,portletElement,true,importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_ARCHIVED_SETUPS),importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_DATA),importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_SETUP),importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_USER_PREFERENCES));
+    if (importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_DATA)) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Importing portlet data");
+      }
+      importPortletData(portletDataContext,portletDataElement);
+    }
+  }
+  finally {
+    resetPortletScope(portletDataContext,portletDataContext.getGroupId());
+  }
+  if (importPermissions) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Importing portlet permissions");
+    }
+    _permissionImporter.importPortletPermissions(layoutCache,portletDataContext.getCompanyId(),portletDataContext.getGroupId(),userId,layout,portletElement,portletDataContext.getPortletId());
+    if (userId > 0) {
+      Indexer indexer=IndexerRegistryUtil.nullSafeGetIndexer(User.class);
+      indexer.reindex(userId);
+    }
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Importing asset links");
+  }
+  readAssetLinks(portletDataContext);
+  _deletionSystemEventImporter.importDeletionSystemEvents(portletDataContext);
+  if (_log.isInfoEnabled()) {
+    _log.info("Importing portlet takes " + stopWatch.getTime() + " ms");
+  }
+  boolean importPortletSetup=importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_SETUP);
+  if (importPortletSetup) {
+    try {
+      List<Element> serviceElements=rootElement.elements("service");
+      for (      Element serviceElement : serviceElements) {
+        Document serviceDocument=SAXReaderUtil.read(portletDataContext.getZipEntryAsString(serviceElement.attributeValue("path")));
+        importServicePortletPreferences(portletDataContext,serviceDocument.getRootElement());
+      }
+    }
+ catch (    DocumentException de) {
+      throw new SystemException(de);
+    }
+  }
+  ZipReader zipReader=portletDataContext.getZipReader();
+  zipReader.close();
+}
