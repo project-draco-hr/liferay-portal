@@ -4,16 +4,23 @@
     return;
   }
   tldMappings=new HashMap<String,String[]>();
-  tldMappings.put("http://java.sun.com/jsp/jstl/core",new String[]{"/WEB-INF/tld/c.tld",null});
-  BundleWiring bundleWiring=_bundle.adapt(BundleWiring.class);
-  Collection<String> resourcePaths=bundleWiring.listResources("/","*.tld",BundleWiring.FINDENTRIES_RECURSE);
-  Iterator<String> iterator=resourcePaths.iterator();
-  while (iterator.hasNext()) {
-    String resourcePath=iterator.next();
-    URL url=_bundle.getResource(resourcePath);
-    String uri=getTldUri(url);
-    if (uri != null) {
-      tldMappings.put(uri,new String[]{StringPool.SLASH.concat(resourcePath),null});
+  ServiceReference<SAXParserFactory> saxReference=_bundleContext.getServiceReference(SAXParserFactory.class);
+  SAXParserFactory saxParserFactory=_bundleContext.getService(saxReference);
+  saxParserFactory.setNamespaceAware(false);
+  saxParserFactory.setValidating(false);
+  saxParserFactory.setXIncludeAware(false);
+  try {
+    SAXParser saxParser=saxParserFactory.newSAXParser();
+    collectTLDMappings(saxParser,tldMappings,_jspBundle);
+    collectTLDMappings(saxParser,tldMappings,_bundle);
+  }
+ catch (  Exception e) {
+    _logger.log(Logger.LOG_ERROR,e.getMessage(),e);
+  }
+  Map<String,String> map=(Map<String,String>)servletContext.getAttribute("jsp.taglib.mappings");
+  if (map != null) {
+    for (    Map.Entry<String,String> entry : map.entrySet()) {
+      tldMappings.put(entry.getKey(),new String[]{entry.getValue(),null});
     }
   }
   servletContext.setAttribute(Constants.JSP_TLD_URI_TO_LOCATION_MAP,tldMappings);
