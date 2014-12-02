@@ -1,25 +1,16 @@
 {
-  BundleContext bundleContext=bundle.getBundleContext();
-  if (serviceRegistrations._bundlePortletAppServiceRegistration != null) {
-    ServiceReference<?> serviceReference=serviceRegistrations._bundlePortletAppServiceRegistration.getReference();
-    return (BundlePortletApp)bundleContext.getService(serviceReference);
+  BundlePortletApp bundlePortletApp=serviceRegistrations.getBundlePortletApp();
+  if (bundlePortletApp != null) {
+    return bundlePortletApp;
   }
   com.liferay.portal.model.Portlet portalPortletModel=_portletLocalService.getPortletById(CompanyConstants.SYSTEM,PortletKeys.PORTAL);
-  String contextName=String.valueOf(bundle.getBundleId());
-  String contextPath=StringPool.SLASH.concat(contextName);
-  BundlePortletApp bundlePortletApp=new BundlePortletApp(bundle,portalPortletModel,contextName,contextPath,_httpServiceEndpoints.get(0));
-  ServletContext servletContext=(ServletContext)ProxyUtil.newProxyInstance(classLoader,new Class<?>[]{ServletContext.class},new BundleServletContextInvocationHandler(_servletContext,bundlePortletApp,classLoader));
-  bundlePortletApp.setServletContext(servletContext);
-  try {
-    serviceRegistrations._configuration=ConfigurationFactoryUtil.getConfiguration(classLoader,"portlet");
-  }
- catch (  Exception e) {
-  }
-  readResourceActions(serviceRegistrations._configuration,bundlePortletApp.getServletContextName(),classLoader);
+  bundlePortletApp=new BundlePortletApp(bundle,portalPortletModel,_httpServiceEndpoint);
+  createContext(bundle,bundlePortletApp,serviceRegistrations);
+  serviceRegistrations.setBundlePortletApp(bundlePortletApp);
+  serviceRegistrations.doConfiguration(classLoader);
+  BundleContext bundleContext=bundle.getBundleContext();
   Dictionary<String,Object> properties=new Hashtable<String,Object>();
-  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_NAME,contextName);
-  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_PATH,contextPath);
-  ServiceRegistration<?> serviceRegistration=bundleContext.registerService(ServletContextHelper.class,bundlePortletApp,properties);
-  serviceRegistrations._bundlePortletAppServiceRegistration=serviceRegistration;
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_SELECT,bundlePortletApp.getServletContextName());
+  bundleContext.registerService(EventListener.class,bundlePortletApp,properties);
   return bundlePortletApp;
 }
