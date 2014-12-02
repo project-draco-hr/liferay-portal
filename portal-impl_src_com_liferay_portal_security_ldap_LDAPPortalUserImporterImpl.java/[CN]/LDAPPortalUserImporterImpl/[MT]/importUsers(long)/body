@@ -1,0 +1,32 @@
+{
+  if (!LDAPSettingsUtil.isImportEnabled(companyId)) {
+    return;
+  }
+  try {
+    ShardUtil.pushCompanyService(companyId);
+    long defaultUserId=UserLocalServiceUtil.getDefaultUserId(companyId);
+    if (LockLocalServiceUtil.hasLock(defaultUserId,PortalUserImporterUtil.class.getName(),companyId)) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Skipping LDAP import for company " + companyId + " because another LDAP import is in process");
+      }
+      return;
+    }
+    LockLocalServiceUtil.lock(defaultUserId,PortalUserImporterUtil.class.getName(),companyId,LDAPPortalUserImporterImpl.class.getName(),false,PropsValues.LDAP_IMPORT_LOCK_EXPIRATION_TIME);
+    long[] ldapServerIds=StringUtil.split(PrefsPropsUtil.getString(companyId,"ldap.server.ids"),0L);
+    for (    long ldapServerId : ldapServerIds) {
+      importUsers(ldapServerId,companyId);
+    }
+    for (int ldapServerId=0; ; ldapServerId++) {
+      String postfix=LDAPSettingsUtil.getPropertyPostfix(ldapServerId);
+      String providerUrl=PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_BASE_PROVIDER_URL + postfix);
+      if (Validator.isNull(providerUrl)) {
+        break;
+      }
+      importUsers(ldapServerId,companyId);
+    }
+  }
+  finally {
+    LockLocalServiceUtil.unlock(PortalUserImporterUtil.class.getName(),companyId);
+    ShardUtil.popCompanyService();
+  }
+}
