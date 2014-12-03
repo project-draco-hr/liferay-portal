@@ -1,0 +1,54 @@
+{
+  Group group=groupPersistence.findByPrimaryKey(groupId);
+  String className=group.getClassName();
+  long classNameId=group.getClassNameId();
+  long classPK=group.getClassPK();
+  String groupKey=StringPool.BLANK;
+  if (nameMap != null) {
+    groupKey=nameMap.get(LocaleUtil.getDefault());
+  }
+  friendlyURL=getFriendlyURL(group.getCompanyId(),groupId,classNameId,classPK,StringPool.BLANK,friendlyURL);
+  if ((classNameId <= 0) || className.equals(Group.class.getName())) {
+    validateGroupKey(group.getGroupId(),group.getCompanyId(),groupKey,group.isSite());
+  }
+ else   if (className.equals(Organization.class.getName())) {
+    Organization organization=organizationPersistence.findByPrimaryKey(classPK);
+    groupKey=getOrgGroupName(organization.getName());
+  }
+ else   if (!GroupConstants.USER_PERSONAL_SITE.equals(group.getGroupKey())) {
+    groupKey=String.valueOf(classPK);
+  }
+  if (PortalUtil.isSystemGroup(group.getGroupKey()) && !groupKey.equals(group.getGroupKey())) {
+    throw new RequiredGroupException(String.valueOf(group.getGroupId()),RequiredGroupException.SYSTEM_GROUP);
+  }
+  validateFriendlyURL(group.getCompanyId(),group.getGroupId(),group.getClassNameId(),group.getClassPK(),friendlyURL);
+  validateParentGroup(group.getGroupId(),parentGroupId);
+  group.setParentGroupId(parentGroupId);
+  group.setTreePath(group.buildTreePath());
+  group.setGroupKey(groupKey);
+  group.setNameMap(nameMap);
+  group.setDescriptionMap(descriptionMap);
+  group.setType(type);
+  group.setManualMembership(manualMembership);
+  group.setMembershipRestriction(membershipRestriction);
+  group.setFriendlyURL(friendlyURL);
+  group.setInheritContent(inheritContent);
+  group.setActive(active);
+  if ((serviceContext != null) && group.isSite()) {
+    group.setExpandoBridgeAttributes(serviceContext);
+  }
+  groupPersistence.update(group);
+  if ((serviceContext == null) || !group.isSite()) {
+    return group;
+  }
+  User user=null;
+  user=userPersistence.fetchByPrimaryKey(group.getCreatorUserId());
+  if (user == null) {
+    user=userPersistence.fetchByPrimaryKey(serviceContext.getUserId());
+  }
+  if (user == null) {
+    user=userLocalService.getDefaultUser(group.getCompanyId());
+  }
+  updateAsset(user.getUserId(),group,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
+  return group;
+}
