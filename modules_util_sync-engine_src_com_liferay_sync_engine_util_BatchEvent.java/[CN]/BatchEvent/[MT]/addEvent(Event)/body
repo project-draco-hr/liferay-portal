@@ -1,0 +1,36 @@
+{
+  try {
+    Map<String,Object> parameters=event.getParameters();
+    SyncFile syncFile=(SyncFile)parameters.get("syncFile");
+    String zipFileId=syncFile.getSyncFileId() + "_" + System.currentTimeMillis();
+    Path deltaFilePath=(Path)parameters.get("filePath");
+    Path filePath=(Path)parameters.get("filePath");
+    if (deltaFilePath != null) {
+      if (!addFile(deltaFilePath,zipFileId)) {
+        return false;
+      }
+    }
+ else     if (filePath != null) {
+      if (!addFile(filePath,zipFileId)) {
+        return false;
+      }
+    }
+    parameters.put("urlPath",event.getURLPath());
+    parameters.put("zipFileId",zipFileId);
+    parameters=new HashMap<String,Object>(parameters);
+    parameters.remove("filePath");
+    _batchParameters.add(parameters);
+    _eventsCount++;
+    _handlers.put(zipFileId,event.getHandler());
+    if ((_eventsCount >= _MAX_EVENTS) || (_totalFileSize >= _MAX_TOTAL_FILE_SIZE)) {
+      fireBatchEvent();
+    }
+    return true;
+  }
+ catch (  IOException ioe) {
+    if (_logger.isTraceEnabled()) {
+      _logger.trace(ioe.getMessage(),ioe);
+    }
+    return false;
+  }
+}
