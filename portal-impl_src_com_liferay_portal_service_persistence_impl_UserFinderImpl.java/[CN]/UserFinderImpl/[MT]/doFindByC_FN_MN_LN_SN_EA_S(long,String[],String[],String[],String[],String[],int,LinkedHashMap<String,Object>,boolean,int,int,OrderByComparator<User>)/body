@@ -36,7 +36,7 @@
   boolean inherit=GetterUtil.getBoolean(params.get("inherit"));
   boolean socialRelationTypeUnionUserGroups=GetterUtil.getBoolean(params.get("socialRelationTypeUnionUserGroups"));
   if (ArrayUtil.isNotEmpty(groupIds) && inherit && !socialRelationTypeUnionUserGroups) {
-    List<Long> organizationIds=new ArrayList<Long>();
+    List<Organization> organizations=new ArrayList<Organization>();
     List<Long> siteGroupIds=new ArrayList<Long>();
     List<Long> userGroupIds=new ArrayList<Long>();
     for (    long groupId : groupIds) {
@@ -45,7 +45,10 @@
         continue;
       }
       if (group.isOrganization()) {
-        organizationIds.add(group.getOrganizationId());
+        Organization organization=OrganizationLocalServiceUtil.fetchOrganization(group.getOrganizationId());
+        if (organization != null) {
+          organizations.add(organization);
+        }
       }
  else       if (group.isUserGroup()) {
         userGroupIds.add(group.getClassPK());
@@ -54,10 +57,20 @@
         siteGroupIds.add(groupId);
       }
     }
-    if (!organizationIds.isEmpty()) {
+    if (!organizations.isEmpty()) {
       params2=new LinkedHashMap<String,Object>(params1);
       params2.remove("usersGroups");
-      params2.put("usersOrgs",organizationIds.toArray(new Long[organizationIds.size()]));
+      if (PropsValues.ORGANIZATIONS_MEMBERSHIP_STRICT) {
+        Long[] organizationIds=new Long[organizations.size()];
+        for (int i=0; i < organizationIds.length; i++) {
+          Organization organization=organizations.get(i);
+          organizationIds[i]=organization.getOrganizationId();
+        }
+        params2.put("usersOrgs",organizationIds);
+      }
+ else {
+        params2.put("usersOrgsTree",organizations);
+      }
     }
     if (!siteGroupIds.isEmpty()) {
       Long[] siteGroupIdsArray=siteGroupIds.toArray(new Long[siteGroupIds.size()]);
@@ -75,14 +88,17 @@
     }
   }
   if (ArrayUtil.isNotEmpty(roleIds) && inherit && !socialRelationTypeUnionUserGroups) {
-    List<Long> organizationIds=new ArrayList<Long>();
+    List<Organization> organizations=new ArrayList<Organization>();
     List<Long> siteGroupIds=new ArrayList<Long>();
     List<Long> userGroupIds=new ArrayList<Long>();
     for (    long roleId : roleIds) {
       List<Group> groups=RoleUtil.getGroups(roleId);
       for (      Group group : groups) {
         if (group.isOrganization()) {
-          organizationIds.add(group.getOrganizationId());
+          Organization organization=OrganizationLocalServiceUtil.fetchOrganization(group.getOrganizationId());
+          if (organization != null) {
+            organizations.add(organization);
+          }
         }
  else         if (group.isUserGroup()) {
           userGroupIds.add(group.getClassPK());
@@ -92,10 +108,20 @@
         }
       }
     }
-    if (!organizationIds.isEmpty()) {
+    if (!organizations.isEmpty()) {
       params2=new LinkedHashMap<String,Object>(params1);
       params2.remove("usersRoles");
-      params2.put("usersOrgs",organizationIds.toArray(new Long[organizationIds.size()]));
+      if (PropsValues.ORGANIZATIONS_MEMBERSHIP_STRICT) {
+        Long[] organizationIds=new Long[organizations.size()];
+        for (int i=0; i < organizationIds.length; i++) {
+          Organization organization=organizations.get(i);
+          organizationIds[i]=organization.getOrganizationId();
+        }
+        params2.put("usersOrgs",organizationIds);
+      }
+ else {
+        params2.put("usersOrgsTree",organizations);
+      }
     }
     if (!siteGroupIds.isEmpty()) {
       Long[] siteGroupIdsArray=siteGroupIds.toArray(new Long[siteGroupIds.size()]);
