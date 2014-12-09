@@ -1,0 +1,49 @@
+{
+  final Session session=SessionManager.getSession(getSyncAccountId());
+  Header tokenHeader=httpResponse.getFirstHeader("Sync-JWT");
+  if (tokenHeader != null) {
+    session.setToken(tokenHeader.getValue());
+  }
+  Map<String,DownloadFileHandler> handlers=(Map<String,DownloadFileHandler>)getParameterValue("handlers");
+  InputStream inputStream=null;
+  try {
+    HttpEntity httpEntity=httpResponse.getEntity();
+    inputStream=new CountingInputStream(httpEntity.getContent()){
+      @Override protected synchronized void afterRead(      int n){
+        session.incrementDownloadedBytes(n);
+        super.afterRead(n);
+      }
+    }
+;
+    ZipInputStream zipInputStream=new ZipInputStream(inputStream);
+    ZipEntry zipEntry=null;
+    while ((zipEntry=zipInputStream.getNextEntry()) != null) {
+      String zipEntryName=zipEntry.getName();
+      if (zipEntryName.equals("errors.json")) {
+        ObjectMapper objectMapper=new ObjectMapper();
+        JsonNode rootJsonNode=objectMapper.readTree(zipInputStream);
+        Iterator<Map.Entry<String,JsonNode>> fields=rootJsonNode.fields();
+        while (fields.hasNext()) {
+          Map.Entry<String,JsonNode> field=fields.next();
+          Handler handler=handlers.get(field.getKey());
+          JsonNode fieldValue=field.getValue();
+          String exception=handler.getException(fieldValue.textValue());
+          handler.handlePortalException(exception);
+        }
+        break;
+      }
+      DownloadFileHandler downloadFileHandler=handlers.get(zipEntryName);
+      SyncFile syncFile=(SyncFile)downloadFileHandler.getParameterValue("syncFile");
+      if (downloadFileHandler.isUnsynced(syncFile)) {
+        continue;
+      }
+      downloadFileHandler.copyFile(syncFile,Paths.get(syncFile.getFilePathName()),zipInputStream);
+    }
+  }
+ catch (  Exception e) {
+    _logger.debug(e.getMessage(),e);
+  }
+ finally {
+    StreamUtil.cleanUp(inputStream);
+  }
+}

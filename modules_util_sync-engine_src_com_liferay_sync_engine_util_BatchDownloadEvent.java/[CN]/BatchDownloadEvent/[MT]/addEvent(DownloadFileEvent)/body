@@ -1,0 +1,31 @@
+{
+  Map<String,Object> parameters=downloadFileEvent.getParameters();
+  SyncFile syncFile=(SyncFile)parameters.get("syncFile");
+  long size=0;
+  if ((boolean)parameters.get("patch")) {
+    size=syncFile.getSize() * (1 / PropsValues.SYNC_FILE_PATCHING_THRESHOLD_SIZE_RATIO);
+  }
+ else {
+    size=syncFile.getSize();
+  }
+  if (size >= PropsValues.SYNC_BATCH_EVENTS_MAX_FILE_SIZE) {
+    return false;
+  }
+  _totalFileSize+=size;
+  _eventsCount++;
+  String zipFileId=syncFile.getSyncFileId() + "_" + System.currentTimeMillis();
+  parameters.put("groupId",syncFile.getRepositoryId());
+  parameters.put("uuid",syncFile.getTypeUuid());
+  if ((boolean)parameters.get("patch")) {
+    parameters.put("version",syncFile.getVersion());
+  }
+  parameters.put("zipFileId",zipFileId);
+  parameters=new HashMap<String,Object>(parameters);
+  parameters.remove("syncFile");
+  _batchParameters.add(parameters);
+  _handlers.put(zipFileId,(DownloadFileHandler)downloadFileEvent.getHandler());
+  if ((_eventsCount >= PropsValues.SYNC_BATCH_EVENTS_TOTAL_COUNT) || (_totalFileSize >= PropsValues.SYNC_BATCH_EVENTS_TOTAL_FILE_SIZE)) {
+    fireBatchEvent();
+  }
+  return true;
+}

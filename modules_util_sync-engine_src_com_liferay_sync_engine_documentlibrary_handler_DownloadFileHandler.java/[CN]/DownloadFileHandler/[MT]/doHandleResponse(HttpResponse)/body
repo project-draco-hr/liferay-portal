@@ -10,13 +10,10 @@
   }
   InputStream inputStream=null;
   SyncFile syncFile=(SyncFile)getParameterValue("syncFile");
-  syncFile=SyncFileService.fetchSyncFile(syncFile.getSyncFileId());
-  if ((syncFile == null) || (syncFile.getState() == SyncFile.STATE_UNSYNCED)) {
+  if (isUnsynced(syncFile)) {
     return;
   }
   Path filePath=Paths.get(syncFile.getFilePathName());
-  Watcher watcher=WatcherRegistry.getWatcher(getSyncAccountId());
-  List<String> downloadedFilePathNames=watcher.getDownloadedFilePathNames();
   try {
     HttpEntity httpEntity=httpResponse.getEntity();
     inputStream=new CountingInputStream(httpEntity.getContent()){
@@ -26,42 +23,9 @@
       }
     }
 ;
-    SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(getSyncAccountId());
-    Path tempFilePath=FileUtil.getFilePath(syncAccount.getFilePathName(),".data",String.valueOf(syncFile.getSyncFileId()));
-    if (Files.exists(filePath)) {
-      Files.copy(filePath,tempFilePath,StandardCopyOption.REPLACE_EXISTING);
-    }
-    if ((Boolean)getParameterValue("patch")) {
-      IODeltaUtil.patch(tempFilePath,inputStream);
-    }
- else {
-      Files.copy(inputStream,tempFilePath,StandardCopyOption.REPLACE_EXISTING);
-    }
-    downloadedFilePathNames.add(filePath.toString());
-    FileTime fileTime=FileTime.fromMillis(syncFile.getModifiedTime());
-    Files.setLastModifiedTime(tempFilePath,fileTime);
-    Files.move(tempFilePath,filePath,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
-    if (syncFile.getFileKey() == null) {
-      syncFile.setUiEvent(SyncFile.UI_EVENT_DOWNLOADED_NEW);
-    }
- else {
-      syncFile.setUiEvent(SyncFile.UI_EVENT_DOWNLOADED_UPDATE);
-    }
-    syncFile.setState(SyncFile.STATE_SYNCED);
-    SyncFileService.update(syncFile);
-    SyncFileService.updateFileKeySyncFile(syncFile);
-    IODeltaUtil.checksums(syncFile);
+    copyFile(syncFile,filePath,inputStream);
   }
- catch (  FileSystemException fse) {
-    downloadedFilePathNames.remove(filePath.toString());
-    String message=fse.getMessage();
-    if (message.contains("File name too long")) {
-      syncFile.setState(SyncFile.STATE_ERROR);
-      syncFile.setUiEvent(SyncFile.UI_EVENT_FILE_NAME_TOO_LONG);
-      SyncFileService.update(syncFile);
-    }
-  }
- finally {
+  finally {
     StreamUtil.cleanUp(inputStream);
   }
 }
