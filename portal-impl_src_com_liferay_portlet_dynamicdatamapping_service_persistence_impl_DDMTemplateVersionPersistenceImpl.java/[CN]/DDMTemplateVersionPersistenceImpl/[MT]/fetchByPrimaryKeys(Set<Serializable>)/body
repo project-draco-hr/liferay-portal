@@ -1,0 +1,60 @@
+{
+  if (primaryKeys.isEmpty()) {
+    return Collections.emptyMap();
+  }
+  Map<Serializable,DDMTemplateVersion> map=new HashMap<Serializable,DDMTemplateVersion>();
+  if (primaryKeys.size() == 1) {
+    Iterator<Serializable> iterator=primaryKeys.iterator();
+    Serializable primaryKey=iterator.next();
+    DDMTemplateVersion ddmTemplateVersion=fetchByPrimaryKey(primaryKey);
+    if (ddmTemplateVersion != null) {
+      map.put(primaryKey,ddmTemplateVersion);
+    }
+    return map;
+  }
+  Set<Serializable> uncachedPrimaryKeys=null;
+  for (  Serializable primaryKey : primaryKeys) {
+    DDMTemplateVersion ddmTemplateVersion=(DDMTemplateVersion)EntityCacheUtil.getResult(DDMTemplateVersionModelImpl.ENTITY_CACHE_ENABLED,DDMTemplateVersionImpl.class,primaryKey);
+    if (ddmTemplateVersion == null) {
+      if (uncachedPrimaryKeys == null) {
+        uncachedPrimaryKeys=new HashSet<Serializable>();
+      }
+      uncachedPrimaryKeys.add(primaryKey);
+    }
+ else {
+      map.put(primaryKey,ddmTemplateVersion);
+    }
+  }
+  if (uncachedPrimaryKeys == null) {
+    return map;
+  }
+  StringBundler query=new StringBundler((uncachedPrimaryKeys.size() * 2) + 1);
+  query.append(_SQL_SELECT_DDMTEMPLATEVERSION_WHERE_PKS_IN);
+  for (  Serializable primaryKey : uncachedPrimaryKeys) {
+    query.append(String.valueOf(primaryKey));
+    query.append(StringPool.COMMA);
+  }
+  query.setIndex(query.index() - 1);
+  query.append(StringPool.CLOSE_PARENTHESIS);
+  String sql=query.toString();
+  Session session=null;
+  try {
+    session=openSession();
+    Query q=session.createQuery(sql);
+    for (    DDMTemplateVersion ddmTemplateVersion : (List<DDMTemplateVersion>)q.list()) {
+      map.put(ddmTemplateVersion.getPrimaryKeyObj(),ddmTemplateVersion);
+      cacheResult(ddmTemplateVersion);
+      uncachedPrimaryKeys.remove(ddmTemplateVersion.getPrimaryKeyObj());
+    }
+    for (    Serializable primaryKey : uncachedPrimaryKeys) {
+      EntityCacheUtil.putResult(DDMTemplateVersionModelImpl.ENTITY_CACHE_ENABLED,DDMTemplateVersionImpl.class,primaryKey,_nullDDMTemplateVersion);
+    }
+  }
+ catch (  Exception e) {
+    throw processException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+  return map;
+}
