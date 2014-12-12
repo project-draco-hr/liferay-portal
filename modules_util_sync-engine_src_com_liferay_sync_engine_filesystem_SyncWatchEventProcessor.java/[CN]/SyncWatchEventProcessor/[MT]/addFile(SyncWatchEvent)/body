@@ -1,12 +1,13 @@
 {
   final Path targetFilePath=Paths.get(syncWatchEvent.getFilePathName());
   if (Files.notExists(targetFilePath) || isInErrorState(targetFilePath)) {
-    return true;
+    return;
   }
   Path parentTargetFilePath=targetFilePath.getParent();
   final SyncFile parentSyncFile=SyncFileService.fetchSyncFile(parentTargetFilePath.toString());
   if ((parentSyncFile == null) || (!parentSyncFile.isSystem() && (parentSyncFile.getTypePK() == 0))) {
-    return false;
+    queueSyncWatchEvent(parentTargetFilePath.toString(),syncWatchEvent);
+    return;
   }
   SyncFile syncFile=SyncFileService.fetchSyncFile(targetFilePath.toString());
   if (syncFile == null) {
@@ -27,12 +28,13 @@
     }
 ;
     _executorService.execute(runnable);
-    return true;
+    return;
   }
   Path sourceFilePath=Paths.get(syncFile.getFilePathName());
   if (targetFilePath.equals(sourceFilePath)) {
     if (isPendingTypePK(syncFile)) {
-      return false;
+      queueSyncWatchEvent(syncFile.getFilePathName(),syncWatchEvent);
+      return;
     }
     if (FileUtil.hasFileChanged(syncFile)) {
       SyncFileService.updateFileSyncFile(targetFilePath,_syncAccountId,syncFile);
@@ -47,17 +49,19 @@
         _logger.trace(e.getMessage(),e);
       }
     }
-    return true;
+    return;
   }
  else   if (parentTargetFilePath.equals(sourceFilePath.getParent())) {
     if (isPendingTypePK(syncFile)) {
-      return false;
+      queueSyncWatchEvent(syncFile.getFilePathName(),syncWatchEvent);
+      return;
     }
     SyncFileService.updateFileSyncFile(targetFilePath,_syncAccountId,syncFile);
   }
  else {
     if (isPendingTypePK(syncFile)) {
-      return false;
+      queueSyncWatchEvent(syncFile.getFilePathName(),syncWatchEvent);
+      return;
     }
     SyncFileService.moveFileSyncFile(targetFilePath,parentSyncFile.getTypePK(),_syncAccountId,syncFile);
     Path sourceFileNameFilePath=sourceFilePath.getFileName();
@@ -72,5 +76,4 @@
       _processedSyncWatchEventIds.add(relatedSyncWatchEvent.getSyncWatchEventId());
     }
   }
-  return true;
 }
