@@ -2,49 +2,53 @@
   SyncFile parentSyncFile=SyncFileService.fetchSyncFile(targetSyncFile.getRepositoryId(),getSyncAccountId(),targetSyncFile.getParentFolderId());
   if (parentSyncFile == null) {
     queueSyncFile(targetSyncFile.getParentFolderId(),targetSyncFile);
-    return false;
+    return;
   }
   String filePathName="";
   try {
     filePathName=FileUtil.getFilePathName(parentSyncFile.getFilePathName(),FileUtil.getSanitizedFileName(targetSyncFile.getName(),targetSyncFile.getExtension()));
     SyncFile sourceSyncFile=SyncFileService.fetchSyncFile(targetSyncFile.getRepositoryId(),getSyncAccountId(),targetSyncFile.getTypePK());
     if (isIgnoredFilePath(sourceSyncFile,filePathName) || ((sourceSyncFile != null) && (sourceSyncFile.getModifiedTime() == targetSyncFile.getModifiedTime()))) {
-      return false;
+      return;
     }
     String event=targetSyncFile.getEvent();
     if (event.equals(SyncFile.EVENT_ADD) || event.equals(SyncFile.EVENT_GET) || event.equals(SyncFile.EVENT_RESTORE)) {
       if (sourceSyncFile != null) {
         updateFile(sourceSyncFile,targetSyncFile,filePathName);
-        return true;
+        processDependentSyncFiles(sourceSyncFile);
+        return;
       }
       addFile(targetSyncFile,filePathName);
     }
  else     if (event.equals(SyncFile.EVENT_DELETE)) {
       if (sourceSyncFile == null) {
-        return false;
+        return;
       }
       deleteFile(sourceSyncFile,false);
     }
  else     if (event.equals(SyncFile.EVENT_MOVE)) {
       if (sourceSyncFile == null) {
         addFile(targetSyncFile,filePathName);
-        return true;
+        processDependentSyncFiles(targetSyncFile);
+        return;
       }
       moveFile(sourceSyncFile,targetSyncFile,filePathName);
     }
  else     if (event.equals(SyncFile.EVENT_TRASH)) {
       if (sourceSyncFile == null) {
-        return false;
+        return;
       }
       deleteFile(sourceSyncFile,true);
     }
  else     if (event.equals(SyncFile.EVENT_UPDATE)) {
       if (sourceSyncFile == null) {
         addFile(targetSyncFile,filePathName);
-        return true;
+        processDependentSyncFiles(targetSyncFile);
+        return;
       }
       updateFile(sourceSyncFile,targetSyncFile,filePathName);
     }
+    processDependentSyncFiles(targetSyncFile);
   }
  catch (  Exception e) {
     _logger.error(e.getMessage(),e);
@@ -56,7 +60,5 @@
         SyncFileService.update(targetSyncFile);
       }
     }
-    return false;
   }
-  return true;
 }
