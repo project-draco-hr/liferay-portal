@@ -1,11 +1,27 @@
 {
   Layout layout=_layoutTypePortlet.getLayout();
   _user=UserTestUtil.addUser(RandomTestUtil.randomString(),layout.getGroupId());
-  String portletId=_layoutTypePortlet.addPortletId(_user.getUserId(),PortletKeys.TEST);
+  final String portletId=_layoutTypePortlet.addPortletId(_user.getUserId(),PortletKeys.TEST);
   List<Portlet> portlets=_layoutTypePortlet.getAllPortlets();
   Assert.assertEquals(1,portlets.size());
-  Portlet portlet=PortletLocalServiceUtil.getPortletById(TestPropsValues.getCompanyId(),portletId);
-  PortletInstanceFactoryUtil.destroy(portlet);
-  portlets=_layoutTypePortlet.getAllPortlets();
-  Assert.assertEquals(0,portlets.size());
+  final long companyId=TestPropsValues.getCompanyId();
+  PortletLocalService portletLocalService=PortletLocalServiceUtil.getService();
+  ReflectionTestUtil.setFieldValue(PortletLocalServiceUtil.class,"_service",new PortletLocalServiceImpl(){
+    @Override public Portlet getPortletById(    long localCompanyId,    String localPortletId){
+      Portlet portlet=super.getPortletById(localCompanyId,localPortletId);
+      if ((companyId == localCompanyId) && portletId.equals(localPortletId)) {
+        portlet=(Portlet)portlet.clone();
+        portlet.setUndeployedPortlet(true);
+      }
+      return portlet;
+    }
+  }
+);
+  try {
+    portlets=_layoutTypePortlet.getAllPortlets();
+    Assert.assertTrue(portlets.isEmpty());
+  }
+  finally {
+    ReflectionTestUtil.setFieldValue(PortletLocalServiceUtil.class,"_service",portletLocalService);
+  }
 }
