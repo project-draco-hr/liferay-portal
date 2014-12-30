@@ -1,0 +1,26 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getUpgradeOptimizedConnection();
+    ps=con.prepareStatement("select parentStructureId, definition from DDMStructure " + "where structureId = ?");
+    ps.setLong(1,structureId);
+    rs=ps.executeQuery();
+    if (rs.next()) {
+      long parentStructureId=rs.getLong("parentStructureId");
+      String definition=rs.getString("definition");
+      DDMForm ddmForm=DDMFormXSDDeserializerUtil.deserialize(definition);
+      if (parentStructureId > 0) {
+        DDMForm parentDDMForm=getDDMForm(parentStructureId);
+        List<DDMFormField> ddmFormFields=ddmForm.getDDMFormFields();
+        ddmFormFields.addAll(parentDDMForm.getDDMFormFields());
+      }
+      return ddmForm;
+    }
+    throw new UpgradeException("Unable to find dynamic data mapping structure with ID " + structureId);
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}
