@@ -1,6 +1,6 @@
 {
   terminateFabricWorkers(_channel);
-  disposeRepository(_channel);
+  repository.dispose(true);
   EventLoopGroup eventLoopGroup=_bootstrap.group();
   if (_reconnectCounter.getAndDecrement() > 0) {
     eventLoopGroup.schedule(new Runnable(){
@@ -17,18 +17,7 @@
     if (_log.isInfoEnabled()) {
       _log.info("Shutting down Netty fabric client on " + _channel);
     }
-    try {
-      eventLoopGroup.shutdownGracefully();
-      shutdownEventExecutorGroup(_channel,_executionEventExecutorGroupAttributeKey);
-      shutdownEventExecutorGroup(_channel,_fileServerEventExecutorGroupAttributeKey);
-      shutdownEventExecutorGroup(_channel,_rpcEventExecutorGroupAttributeKey);
-      _channel=null;
-      _bootstrap=null;
-    }
-  finally {
-      _nettyFabricClientShutdownCallback.shutdown();
-      Runtime runtime=Runtime.getRuntime();
-      runtime.removeShutdownHook(_shutdownThread);
-    }
+    Future<?> future=eventLoopGroup.shutdownGracefully(_nettyFabricClientConfig.getShutdownQuietPeriod(),_nettyFabricClientConfig.getShutdownTimeout(),TimeUnit.MILLISECONDS);
+    future.addListener(new PostShutdownChannelFutureListener());
   }
 }
