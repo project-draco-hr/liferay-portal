@@ -1,0 +1,27 @@
+{
+  MockEventLoopGroup masterEventLoopGroup=new MockEventLoopGroup();
+  MockEventLoopGroup salveEventLoopGroup=new MockEventLoopGroup(){
+    @Override public boolean awaitTermination(    long timeout,    TimeUnit unit){
+      return false;
+    }
+  }
+;
+  CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(NettyUtil.class.getName(),Level.WARNING);
+  try {
+    NettyUtil.bindShutdown(masterEventLoopGroup,salveEventLoopGroup,0,10);
+    Future<?> masterFuture=masterEventLoopGroup.shutdownGracefully();
+    SyncFutureListener syncFutureListener=new SyncFutureListener();
+    masterFuture.addListener(syncFutureListener);
+    syncFutureListener.sync();
+    Future<?> slaveFuture=salveEventLoopGroup.terminationFuture();
+    slaveFuture.sync();
+    Assert.assertTrue(slaveFuture.isSuccess());
+    List<LogRecord> logRecords=captureHandler.getLogRecords();
+    Assert.assertEquals(1,logRecords.size());
+    LogRecord logRecord=logRecords.get(0);
+    Assert.assertEquals("Bind shutdown timeout " + salveEventLoopGroup,logRecord.getMessage());
+  }
+  finally {
+    captureHandler.close();
+  }
+}
