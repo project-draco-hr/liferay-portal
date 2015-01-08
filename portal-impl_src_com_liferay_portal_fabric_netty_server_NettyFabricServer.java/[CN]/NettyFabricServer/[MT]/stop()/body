@@ -2,19 +2,16 @@
   if (_serverChannel == null) {
     throw new IllegalStateException("Netty fabric server is not started");
   }
+  EventLoop eventLoop=_serverChannel.eventLoop();
+  EventLoopGroup bossGroup=eventLoop.parent();
+  DefaultNoticeableFuture<?> defaultNoticeableFuture=new DefaultNoticeableFuture<Object>();
   try {
     ChannelFuture channelFuture=_serverChannel.close();
     channelFuture.sync();
   }
   finally {
-    EventLoop eventLoop=_serverChannel.eventLoop();
-    EventLoopGroup bossGroup=eventLoop.parent();
-    bossGroup.shutdownGracefully();
-    shutdownEventExecutorGroup(_serverChannel,_workerEventLoopGroupAttributeKey);
-    shutdownEventExecutorGroup(_serverChannel,_fileServerEventExecutorGroupAttributeKey);
-    shutdownEventExecutorGroup(_serverChannel,_registrationEventExecutorGroupAttributeKey);
-    shutdownEventExecutorGroup(_serverChannel,_rpcEventExecutorGroupAttributeKey);
-    FileHelperUtil.delete(_nettyFabricServerConfig.getRepositoryParentPath());
-    _serverChannel=null;
+    Future<?> future=bossGroup.shutdownGracefully(_nettyFabricServerConfig.getShutdownQuietPeriod(),_nettyFabricServerConfig.getShutdownTimeout(),TimeUnit.MILLISECONDS);
+    future.addListener(new PostShutdownChannelListener(defaultNoticeableFuture));
   }
+  return defaultNoticeableFuture;
 }
