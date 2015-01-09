@@ -1,0 +1,30 @@
+{
+  if (_log.isInfoEnabled()) {
+    StringBundler sb=new StringBundler(baseAsyncDestinations.size() + 1);
+    sb.append("[");
+    for (    BaseAsyncDestination baseAsyncDestination : baseAsyncDestinations) {
+      sb.append(baseAsyncDestination.getName());
+      sb.append(", ");
+    }
+    sb.setStringAt("]",sb.index() - 1);
+    _log.info("Synchronizecluster index loading for destinations " + sb.toString());
+  }
+  int totalWorkersMaxSize=0;
+  for (  BaseAsyncDestination baseAsyncDestination : baseAsyncDestinations) {
+    totalWorkersMaxSize+=baseAsyncDestination.getWorkersMaxSize();
+  }
+  if (_log.isInfoEnabled()) {
+    _log.info("There are " + totalWorkersMaxSize + " synchronization threads");
+  }
+  CountDownLatch countDownLatch=new CountDownLatch(totalWorkersMaxSize + 1);
+  ClusterLoadingSyncJob slaveClusterLoadingSyncJob=new ClusterLoadingSyncJob(companyIds,countDownLatch,false);
+  for (  BaseAsyncDestination baseAsyncDestination : baseAsyncDestinations) {
+    ThreadPoolExecutor threadPoolExecutor=PortalExecutorManagerUtil.getPortalExecutor(baseAsyncDestination.getName());
+    for (int i=0; i < baseAsyncDestination.getWorkersMaxSize(); i++) {
+      threadPoolExecutor.execute(slaveClusterLoadingSyncJob);
+    }
+  }
+  ClusterLoadingSyncJob masterClusterLoadingSyncJob=new ClusterLoadingSyncJob(companyIds,countDownLatch,true);
+  ThreadPoolExecutor threadPoolExecutor=PortalExecutorManagerUtil.getPortalExecutor(IndexBackgroundTaskExecutor.class.getName());
+  threadPoolExecutor.execute(masterClusterLoadingSyncJob);
+}
