@@ -1,0 +1,29 @@
+{
+  try {
+    InitUtil.init();
+    ServerDetector.init(ServerDetector.TOMCAT_ID);
+    Properties properties=new Properties();
+    DataSource dataSource=DataSourceFactoryUtil.initDataSource(properties);
+    String dataSourceClassName=dataSource.getClass().getName();
+    int validConnectionCount=_CHECKOUT_COUNT;
+    for (int i=0; i < _CHECKOUT_COUNT; i++) {
+      Connection connection=dataSource.getConnection();
+      try {
+        PreparedStatement preparedStatement=connection.prepareStatement(_getTestQuery());
+        preparedStatement.execute();
+      }
+ catch (      SQLException sqle) {
+        validConnectionCount--;
+      }
+    }
+    MBeanServer mBeanServer=ManagementFactory.getPlatformMBeanServer();
+    ObjectName poolName=new ObjectName("com.zaxxer.hikari:type=Pool (HikariPool-0)");
+    Integer idleConnections=(Integer)mBeanServer.getAttribute(poolName,"IdleConnections");
+    Integer activeConnections=(Integer)mBeanServer.getAttribute(poolName,"ActiveConnections");
+    Integer totalConnections=(Integer)mBeanServer.getAttribute(poolName,"TotalConnections");
+    return new TestResult(dataSourceClassName,validConnectionCount,activeConnections,idleConnections,totalConnections);
+  }
+ catch (  Exception e) {
+    throw new ProcessException(e);
+  }
+}
