@@ -1,15 +1,20 @@
 {
-  ProcessConfig.Builder processConfigBuilder=new ProcessConfig.Builder();
-  List<String> arguments=new ArrayList<>();
-  arguments.add("-D" + PropsKeys.LIFERAY_LIB_PORTAL_DIR + "="+ PropsValues.LIFERAY_LIB_PORTAL_DIR);
-  arguments.add("-Dportal:jdbc.default.liferay.pool.provider=hikaricp");
-  processConfigBuilder.setArguments(arguments);
-  processConfigBuilder.setBootstrapClassPath(System.getProperty("java.class.path"));
-  ProcessChannel<TestResult> processChannel=ProcessExecutorUtil.execute(processConfigBuilder.build(),new TestProcessCallable());
-  Future<TestResult> processNoticeableFuture=processChannel.getProcessNoticeableFuture();
-  TestResult testResult=processNoticeableFuture.get();
-  Assert.assertEquals("com.zaxxer.hikari.HikariDataSource",testResult._dataSourceClassName);
-  Assert.assertEquals(_CHECKOUT_COUNT,testResult._activeConnections);
-  Assert.assertEquals(testResult._validConnectionCount,testResult._activeConnections);
-  Assert.assertEquals(testResult._totalConnections,testResult._activeConnections + testResult._idleConnections);
+  System.setProperty("portal:jdbc.default.liferay.pool.provider","hikaricp");
+  InitUtil.init();
+  ServerDetector.init(ServerDetector.TOMCAT_ID);
+  DataSource dataSource=DataSourceFactoryUtil.initDataSource(_properties);
+  Class<?> dataSourceClass=dataSource.getClass();
+  Assert.assertEquals("com.zaxxer.hikari.HikariDataSource",dataSourceClass.getName());
+  for (int i=0; i < _CHECKOUT_COUNT; i++) {
+    Connection connection=dataSource.getConnection();
+    PreparedStatement preparedStatement=connection.prepareStatement(_CONNECTION_TEST_QUERY);
+    preparedStatement.execute();
+  }
+  MBeanServer mBeanServer=ManagementFactory.getPlatformMBeanServer();
+  ObjectName poolName=new ObjectName("com.zaxxer.hikari:type=Pool (TestJDBCPool)");
+  int activeConnections=(int)mBeanServer.getAttribute(poolName,"ActiveConnections");
+  Assert.assertEquals(_CHECKOUT_COUNT,activeConnections);
+  int idleConnections=(int)mBeanServer.getAttribute(poolName,"IdleConnections");
+  int totalConnections=(int)mBeanServer.getAttribute(poolName,"TotalConnections");
+  Assert.assertEquals(totalConnections,activeConnections + idleConnections);
 }
