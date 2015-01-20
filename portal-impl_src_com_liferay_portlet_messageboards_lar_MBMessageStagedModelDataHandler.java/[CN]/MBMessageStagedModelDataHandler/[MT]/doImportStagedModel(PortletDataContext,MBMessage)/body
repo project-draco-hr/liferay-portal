@@ -2,14 +2,21 @@
   long userId=portletDataContext.getUserId(message.getUserUuid());
   Map<Long,Long> categoryIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(MBCategory.class);
   long parentCategoryId=MapUtil.getLong(categoryIds,message.getCategoryId(),message.getCategoryId());
-  Map<Long,Long> threadIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(MBThread.class);
-  long threadId=MapUtil.getLong(threadIds,message.getThreadId(),0);
   if (!message.isRoot()) {
     StagedModelDataHandlerUtil.importReferenceStagedModel(portletDataContext,message,MBMessage.class,message.getParentMessageId());
   }
+  Map<Long,Long> threadIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(MBThread.class);
+  long threadId=MapUtil.getLong(threadIds,message.getThreadId(),0);
+  Element element=portletDataContext.getImportDataStagedModelElement(message);
+  if (threadId == 0) {
+    String threadUuid=element.attributeValue("threadUuid");
+    MBThread thread=MBThreadLocalServiceUtil.fetchMBThreadByUuidAndGroupId(threadUuid,portletDataContext.getScopeGroupId());
+    if (thread != null) {
+      threadId=thread.getThreadId();
+    }
+  }
   Map<Long,Long> messageIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(MBMessage.class);
   long parentMessageId=MapUtil.getLong(messageIds,message.getParentMessageId(),message.getParentMessageId());
-  Element element=portletDataContext.getImportDataStagedModelElement(message);
   List<ObjectValuePair<String,InputStream>> inputStreamOVPs=getAttachments(portletDataContext,element,message);
   try {
     ServiceContext serviceContext=portletDataContext.createServiceContext(message);
@@ -52,6 +59,9 @@
       discussionIds.put(message.getMessageId(),importedMessage.getMessageId());
     }
     threadIds.put(message.getThreadId(),importedMessage.getThreadId());
+    MBThread thread=importedMessage.getThread();
+    thread.setUuid(element.attributeValue("threadUuid"));
+    MBThreadLocalServiceUtil.updateMBThread(thread);
     portletDataContext.importClassedModel(message,importedMessage);
   }
   finally {
