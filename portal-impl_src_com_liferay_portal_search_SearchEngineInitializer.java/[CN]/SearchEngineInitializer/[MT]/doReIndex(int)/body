@@ -20,24 +20,14 @@
   try {
     SearchEngineUtil.removeCompany(_companyId);
     SearchEngineUtil.initialize(_companyId);
-    List<Portlet> portlets=PortletLocalServiceUtil.getPortlets(_companyId);
-    portlets=ListUtil.sort(portlets,new PortletLuceneComparator());
-    for (    Portlet portlet : portlets) {
-      if (!portlet.isActive()) {
-        continue;
+    List<Indexer> indexers=IndexerRegistryUtil.getIndexers();
+    Set<String> searchEngineIds=new HashSet<>();
+    for (    Indexer indexer : indexers) {
+      String searchEngineId=indexer.getSearchEngineId();
+      if (searchEngineIds.add(searchEngineId)) {
+        SearchEngineUtil.deleteEntityDocuments(searchEngineId,_companyId,indexer.getClassName(),true);
       }
-      List<Indexer> indexers=portlet.getIndexerInstances();
-      if (indexers == null) {
-        continue;
-      }
-      Set<String> searchEngineIds=new HashSet<>();
-      for (      Indexer indexer : indexers) {
-        String searchEngineId=indexer.getSearchEngineId();
-        if (searchEngineIds.add(searchEngineId)) {
-          SearchEngineUtil.deleteEntityDocuments(searchEngineId,_companyId,indexer.getClassName(),true);
-        }
-        reindex(indexer);
-      }
+      reindex(indexer);
     }
     if (_log.isInfoEnabled()) {
       _log.info("Reindexing Lucene completed in " + (stopWatch.getTime() / Time.SECOND) + " seconds");
