@@ -1,0 +1,32 @@
+{
+  URL serviceConfig=bundle.getResource("/WEB-INF/server-config.wsdd");
+  if (serviceConfig == null) {
+    return null;
+  }
+  BundleContext bundleContext=bundle.getBundleContext();
+  Dictionary<String,Object> properties=new Hashtable<>();
+  String symbolicName=bundle.getSymbolicName();
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_NAME,symbolicName);
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_PATH,"/" + symbolicName);
+  ServiceRegistration<ServletContextHelper> bundleServletContextRegistration=bundleContext.registerService(ServletContextHelper.class,new ServletContextHelper(bundle){
+    public URL getResource(    String name){
+      if (name.startsWith("/")) {
+        name=name.substring(1);
+      }
+      return bundle.getResource(name);
+    }
+  }
+,properties);
+  properties=new Hashtable<>();
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_SELECT,symbolicName);
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_FILTER_NAME,"AuthVerifierFilter");
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_FILTER_PATTERN,"/api/axis/*");
+  ServiceRegistration<Filter> authVerifierFilterRegistration=bundleContext.registerService(Filter.class,new AuthVerifierFilter(),properties);
+  properties=new Hashtable<>();
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_SELECT,symbolicName);
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_SERVLET_NAME,"AxisServlet");
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_SERVLET_PATTERN,"/api/axis/*");
+  properties.put("servlet.init.httpMethods","GET,POST,HEAD");
+  ServiceRegistration<Servlet> axisServletRegistration=bundleContext.registerService(Servlet.class,new AxisServlet(),properties);
+  return new BundleRegistrationInfo(authVerifierFilterRegistration,axisServletRegistration,bundleServletContextRegistration);
+}
