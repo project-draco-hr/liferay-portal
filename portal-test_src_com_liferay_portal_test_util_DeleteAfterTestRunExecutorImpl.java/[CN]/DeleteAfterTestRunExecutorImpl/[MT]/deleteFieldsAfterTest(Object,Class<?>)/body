@@ -1,0 +1,68 @@
+{
+  Map<Class<?>,FieldBag> deleteAfterTestRunFieldBags=new HashMap<>();
+  while (testClass != null) {
+    for (    Field field : testClass.getDeclaredFields()) {
+      DeleteAfterTestRun deleteAfterTestRun=field.getAnnotation(DeleteAfterTestRun.class);
+      if (deleteAfterTestRun == null) {
+        continue;
+      }
+      Class<?> fieldClass=field.getType();
+      if (PersistedModel.class.isAssignableFrom(fieldClass)) {
+        addField(deleteAfterTestRunFieldBags,fieldClass,field);
+        continue;
+      }
+      if (fieldClass.isArray()) {
+        if (!PersistedModel.class.isAssignableFrom(fieldClass.getComponentType())) {
+          throw new IllegalArgumentException("Unable to annotate field " + field + " because it is not an array of type "+ PersistedModel.class.getName());
+        }
+        addField(deleteAfterTestRunFieldBags,fieldClass.getComponentType(),field);
+        continue;
+      }
+      if (Collection.class.isAssignableFrom(fieldClass)) {
+        try {
+          field.setAccessible(true);
+          Collection<?> collection=(Collection<?>)field.get(instance);
+          if ((collection == null) || collection.isEmpty()) {
+            continue;
+          }
+          Class<?> collectionType=getCollectionType(collection);
+          if (collectionType == null) {
+            throw new IllegalArgumentException("Unable to annotate field " + field + " because it is not a collection of type "+ PersistedModel.class.getName());
+          }
+          addField(deleteAfterTestRunFieldBags,collectionType,field);
+        }
+ catch (        Exception e) {
+          _log.error("Unable to detect collection element type",e);
+        }
+        continue;
+      }
+      StringBundler sb=new StringBundler(6);
+      sb.append("Unable to annotate field ");
+      sb.append(field);
+      sb.append(" because it is not type of ");
+      sb.append(PersistedModel.class.getName());
+      sb.append(" nor an array or collection of ");
+      sb.append(PersistedModel.class.getName());
+      throw new IllegalArgumentException(sb.toString());
+    }
+    testClass=testClass.getSuperclass();
+  }
+  Set<Map.Entry<Class<?>,FieldBag>> set=deleteAfterTestRunFieldBags.entrySet();
+  Iterator<Map.Entry<Class<?>,FieldBag>> iterator=set.iterator();
+  while (iterator.hasNext()) {
+    Map.Entry<Class<?>,FieldBag> entry=iterator.next();
+    Class<?> clazz=entry.getKey();
+    if (_orderedClasses.contains(clazz)) {
+      continue;
+    }
+    iterator.remove();
+    removeField(entry.getValue(),instance);
+  }
+  for (  Class<?> clazz : _orderedClasses) {
+    FieldBag fieldBag=deleteAfterTestRunFieldBags.remove(clazz);
+    if (fieldBag == null) {
+      continue;
+    }
+    removeField(fieldBag,instance);
+  }
+}
