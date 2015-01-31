@@ -1,0 +1,81 @@
+{
+  long lastStart=System.currentTimeMillis();
+  do {
+    if (timeout != -1) {
+      long currentTime=System.currentTimeMillis();
+      long lastDuration=currentTime - lastStart;
+      timeout-=lastDuration;
+      if (timeout < 0)       timeout=0;
+      lastStart=currentTime;
+    }
+    kevent[] eventlist=new kevent[32];
+    long selectTimeout=timeout;
+    if ((timeout == -1 || timeout > pollingIntervalMillis) && numKeysRequiringPolling > 0)     selectTimeout=pollingIntervalMillis;
+    int nread=0;
+synchronized (changeLock) {
+      if (pendingWatchKeys.size() > 0)       return pendingWatchKeys.remove();
+      if (kqueuefd == -1)       throw new ClosedWatchServiceException();
+      int[] readfds={closePipeReadFd,kqueuefd};
+      int selectResult=select(readfds,null,null,selectTimeout);
+      if (selectResult == -1) {
+        if (BSD.errno() == BSD.EINTR)         throw new InterruptedException();
+        String message=BSD.strerror(BSD.errno());
+        try {
+          close();
+        }
+  finally {
+          throw new ClosedWatchServiceException();
+        }
+      }
+      if (readfds[0] == closePipeReadFd) {
+        continue;
+      }
+      if (readfds[1] == kqueuefd)       nread=kevent(kqueuefd,null,eventlist,null);
+      if (nread == -1) {
+        if (nread == EINTR)         throw new InterruptedException();
+        try {
+          close();
+        }
+  finally {
+          throw new ClosedWatchServiceException();
+        }
+      }
+      if (nread > 0) {
+        for (int i=0; i < nread; ++i) {
+          kevent e=eventlist[i];
+          int dirfd=(int)e.get_ident();
+          int fflags=e.get_fflags();
+          PollingPathWatchKey key=keys.get(dirfd);
+          if (key == null)           continue;
+          boolean eventsAdded;
+          if ((fflags & NOTE_DELETE) != 0 || (fflags & NOTE_REVOKE) != 0)           eventsAdded=cancelImpl(key);
+ else {
+            try {
+              eventsAdded=key.poll();
+            }
+ catch (            FileNotFoundException ex) {
+              eventsAdded=cancelImpl(key);
+            }
+          }
+          if (eventsAdded)           queueKey(key);
+        }
+      }
+ else       if (numKeysRequiringPolling > 0) {
+        for (        PollingPathWatchKey key : keys.values()) {
+          if ((key.getFlags() & FLAG_FILTER_ENTRY_MODIFY) == 0)           continue;
+          boolean eventsAdded;
+          try {
+            eventsAdded=key.poll();
+          }
+ catch (          FileNotFoundException ex) {
+            eventsAdded=cancelImpl(key);
+          }
+          if (eventsAdded)           queueKey(key);
+        }
+      }
+      if (pendingWatchKeys.size() > 0)       return pendingWatchKeys.remove();
+    }
+  }
+ while (timeout > 0 || timeout == -1);
+  return null;
+}

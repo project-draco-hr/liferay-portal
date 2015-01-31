@@ -1,0 +1,25 @@
+{
+  PathImpl pathImpl=(PathImpl)pathWatchKey.getPath();
+  String pathString=pathImpl.getFile().getPath();
+  Integer dirfdInteger=dirs.get(pathString);
+  if (dirfdInteger == null)   return false;
+  PathWatchKey key=keys.get(dirfdInteger);
+  if (key != pathWatchKey)   return false;
+  boolean eventAdded=false;
+  if ((key.getFlags() & FLAG_FILTER_KEY_INVALID) != 0) {
+    key.addWatchEvent(new VoidWatchEvent(ExtendedWatchEventKind.KEY_INVALID));
+    eventAdded=true;
+  }
+  int dirfd=dirfdInteger.intValue();
+  kevent[] changelist=new kevent[]{new kevent()};
+  changelist[0].set_ident(dirfd);
+  changelist[0].set_filter(EVFILT_VNODE);
+  changelist[0].set_flags(EV_DELETE);
+  int result=kevent(kqueuefd,changelist,null,null);
+  assert(result == 0);
+  key.invalidate();
+  if ((key.getFlags() & FLAG_FILTER_ENTRY_MODIFY) != 0)   --numKeysRequiringPolling;
+  keys.remove(dirfdInteger);
+  dirs.remove(pathString);
+  return eventAdded;
+}

@@ -1,0 +1,64 @@
+{
+  WatchKey key=null;
+  do {
+    boolean isMasterThread=false;
+    long startTime=System.currentTimeMillis();
+    try {
+synchronized (this) {
+        key=pendingWatchKeys.poll();
+        if (key != null)         continue;
+        if (inotifyFd == -1)         throw new ClosedWatchServiceException();
+        isMasterThread=!hasMasterThread;
+        if (isMasterThread)         hasMasterThread=true;
+ else         if (timeout > 0)         wait(timeout);
+      }
+      if (isMasterThread) {
+        int[] fds={inotifyFd,commandPipeReadFd};
+        int n=Unix.select(fds,null,null,timeout);
+        if (n == -1) {
+          if (errno() == EINTR)           throw new InterruptedException();
+ else {
+            closeImpl();
+            throw new ClosedWatchServiceException();
+          }
+        }
+        byte[] buffer=new byte[4096];
+        int bufferSize=0;
+        int bufferPos=0;
+        if (fds[0] == inotifyFd) {
+          int nread=read(inotifyFd,buffer,buffer.length);
+          if (nread == -1) {
+            int err=errno();
+            if (err == EINTR)             throw new InterruptedException();
+ else {
+              closeImpl();
+              throw new ClosedWatchServiceException();
+            }
+          }
+ else           bufferSize=nread;
+synchronized (this) {
+            translateInotifyEvents(buffer,bufferPos,bufferSize);
+          }
+        }
+      }
+    }
+  finally {
+synchronized (this) {
+        if (isMasterThread) {
+          int n=Unix.ioctl_FIONREAD(commandPipeReadFd);
+          if (n > 0)           handleCommand();
+          hasMasterThread=false;
+          notify();
+        }
+        if (key == null)         key=pendingWatchKeys.poll();
+      }
+      if (timeout != -1) {
+        long endTime=System.currentTimeMillis();
+        long timeDifference=endTime - startTime;
+        timeout=Math.max(0,timeout - timeDifference);
+      }
+    }
+  }
+ while (timeout != 0 && key == null);
+  return key;
+}

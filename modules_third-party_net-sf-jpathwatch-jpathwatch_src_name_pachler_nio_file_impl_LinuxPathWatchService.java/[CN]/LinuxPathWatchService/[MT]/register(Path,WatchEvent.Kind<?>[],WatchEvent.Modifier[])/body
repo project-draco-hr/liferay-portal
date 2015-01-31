@@ -1,0 +1,32 @@
+{
+  if (inotifyFd == -1)   throw new ClosedWatchServiceException();
+  PathImpl pathImpl=checkAndCastToPathImpl(path);
+  int flags=makeFlagMask(kinds,modifiers);
+  int supportedFlags=(FLAG_FILTER_ENTRY_CREATE | FLAG_FILTER_ENTRY_DELETE | FLAG_FILTER_ENTRY_MODIFY| FLAG_FILTER_ENTRY_RENAME_FROM| FLAG_FILTER_ENTRY_RENAME_TO| FLAG_FILTER_KEY_INVALID| FLAG_ACCURATE);
+  if ((flags & ~supportedFlags) != 0)   throw new UnsupportedOperationException("The given watch event kind or modifier is not supported by this WatchService");
+  int mask=0;
+  if (0 != (flags & FLAG_FILTER_ENTRY_CREATE)) {
+    mask|=IN_CREATE;
+    if (0 == (flags & FLAG_FILTER_ENTRY_RENAME_TO))     mask|=IN_MOVED_TO;
+  }
+  if (0 != (flags & FLAG_FILTER_ENTRY_DELETE)) {
+    mask|=IN_DELETE;
+    if (0 == (flags & FLAG_FILTER_ENTRY_RENAME_FROM))     mask|=IN_MOVED_FROM;
+  }
+  if (0 != (flags & FLAG_FILTER_ENTRY_MODIFY))   mask|=IN_MODIFY;
+  if (0 != (flags & FLAG_FILTER_ENTRY_RENAME_FROM))   mask|=IN_MOVED_FROM;
+  if (0 != (flags & FLAG_FILTER_ENTRY_RENAME_TO))   mask|=IN_MOVED_TO;
+  String pathname=pathImpl.getFile().getAbsolutePath();
+  int watchDescriptor=inotify_add_watch(inotifyFd,pathname,mask);
+  if (watchDescriptor == -1) {
+    String msg=strerror(errno());
+    throw new IOException("error registering the path with the native OS: " + msg);
+  }
+  LinuxPathWatchKey key=keys.get(watchDescriptor);
+  if (key == null) {
+    key=new LinuxPathWatchKey(this,pathImpl,flags);
+    keys.put(watchDescriptor,key);
+  }
+ else   key.setFlags(flags);
+  return key;
+}

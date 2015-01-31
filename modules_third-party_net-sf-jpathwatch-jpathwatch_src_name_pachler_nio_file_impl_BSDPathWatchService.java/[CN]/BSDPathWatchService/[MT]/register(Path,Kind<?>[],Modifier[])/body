@@ -1,0 +1,51 @@
+{
+  PathImpl pathImpl=checkAndCastToPathImpl(path);
+  int flags=makeFlagMask(kinds,modifiers);
+  int supportedFlags=(FLAG_FILTER_ENTRY_CREATE | FLAG_FILTER_ENTRY_DELETE | FLAG_FILTER_ENTRY_MODIFY| FLAG_FILTER_KEY_INVALID);
+  if ((flags & ~supportedFlags) != 0)   throw new UnsupportedOperationException("The given watch event kind or modifier is not supported by this WatchService");
+  String pathname=pathImpl.getFile().getAbsolutePath();
+  PollingPathWatchKey key=null;
+  BSD.write(closePipeWriteFd,new byte[1],1);
+synchronized (changeLock) {
+    if (kqueuefd == -1)     throw new ClosedWatchServiceException();
+{
+      Integer dirfdInteger=dirs.get(pathname);
+      if (dirfdInteger != null)       key=keys.get(dirfdInteger);
+    }
+    if (key == null) {
+      boolean success=false;
+      int dirfd=-1;
+      try {
+        dirfd=BSD.open(pathname,BSD.O_RDONLY,0);
+        if (dirfd == -1)         throw new IOException("error registering the path with the native OS: " + strerror(errno()));
+        kevent e=new kevent();
+        e.set_ident(dirfd);
+        e.set_filter(EVFILT_VNODE);
+        e.set_flags((short)(EV_ADD | EV_CLEAR));
+        e.set_fflags(NOTE_WRITE | NOTE_DELETE | NOTE_REVOKE);
+        int result=kevent(kqueuefd,new kevent[]{e},null,null);
+        if (result != 0)         throw new IOException("error registering the path with the native OS: " + strerror(errno()));
+        key=new PollingPathWatchKey(this,path,0);
+        keys.put(dirfd,key);
+        dirs.put(pathname,dirfd);
+      }
+  finally {
+        if (key == null) {
+          if (dirfd != -1) {
+            BSD.close(dirfd);
+          }
+        }
+      }
+    }
+    if (key != null && key.getFlags() != flags) {
+      int moddiff=0;
+      moddiff+=(flags & FLAG_FILTER_ENTRY_MODIFY) != 0 ? +1 : 0;
+      moddiff+=(key.getFlags() & FLAG_FILTER_ENTRY_MODIFY) != 0 ? -1 : 0;
+      numKeysRequiringPolling+=moddiff;
+      key.setFlags(flags);
+    }
+    BSD.read(closePipeReadFd,new byte[1],1);
+  }
+  key.poll();
+  return key;
+}

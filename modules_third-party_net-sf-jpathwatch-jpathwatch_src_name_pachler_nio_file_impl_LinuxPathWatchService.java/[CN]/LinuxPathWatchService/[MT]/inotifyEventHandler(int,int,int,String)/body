@@ -1,0 +1,55 @@
+{
+  LinuxPathWatchKey key=keys.get(wd);
+  if (key == null) {
+    if (wd == -1 && (mask & IN_Q_OVERFLOW) != 0) {
+      for (      LinuxPathWatchKey k : keys.values()) {
+        k.addWatchEvent(new VoidWatchEvent(StandardWatchEventKind.OVERFLOW));
+        if (!signalledWatchKeys.contains(k)) {
+          signalledWatchKeys.add(k);
+          pendingWatchKeys.add(k);
+        }
+      }
+    }
+ else     if ((mask & IN_IGNORED) == 0)     Logger.getLogger(getClass().getName()).log(Level.WARNING,"no WatchKey found for given watch descriptor {0}",wd);
+    return;
+  }
+  Path path=null;
+  if (name != null)   path=new PathImpl(new File(name));
+  int flags=key.getFlags();
+  boolean eventsAdded=false;
+  if ((mask & IN_CREATE) != 0) {
+    key.addWatchEvent(new PathWatchEvent(StandardWatchEventKind.ENTRY_CREATE,path,1));
+    eventsAdded=true;
+  }
+  if ((mask & IN_MODIFY) != 0) {
+    key.addWatchEvent(new PathWatchEvent(StandardWatchEventKind.ENTRY_MODIFY,path,1));
+    eventsAdded=true;
+  }
+  if ((mask & IN_DELETE) != 0) {
+    key.addWatchEvent(new PathWatchEvent(StandardWatchEventKind.ENTRY_DELETE,path,1));
+    eventsAdded=true;
+  }
+  if ((mask & IN_MOVED_TO) != 0) {
+    WatchEvent.Kind<Path> kind;
+    if ((flags & FLAG_FILTER_ENTRY_RENAME_TO) != 0)     kind=ExtendedWatchEventKind.ENTRY_RENAME_TO;
+ else     kind=StandardWatchEventKind.ENTRY_CREATE;
+    key.addWatchEvent(new PathWatchEvent(kind,path,1));
+    eventsAdded=true;
+  }
+  if ((mask & IN_MOVED_FROM) != 0) {
+    WatchEvent.Kind<Path> kind;
+    if ((flags & FLAG_FILTER_ENTRY_RENAME_FROM) != 0)     kind=ExtendedWatchEventKind.ENTRY_RENAME_FROM;
+ else     kind=StandardWatchEventKind.ENTRY_DELETE;
+    key.addWatchEvent(new PathWatchEvent(kind,path,1));
+    eventsAdded=true;
+  }
+  if ((mask & IN_IGNORED) != 0) {
+    key.addWatchEvent(new VoidWatchEvent(ExtendedWatchEventKind.KEY_INVALID));
+    key.invalidate();
+    eventsAdded=true;
+  }
+  if (eventsAdded && !signalledWatchKeys.contains(key)) {
+    signalledWatchKeys.add(key);
+    pendingWatchKeys.add(key);
+  }
+}
