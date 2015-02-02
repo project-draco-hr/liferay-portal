@@ -48,27 +48,32 @@ synchronized (changeLock) {
           PollingPathWatchKey key=keys.get(dirfd);
           if (key == null)           continue;
           boolean eventsAdded;
-          if ((fflags & NOTE_DELETE) != 0 || (fflags & NOTE_REVOKE) != 0)           eventsAdded=cancelImpl(key);
+          if ((fflags & NOTE_DELETE) != 0 || (fflags & NOTE_REVOKE) != 0)           eventsAdded=cancelImpl(key,true);
  else {
             try {
               eventsAdded=key.poll();
             }
  catch (            FileNotFoundException ex) {
-              eventsAdded=cancelImpl(key);
+              eventsAdded=cancelImpl(key,true);
             }
           }
           if (eventsAdded)           queueKey(key);
         }
       }
  else       if (numKeysRequiringPolling > 0) {
-        for (        PollingPathWatchKey key : keys.values()) {
+        Set<Entry<Integer,PollingPathWatchKey>> entrySet=keys.entrySet();
+        Iterator<Entry<Integer,PollingPathWatchKey>> iterator=entrySet.iterator();
+        while (iterator.hasNext()) {
+          Entry<Integer,PollingPathWatchKey> entry=iterator.next();
+          PollingPathWatchKey key=entry.getValue();
           if ((key.getFlags() & FLAG_FILTER_ENTRY_MODIFY) == 0)           continue;
           boolean eventsAdded;
           try {
             eventsAdded=key.poll();
           }
  catch (          FileNotFoundException ex) {
-            eventsAdded=cancelImpl(key);
+            eventsAdded=cancelImpl(key,false);
+            iterator.remove();
           }
           if (eventsAdded)           queueKey(key);
         }
