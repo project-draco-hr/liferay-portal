@@ -1,0 +1,32 @@
+{
+  File workingFolder=new File(System.getProperty("user.dir"));
+  try {
+    Project project=new Project(new Workspace(workingFolder),workingFolder);
+    Properties properties=project.getProperties();
+    try (InputStream inputStream=new FileInputStream(new File(System.getProperty("sdk.dir"),"common.bnd"))){
+      properties.load(inputStream);
+    }
+     try (InputStream inputStream=new FileInputStream(new File("bnd.bnd"))){
+      properties.load(inputStream);
+    }
+     ProjectBuilder projectBuilder=new ProjectBuilder(project);
+    try (Jar jar=projectBuilder.build()){
+      UnsyncByteArrayOutputStream unsyncByteArrayOutputStream=new UnsyncByteArrayOutputStream();
+      jar.write(unsyncByteArrayOutputStream);
+      ZipImporter zipImporter=ShrinkWrap.create(ZipImporter.class);
+      zipImporter.importFrom(new UnsyncByteArrayInputStream(unsyncByteArrayOutputStream.unsafeGetByteArray(),0,unsyncByteArrayOutputStream.size()));
+      JavaArchive javaArchive=zipImporter.as(JavaArchive.class);
+      javaArchive.addClass(Arquillian.class);
+      if (GetterUtil.getBoolean(PropsUtil.get("dump.generated.archives"))) {
+        ZipExporter zipExporter=javaArchive.as(ZipExporter.class);
+        File file=new File(ModuleDeploymentScenarioGenerator.class.getName() + "-" + javaArchive.getName());
+        zipExporter.exportTo(file);
+        System.out.println("Dumpped file " + file.getAbsolutePath());
+      }
+      return Collections.singletonList(new DeploymentDescription(javaArchive.getName(),javaArchive));
+    }
+   }
+ catch (  Exception e) {
+    throw new RuntimeException("Unable to generate test module bundle",e);
+  }
+}

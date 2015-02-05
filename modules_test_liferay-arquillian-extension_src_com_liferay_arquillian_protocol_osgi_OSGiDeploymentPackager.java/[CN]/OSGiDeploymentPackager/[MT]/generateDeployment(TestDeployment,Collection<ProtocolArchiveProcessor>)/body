@@ -1,0 +1,31 @@
+{
+  JavaArchive javaArchive=(JavaArchive)testDeployment.getApplicationArchive();
+  Node manifestNode=javaArchive.delete(JarFile.MANIFEST_NAME);
+  if (manifestNode == null) {
+    throw new IllegalArgumentException("Missing " + JarFile.MANIFEST_NAME + " in "+ javaArchive);
+  }
+  Asset manifestAsset=manifestNode.getAsset();
+  try {
+    Manifest manifest=new Manifest(manifestAsset.openStream());
+    OSGiManifestBuilder.validateBundleManifest(manifest);
+    ManifestAssetBuilder manifestAssetBuilder=new ManifestAssetBuilder(manifest);
+    _registerRemoteLoadableExtensions(javaArchive,manifestAssetBuilder,testDeployment.getAuxiliaryArchives());
+    manifestAssetBuilder.addImports(Arrays.asList(StringUtil.split(PropsUtil.get("bundle.import.packages"),CharPool.SEMICOLON)));
+    _addBundleImportFiles(manifestAssetBuilder);
+    _addBundleClassPathFiles(manifestAssetBuilder,javaArchive);
+    javaArchive.addClass(ArquillianBundleActivator.class);
+    javaArchive.add(manifestAssetBuilder.build(),JarFile.MANIFEST_NAME);
+    javaArchive.addAsServiceProvider(BundleActivator.class.getName(),manifestAssetBuilder.getBundleActivators());
+    javaArchive.addAsServiceProviderAndClasses(TestRunner.class,JUnitBundleTestRunner.class);
+    if (GetterUtil.getBoolean(PropsUtil.get("dump.generated.archives"))) {
+      ZipExporter zipExporter=javaArchive.as(ZipExporter.class);
+      File file=new File(OSGiDeploymentPackager.class.getName() + "-" + javaArchive.getName());
+      zipExporter.exportTo(file);
+      System.out.println("Dumpped file " + file.getAbsolutePath());
+    }
+    return javaArchive;
+  }
+ catch (  Exception e) {
+    throw new IllegalArgumentException("Unable to repackage OSGi bundle: " + javaArchive,e);
+  }
+}
