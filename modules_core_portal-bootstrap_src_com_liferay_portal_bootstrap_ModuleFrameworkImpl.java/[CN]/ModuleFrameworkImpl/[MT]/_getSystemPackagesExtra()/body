@@ -1,89 +1,26 @@
 {
   String[] systemPackagesExtra=PropsValues.MODULE_FRAMEWORK_SYSTEM_PACKAGES_EXTRA;
-  String hashcode=_getHashcode(systemPackagesExtra,PropsValues.MODULE_FRAMEWORK_SYSTEM_BUNDLE_IGNORED_FRAGMENTS);
-  File coreDir=new File(PropsValues.LIFERAY_WEB_PORTAL_CONTEXT_TEMPDIR,"osgi");
-  File cacheFile=new File(coreDir,"system-packages.txt");
-  File hashcodeFile=new File(coreDir,"system-packages.hash");
-  if (cacheFile.exists() && hashcodeFile.exists() && _hasMatchingHashcode(hashcodeFile,hashcode)) {
-    ObjectInputStream objectInputStream=null;
-    try {
-      objectInputStream=new ObjectInputStream(new FileInputStream(cacheFile));
-      _extraPackageMap=(Map<String,List<URL>>)objectInputStream.readObject();
-      return (String)objectInputStream.readObject();
-    }
- catch (    IOException ioe) {
-      _log.error(ioe,ioe);
-    }
-catch (    ClassNotFoundException cnfe) {
-      _log.error(cnfe,cnfe);
-    }
- finally {
-      if (objectInputStream != null) {
-        try {
-          objectInputStream.close();
-        }
- catch (        IOException ioe) {
-          _log.error(ioe,ioe);
-        }
-      }
-    }
-  }
-  _extraPackageMap=new TreeMap<>();
   StringBundler sb=new StringBundler();
   for (  String extraPackage : systemPackagesExtra) {
     sb.append(extraPackage);
     sb.append(StringPool.COMMA);
   }
-  ClassLoader classLoader=ClassLoaderUtil.getPortalClassLoader();
-  PrintStream err=System.err;
+  Class<?> clazz=getClass();
+  InputStream inputStream=clazz.getResourceAsStream("/META-INF/system.packages.extra.mf");
+  Manifest extraPackagesManifest=null;
   try {
-    System.setErr(new PrintStream(err){
-      @Override public void println(      String string){
-        if (_log.isDebugEnabled()) {
-          _log.debug(string);
-        }
-      }
-    }
-);
-    for (    URL url : SetUtil.fromEnumeration(classLoader.getResources("META-INF/MANIFEST.MF"))) {
-      _processURL(sb,url,PropsValues.MODULE_FRAMEWORK_SYSTEM_BUNDLE_IGNORED_FRAGMENTS);
-    }
+    extraPackagesManifest=new Manifest(inputStream);
   }
  catch (  IOException ioe) {
-    _log.error(ioe,ioe);
+    ReflectionUtil.throwException(ioe);
   }
- finally {
-    System.setErr(err);
-  }
-  _extraPackageMap=Collections.unmodifiableMap(_extraPackageMap);
-  sb.setIndex(sb.index() - 1);
+  Attributes attributes=extraPackagesManifest.getMainAttributes();
+  String exportedPackages=attributes.getValue("Export-Package");
+  sb.append(exportedPackages);
   if (_log.isTraceEnabled()) {
     String s=sb.toString();
     s=s.replace(",","\n");
     _log.trace("The portal's system bundle is exporting the following " + "packages:\n" + s);
-  }
-  if (!coreDir.exists()) {
-    coreDir.mkdir();
-  }
-  ObjectOutputStream objectOutputStream=null;
-  try {
-    objectOutputStream=new ObjectOutputStream(new FileOutputStream(cacheFile));
-    objectOutputStream.writeObject(_extraPackageMap);
-    objectOutputStream.writeObject(sb.toString());
-    FileUtil.write(hashcodeFile,hashcode);
-  }
- catch (  IOException ioe) {
-    _log.error(ioe,ioe);
-  }
- finally {
-    if (objectOutputStream != null) {
-      try {
-        objectOutputStream.close();
-      }
- catch (      IOException ioe) {
-        _log.error(ioe,ioe);
-      }
-    }
   }
   return sb.toString();
 }
