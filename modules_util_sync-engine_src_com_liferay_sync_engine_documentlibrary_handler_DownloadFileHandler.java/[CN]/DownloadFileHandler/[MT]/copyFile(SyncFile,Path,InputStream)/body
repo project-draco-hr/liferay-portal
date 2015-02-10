@@ -5,7 +5,8 @@
   try {
     SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(getSyncAccountId());
     Path tempFilePath=FileUtil.getFilePath(syncAccount.getFilePathName(),".data",String.valueOf(syncFile.getSyncFileId()));
-    if (Files.exists(filePath)) {
+    boolean exists=Files.exists(filePath);
+    if (exists) {
       Files.copy(filePath,tempFilePath,StandardCopyOption.REPLACE_EXISTING);
     }
     if ((Boolean)getParameterValue("patch")) {
@@ -15,22 +16,17 @@
       Files.copy(inputStream,tempFilePath,StandardCopyOption.REPLACE_EXISTING);
     }
     downloadedFilePathNames.add(filePath.toString());
-    if (syncFile.getFileKey() == null) {
-      syncFile.setUiEvent(SyncFile.UI_EVENT_DOWNLOADED_NEW);
-    }
- else {
+    if (exists) {
       syncFile.setUiEvent(SyncFile.UI_EVENT_DOWNLOADED_UPDATE);
     }
-    if (OSDetector.isWindows()) {
-      SyncFileService.updateFileKeySyncFile(syncFile,tempFilePath);
+ else {
+      syncFile.setUiEvent(SyncFile.UI_EVENT_DOWNLOADED_NEW);
     }
+    FileUtil.writeFileKey(tempFilePath,String.valueOf(syncFile.getSyncFileId()));
     FileUtil.setModifiedTime(tempFilePath,syncFile.getModifiedTime());
     Files.move(tempFilePath,filePath,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
     syncFile.setState(SyncFile.STATE_SYNCED);
     SyncFileService.update(syncFile);
-    if (!OSDetector.isWindows()) {
-      SyncFileService.updateFileKeySyncFile(syncFile);
-    }
     IODeltaUtil.checksums(syncFile);
   }
  catch (  FileSystemException fse) {
