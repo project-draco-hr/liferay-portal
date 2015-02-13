@@ -1,0 +1,48 @@
+{
+  if (isIgnoredFilePath(filePath)) {
+    return;
+  }
+  Files.walkFileTree(filePath,new SimpleFileVisitor<Path>(){
+    @Override public FileVisitResult postVisitDirectory(    Path filePath,    IOException ioe) throws IOException {
+      if (ioe != null) {
+        _failedFilePaths.add(filePath);
+        return FileVisitResult.CONTINUE;
+      }
+      return super.postVisitDirectory(filePath,null);
+    }
+    @Override public FileVisitResult preVisitDirectory(    Path filePath,    BasicFileAttributes basicFileAttributes) throws IOException {
+      if (filePath.equals(_filePath.resolve(".data"))) {
+        return FileVisitResult.SKIP_SUBTREE;
+      }
+      SyncFile syncFile=SyncFileService.fetchSyncFile(filePath.toString());
+      if (syncFile == null) {
+        fireWatchEventListener(SyncWatchEvent.EVENT_TYPE_CREATE,filePath);
+      }
+      try {
+        registerFilePath(filePath);
+      }
+ catch (      IOException ioe) {
+        _logger.error(ioe.getMessage(),ioe);
+      }
+      return FileVisitResult.CONTINUE;
+    }
+    @Override public FileVisitResult visitFile(    Path filePath,    BasicFileAttributes basicFileAttributes) throws IOException {
+      if (Files.notExists(filePath) || isIgnoredFilePath(filePath)) {
+        return FileVisitResult.CONTINUE;
+      }
+      SyncFile syncFile=SyncFileService.fetchSyncFile(filePath.toString());
+      if (syncFile == null) {
+        fireWatchEventListener(SyncWatchEvent.EVENT_TYPE_CREATE,filePath);
+      }
+ else       if (FileUtil.isModified(syncFile,filePath)) {
+        fireWatchEventListener(SyncWatchEvent.EVENT_TYPE_MODIFY,filePath);
+      }
+      return FileVisitResult.CONTINUE;
+    }
+    @Override public FileVisitResult visitFileFailed(    Path filePath,    IOException ioe) throws IOException {
+      _failedFilePaths.add(filePath);
+      return FileVisitResult.CONTINUE;
+    }
+  }
+);
+}

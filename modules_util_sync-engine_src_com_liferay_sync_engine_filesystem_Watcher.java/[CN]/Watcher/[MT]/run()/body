@@ -34,55 +34,9 @@ catch (      Exception e) {
         }
         WatchEvent.Kind<?> kind=watchEvent.kind();
         Path childFilePath=parentFilePath.resolve(pathImpl.toString());
-        if (OSDetector.isWindows() && childFilePath.startsWith(_dataFilePath)) {
-          continue;
-        }
-        if (kind == StandardWatchEventKind.ENTRY_CREATE) {
-          if (isIgnoredFilePath(childFilePath)) {
-            continue;
-          }
-          addCreatedFilePathName(childFilePath.toString());
-          if (_downloadedFilePathNames.remove(childFilePath.toString())) {
-            continue;
-          }
-          fireWatchEventListener(childFilePath,watchEvent);
-          if (_recursive && Files.isDirectory(childFilePath,LinkOption.NOFOLLOW_LINKS)) {
-            registerFilePath(childFilePath,true);
-          }
-        }
- else         if (kind == StandardWatchEventKind.ENTRY_DELETE) {
-          processMissingFilePath(childFilePath);
-          fireWatchEventListener(childFilePath,watchEvent);
-        }
- else         if (kind == StandardWatchEventKind.ENTRY_MODIFY) {
-          if (_downloadedFilePathNames.remove(childFilePath.toString()) || (removeCreatedFilePathName(childFilePath.toString()) && !FileUtil.isValidChecksum(childFilePath)) || Files.isDirectory(childFilePath)) {
-            continue;
-          }
-          fireWatchEventListener(childFilePath,watchEvent);
-        }
+        processWatchEvent(kind.name(),childFilePath);
       }
-      for (      Path failedFilePath : _failedFilePaths) {
-        if (Files.notExists(failedFilePath)) {
-          _failedFilePaths.remove(failedFilePath);
-          continue;
-        }
-        if (!Files.isReadable(failedFilePath)) {
-          continue;
-        }
-        _failedFilePaths.remove(failedFilePath);
-        if (Files.isDirectory(failedFilePath)) {
-          registerFilePath(failedFilePath,true);
-        }
- else {
-          SyncFile syncFile=SyncFileService.fetchSyncFile(failedFilePath.toString());
-          if (syncFile == null) {
-            fireWatchEventListener(SyncWatchEvent.EVENT_TYPE_CREATE,failedFilePath);
-          }
- else           if (FileUtil.isModified(syncFile,failedFilePath)) {
-            fireWatchEventListener(SyncWatchEvent.EVENT_TYPE_MODIFY,failedFilePath);
-          }
-        }
-      }
+      processFailedFilePaths();
       if (!watchKey.reset()) {
         Path filePath=_filePaths.remove(watchKey);
         if (_logger.isTraceEnabled()) {
