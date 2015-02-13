@@ -1,0 +1,25 @@
+{
+  Map<String,Long> ddmStructureIds=(Map<String,Long>)portletDataContext.getNewPrimaryKeysMap(DDMStructure.class);
+  if (MapUtil.isEmpty(ddmStructureIds)) {
+    return;
+  }
+  List<DLFileEntry> dlFileEntries=DLFileEntryLocalServiceUtil.getDDMStructureFileEntries(portletDataContext.getGroupId(),ArrayUtil.toLongArray(ddmStructureIds.values()));
+  final Map<Long,Long> dlFileEntryPrimaryKeysMap=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(DLFileEntry.class);
+  dlFileEntries=ListUtil.filter(dlFileEntries,new PredicateFilter<DLFileEntry>(){
+    @Override public boolean filter(    DLFileEntry dlFileEntry){
+      return !dlFileEntryPrimaryKeysMap.containsValue(dlFileEntry.getFileEntryId());
+    }
+  }
+);
+  Indexer dlFileEntryIndexer=IndexerRegistryUtil.getIndexer(DLFileEntry.class);
+  for (  DLFileEntry dlFileEntry : dlFileEntries) {
+    try {
+      dlFileEntryIndexer.reindex(dlFileEntry);
+    }
+ catch (    SearchException se) {
+      if (_log.isDebugEnabled() && (dlFileEntry != null)) {
+        _log.debug("Cannot reindex file entry after import: " + dlFileEntry.getFileEntryId(),se);
+      }
+    }
+  }
+}
