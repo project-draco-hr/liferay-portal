@@ -19,7 +19,33 @@
     if (!activeSyncSiteIds.contains(syncSite.getSyncSiteId())) {
       return;
     }
-    SyncWatchEventService.addSyncWatchEvent(eventType,filePathName,getFileType(eventType,filePath),getSyncAccountId());
+    if (eventType.equals(SyncWatchEvent.EVENT_TYPE_RENAME_FROM)) {
+      _previousFilePath=filePath;
+      return;
+    }
+    String previousFilePathName=null;
+    if (eventType.equals(SyncWatchEvent.EVENT_TYPE_RENAME_TO)) {
+      if (_previousFilePath == null) {
+        Watcher watcher=WatcherRegistry.getWatcher(getSyncAccountId());
+        watcher.walkFileTree(Paths.get(filePathName));
+        eventType=SyncWatchEvent.EVENT_TYPE_CREATE;
+      }
+ else {
+        if (parentFilePath.equals(_previousFilePath.getParent())) {
+          eventType=SyncWatchEvent.EVENT_TYPE_RENAME;
+        }
+ else {
+          eventType=SyncWatchEvent.EVENT_TYPE_MOVE;
+        }
+        previousFilePathName=_previousFilePath.toString();
+      }
+    }
+ else     if (_previousFilePath != null) {
+      eventType=SyncWatchEvent.EVENT_TYPE_DELETE;
+      filePathName=_previousFilePath.toString();
+    }
+    SyncWatchEventService.addSyncWatchEvent(eventType,filePathName,getFileType(eventType,filePath),previousFilePathName,getSyncAccountId());
+    _previousFilePath=null;
   }
  catch (  Exception e) {
     _logger.error(e.getMessage(),e);
