@@ -2,6 +2,37 @@
   User user=userPersistence.findByPrimaryKey(userId);
   long groupId=serviceContext.getScopeGroupId();
   long entryId=counterLocalService.increment();
+  Date now=new Date();
+  validate(title,content);
+  BlogsEntry entry=blogsEntryPersistence.create(entryId);
+  entry.setUuid(serviceContext.getUuid());
+  entry.setGroupId(groupId);
+  entry.setCompanyId(user.getCompanyId());
+  entry.setUserId(user.getUserId());
+  entry.setUserName(user.getFullName());
+  entry.setCreateDate(serviceContext.getCreateDate(now));
+  entry.setModifiedDate(serviceContext.getModifiedDate(now));
+  entry.setTitle(title);
+  entry.setSubtitle(subtitle);
+  entry.setUrlTitle(getUniqueUrlTitle(entryId,title,null,serviceContext));
+  entry.setDescription(description);
+  entry.setContent(content);
+  entry.setDisplayDate(displayDate);
+  entry.setAllowPingbacks(allowPingbacks);
+  entry.setAllowTrackbacks(allowTrackbacks);
+  entry.setStatus(WorkflowConstants.STATUS_DRAFT);
+  entry.setStatusByUserId(userId);
+  entry.setStatusDate(serviceContext.getModifiedDate(now));
+  entry.setExpandoBridgeAttributes(serviceContext);
+  blogsEntryPersistence.update(entry);
+  if (serviceContext.isAddGroupPermissions() || serviceContext.isAddGuestPermissions()) {
+    addEntryResources(entry,serviceContext.isAddGroupPermissions(),serviceContext.isAddGuestPermissions());
+  }
+ else {
+    addEntryResources(entry,serviceContext.getGroupPermissions(),serviceContext.getGuestPermissions());
+  }
+  updateAsset(userId,entry,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames(),serviceContext.getAssetLinkEntryIds());
+  addDiscussion(entry,userId,groupId);
   long coverImageFileEntryId=0;
   String coverImageURL=null;
   if (coverImageImageSelector != null) {
@@ -24,42 +55,13 @@
     smallImageFileEntryId=addSmallImageFileEntry(userId,groupId,entryId,tempFileEntry.getMimeType(),tempFileEntry.getTitle(),tempFileEntry.getContentStream());
     PortletFileRepositoryUtil.deletePortletFileEntry(tempFileEntry.getFileEntryId());
   }
-  Date now=new Date();
-  validate(title,content,smallImageFileEntryId);
-  BlogsEntry entry=blogsEntryPersistence.create(entryId);
-  entry.setUuid(serviceContext.getUuid());
-  entry.setGroupId(groupId);
-  entry.setCompanyId(user.getCompanyId());
-  entry.setUserId(user.getUserId());
-  entry.setUserName(user.getFullName());
-  entry.setCreateDate(serviceContext.getCreateDate(now));
-  entry.setModifiedDate(serviceContext.getModifiedDate(now));
-  entry.setTitle(title);
-  entry.setSubtitle(subtitle);
-  entry.setUrlTitle(getUniqueUrlTitle(entryId,title,null,serviceContext));
-  entry.setDescription(description);
-  entry.setContent(content);
-  entry.setDisplayDate(displayDate);
-  entry.setAllowPingbacks(allowPingbacks);
-  entry.setAllowTrackbacks(allowTrackbacks);
+  validate(smallImageFileEntryId);
   entry.setCoverImageFileEntryId(coverImageFileEntryId);
   entry.setCoverImageURL(coverImageURL);
   entry.setSmallImage(smallImage);
   entry.setSmallImageFileEntryId(smallImageFileEntryId);
   entry.setSmallImageURL(smallImageURL);
-  entry.setStatus(WorkflowConstants.STATUS_DRAFT);
-  entry.setStatusByUserId(userId);
-  entry.setStatusDate(serviceContext.getModifiedDate(now));
-  entry.setExpandoBridgeAttributes(serviceContext);
   blogsEntryPersistence.update(entry);
-  if (serviceContext.isAddGroupPermissions() || serviceContext.isAddGuestPermissions()) {
-    addEntryResources(entry,serviceContext.isAddGroupPermissions(),serviceContext.isAddGuestPermissions());
-  }
- else {
-    addEntryResources(entry,serviceContext.getGroupPermissions(),serviceContext.getGuestPermissions());
-  }
-  updateAsset(userId,entry,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames(),serviceContext.getAssetLinkEntryIds());
-  addDiscussion(entry,userId,groupId);
   if (ArrayUtil.isNotEmpty(trackbacks)) {
     serviceContext.setAttribute("trackbacks",trackbacks);
   }
