@@ -1,3 +1,21 @@
 {
-  updateRaw("UPDATE SyncFile SET filePathName = REPLACE(filePathName, ?, ?)",sourceFilePathName,targetFilePathName);
+  QueryBuilder<SyncFile,Long> queryBuilder=queryBuilder();
+  Where<SyncFile,Long> where=queryBuilder.where();
+  String escapedSourceFilePathName=StringUtils.replace(sourceFilePathName,"\\","\\\\");
+  final FileSystem fileSystem=FileSystems.getDefault();
+  where.like("filePathName",new SelectArg(escapedSourceFilePathName + fileSystem.getSeparator() + "%"));
+  final List<SyncFile> syncFiles=query(queryBuilder.prepare());
+  Callable<Object> callable=new Callable<Object>(){
+    @Override public Object call() throws Exception {
+      for (      SyncFile syncFile : syncFiles) {
+        String filePathName=syncFile.getFilePathName();
+        filePathName=filePathName.replace(sourceFilePathName + fileSystem.getSeparator(),targetFilePathName + fileSystem.getSeparator());
+        syncFile.setFilePathName(filePathName);
+        update(syncFile);
+      }
+      return null;
+    }
+  }
+;
+  callBatchTasks(callable);
 }
