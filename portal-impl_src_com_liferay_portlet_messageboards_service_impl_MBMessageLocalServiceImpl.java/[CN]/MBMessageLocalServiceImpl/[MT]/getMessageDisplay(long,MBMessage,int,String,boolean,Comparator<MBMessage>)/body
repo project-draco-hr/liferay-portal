@@ -1,0 +1,38 @@
+{
+  MBCategory category=null;
+  if ((message.getCategoryId() != MBCategoryConstants.DEFAULT_PARENT_CATEGORY_ID) && (message.getCategoryId() != MBCategoryConstants.DISCUSSION_CATEGORY_ID)) {
+    category=mbCategoryPersistence.findByPrimaryKey(message.getCategoryId());
+  }
+ else {
+    category=new MBCategoryImpl();
+    category.setCategoryId(message.getCategoryId());
+    category.setDisplayStyle(MBCategoryConstants.DEFAULT_DISPLAY_STYLE);
+  }
+  MBMessage parentMessage=null;
+  if (message.isReply()) {
+    parentMessage=mbMessagePersistence.findByPrimaryKey(message.getParentMessageId());
+  }
+  MBThread thread=mbThreadPersistence.findByPrimaryKey(message.getThreadId());
+  if (message.isApproved() && !message.isDiscussion()) {
+    mbThreadLocalService.incrementViewCounter(thread.getThreadId(),1);
+    if (thread.getRootMessageUserId() != userId) {
+      MBMessage rootMessage=mbMessagePersistence.findByPrimaryKey(thread.getRootMessageId());
+      socialActivityLocalService.addActivity(userId,rootMessage.getGroupId(),MBMessage.class.getName(),rootMessage.getMessageId(),SocialActivityConstants.TYPE_VIEW,StringPool.BLANK,0);
+    }
+  }
+  MBThread previousThread=null;
+  MBThread nextThread=null;
+  if (message.isApproved() && includePrevAndNext) {
+    ThreadLastPostDateComparator comparator=new ThreadLastPostDateComparator(false);
+    MBThread[] prevAndNextThreads=null;
+    if (status == WorkflowConstants.STATUS_ANY) {
+      prevAndNextThreads=mbThreadPersistence.filterFindByG_C_NotS_PrevAndNext(message.getThreadId(),message.getGroupId(),message.getCategoryId(),WorkflowConstants.STATUS_IN_TRASH,comparator);
+    }
+ else {
+      prevAndNextThreads=mbThreadPersistence.filterFindByG_C_S_PrevAndNext(message.getThreadId(),message.getGroupId(),message.getCategoryId(),status,comparator);
+    }
+    previousThread=prevAndNextThreads[0];
+    nextThread=prevAndNextThreads[2];
+  }
+  return new MBMessageDisplayImpl(message,parentMessage,category,thread,previousThread,nextThread,status,threadView,this,messageThreadComparator);
+}
