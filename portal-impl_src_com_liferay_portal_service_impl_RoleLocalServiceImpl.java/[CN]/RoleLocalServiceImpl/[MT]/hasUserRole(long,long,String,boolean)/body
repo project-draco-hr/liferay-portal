@@ -19,19 +19,22 @@
     if (userPersistence.containsRole(userId,role.getRoleId())) {
       return true;
     }
-    ThreadLocalCache<Integer> threadLocalCache=ThreadLocalCacheManager.getThreadLocalCache(Lifecycle.REQUEST,RoleLocalServiceImpl.class.getName());
+    ThreadLocalCache<Boolean> threadLocalCache=ThreadLocalCacheManager.getThreadLocalCache(Lifecycle.REQUEST,RoleLocalServiceImpl.class.getName());
     String key=String.valueOf(role.getRoleId()).concat(String.valueOf(userId));
-    Integer value=threadLocalCache.get(key);
-    if (value == null) {
-      value=roleFinder.countByR_U(role.getRoleId(),userId);
-      threadLocalCache.put(key,value);
+    Boolean value=threadLocalCache.get(key);
+    if (value != null) {
+      return value;
     }
-    if (value > 0) {
-      return true;
+    UserPermissionCheckerBag userPermissionCheckerBag=PermissionCacheUtil.getUserBag(userId);
+    if (userPermissionCheckerBag != null) {
+      value=userPermissionCheckerBag.hasRole(role);
     }
  else {
-      return false;
+      int count=roleFinder.countByR_U(role.getRoleId(),userId);
+      value=(count > 0);
     }
+    threadLocalCache.put(key,value);
+    return value;
   }
  else {
     return userPersistence.containsRole(userId,role.getRoleId());
