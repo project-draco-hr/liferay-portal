@@ -1,7 +1,9 @@
 {
+  BlockingQueue<ClusterNodeResponse> blockingQueue=futureClusterResponses.getPartialResults();
+  long companyId=indexAccessor.getCompanyId();
   ClusterNode bootupClusterNode=null;
   do {
-    _clusterNodeAddressesCount--;
+    clusterNodeCount--;
     ClusterNodeResponse clusterNodeResponse=null;
     try {
       clusterNodeResponse=blockingQueue.poll(_CLUSTER_LINK_NODE_BOOTUP_RESPONSE_TIMEOUT,TimeUnit.MILLISECONDS);
@@ -19,7 +21,7 @@
     if (clusterNode.getPortalInetSocketAddress() != null) {
       try {
         long remoteLastGeneration=(Long)clusterNodeResponse.getResult();
-        if (remoteLastGeneration > _localLastGeneration) {
+        if (remoteLastGeneration > localLastGeneration) {
           bootupClusterNode=clusterNodeResponse.getClusterNode();
           break;
         }
@@ -35,7 +37,7 @@
       _log.debug("Cluster node " + clusterNode + " has invalid InetSocketAddress");
     }
   }
- while ((bootupClusterNode == null) && (_clusterNodeAddressesCount > 1));
+ while ((bootupClusterNode == null) && (clusterNodeCount > 1));
   if (bootupClusterNode == null) {
     return;
   }
@@ -44,14 +46,14 @@
   }
   InputStream inputStream=null;
   try {
-    inputStream=getLoadIndexesInputStreamFromCluster(_companyId,bootupClusterNode.getClusterNodeId());
-    _indexAccessor.loadIndex(inputStream);
+    inputStream=getLoadIndexesInputStreamFromCluster(companyId,bootupClusterNode.getClusterNodeId());
+    indexAccessor.loadIndex(inputStream);
     if (_log.isInfoEnabled()) {
       _log.info("Lucene index files loaded successfully");
     }
   }
  catch (  Exception e) {
-    _log.error("Unable to load index for company " + _companyId,e);
+    _log.error("Unable to load index for company " + companyId,e);
   }
  finally {
     if (inputStream != null) {
@@ -59,7 +61,7 @@
         inputStream.close();
       }
  catch (      IOException ioe) {
-        _log.error("Unable to close input stream for company " + _companyId,ioe);
+        _log.error("Unable to close input stream for company " + companyId,ioe);
       }
     }
   }
