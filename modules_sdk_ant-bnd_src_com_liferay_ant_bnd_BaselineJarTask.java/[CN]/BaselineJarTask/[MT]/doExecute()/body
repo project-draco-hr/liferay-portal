@@ -1,40 +1,92 @@
 {
-  aQute.bnd.build.Project bndProject=getBndProject();
-  Builder builder=new Builder(bndProject);
-  builder.setClasspath(_classpathFiles.toArray(new File[_classpathFiles.size()]));
-  builder.setPedantic(isPedantic());
-  builder.setProperties(_file);
-  builder.setSourcepath(new File[]{_sourcePath});
-  Jar[] jars=builder.builds();
-  boolean taskFailed=report();
-  boolean bndFailed=report(builder);
-  if (taskFailed || bndFailed) {
-    throw new BuildException("BND failed",new org.apache.tools.ant.Location(_file.getAbsolutePath()));
+  if (_reportLevelIsOff) {
+    return;
   }
-  for (  Jar jar : jars) {
-    String bsn=jar.getName();
-    File outputFile=_outputPath;
-    if (_outputPath.isDirectory()) {
-      String path=builder.getProperty("-output");
-      if (path != null) {
-        outputFile=getFile(_outputPath,path);
-      }
- else {
-        outputFile=getFile(_outputPath,bsn + ".jar");
-      }
-    }
-    if (!outputFile.exists() || (outputFile.lastModified() <= jar.lastModified())) {
-      jar.write(outputFile);
-      Map<String,Resource> resources=jar.getResources();
-      log(jar.getName() + " (" + outputFile.getName()+ ") "+ resources.size());
-      doBaselineJar(jar,outputFile,bndProject);
+  BaselineProcessor baselineProcessor=new BaselineProcessor();
+  Properties properties=baselineProcessor.getProperties();
+  properties.putAll(project.getProperties());
+  properties.putAll(getFileProperties());
+  Jar newerJar=new Jar(_newerJar);
+  Jar olderJar=null;
+  if (_olderJar != null) {
+    if (!_olderJar.exists() || _olderJar.isDirectory() || !_olderJar.canRead()) {
+      baselineProcessor.warning("Baseline file %s is invalid. Check if it exists, " + "is reablable, and not a directory.",_olderJar);
     }
  else {
-      Map<String,Resource> resources=jar.getResources();
-      log(jar.getName() + " (" + outputFile.getName()+ ") "+ resources.size()+ " (not modified)");
+      olderJar=new Jar(_olderJar);
     }
-    report();
-    jar.close();
   }
-  builder.close();
+ else {
+    olderJar=baselineProcessor.getBaselineJar();
+  }
+  try {
+    if (olderJar == null) {
+      return;
+    }
+    Baseline baseline=new Baseline(baselineProcessor,new DiffPluginImpl());
+    Set<Info> infos=baseline.baseline(newerJar,olderJar,null);
+    if (infos.isEmpty()) {
+      return;
+    }
+    BundleInfo bundleInfo=baseline.getBundleInfo();
+    Info[] infosArray=infos.toArray(new Info[infos.size()]);
+    Arrays.sort(infosArray,new Comparator<Info>(){
+      @Override public int compare(      Info info1,      Info info2){
+        return info1.packageName.compareTo(info2.packageName);
+      }
+    }
+);
+    doHeader(bundleInfo);
+    for (    Info info : infosArray) {
+      String warnings="-";
+      Version newerVersion=info.newerVersion;
+      Version suggestedVersion=info.suggestedVersion;
+      if (suggestedVersion != null) {
+        if (newerVersion.compareTo(suggestedVersion) > 0) {
+          warnings="EXCESSIVE VERSION INCREASE";
+        }
+ else         if (newerVersion.compareTo(suggestedVersion) < 0) {
+          warnings="VERSION INCREASE REQUIRED";
+        }
+      }
+      Diff packageDiff=info.packageDiff;
+      Delta delta=packageDiff.getDelta();
+      if (delta == Delta.REMOVED) {
+        warnings="PACKAGE REMOVED";
+      }
+ else       if (delta == Delta.UNCHANGED) {
+        boolean newVersionSuggested=false;
+        if (suggestedVersion.compareTo(newerVersion) > 0) {
+          warnings="VERSION INCREASE SUGGESTED";
+          newVersionSuggested=true;
+        }
+ else         if (suggestedVersion.compareTo(newerVersion) < 0) {
+          warnings="EXCESSIVE VERSION INCREASE";
+          newVersionSuggested=true;
+        }
+        if (!newVersionSuggested && !info.mismatch) {
+          continue;
+        }
+      }
+      generatePackageInfo(info,warnings);
+      if (((_reportLevelIsStandard || _reportOnlyDirtyPackages) && warnings.equals("-")) || (_reportOnlyDirtyPackages && (delta == Delta.REMOVED))) {
+        continue;
+      }
+      doInfo(bundleInfo,info,warnings);
+      if (_reportLevelIsDiff && (delta != Delta.REMOVED)) {
+        doPackageDiff(packageDiff);
+      }
+    }
+  }
+  finally {
+    report(baselineProcessor);
+    baselineProcessor.close();
+    newerJar.close();
+    if (olderJar != null) {
+      olderJar.close();
+    }
+    if (_printWriter != null) {
+      _printWriter.close();
+    }
+  }
 }
