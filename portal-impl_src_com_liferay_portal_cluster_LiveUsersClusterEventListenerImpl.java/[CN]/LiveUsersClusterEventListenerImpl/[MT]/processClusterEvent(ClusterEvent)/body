@@ -1,14 +1,28 @@
 {
   List<ClusterNode> clusterNodes=clusterEvent.getClusterNodes();
+  if (clusterNodes.isEmpty()) {
+    return;
+  }
   ClusterEventType clusterEventType=clusterEvent.getClusterEventType();
+  String command=null;
   if (clusterEventType.equals(ClusterEventType.DEPART)) {
-    for (    ClusterNode clusterNode : clusterNodes) {
-      _processDepartEvent(clusterNode);
-    }
+    command="removeClusterNode";
   }
  else   if (clusterEventType.equals(ClusterEventType.JOIN)) {
-    for (    ClusterNode clusterNode : clusterNodes) {
-      _processJoinEvent(clusterNode);
+    command="addClusterNode";
+  }
+  for (  ClusterNode clusterNode : clusterNodes) {
+    Message message=new Message();
+    JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+    jsonObject.put("clusterNodeId",clusterNode.getClusterNodeId());
+    jsonObject.put("command",command);
+    message.setPayload(jsonObject.toString());
+    ClusterInvokeThreadLocal.setEnabled(false);
+    try {
+      MessageBusUtil.sendMessage(DestinationNames.LIVE_USERS,message);
+    }
+  finally {
+      ClusterInvokeThreadLocal.setEnabled(true);
     }
   }
 }
