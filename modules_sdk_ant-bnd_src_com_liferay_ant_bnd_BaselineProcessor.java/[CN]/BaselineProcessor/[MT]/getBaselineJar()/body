@@ -1,0 +1,75 @@
+{
+  String bl=getProperty(Constants.BASELINE);
+  if (bl == null || Constants.NONE.equals(bl)) {
+    return null;
+  }
+  Instructions baselines=new Instructions(getProperty(Constants.BASELINE));
+  if (baselines.isEmpty()) {
+    return null;
+  }
+  RepositoryPlugin repo=getBaselineRepo();
+  if (repo == null) {
+    return null;
+  }
+  String bsn=getBsn();
+  Version version=new Version(getVersion());
+  SortedSet<Version> versions=removeStagedAndFilter(repo.versions(bsn),repo,bsn);
+  if (versions.isEmpty()) {
+    Version v=new Version(getVersion());
+    if (v.getWithoutQualifier().compareTo(Version.ONE) > 0) {
+      warning("There is no baseline for %s in the baseline repo %s. The build is for version %s, which is <= 1.0.0 which suggests that there should be a prior version.",getBsn(),repo,v);
+    }
+    return null;
+  }
+  for (  Entry<Instruction,Attrs> e : baselines.entrySet()) {
+    if (e.getKey().matches(bsn)) {
+      Attrs attrs=e.getValue();
+      Version target;
+      if (attrs.containsKey("version")) {
+        String v=attrs.get("version");
+        if (!Verifier.isVersion(v)) {
+          error("Not a valid version in %s %s",Constants.BASELINE,v);
+          return null;
+        }
+        Version base=new Version(v);
+        SortedSet<Version> later=versions.tailSet(base);
+        if (later.isEmpty()) {
+          error("For baselineing %s-%s, specified version %s not found",bsn,version,base);
+          return null;
+        }
+        target=later.first();
+      }
+ else       if (attrs.containsKey("file")) {
+        File f=getFile(attrs.get("file"));
+        if (f != null && f.isFile()) {
+          Jar jar=new Jar(f);
+          addClose(jar);
+          return jar;
+        }
+        error("Specified file for baseline but could not find it %s",f);
+        return null;
+      }
+ else {
+        target=versions.last();
+      }
+      if (target.getWithoutQualifier().compareTo(version.getWithoutQualifier()) > 0) {
+        error("The baseline version %s is higher than the current version %s for %s in %s",target,version,bsn,repo);
+        return null;
+      }
+      if (target.getWithoutQualifier().compareTo(version.getWithoutQualifier()) == 0) {
+        if (isPedantic()) {
+          warning("Baselining against jar");
+        }
+      }
+      File file=repo.get(bsn,target,attrs);
+      if (file == null || !file.isFile()) {
+        error("Decided on version %s-%s but cannot get file from repo %s",bsn,version,repo);
+        return null;
+      }
+      Jar jar=new Jar(file);
+      addClose(jar);
+      return jar;
+    }
+  }
+  return null;
+}
