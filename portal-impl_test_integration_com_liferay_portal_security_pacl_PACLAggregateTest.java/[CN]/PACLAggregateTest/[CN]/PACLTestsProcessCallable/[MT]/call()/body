@@ -1,12 +1,36 @@
 {
   ProxySelector.setDefault(new DummySocksProxySelector());
+  Path tempStatePath=null;
   try {
+    tempStatePath=Files.createTempDirectory(null);
+    System.setProperty("portal:" + PropsKeys.MODULE_FRAMEWORK_STATE_DIR,tempStatePath.toString());
     JUnitCore junitCore=new JUnitCore();
     junitCore.addListener(new NoticeBridgeRunListener());
     return junitCore.run(_classes.toArray(new Class<?>[_classes.size()]));
   }
-  finally {
+ catch (  IOException ioe) {
+    throw new ProcessException(ioe);
+  }
+ finally {
     InitUtil.stopModuleFramework();
     MPIHelperUtil.shutdown();
+    if (tempStatePath != null) {
+      try {
+        Files.walkFileTree(tempStatePath,new SimpleFileVisitor<Path>(){
+          @Override public FileVisitResult postVisitDirectory(          Path path,          IOException ioe) throws IOException {
+            Files.delete(path);
+            return FileVisitResult.CONTINUE;
+          }
+          @Override public FileVisitResult visitFile(          Path path,          BasicFileAttributes basicFileAttributes) throws IOException {
+            Files.delete(path);
+            return FileVisitResult.CONTINUE;
+          }
+        }
+);
+      }
+ catch (      IOException ioe) {
+        throw new ProcessException(ioe);
+      }
+    }
   }
 }
