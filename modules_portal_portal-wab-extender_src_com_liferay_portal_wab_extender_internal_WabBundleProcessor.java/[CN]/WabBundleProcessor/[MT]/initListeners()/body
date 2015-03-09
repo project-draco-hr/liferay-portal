@@ -1,16 +1,22 @@
 {
   List<ListenerDefinition> listenerDefinitions=_webXMLDefinition.getListenerDefinitions();
   for (  ListenerDefinition listenerDefinition : listenerDefinitions) {
-    try {
-      _extendedHttpService.registerListener(listenerDefinition.getEventListener(),_contextName);
+    Dictionary<String,Object> properties=new Hashtable<>();
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_SELECT,_contextName);
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_LISTENER,Boolean.TRUE.toString());
+    String[] classNames=getClassNames(listenerDefinition.getEventListener());
+    ServiceRegistration<?> serviceRegistration=_bundleContext.registerService(classNames,listenerDefinition.getEventListener(),properties);
+    _listenerRegistrations.add(serviceRegistration);
+    if (!ServletContextListener.class.isInstance(listenerDefinition.getEventListener())) {
+      continue;
     }
- catch (    Exception e1) {
-      try {
-        destroy();
-      }
- catch (      Exception e2) {
-      }
-      throw e1;
+    ServletContextListenerExceptionAdaptor servletContextListenerExceptionAdaptor=new ServletContextListenerExceptionAdaptor((ServletContextListener)listenerDefinition.getEventListener());
+    serviceRegistration=_bundleContext.registerService(ServletContextListener.class,servletContextListenerExceptionAdaptor,properties);
+    Exception exception=servletContextListenerExceptionAdaptor.getException();
+    if (exception != null) {
+      serviceRegistration.unregister();
+      throw exception;
     }
+    _listenerRegistrations.add(serviceRegistration);
   }
 }
