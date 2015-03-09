@@ -2,11 +2,27 @@
   Map<String,FilterDefinition> filterDefinitions=_webXMLDefinition.getFilterDefinitions();
   for (  Map.Entry<String,FilterDefinition> entry : filterDefinitions.entrySet()) {
     FilterDefinition filterDefinition=entry.getValue();
-    try {
-      _extendedHttpService.registerFilter(filterDefinition.getFilter(),filterDefinition.getName(),filterDefinition.getURLPatterns().toArray(new String[0]),filterDefinition.getServletNames().toArray(new String[0]),filterDefinition.getDispatchers().toArray(new String[0]),filterDefinition.isAsyncSupported(),filterDefinition.getPriority(),filterDefinition.getInitParameters(),_contextName);
+    Dictionary<String,Object> properties=new Hashtable<>();
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_SELECT,_contextName);
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_FILTER_ASYNC_SUPPORTED,filterDefinition.isAsyncSupported());
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_FILTER_DISPATCHER,filterDefinition.getDispatchers());
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_FILTER_NAME,filterDefinition.getName());
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_FILTER_PATTERN,filterDefinition.getURLPatterns());
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_FILTER_SERVLET,filterDefinition.getServletNames());
+    properties.put(Constants.SERVICE_RANKING,filterDefinition.getPriority());
+    Map<String,String> initParameters=filterDefinition.getInitParameters();
+    for (    Entry<String,String> initParametersEntry : initParameters.entrySet()) {
+      String key=initParametersEntry.getKey();
+      String value=initParametersEntry.getValue();
+      properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_FILTER_INIT_PARAM_PREFIX + key,value);
     }
- catch (    Exception e) {
-      _logger.log(Logger.LOG_ERROR,e.getMessage(),e);
+    FilterExceptionAdaptor filterExceptionAdaptor=new FilterExceptionAdaptor(filterDefinition.getFilter());
+    ServiceRegistration<Filter> serviceRegistration=_bundleContext.registerService(Filter.class,filterExceptionAdaptor,properties);
+    Exception exception=filterExceptionAdaptor.getException();
+    if (exception != null) {
+      serviceRegistration.unregister();
+      throw exception;
     }
+    _filterRegistrations.add(serviceRegistration);
   }
 }
