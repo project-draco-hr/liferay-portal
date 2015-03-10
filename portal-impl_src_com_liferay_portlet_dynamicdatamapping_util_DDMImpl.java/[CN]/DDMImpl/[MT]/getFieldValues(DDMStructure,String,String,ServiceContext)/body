@@ -5,33 +5,75 @@
   List<Serializable> fieldValues=new ArrayList<>(fieldNames.size());
   for (  String fieldNameValue : fieldNames) {
     Serializable fieldValue=serviceContext.getAttribute(fieldNameValue);
+    String predefinedFieldValue=null;
+    if (fieldValue == null) {
+      DDMFormField ddmFormField=ddmStructure.getDDMFormField(fieldName);
+      predefinedFieldValue=ddmFormField.getPredefinedValue().getString(serviceContext.getLocale());
+    }
     if (fieldType.equals(DDMImpl.TYPE_CHECKBOX) && Validator.isNull(fieldValue)) {
-      fieldValue="false";
+      if (Validator.isNotNull(predefinedFieldValue)) {
+        fieldValue=predefinedFieldValue;
+      }
+ else {
+        fieldValue="false";
+      }
     }
  else     if (fieldDataType.equals(FieldConstants.DATE)) {
-      int fieldValueMonth=GetterUtil.getInteger(serviceContext.getAttribute(fieldNameValue + "Month"));
-      int fieldValueDay=GetterUtil.getInteger(serviceContext.getAttribute(fieldNameValue + "Day"));
-      int fieldValueYear=GetterUtil.getInteger(serviceContext.getAttribute(fieldNameValue + "Year"));
-      Date fieldValueDate=PortalUtil.getDate(fieldValueMonth,fieldValueDay,fieldValueYear);
-      if (fieldValueDate != null) {
-        fieldValue=String.valueOf(fieldValueDate.getTime());
+      if (fieldValue == null) {
+        if (Validator.isNotNull(predefinedFieldValue)) {
+          Date predefinedDate=null;
+          try {
+            predefinedDate=DateUtil.parseDate(predefinedFieldValue,serviceContext.getLocale());
+          }
+ catch (          ParseException e) {
+          }
+          if (Validator.isNotNull(predefinedDate)) {
+            fieldValue=String.valueOf(predefinedDate.getTime());
+          }
+        }
+      }
+ else {
+        int fieldValueMonth=GetterUtil.getInteger(serviceContext.getAttribute(fieldNameValue + "Month"));
+        int fieldValueDay=GetterUtil.getInteger(serviceContext.getAttribute(fieldNameValue + "Day"));
+        int fieldValueYear=GetterUtil.getInteger(serviceContext.getAttribute(fieldNameValue + "Year"));
+        Date fieldValueDate=PortalUtil.getDate(fieldValueMonth,fieldValueDay,fieldValueYear);
+        if (fieldValueDate != null) {
+          fieldValue=String.valueOf(fieldValueDate.getTime());
+        }
       }
     }
  else     if (fieldDataType.equals(FieldConstants.IMAGE) && Validator.isNull(fieldValue)) {
-      HttpServletRequest request=serviceContext.getRequest();
-      if (!(request instanceof UploadRequest)) {
-        return null;
+      if (fieldValue == null) {
+        if (Validator.isNotNull(predefinedFieldValue)) {
+          fieldValue=predefinedFieldValue;
+        }
       }
-      fieldValue=getImageFieldValue((UploadRequest)request,fieldNameValue);
-    }
-    if (fieldValue == null) {
-      return null;
+ else {
+        HttpServletRequest request=serviceContext.getRequest();
+        if (!(request instanceof UploadRequest)) {
+          return null;
+        }
+        fieldValue=getImageFieldValue((UploadRequest)request,fieldNameValue);
+      }
     }
     if (DDMImpl.TYPE_RADIO.equals(fieldType) || DDMImpl.TYPE_SELECT.equals(fieldType)) {
-      if (fieldValue instanceof String) {
-        fieldValue=new String[]{String.valueOf(fieldValue)};
+      if (fieldValue == null) {
+        if (Validator.isNotNull(predefinedFieldValue)) {
+          fieldValue=predefinedFieldValue;
+        }
       }
-      fieldValue=JSONFactoryUtil.serialize(fieldValue);
+ else {
+        if (fieldValue instanceof String) {
+          fieldValue=new String[]{String.valueOf(fieldValue)};
+        }
+        fieldValue=JSONFactoryUtil.serialize(fieldValue);
+      }
+    }
+    if (fieldValue == null) {
+      if (Validator.isNull(predefinedFieldValue)) {
+        return null;
+      }
+      fieldValue=predefinedFieldValue;
     }
     Serializable fieldValueSerializable=FieldConstants.getSerializable(fieldDataType,GetterUtil.getString(fieldValue));
     fieldValues.add(fieldValueSerializable);
