@@ -1,0 +1,68 @@
+{
+  Object[] finderArgs=new Object[]{appId,contextName};
+  Object result=null;
+  if (retrieveFromCache) {
+    result=FinderCacheUtil.getResult(FINDER_PATH_FETCH_BY_A_CN,finderArgs,this);
+  }
+  if (result instanceof Module) {
+    Module module=(Module)result;
+    if ((appId != module.getAppId()) || !Validator.equals(contextName,module.getContextName())) {
+      result=null;
+    }
+  }
+  if (result == null) {
+    StringBundler query=new StringBundler(4);
+    query.append(_SQL_SELECT_MODULE_WHERE);
+    query.append(_FINDER_COLUMN_A_CN_APPID_2);
+    boolean bindContextName=false;
+    if (contextName == null) {
+      query.append(_FINDER_COLUMN_A_CN_CONTEXTNAME_1);
+    }
+ else     if (contextName.equals(StringPool.BLANK)) {
+      query.append(_FINDER_COLUMN_A_CN_CONTEXTNAME_3);
+    }
+ else {
+      bindContextName=true;
+      query.append(_FINDER_COLUMN_A_CN_CONTEXTNAME_2);
+    }
+    String sql=query.toString();
+    Session session=null;
+    try {
+      session=openSession();
+      Query q=session.createQuery(sql);
+      QueryPos qPos=QueryPos.getInstance(q);
+      qPos.add(appId);
+      if (bindContextName) {
+        qPos.add(contextName);
+      }
+      List<Module> list=q.list();
+      if (list.isEmpty()) {
+        FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_A_CN,finderArgs,list);
+      }
+ else {
+        if ((list.size() > 1) && _log.isWarnEnabled()) {
+          _log.warn("ModulePersistenceImpl.fetchByA_CN(long, String, boolean) with parameters (" + StringUtil.merge(finderArgs) + ") yields a result set with more than 1 result. This violates the logical unique restriction. There is no order guarantee on which result is returned by this finder.");
+        }
+        Module module=list.get(0);
+        result=module;
+        cacheResult(module);
+        if ((module.getAppId() != appId) || (module.getContextName() == null) || !module.getContextName().equals(contextName)) {
+          FinderCacheUtil.putResult(FINDER_PATH_FETCH_BY_A_CN,finderArgs,module);
+        }
+      }
+    }
+ catch (    Exception e) {
+      FinderCacheUtil.removeResult(FINDER_PATH_FETCH_BY_A_CN,finderArgs);
+      throw processException(e);
+    }
+ finally {
+      closeSession(session);
+    }
+  }
+  if (result instanceof List<?>) {
+    return null;
+  }
+ else {
+    return (Module)result;
+  }
+}
