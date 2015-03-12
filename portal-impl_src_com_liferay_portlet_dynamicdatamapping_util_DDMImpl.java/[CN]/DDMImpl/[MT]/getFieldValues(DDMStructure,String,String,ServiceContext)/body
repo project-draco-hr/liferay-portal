@@ -1,79 +1,58 @@
 {
-  String fieldDataType=ddmStructure.getFieldDataType(fieldName);
-  String fieldType=ddmStructure.getFieldType(fieldName);
+  DDMFormField ddmFormField=ddmStructure.getDDMFormField(fieldName);
+  String fieldDataType=ddmFormField.getDataType();
+  String fieldType=ddmFormField.getType();
+  LocalizedValue predefinedValue=ddmFormField.getPredefinedValue();
   List<String> fieldNames=getFieldNames(fieldNamespace,fieldName,serviceContext);
   List<Serializable> fieldValues=new ArrayList<>(fieldNames.size());
   for (  String fieldNameValue : fieldNames) {
     Serializable fieldValue=serviceContext.getAttribute(fieldNameValue);
-    String predefinedFieldValue=null;
     if (fieldValue == null) {
-      DDMFormField ddmFormField=ddmStructure.getDDMFormField(fieldName);
-      predefinedFieldValue=ddmFormField.getPredefinedValue().getString(serviceContext.getLocale());
+      fieldValue=predefinedValue.getString(serviceContext.getLocale());
     }
     if (fieldType.equals(DDMImpl.TYPE_CHECKBOX) && Validator.isNull(fieldValue)) {
-      if (Validator.isNotNull(predefinedFieldValue)) {
-        fieldValue=predefinedFieldValue;
-      }
- else {
-        fieldValue="false";
-      }
+      fieldValue="false";
     }
  else     if (fieldDataType.equals(FieldConstants.DATE)) {
+      Date fieldValueDate=null;
       if (fieldValue == null) {
-        if (Validator.isNotNull(predefinedFieldValue)) {
-          Date predefinedDate=null;
-          try {
-            predefinedDate=DateUtil.parseDate(predefinedFieldValue,serviceContext.getLocale());
-          }
- catch (          ParseException e) {
-          }
-          if (Validator.isNotNull(predefinedDate)) {
-            fieldValue=String.valueOf(predefinedDate.getTime());
-          }
-        }
-      }
- else {
         int fieldValueMonth=GetterUtil.getInteger(serviceContext.getAttribute(fieldNameValue + "Month"));
         int fieldValueDay=GetterUtil.getInteger(serviceContext.getAttribute(fieldNameValue + "Day"));
         int fieldValueYear=GetterUtil.getInteger(serviceContext.getAttribute(fieldNameValue + "Year"));
-        Date fieldValueDate=PortalUtil.getDate(fieldValueMonth,fieldValueDay,fieldValueYear);
-        if (fieldValueDate != null) {
-          fieldValue=String.valueOf(fieldValueDate.getTime());
+        fieldValueDate=PortalUtil.getDate(fieldValueMonth,fieldValueDay,fieldValueYear);
+      }
+ else {
+        try {
+          fieldValueDate=DateUtil.parseDate(String.valueOf(fieldValue),serviceContext.getLocale());
         }
+ catch (        ParseException pe) {
+          if (_log.isErrorEnabled()) {
+            _log.error("Unable to parse date " + fieldValue);
+          }
+        }
+      }
+      if (fieldValueDate != null) {
+        fieldValue=String.valueOf(fieldValueDate.getTime());
       }
     }
  else     if (fieldDataType.equals(FieldConstants.IMAGE) && Validator.isNull(fieldValue)) {
-      if (fieldValue == null) {
-        if (Validator.isNotNull(predefinedFieldValue)) {
-          fieldValue=predefinedFieldValue;
+      HttpServletRequest request=serviceContext.getRequest();
+      if (request instanceof UploadRequest) {
+        String imageFieldValue=getImageFieldValue((UploadRequest)request,fieldNameValue);
+        if (Validator.isNotNull(imageFieldValue)) {
+          fieldValue=imageFieldValue;
         }
-      }
- else {
-        HttpServletRequest request=serviceContext.getRequest();
-        if (!(request instanceof UploadRequest)) {
-          return null;
-        }
-        fieldValue=getImageFieldValue((UploadRequest)request,fieldNameValue);
-      }
-    }
-    if (DDMImpl.TYPE_RADIO.equals(fieldType) || DDMImpl.TYPE_SELECT.equals(fieldType)) {
-      if (fieldValue == null) {
-        if (Validator.isNotNull(predefinedFieldValue)) {
-          fieldValue=predefinedFieldValue;
-        }
-      }
- else {
-        if (fieldValue instanceof String) {
-          fieldValue=new String[]{String.valueOf(fieldValue)};
-        }
-        fieldValue=JSONFactoryUtil.serialize(fieldValue);
       }
     }
     if (fieldValue == null) {
-      if (Validator.isNull(predefinedFieldValue)) {
-        return null;
+      return null;
+    }
+    if (DDMImpl.TYPE_RADIO.equals(fieldType) || DDMImpl.TYPE_SELECT.equals(fieldType)) {
+      String predefinedValueString=predefinedValue.getString(serviceContext.getLocale());
+      if (!fieldValue.equals(predefinedValueString) && (fieldValue instanceof String)) {
+        fieldValue=new String[]{String.valueOf(fieldValue)};
+        fieldValue=JSONFactoryUtil.serialize(fieldValue);
       }
-      fieldValue=predefinedFieldValue;
     }
     Serializable fieldValueSerializable=FieldConstants.getSerializable(fieldDataType,GetterUtil.getString(fieldValue));
     fieldValues.add(fieldValueSerializable);
