@@ -8,8 +8,10 @@
   String previousLine=null;
   int previousLineLength=0;
   int previousLineCloseParenthesesCount=0;
+  int previousLineLeadingWhiteSpace=0;
   int previousLineOpenParenthesesCount=0;
   int baseLeadingWhiteSpace=0;
+  int insideMethodCallExpectedWhiteSpace=0;
   int level=-1;
   while ((line=unsyncBufferedReader.readLine()) != null) {
     String originalLine=line;
@@ -48,7 +50,21 @@
  else       if (previousLine.contains(StringPool.TAB + "while (")) {
         expectedLeadingWhiteSpace=baseLeadingWhiteSpace + 5;
       }
-      if ((expectedLeadingWhiteSpace != 0) && (leadingWhiteSpace != expectedLeadingWhiteSpace)) {
+      if (previousLine.endsWith(StringPool.COMMA) && (insideMethodCallExpectedWhiteSpace > 0)) {
+        if (previousLineCloseParenthesesCount > previousLineOpenParenthesesCount) {
+          insideMethodCallExpectedWhiteSpace-=4;
+        }
+        expectedLeadingWhiteSpace=insideMethodCallExpectedWhiteSpace;
+      }
+ else {
+        if (expectedLeadingWhiteSpace == 0) {
+          expectedLeadingWhiteSpace=previousLineLeadingWhiteSpace + 4;
+        }
+        if (previousLine.endsWith(StringPool.OPEN_PARENTHESIS)) {
+          insideMethodCallExpectedWhiteSpace=expectedLeadingWhiteSpace;
+        }
+      }
+      if (leadingWhiteSpace != expectedLeadingWhiteSpace) {
         return fixIfClause(ifClause,originalLine,leadingWhiteSpace - expectedLeadingWhiteSpace);
       }
     }
@@ -59,6 +75,7 @@
     previousLine=originalLine;
     previousLineLength=line.length();
     previousLineCloseParenthesesCount=closeParenthesesCount;
+    previousLineLeadingWhiteSpace=leadingWhiteSpace;
     previousLineOpenParenthesesCount=openParenthesesCount;
   }
   return ifClause;
