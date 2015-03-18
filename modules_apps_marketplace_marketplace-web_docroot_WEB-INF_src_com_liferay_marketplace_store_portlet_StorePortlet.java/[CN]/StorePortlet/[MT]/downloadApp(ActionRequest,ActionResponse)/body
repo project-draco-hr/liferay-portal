@@ -1,0 +1,32 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  String token=ParamUtil.getString(actionRequest,"token");
+  long remoteAppId=ParamUtil.getLong(actionRequest,"appId");
+  String url=ParamUtil.getString(actionRequest,"url");
+  String version=ParamUtil.getString(actionRequest,"version");
+  if (!url.startsWith(PortletPropsValues.MARKETPLACE_URL)) {
+    JSONObject jsonObject=getAppJSONObject(remoteAppId);
+    jsonObject.put("cmd","downloadApp");
+    jsonObject.put("message","fail");
+    writeJSON(actionRequest,actionResponse,jsonObject);
+    return;
+  }
+  url=getRemoteAppPackageURL(themeDisplay.getCompanyId(),themeDisplay.getUserId(),token,url);
+  URL urlObj=new URL(url);
+  File tempFile=null;
+  try {
+    InputStream inputStream=urlObj.openStream();
+    tempFile=FileUtil.createTempFile();
+    FileUtil.write(tempFile,inputStream);
+    App app=AppServiceUtil.updateApp(remoteAppId,version,tempFile);
+    JSONObject jsonObject=getAppJSONObject(app.getRemoteAppId());
+    jsonObject.put("cmd","downloadApp");
+    jsonObject.put("message","success");
+    writeJSON(actionRequest,actionResponse,jsonObject);
+  }
+  finally {
+    if (tempFile != null) {
+      tempFile.delete();
+    }
+  }
+}
