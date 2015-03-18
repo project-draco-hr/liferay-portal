@@ -2,24 +2,34 @@
   SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(syncAccountId);
   if (!moveFile) {
     SyncFile syncFile=SyncFileService.fetchSyncFile(syncAccount.getFilePathName());
-    if (syncFile.getSyncFileId() != FileKeyUtil.getFileKey(filePath)) {
+    if (!FileKeyUtil.hasFileKey(targetFilePath,syncFile.getSyncFileId())) {
       throw new Exception("Target folder is not the moved sync data folder");
     }
   }
   syncAccount.setActive(false);
   SyncAccountService.update(syncAccount);
+  boolean resetFileKeys=false;
   if (moveFile) {
+    Path sourceFilePath=Paths.get(syncAccount.getFilePathName());
     try {
-      Files.createDirectories(filePath);
-      Files.move(Paths.get(syncAccount.getFilePathName()),filePath,StandardCopyOption.REPLACE_EXISTING);
+      FileUtil.moveFile(sourceFilePath,targetFilePath,false);
     }
- catch (    Exception e) {
-      syncAccount.setActive(true);
-      SyncAccountService.update(syncAccount);
-      throw e;
+ catch (    Exception e1) {
+      try {
+        FileUtils.moveDirectory(sourceFilePath.toFile(),targetFilePath.toFile());
+        resetFileKeys=true;
+      }
+ catch (      Exception e2) {
+        syncAccount.setActive(true);
+        SyncAccountService.update(syncAccount);
+        throw e2;
+      }
     }
   }
-  syncAccount=setFilePathName(syncAccountId,filePath.toString());
+  syncAccount=setFilePathName(syncAccountId,targetFilePath.toString());
+  if (resetFileKeys) {
+    FileKeyUtil.writeFileKeys(targetFilePath);
+  }
   syncAccount.setActive(true);
   syncAccount.setUiEvent(SyncAccount.UI_EVENT_NONE);
   SyncAccountService.update(syncAccount);
