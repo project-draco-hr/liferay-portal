@@ -2,20 +2,22 @@
   if (!isEnabled()) {
     return null;
   }
-  List<Address> addresses=prepareAddresses(clusterRequest);
   Set<String> clusterNodeIds=new HashSet<>();
-  for (  Address address : addresses) {
-    ClusterNode clusterNode=_liveInstances.get(address);
-    if (clusterNode != null) {
-      clusterNodeIds.add(clusterNode.getClusterNodeId());
+  if (clusterRequest.isMulticast()) {
+    clusterNodeIds=new HashSet<>(_clusterNodeStatusMap.keySet());
+    if (clusterRequest.isSkipLocal()) {
+      clusterNodeIds.remove(_localClusterNodeStatus.getClusterNodeId());
     }
+  }
+ else {
+    clusterNodeIds.addAll(clusterRequest.getTargetClusterNodeIds());
   }
   FutureClusterResponses futureClusterResponses=new FutureClusterResponses(clusterNodeIds);
   if (!clusterRequest.isFireAndForget()) {
     String uuid=clusterRequest.getUuid();
     _futureClusterResponses.put(uuid,futureClusterResponses);
   }
-  if (addresses.remove(_localAddress)) {
+  if (clusterNodeIds.remove(_localClusterNodeStatus.getClusterNodeId())) {
     ClusterNodeResponse clusterNodeResponse=executeClusterRequest(clusterRequest);
     if (!clusterRequest.isFireAndForget()) {
       futureClusterResponses.addClusterNodeResponse(clusterNodeResponse);
@@ -25,8 +27,15 @@
     _clusterChannel.sendMulticastMessage(clusterRequest);
   }
  else {
-    for (    Address address : addresses) {
-      _clusterChannel.sendUnicastMessage(clusterRequest,address);
+    for (    String clusterNodeId : clusterNodeIds) {
+      ClusterNodeStatus clusterNodeStatus=_clusterNodeStatusMap.get(clusterNodeId);
+      if (clusterNodeStatus == null) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Unable to find cluster node " + clusterNodeId + " while executing "+ clusterRequest);
+        }
+        continue;
+      }
+      _clusterChannel.sendUnicastMessage(clusterRequest,clusterNodeStatus.getAddress());
     }
   }
   return futureClusterResponses;
