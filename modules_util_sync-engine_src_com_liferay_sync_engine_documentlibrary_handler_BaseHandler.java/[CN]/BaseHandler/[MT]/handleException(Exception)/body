@@ -3,7 +3,22 @@
   if (!ConnectionRetryUtil.retryInProgress(getSyncAccountId()) && _logger.isDebugEnabled()) {
     _logger.debug("Handling exception {}",e.toString());
   }
-  if (e instanceof FileNotFoundException) {
+  if (e instanceof ClientProtocolException) {
+    if (e instanceof HttpResponseException) {
+      HttpResponseException hre=(HttpResponseException)e;
+      int statusCode=hre.getStatusCode();
+      if (statusCode == HttpStatus.SC_UNAUTHORIZED) {
+        syncAccount.setState(SyncAccount.STATE_DISCONNECTED);
+        syncAccount.setUiEvent(SyncAccount.UI_EVENT_AUTHENTICATION_EXCEPTION);
+        SyncAccountService.update(syncAccount);
+      }
+    }
+    retryServerConnection(SyncAccount.UI_EVENT_CONNECTION_EXCEPTION);
+  }
+ else   if ((e instanceof ConnectTimeoutException) || (e instanceof HttpHostConnectException) || (e instanceof SocketTimeoutException)|| (e instanceof UnknownHostException)) {
+    retryServerConnection(SyncAccount.UI_EVENT_CONNECTION_EXCEPTION);
+  }
+ else   if (e instanceof FileNotFoundException) {
     SyncFile syncFile=(SyncFile)getParameterValue("syncFile");
     String message=e.getMessage();
     if (message.contains("The process cannot access the file")) {
@@ -16,21 +31,6 @@
  else     if (syncFile.getVersion() == null) {
       SyncFileService.deleteSyncFile(syncFile,false);
     }
-  }
- else   if ((e instanceof ConnectTimeoutException) || (e instanceof HttpHostConnectException) || (e instanceof SocketTimeoutException)|| (e instanceof UnknownHostException)) {
-    retryServerConnection(SyncAccount.UI_EVENT_CONNECTION_EXCEPTION);
-  }
- else   if (e instanceof ClientProtocolException) {
-    if (e instanceof HttpResponseException) {
-      HttpResponseException hre=(HttpResponseException)e;
-      int statusCode=hre.getStatusCode();
-      if (statusCode == HttpStatus.SC_UNAUTHORIZED) {
-        syncAccount.setState(SyncAccount.STATE_DISCONNECTED);
-        syncAccount.setUiEvent(SyncAccount.UI_EVENT_AUTHENTICATION_EXCEPTION);
-        SyncAccountService.update(syncAccount);
-      }
-    }
-    retryServerConnection(SyncAccount.UI_EVENT_CONNECTION_EXCEPTION);
   }
  else   if ((e instanceof NoHttpResponseException) || (e instanceof SocketException)) {
     String message=e.getMessage();
