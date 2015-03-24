@@ -6,8 +6,25 @@
   boolean privateLayout=MapUtil.getBoolean(settingsMap,"privateLayout");
   Map<String,String[]> parameterMap=(Map<String,String[]>)settingsMap.get("parameterMap");
   List<FileEntry> attachmentsFileEntries=backgroundTask.getAttachmentsFileEntries();
+  File file=null;
   for (  FileEntry attachmentsFileEntry : attachmentsFileEntries) {
-    LayoutLocalServiceUtil.importLayouts(userId,targetGroupId,privateLayout,parameterMap,attachmentsFileEntry.getContentStream());
+    try {
+      file=FileUtil.createTempFile("lar");
+      FileUtil.write(file,attachmentsFileEntry.getContentStream());
+      TransactionHandlerUtil.invoke(transactionAttribute,new LayoutImportCallable(file,parameterMap,privateLayout,targetGroupId,userId));
+    }
+ catch (    Throwable t) {
+      if (_log.isDebugEnabled()) {
+        _log.debug(t,t);
+      }
+ else       if (_log.isWarnEnabled()) {
+        _log.warn("Unable to import layouts: " + t.getMessage());
+      }
+      throw new SystemException(t);
+    }
+ finally {
+      FileUtil.delete(file);
+    }
   }
   return BackgroundTaskResult.SUCCESS;
 }

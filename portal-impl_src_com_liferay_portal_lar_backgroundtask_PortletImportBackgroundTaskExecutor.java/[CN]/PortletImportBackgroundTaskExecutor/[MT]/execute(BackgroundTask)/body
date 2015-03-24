@@ -7,8 +7,25 @@
   String portletId=MapUtil.getString(settingsMap,"portletId");
   Map<String,String[]> parameterMap=(Map<String,String[]>)settingsMap.get("parameterMap");
   List<FileEntry> attachmentsFileEntries=backgroundTask.getAttachmentsFileEntries();
+  File file=null;
   for (  FileEntry attachmentsFileEntry : attachmentsFileEntries) {
-    LayoutLocalServiceUtil.importPortletInfo(userId,targetPlid,targetGroupId,portletId,parameterMap,attachmentsFileEntry.getContentStream());
+    try {
+      file=FileUtil.createTempFile("lar");
+      FileUtil.write(file,attachmentsFileEntry.getContentStream());
+      TransactionHandlerUtil.invoke(transactionAttribute,new PortletImportCallable(file,parameterMap,portletId,targetGroupId,targetPlid,userId));
+    }
+ catch (    Throwable t) {
+      if (_log.isDebugEnabled()) {
+        _log.debug(t,t);
+      }
+ else       if (_log.isWarnEnabled()) {
+        _log.warn("Unable to import portlet: " + t.getMessage());
+      }
+      throw new SystemException(t);
+    }
+ finally {
+      FileUtil.delete(file);
+    }
   }
   return BackgroundTaskResult.SUCCESS;
 }
