@@ -1,3 +1,29 @@
 {
   super(event);
+  GetSyncContextEvent getSyncContextEvent=new GetSyncContextEvent(event.getSyncAccountId(),Collections.<String,Object>emptyMap()){
+    @Override public void run(){
+      if (!_firedProcessingState) {
+        fireProcessingState();
+      }
+      SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(getSyncAccountId());
+      SyncSite syncSite=SyncSiteService.fetchSyncSite((Long)event.getParameterValue("repositoryId"),getSyncAccountId());
+      if ((syncAccount == null) || (syncAccount.getState() == SyncAccount.STATE_DISCONNECTED) || (syncSite == null)|| !syncSite.isActive()) {
+        if (_firedProcessingState) {
+          fireProcessedState();
+        }
+        event.cancel();
+        _scheduledFuture.cancel(true);
+        return;
+      }
+      super.run();
+    }
+    @Override public void executePost(    String urlPath,    Map<String,Object> parameters) throws Exception {
+      Session session=SessionManager.getSession(getSyncAccountId());
+      HttpClient anonymousHttpClient=session.getAnonymousHttpClient();
+      SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(getSyncAccountId());
+      anonymousHttpClient.execute(new HttpPost(syncAccount.getUrl() + "/api/jsonws" + urlPath));
+    }
+  }
+;
+  _scheduledFuture=_scheduledExecutorService.scheduleAtFixedRate(getSyncContextEvent,15,5,TimeUnit.SECONDS);
 }
