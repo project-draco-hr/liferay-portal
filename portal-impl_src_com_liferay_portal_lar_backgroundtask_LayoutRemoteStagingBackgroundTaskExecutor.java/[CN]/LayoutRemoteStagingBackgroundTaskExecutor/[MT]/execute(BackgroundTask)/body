@@ -1,51 +1,11 @@
 {
   ExportImportConfiguration exportImportConfiguration=getExportImportConfiguration(backgroundTask);
-  Map<String,Serializable> settingsMap=exportImportConfiguration.getSettingsMap();
-  long sourceGroupId=MapUtil.getLong(settingsMap,"sourceGroupId");
-  boolean privateLayout=MapUtil.getBoolean(settingsMap,"privateLayout");
-  initThreadLocals(sourceGroupId,privateLayout);
-  Map<Long,Boolean> layoutIdMap=(Map<Long,Boolean>)settingsMap.get("layoutIdMap");
-  Map<String,String[]> parameterMap=(Map<String,String[]>)settingsMap.get("parameterMap");
-  long remoteGroupId=MapUtil.getLong(settingsMap,"remoteGroupId");
-  DateRange dateRange=ExportImportDateUtil.getDateRange(exportImportConfiguration,ExportImportDateUtil.RANGE_FROM_LAST_PUBLISH_DATE);
-  Map<String,Serializable> taskContextMap=backgroundTask.getTaskContextMap();
-  HttpPrincipal httpPrincipal=(HttpPrincipal)taskContextMap.get("httpPrincipal");
   clearBackgroundTaskStatus(backgroundTask);
-  long stagingRequestId=0;
-  File file=null;
-  FileInputStream fileInputStream=null;
   MissingReferences missingReferences=null;
   try {
     ExportImportThreadLocal.setLayoutStagingInProcess(true);
     ExportImportLifecycleManager.fireExportImportLifecycleEvent(ExportImportLifecycleConstants.EVENT_PUBLICATION_LAYOUT_REMOTE_STARTED,exportImportConfiguration);
-    file=exportLayoutsAsFile(sourceGroupId,privateLayout,layoutIdMap,parameterMap,remoteGroupId,dateRange.getStartDate(),dateRange.getEndDate(),httpPrincipal);
-    String checksum=FileUtil.getMD5Checksum(file);
-    fileInputStream=new FileInputStream(file);
-    stagingRequestId=StagingServiceHttp.createStagingRequest(httpPrincipal,remoteGroupId,checksum);
-    byte[] bytes=new byte[PropsValues.STAGING_REMOTE_TRANSFER_BUFFER_SIZE];
-    int i=0;
-    int j=0;
-    String numberFormat=String.format("%%0%dd",String.valueOf((int)(file.length() / bytes.length)).length() + 1);
-    while ((i=fileInputStream.read(bytes)) >= 0) {
-      String fileName=file.getName() + String.format(numberFormat,j++);
-      if (i < PropsValues.STAGING_REMOTE_TRANSFER_BUFFER_SIZE) {
-        byte[] tempBytes=new byte[i];
-        System.arraycopy(bytes,0,tempBytes,0,i);
-        StagingServiceHttp.updateStagingRequest(httpPrincipal,stagingRequestId,fileName,tempBytes);
-      }
- else {
-        StagingServiceHttp.updateStagingRequest(httpPrincipal,stagingRequestId,fileName,bytes);
-      }
-      bytes=new byte[PropsValues.STAGING_REMOTE_TRANSFER_BUFFER_SIZE];
-    }
-    markBackgroundTask(backgroundTask.getBackgroundTaskId(),"exported");
-    missingReferences=StagingServiceHttp.validateStagingRequest(httpPrincipal,stagingRequestId,privateLayout,parameterMap);
-    markBackgroundTask(backgroundTask.getBackgroundTaskId(),"validated");
-    StagingServiceHttp.publishStagingRequest(httpPrincipal,stagingRequestId,privateLayout,parameterMap);
-    boolean updateLastPublishDate=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.UPDATE_LAST_PUBLISH_DATE);
-    if (updateLastPublishDate) {
-      ExportImportDateUtil.updateLastPublishDate(sourceGroupId,privateLayout,dateRange,dateRange.getEndDate());
-    }
+    missingReferences=TransactionHandlerUtil.invoke(transactionAttribute,new LayoutRemoteStagingCallable(backgroundTask.getBackgroundTaskId(),exportImportConfiguration));
     ExportImportLifecycleManager.fireExportImportLifecycleEvent(ExportImportLifecycleConstants.EVENT_PUBLICATION_LAYOUT_REMOTE_SUCCEEDED,exportImportConfiguration);
   }
  catch (  Throwable t) {
@@ -60,11 +20,6 @@
   }
  finally {
     ExportImportThreadLocal.setLayoutStagingInProcess(false);
-    StreamUtil.cleanUp(fileInputStream);
-    FileUtil.delete(file);
-    if (stagingRequestId > 0) {
-      StagingServiceHttp.cleanUpStagingRequest(httpPrincipal,stagingRequestId);
-    }
   }
   return processMissingReferences(backgroundTask.getBackgroundTaskId(),missingReferences);
 }
