@@ -1,7 +1,17 @@
 {
+  boolean isModule=false;
+  String moduleName=StringPool.BLANK;
+  if (args.length > 1) {
+    isModule=true;
+    moduleName=GetterUtil.getString(args[1]);
+  }
   DirectoryScanner ds=new DirectoryScanner();
   ds.setBasedir(upgradeBaseDir);
   ds.setIncludes(new String[]{"**\\upgrade\\v**\\util\\*Table.java"});
+  if (isModule) {
+    ds.setBasedir(_modulePrefix);
+    ds.setIncludes(new String[]{"**\\" + moduleName + "\\upgrade\\v**\\util\\*Table.java"});
+  }
   ds.scan();
   String[] fileNames=ds.getIncludedFiles();
   for (  String fileName : fileNames) {
@@ -16,22 +26,29 @@
     }
     x=fileName.indexOf("/",y + 1);
     y=fileName.indexOf("Table.java",x);
+    String upgradeTableDir=args[0];
     String upgradeFileName=upgradeTableDir + "/" + upgradeFileVersion+ "/"+ fileName.substring(x,y)+ "ModelImpl.java";
     if (!_fileUtil.exists(upgradeFileName)) {
-      if (!upgradeFileVersion.equals(ReleaseInfo.getVersion())) {
+      if (!upgradeFileVersion.equals(ReleaseInfo.getVersion()) && !upgradeFileVersion.equals(_getModuleVersion(moduleName))) {
         continue;
       }
-      upgradeFileName=_findUpgradeFileName(fileName.substring(x,y));
+      upgradeFileName=_findUpgradeFileName(fileName.substring(x,y),isModule);
       if (upgradeFileName == null) {
         continue;
       }
+    }
+    if (isModule) {
+      upgradeFileName=_modulePrefix + upgradeFileName;
     }
     String content=_fileUtil.read(upgradeFileName);
     String packagePath="com.liferay.portal.upgrade.v" + StringUtil.replace(version,".","_") + ".util";
     String className=fileName.substring(x + 1,y) + "Table";
     String author=_getAuthor(fileName);
-    String[] addIndexes=_getAddIndexes(upgradeTableDir + "/" + upgradeFileVersion+ "/indexes.sql",fileName.substring(x + 1,y));
-    content=_getContent(packagePath,className,content,author,addIndexes);
+    String[] addIndexes=_getAddIndexes(upgradeTableDir + "/" + upgradeFileVersion+ "/indexes.sql",fileName.substring(x + 1,y),isModule,moduleName);
+    content=_getContent(packagePath,upgradeFileName,className,content,author,addIndexes);
+    if (isModule) {
+      fileName=_modulePrefix + fileName;
+    }
     _fileUtil.write(fileName,content);
   }
 }
