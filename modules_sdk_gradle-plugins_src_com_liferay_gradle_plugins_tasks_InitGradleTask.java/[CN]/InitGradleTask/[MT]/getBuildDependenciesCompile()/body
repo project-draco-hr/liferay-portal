@@ -1,0 +1,47 @@
+{
+  List<String> contents=new ArrayList<>();
+  if (_ivyXmlNode != null) {
+    Node dependenciesNode=_getNode(_ivyXmlNode,"dependencies");
+    if (dependenciesNode != null) {
+      Iterator<Node> itr=dependenciesNode.iterator();
+      while (itr.hasNext()) {
+        Node dependencyNode=itr.next();
+        String conf=(String)dependencyNode.attribute("conf");
+        if (Validator.isNotNull(conf) && !conf.equals("default")) {
+          continue;
+        }
+        String group=(String)dependencyNode.attribute("org");
+        String name=(String)dependencyNode.attribute("name");
+        String version=(String)dependencyNode.attribute("rev");
+        contents.add(_wrapDependency(group,name,version));
+      }
+    }
+  }
+  String requiredDeploymentContexts=_liferayExtension.getPluginPackageProperty("required-deployment-contexts");
+  if (Validator.isNotNull(requiredDeploymentContexts)) {
+    String[] requiredDeploymentContextsArray=requiredDeploymentContexts.split(",");
+    for (    String deploymentContext : requiredDeploymentContextsArray) {
+      String serviceJarFileName=_getServiceJarFileName(deploymentContext);
+      if (FileUtil.exists(_project,serviceJarFileName)) {
+        contents.add(_wrapServiceJarDependency(serviceJarFileName));
+      }
+    }
+  }
+  String importShared=_getBuildXmlProperty("import.shared");
+  if (Validator.isNotNull(importShared)) {
+    Map<String,String> projectNamePathMap=new HashMap<>();
+    Project rootProject=_project.getRootProject();
+    for (    Project project : rootProject.getAllprojects()) {
+      projectNamePathMap.put(project.getName(),project.getPath());
+    }
+    String[] importSharedArray=importShared.split(",");
+    for (    String projectName : importSharedArray) {
+      String projectPath=projectNamePathMap.get(projectName);
+      if (Validator.isNull(projectPath)) {
+        throw new GradleException("Unable to find project dependency " + projectName);
+      }
+      contents.add(_wrapProjectDependency(projectPath));
+    }
+  }
+  return _wrapContents(contents,1,"(",JavaPlugin.COMPILE_CONFIGURATION_NAME,")");
+}
