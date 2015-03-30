@@ -1,12 +1,19 @@
 {
   StringBuilder sb=new StringBuilder();
+  boolean isCDATA=false;
   int lineNumber=1;
-  try {
-    BufferedReader bufferedReader=new BufferedReader(new StringReader(FileUtil.read(filePath)));
-    String line=null;
-    while ((line=bufferedReader.readLine()) != null) {
-      Matcher matcher=_tagPattern.matcher(line);
-      if (matcher.find()) {
+  BufferedReader bufferedReader=new BufferedReader(new StringReader(FileUtil.read(filePath)));
+  String line=null;
+  while ((line=bufferedReader.readLine()) != null) {
+    Matcher matcher=_tagPattern.matcher(line);
+    if (line.contains("<![CDATA[") || isCDATA) {
+      if (line.contains("]]>")) {
+        isCDATA=false;
+      }
+ else {
+        isCDATA=true;
+      }
+      if (line.contains("<![CDATA[") && matcher.find()) {
         for (        String reservedTag : _reservedTags) {
           if (line.contains("<" + reservedTag)) {
             line=StringUtil.replace(line,matcher.group(),matcher.group() + " line-number=\"" + lineNumber+ "\"");
@@ -14,18 +21,40 @@
           }
         }
       }
-      sb.append(line);
       lineNumber++;
+      sb.append(line);
+      continue;
     }
-    String content=sb.toString();
-    InputStream inputStream=new ByteArrayInputStream(content.getBytes("UTF-8"));
-    SAXReader saxReader=new SAXReader();
-    Document document=saxReader.read(inputStream);
-    Element rootElement=document.getRootElement();
-    PoshiRunnerValidation.validate(rootElement,filePath);
-    return rootElement;
+ else     if (matcher.find()) {
+      boolean tagFound=false;
+      for (      String reservedTag : _reservedTags) {
+        if (line.contains("<" + reservedTag)) {
+          line=StringUtil.replace(line,matcher.group(),matcher.group() + " line-number=\"" + lineNumber+ "\"");
+          tagFound=true;
+          break;
+        }
+      }
+      if (!tagFound) {
+        int x=line.indexOf("<");
+        int y=line.indexOf(" ",x);
+        if (y == -1) {
+          y=line.indexOf(">");
+          if (y == -1) {
+            y=line.indexOf(">");
+          }
+        }
+        String tagName=line.substring(x + 1,y);
+        throw new PoshiRunnerException("\nBUILD FAILED: Invaild \"" + tagName + "\" tag\n"+ filePath+ ":"+ lineNumber);
+      }
+    }
+    sb.append(line);
+    lineNumber++;
   }
- catch (  Exception e) {
-    throw new PoshiRunnerException(e);
-  }
+  String content=sb.toString();
+  InputStream inputStream=new ByteArrayInputStream(content.getBytes("UTF-8"));
+  SAXReader saxReader=new SAXReader();
+  Document document=saxReader.read(inputStream);
+  Element rootElement=document.getRootElement();
+  PoshiRunnerValidation.validate(rootElement,filePath);
+  return rootElement;
 }
