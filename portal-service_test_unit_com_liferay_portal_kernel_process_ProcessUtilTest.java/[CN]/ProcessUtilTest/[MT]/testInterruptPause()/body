@@ -1,21 +1,17 @@
 {
   final CountDownLatch countDownLatch=new CountDownLatch(1);
   final Thread mainThread=Thread.currentThread();
-  Thread interruptThread=new Thread(){
-    @Override public void run(){
-      try {
-        countDownLatch.await();
-        while (mainThread.getState() != State.WAITING)         ;
-        ExecutorService executorService=_getExecutorService();
-        executorService.shutdownNow();
-      }
- catch (      Exception e) {
-        Assert.fail();
-      }
+  SyncThrowableThread<Void> syncThrowableThread=new SyncThrowableThread<>(new Callable<Void>(){
+    @Override public Void call() throws Exception {
+      countDownLatch.await();
+      while (mainThread.getState() != Thread.State.WAITING)       ;
+      ExecutorService executorService=_getExecutorService();
+      executorService.shutdownNow();
+      return null;
     }
   }
-;
-  interruptThread.start();
+);
+  syncThrowableThread.start();
   final Future<?> future=ProcessUtil.execute(new OutputProcessor<Void,Void>(){
     @Override public Void processStdErr(    InputStream stdErrInputStream){
       return null;
@@ -34,5 +30,8 @@
     Throwable throwable=ee.getCause();
     Assert.assertEquals(ProcessException.class,throwable.getClass());
     Assert.assertEquals("Forcibly killed subprocess on interruption",throwable.getMessage());
+  }
+ finally {
+    syncThrowableThread.sync();
   }
 }

@@ -7,22 +7,18 @@
     ChannelContext channelContext=new ChannelContext(new LinkedList<Datagram>());
     channelContext.setRegistrationReference(mockRegistrationReference);
     ReadingCallable readingCallable=_executorIntraband.new ReadingCallable(sourceChannel,channelContext);
-    Thread closeThread=new Thread(){
-      @Override public void run(){
-        try {
-          sleep(100);
-          sourceChannel.close();
-        }
- catch (        Exception e) {
-          Assert.fail(e.getMessage());
-        }
+    SyncThrowableThread<Void> syncThrowableThread=new SyncThrowableThread<>(new Callable<Void>(){
+      @Override public Void call() throws Exception {
+        sleep(100);
+        sourceChannel.close();
+        return null;
       }
     }
-;
-    closeThread.start();
+);
+    syncThrowableThread.start();
     readingCallable.openLatch();
     Void result=readingCallable.call();
-    closeThread.join();
+    syncThrowableThread.sync();
     Assert.assertNull(result);
     Assert.assertFalse(mockRegistrationReference.isValid());
   }

@@ -1,23 +1,19 @@
 {
   final AtomicReference<ExecutorService> atomicReference=new AtomicReference<>();
-  Thread thread=new Thread(){
-    @Override public void run(){
-      try {
-        ExecutorService executorService=_invokeGetThreadPoolExecutor();
-        atomicReference.set(executorService);
-      }
- catch (      Exception e) {
-        Assert.fail();
-      }
+  SyncThrowableThread<Void> syncThrowableThread=new SyncThrowableThread<>(new Callable<Void>(){
+    @Override public Void call() throws Exception {
+      ExecutorService executorService=_invokeGetThreadPoolExecutor();
+      atomicReference.set(executorService);
+      return null;
     }
   }
-;
+);
   ExecutorService executorService=null;
 synchronized (_localProcessExecutor) {
-    thread.start();
-    while (thread.getState() != Thread.State.BLOCKED)     ;
+    syncThrowableThread.start();
+    while (syncThrowableThread.getState() != Thread.State.BLOCKED)     ;
     executorService=_invokeGetThreadPoolExecutor();
   }
-  thread.join();
+  syncThrowableThread.sync();
   Assert.assertSame(executorService,atomicReference.get());
 }

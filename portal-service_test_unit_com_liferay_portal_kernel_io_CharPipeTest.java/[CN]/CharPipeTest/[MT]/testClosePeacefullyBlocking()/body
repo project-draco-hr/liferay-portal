@@ -2,22 +2,18 @@
   final CharPipe charPipe=new CharPipe();
   Reader reader=charPipe.getReader();
   final AtomicLong timestampBeforeClose=new AtomicLong();
-  Thread thread=new Thread(){
-    @Override public void run(){
-      try {
-        timestampBeforeClose.set(System.currentTimeMillis());
-        charPipe.close();
-      }
- catch (      Exception e) {
-        Assert.fail(e.getMessage());
-      }
+  SyncThrowableThread<Void> syncThrowableThread=new SyncThrowableThread<>(new Callable<Void>(){
+    @Override public Void call() throws Exception {
+      timestampBeforeClose.set(System.currentTimeMillis());
+      charPipe.close();
+      return null;
     }
   }
-;
-  thread.start();
+);
+  syncThrowableThread.start();
   int result=reader.read();
   long timestampAfterRead=System.currentTimeMillis();
-  thread.join();
+  syncThrowableThread.sync();
   Assert.assertEquals(-1,result);
   Assert.assertTrue(timestampAfterRead >= timestampBeforeClose.get());
 }

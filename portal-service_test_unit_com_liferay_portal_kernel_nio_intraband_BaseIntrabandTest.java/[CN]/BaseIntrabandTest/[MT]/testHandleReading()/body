@@ -39,28 +39,24 @@
       }
       sourceChannel.configureBlocking(false);
       sinkChannel.configureBlocking(false);
-      Thread slowWritingThread=new Thread(){
-        @Override public void run(){
-          try {
-            for (            byte b : byteBuffer.array()) {
-              sinkChannel.write(ByteBuffer.wrap(new byte[]{b}));
-              Thread.sleep(1);
-            }
+      SyncThrowableThread<Void> syncThrowableThread=new SyncThrowableThread<>(new Callable<Void>(){
+        @Override public Void call() throws Exception {
+          for (          byte b : byteBuffer.array()) {
+            sinkChannel.write(ByteBuffer.wrap(new byte[]{b}));
+            Thread.sleep(1);
           }
- catch (          Exception e) {
-            Assert.fail(e.getMessage());
-          }
+          return null;
         }
       }
-;
-      slowWritingThread.start();
+);
+      syncThrowableThread.start();
       channelContext=new ChannelContext(null);
       Datagram receiveDatagram=Datagram.createReceiveDatagram();
       channelContext.setReadingDatagram(receiveDatagram);
       while (receiveDatagram == channelContext.getReadingDatagram()) {
         _mockIntraband.handleReading(sourceChannel,channelContext);
       }
-      slowWritingThread.join();
+      syncThrowableThread.sync();
       Assert.assertEquals(_TYPE,receiveDatagram.getType());
       ByteBuffer dataByteBuffer=receiveDatagram.getDataByteBuffer();
       Assert.assertArrayEquals(_data,dataByteBuffer.array());
