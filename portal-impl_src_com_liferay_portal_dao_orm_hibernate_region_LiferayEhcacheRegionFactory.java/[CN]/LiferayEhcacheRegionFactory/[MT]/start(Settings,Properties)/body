@@ -1,43 +1,19 @@
 {
-  try {
-    String configurationPath=null;
-    if (properties != null) {
-      configurationPath=(String)properties.get(NET_SF_EHCACHE_CONFIGURATION_RESOURCE_NAME);
-    }
-    if (Validator.isNull(configurationPath)) {
-      configurationPath=_DEFAULT_CLUSTERED_EHCACHE_CONFIG_FILE;
-    }
-    Configuration configuration=null;
-    if (Validator.isNull(configurationPath)) {
-      configuration=ConfigurationFactory.parseConfiguration();
-    }
- else {
-      _usingDefault=configurationPath.equals(_DEFAULT_CLUSTERED_EHCACHE_CONFIG_FILE);
-      configuration=EhcacheConfigurationUtil.getConfiguration(configurationPath,_usingDefault);
-    }
-    manager=new CacheManager(configuration);
-    boolean skipUpdateCheck=GetterUtil.getBoolean(SystemProperties.get("net.sf.ehcache.skipUpdateCheck"));
-    boolean tcActive=GetterUtil.getBoolean(SystemProperties.get("tc.active"));
-    if (skipUpdateCheck && !tcActive) {
-      FailSafeTimer failSafeTimer=manager.getTimer();
-      failSafeTimer.cancel();
-      try {
-        Field cacheManagerTimerField=ReflectionUtil.getDeclaredField(CacheManager.class,"cacheManagerTimer");
-        cacheManagerTimerField.set(manager,null);
-      }
- catch (      Exception e) {
-        throw new RuntimeException(e);
-      }
-    }
-    mbeanRegistrationHelper.registerMBean(manager,properties);
-    PortalCacheProvider.registerPortalCacheManager(new HibernatePortalCacheManager(manager));
-    if (PropsValues.EHCACHE_PORTAL_CACHE_MANAGER_JMX_ENABLED) {
-      Registry registry=RegistryUtil.getRegistry();
-      _serviceTracker=registry.trackServices(MBeanServer.class,new MBeanServerServiceTrackerCustomizer());
-      _serviceTracker.open();
-    }
+  String configFile=null;
+  if (properties != null) {
+    configFile=(String)properties.get(NET_SF_EHCACHE_CONFIGURATION_RESOURCE_NAME);
   }
- catch (  net.sf.ehcache.CacheException ce) {
-    throw new CacheException(ce);
-  }
+  HibernatePortalCacheManager hibernatePortalCacheManager=new HibernatePortalCacheManager();
+  hibernatePortalCacheManager.setClusterAware(true);
+  hibernatePortalCacheManager.setConfigFile(configFile);
+  hibernatePortalCacheManager.setDefaultConfigFile(_DEFAULT_CLUSTERED_EHCACHE_CONFIG_FILE);
+  hibernatePortalCacheManager.setMpiOnly(true);
+  hibernatePortalCacheManager.setName(PortalCacheManagerNames.HIBERNATE);
+  boolean skipUpdateCheck=GetterUtil.getBoolean(SystemProperties.get("net.sf.ehcache.skipUpdateCheck"));
+  boolean tcActive=GetterUtil.getBoolean(SystemProperties.get("tc.active"));
+  hibernatePortalCacheManager.setStopCacheManagerTimer(skipUpdateCheck && !tcActive);
+  hibernatePortalCacheManager.afterPropertiesSet();
+  manager=hibernatePortalCacheManager.getEhcacheManager();
+  _hibernatePortalCacheManager=hibernatePortalCacheManager;
+  mbeanRegistrationHelper.registerMBean(manager,properties);
 }
