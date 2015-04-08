@@ -1,0 +1,40 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getUpgradeOptimizedConnection();
+    StringBundler sb=new StringBundler(10);
+    sb.append("select DLFileVersion.*, DDMContent.contentId, ");
+    sb.append("DDMContent.data_, DDMStructure.structureId from ");
+    sb.append("DLFileEntryMetadata inner join DDMContent on ");
+    sb.append("DLFileEntryMetadata.DDMStorageId = DDMContent.");
+    sb.append("contentId inner join DDMStructure on ");
+    sb.append("DLFileEntryMetadata.DDMStructureId = DDMStructure.");
+    sb.append("structureId inner join DLFileVersion on ");
+    sb.append("DLFileEntryMetadata.fileVersionId = DLFileVersion.");
+    sb.append("fileVersionId and DLFileEntryMetadata.fileEntryId = ");
+    sb.append("DLFileVersion.fileEntryId");
+    ps=con.prepareStatement(sb.toString());
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      long groupId=rs.getLong("groupId");
+      long companyId=rs.getLong("companyId");
+      long userId=rs.getLong("userId");
+      String userName=rs.getString("userName");
+      Timestamp createDate=rs.getTimestamp("createDate");
+      long entryId=rs.getLong("fileEntryId");
+      String entryVersion=rs.getString("version");
+      long contentId=rs.getLong("contentId");
+      String data_=rs.getString("data_");
+      long ddmStructureId=rs.getLong("structureId");
+      DDMForm ddmForm=getDDMForm(ddmStructureId);
+      DDMFormValues ddmFormValues=DDMFormValuesJSONDeserializerUtil.deserialize(ddmForm,data_);
+      transformFileUploadDDMFormFields(groupId,companyId,userId,userName,createDate,entryId,entryVersion,ddmFormValues);
+      updateContent(contentId,toJSON(ddmFormValues));
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}
