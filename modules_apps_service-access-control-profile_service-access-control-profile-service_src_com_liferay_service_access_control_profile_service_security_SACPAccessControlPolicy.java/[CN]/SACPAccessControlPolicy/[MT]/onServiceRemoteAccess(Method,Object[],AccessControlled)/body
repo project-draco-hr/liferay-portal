@@ -1,0 +1,33 @@
+{
+  List<String> serviceAccessProfileNames=ServiceAccessControlProfileThreadLocal.getActiveServiceAccessControlProfileNames();
+  if (serviceAccessProfileNames == null) {
+    return;
+  }
+  long companyId=CompanyThreadLocal.getCompanyId();
+  Set<String> allowedServices=new HashSet<>();
+  for (  String name : serviceAccessProfileNames) {
+    try {
+      SACPEntry sacpEntry=_sacpEntryLocalService.getSACPEntry(companyId,name);
+      allowedServices.addAll(sacpEntry.getAllowedServicesList());
+    }
+ catch (    PortalException pe) {
+      throw new SecurityException(pe);
+    }
+  }
+  Class<?> declaringClass=method.getDeclaringClass();
+  String className=declaringClass.getName();
+  String methodName=method.getName();
+  String classAndMethod=className.concat(StringPool.POUND).concat(methodName);
+  if (allowedServices.contains(classAndMethod)) {
+    return;
+  }
+  if (allowedServices.contains(className)) {
+    return;
+  }
+  for (  String allowedService : allowedServices) {
+    if (matches(className,methodName,allowedService)) {
+      return;
+    }
+  }
+  throw new SecurityException("Access denied to " + classAndMethod);
+}
