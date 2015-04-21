@@ -1,0 +1,29 @@
+{
+  MBMessage message=MBMessageLocalServiceUtil.getMessage(messageId);
+  int oldStatus=message.getStatus();
+  message=super.updateStatus(userId,messageId,status,serviceContext,workflowContext);
+  if ((status != WorkflowConstants.STATUS_APPROVED) || (oldStatus == WorkflowConstants.STATUS_APPROVED) || (oldStatus == WorkflowConstants.STATUS_IN_TRASH)) {
+    return message;
+  }
+  long siteGroupId=PortalUtil.getSiteGroupId(message.getGroupId());
+  if (!MentionsUtil.isMentionsEnabled(siteGroupId)) {
+    return message;
+  }
+  String content=message.getBody();
+  if (message.isFormatBBCode()) {
+    content=BBCodeTranslatorUtil.getHTML(content);
+  }
+  MentionsGroupServiceConfiguration mentionsGroupServiceConfiguration=_settingsFactory.getSettings(MentionsGroupServiceConfiguration.class,new CompanyServiceSettingsLocator(message.getCompanyId(),MentionsConstants.SERVICE_NAME));
+  LocalizedValuesMap subjectLocalizedValuesMap=mentionsGroupServiceConfiguration.commentMentionEmailSubject();
+  LocalizedValuesMap bodyLocalizedValuesMap=mentionsGroupServiceConfiguration.commentMentionEmailBody();
+  if (!message.isDiscussion()) {
+    subjectLocalizedValuesMap=mentionsGroupServiceConfiguration.assetEntryMentionEmailSubject();
+    bodyLocalizedValuesMap=mentionsGroupServiceConfiguration.assetEntryMentionEmailBody();
+  }
+  String contentURL=(String)serviceContext.getAttribute("contentURL");
+  if (Validator.isNull(contentURL)) {
+    serviceContext.setAttribute("contentURL",workflowContext.get("url"));
+  }
+  _mentionsNotifier.notify(message.getUserId(),message.getGroupId(),message.getSubject(),content,message.getModelClassName(),message.getMessageId(),subjectLocalizedValuesMap,bodyLocalizedValuesMap,serviceContext);
+  return message;
+}

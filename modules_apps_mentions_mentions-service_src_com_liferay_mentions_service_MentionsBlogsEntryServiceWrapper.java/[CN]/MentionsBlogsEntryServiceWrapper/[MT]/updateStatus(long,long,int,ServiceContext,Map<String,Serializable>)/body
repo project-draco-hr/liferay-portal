@@ -1,0 +1,19 @@
+{
+  BlogsEntry entry=BlogsEntryLocalServiceUtil.getEntry(entryId);
+  int oldStatus=entry.getStatus();
+  entry=super.updateStatus(userId,entryId,status,serviceContext,workflowContext);
+  if ((status != WorkflowConstants.STATUS_APPROVED) || (oldStatus == WorkflowConstants.STATUS_APPROVED) || (oldStatus == WorkflowConstants.STATUS_IN_TRASH)) {
+    return entry;
+  }
+  long siteGroupId=PortalUtil.getSiteGroupId(entry.getGroupId());
+  if (!MentionsUtil.isMentionsEnabled(siteGroupId)) {
+    return entry;
+  }
+  String contentURL=(String)serviceContext.getAttribute("contentURL");
+  if (Validator.isNull(contentURL)) {
+    serviceContext.setAttribute("contentURL",workflowContext.get("url"));
+  }
+  MentionsGroupServiceConfiguration mentionsGroupServiceConfiguration=_settingsFactory.getSettings(MentionsGroupServiceConfiguration.class,new CompanyServiceSettingsLocator(entry.getCompanyId(),MentionsConstants.SERVICE_NAME));
+  _mentionsNotifier.notify(entry.getUserId(),entry.getGroupId(),entry.getTitle(),entry.getContent(),BlogsEntry.class.getName(),entry.getEntryId(),mentionsGroupServiceConfiguration.assetEntryMentionEmailSubject(),mentionsGroupServiceConfiguration.assetEntryMentionEmailBody(),serviceContext);
+  return entry;
+}
