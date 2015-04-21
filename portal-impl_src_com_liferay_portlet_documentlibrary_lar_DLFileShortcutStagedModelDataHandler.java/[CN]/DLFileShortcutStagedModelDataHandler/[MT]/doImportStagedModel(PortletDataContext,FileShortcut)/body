@@ -1,0 +1,35 @@
+{
+  long userId=portletDataContext.getUserId(fileShortcut.getUserUuid());
+  Map<Long,Long> folderIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(Folder.class);
+  long folderId=MapUtil.getLong(folderIds,fileShortcut.getFolderId(),fileShortcut.getFolderId());
+  long groupId=portletDataContext.getScopeGroupId();
+  if (folderId != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+    Folder folder=FolderUtil.findByPrimaryKey(folderId);
+    groupId=folder.getRepositoryId();
+  }
+  Element fileShortcutElement=portletDataContext.getImportDataStagedModelElement(fileShortcut);
+  String fileEntryUuid=fileShortcutElement.attributeValue("file-entry-uuid");
+  FileEntry importedFileEntry=FileEntryUtil.fetchByUUID_R(fileEntryUuid,groupId);
+  if (importedFileEntry == null) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Unable to fetch file entry {uuid=" + fileEntryUuid + ", groupId="+ groupId+ "}");
+    }
+    return;
+  }
+  ServiceContext serviceContext=portletDataContext.createServiceContext(fileShortcut);
+  FileShortcut importedFileShortcut=null;
+  if (portletDataContext.isDataStrategyMirror()) {
+    FileShortcut existingFileShortcut=fetchStagedModelByUuidAndGroupId(fileShortcut.getUuid(),portletDataContext.getScopeGroupId());
+    if (existingFileShortcut == null) {
+      serviceContext.setUuid(fileShortcut.getUuid());
+      importedFileShortcut=DLAppLocalServiceUtil.addFileShortcut(userId,groupId,folderId,importedFileEntry.getFileEntryId(),serviceContext);
+    }
+ else {
+      importedFileShortcut=DLAppLocalServiceUtil.updateFileShortcut(userId,existingFileShortcut.getFileShortcutId(),folderId,importedFileEntry.getFileEntryId(),serviceContext);
+    }
+  }
+ else {
+    importedFileShortcut=DLAppLocalServiceUtil.addFileShortcut(userId,groupId,folderId,importedFileEntry.getFileEntryId(),serviceContext);
+  }
+  portletDataContext.importClassedModel(fileShortcut,importedFileShortcut);
+}
