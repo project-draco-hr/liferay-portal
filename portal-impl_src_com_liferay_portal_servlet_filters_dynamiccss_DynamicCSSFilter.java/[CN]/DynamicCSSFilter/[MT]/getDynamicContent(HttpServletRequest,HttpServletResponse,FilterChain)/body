@@ -6,8 +6,15 @@
     requestPath=requestPath.substring(contextPath.length());
   }
   URL resourceURL=_servletContext.getResource(requestPath);
+  ServletContext currentThreadServletContext=_servletContext;
+  boolean bundleResource=false;
   if (resourceURL == null) {
-    return null;
+    resourceURL=PortalWebResourcesUtil.getServletContextResource(requestPath);
+    if (resourceURL == null) {
+      return null;
+    }
+    currentThreadServletContext=PortalWebResourcesUtil.getServletContext(PortalWebResourceConstants.RESOURCE_TYPE_CSS);
+    bundleResource=true;
   }
   String cacheCommonFileName=getCacheFileName(request);
   File cacheContentTypeFile=new File(_tempDir,cacheCommonFileName + "_E_CONTENT_TYPE");
@@ -27,7 +34,12 @@
         _log.info("Parsing SASS on CSS " + requestPath);
       }
       content=StringUtil.read(resourceURL.openStream());
-      dynamicContent=DynamicCSSUtil.parseSass(_servletContext,request,requestPath,content);
+      if (bundleResource) {
+        dynamicContent=DynamicCSSUtil.replaceToken(currentThreadServletContext,request,content);
+      }
+ else {
+        dynamicContent=DynamicCSSUtil.parseSass(currentThreadServletContext,request,requestPath,content);
+      }
       response.setContentType(ContentTypes.TEXT_CSS);
       FileUtil.write(cacheContentTypeFile,ContentTypes.TEXT_CSS);
     }
@@ -39,7 +51,7 @@
       processFilter(DynamicCSSFilter.class,request,bufferCacheServletResponse,filterChain);
       bufferCacheServletResponse.finishResponse();
       content=bufferCacheServletResponse.getString();
-      dynamicContent=DynamicCSSUtil.parseSass(_servletContext,request,requestPath,content);
+      dynamicContent=DynamicCSSUtil.parseSass(currentThreadServletContext,request,requestPath,content);
       FileUtil.write(cacheContentTypeFile,bufferCacheServletResponse.getContentType());
     }
  else {
