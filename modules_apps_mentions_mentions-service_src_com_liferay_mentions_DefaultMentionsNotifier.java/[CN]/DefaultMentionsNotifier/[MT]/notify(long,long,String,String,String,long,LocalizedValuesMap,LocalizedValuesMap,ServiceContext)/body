@@ -1,0 +1,39 @@
+{
+  String[] mentionedUsersScreenNames=getMentionedUsersScreenNames(userId,content);
+  if (ArrayUtil.isEmpty(mentionedUsersScreenNames)) {
+    return;
+  }
+  User user=UserLocalServiceUtil.getUser(userId);
+  String contentURL=(String)serviceContext.getAttribute("contentURL");
+  String messageUserEmailAddress=PortalUtil.getUserEmailAddress(userId);
+  String messageUserName=PortalUtil.getUserName(userId,StringPool.BLANK);
+  String fromName=PrefsPropsUtil.getString(user.getCompanyId(),PropsKeys.ADMIN_EMAIL_FROM_NAME);
+  String fromAddress=PrefsPropsUtil.getString(user.getCompanyId(),PropsKeys.ADMIN_EMAIL_FROM_ADDRESS);
+  SubscriptionSender subscriptionSender=new SubscriptionSender();
+  subscriptionSender.setLocalizedBodyMap(LocalizationUtil.getMap(bodyLocalizedValuesMap));
+  subscriptionSender.setClassName(className);
+  subscriptionSender.setClassPK(classPK);
+  subscriptionSender.setCompanyId(user.getCompanyId());
+  subscriptionSender.setContextAttribute("[$CONTENT$]",content,false);
+  subscriptionSender.setContextAttributes("[$ASSET_ENTRY_NAME$]",getAssetEntryName(className,serviceContext),"[$USER_ADDRESS$]",messageUserEmailAddress,"[USER_NAME$]",messageUserName,"[$CONTENT_URL$]",contentURL);
+  subscriptionSender.setCurrentUserId(userId);
+  subscriptionSender.setEntryTitle(title);
+  subscriptionSender.setEntryURL(contentURL);
+  subscriptionSender.setFrom(fromAddress,fromName);
+  subscriptionSender.setHtmlFormat(true);
+  subscriptionSender.setMailId("mb_discussion",classPK);
+  subscriptionSender.setNotificationType(MentionsConstants.NOTIFICATION_TYPE_MENTION);
+  subscriptionSender.setPortletId("1_WAR_mentionsportlet");
+  subscriptionSender.setScopeGroupId(groupId);
+  subscriptionSender.setServiceContext(serviceContext);
+  subscriptionSender.setLocalizedSubjectMap(LocalizationUtil.getMap(subjectLocalizedValuesMap));
+  for (int i=0; i < mentionedUsersScreenNames.length; i++) {
+    String mentionedUserScreenName=mentionedUsersScreenNames[i];
+    User mentionedUser=UserLocalServiceUtil.fetchUserByScreenName(user.getCompanyId(),mentionedUserScreenName);
+    if (mentionedUser == null) {
+      continue;
+    }
+    subscriptionSender.addRuntimeSubscribers(mentionedUser.getEmailAddress(),mentionedUser.getFullName());
+  }
+  subscriptionSender.flushNotificationsAsync();
+}
