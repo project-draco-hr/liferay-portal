@@ -1,0 +1,49 @@
+{
+  Class[] exceptionTypes=method.getExceptionTypes();
+  for (int i=0; i < exceptionTypes.length; i++) {
+    Class ex=exceptionTypes[i];
+    if (ex != java.rmi.RemoteException.class && ex != org.apache.axis.AxisFault.class && !ex.getName().startsWith("java.") && !ex.getName().startsWith("javax.")) {
+      FaultDesc fault=operation.getFaultByClass(ex,false);
+      boolean isNew;
+      if (fault == null) {
+        fault=new FaultDesc();
+        isNew=true;
+      }
+ else {
+        isNew=false;
+      }
+      QName xmlType=fault.getXmlType();
+      if (xmlType == null) {
+        fault.setXmlType(getTypeMapping().getTypeQName(ex));
+      }
+      String pkgAndClsName=ex.getName();
+      if (fault.getClassName() == null) {
+        fault.setClassName(pkgAndClsName);
+      }
+      if (fault.getName() == null) {
+        String name=pkgAndClsName.substring(pkgAndClsName.lastIndexOf('.') + 1,pkgAndClsName.length());
+        fault.setName(name);
+      }
+      if (fault.getParameters() == null) {
+        if (xmlType == null) {
+          xmlType=getTypeMapping().getTypeQName(ex);
+        }
+        QName qname=fault.getQName();
+        if (qname == null) {
+          qname=new QName("","fault");
+        }
+        ParameterDesc param=new ParameterDesc(qname,ParameterDesc.IN,xmlType);
+        param.setJavaType(ex);
+        ArrayList exceptionParams=new ArrayList();
+        exceptionParams.add(param);
+        fault.setParameters(exceptionParams);
+      }
+      if (fault.getQName() == null) {
+        fault.setQName(new QName(pkgAndClsName));
+      }
+      if (isNew) {
+        operation.addFault(fault);
+      }
+    }
+  }
+}

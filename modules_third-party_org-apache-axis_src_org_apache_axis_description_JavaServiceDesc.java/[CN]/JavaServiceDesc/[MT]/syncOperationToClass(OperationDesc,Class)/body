@@ -1,0 +1,85 @@
+{
+  if (oper.getMethod() != null)   return;
+  Method[] methods=getMethods(implClass);
+  Method possibleMatch=null;
+  for (int i=0; i < methods.length; i++) {
+    Method method=methods[i];
+    if (method2OperationMap == null) {
+      method2OperationMap=new HashMap();
+    }
+    if (Modifier.isPublic(method.getModifiers()) && method.getName().equals(oper.getName()) && method2OperationMap.get(method) == null) {
+      if (style == Style.MESSAGE) {
+        int messageOperType=checkMessageMethod(method);
+        if (messageOperType == OperationDesc.MSG_METHOD_NONCONFORMING)         continue;
+        if (messageOperType == -1) {
+          throw new InternalException("Couldn't match method to any of the allowable message-style patterns!");
+        }
+        oper.setMessageOperationStyle(messageOperType);
+        possibleMatch=method;
+        break;
+      }
+      Class[] paramTypes=method.getParameterTypes();
+      if (paramTypes.length != oper.getNumParams())       continue;
+      int j;
+      boolean conversionNecessary=false;
+      for (j=0; j < paramTypes.length; j++) {
+        Class type=paramTypes[j];
+        Class actualType=type;
+        if (Holder.class.isAssignableFrom(type)) {
+          actualType=JavaUtils.getHolderValueType(type);
+        }
+        ParameterDesc param=oper.getParameter(j);
+        QName typeQName=param.getTypeQName();
+        if (typeQName == null) {
+          typeQName=getTypeMapping().getTypeQName(actualType);
+          param.setTypeQName(typeQName);
+        }
+ else {
+          Class paramClass=param.getJavaType();
+          if (paramClass != null && JavaUtils.getHolderValueType(paramClass) != null) {
+            paramClass=JavaUtils.getHolderValueType(paramClass);
+          }
+          if (paramClass == null) {
+            paramClass=getTypeMapping().getClassForQName(param.getTypeQName(),null);
+          }
+          if (paramClass != null && paramClass != Object.class) {
+            if (!JavaUtils.isConvertable(paramClass,actualType)) {
+              break;
+            }
+            if (!actualType.isAssignableFrom(paramClass)) {
+              conversionNecessary=true;
+            }
+          }
+        }
+        param.setJavaType(type);
+      }
+      if (j != paramTypes.length) {
+        continue;
+      }
+      possibleMatch=method;
+      if (!conversionNecessary) {
+        break;
+      }
+    }
+  }
+  if (possibleMatch != null) {
+    Class returnClass=possibleMatch.getReturnType();
+    oper.setReturnClass(returnClass);
+    QName returnType=oper.getReturnType();
+    if (returnType == null) {
+      oper.setReturnType(getTypeMapping().getTypeQName(returnClass));
+    }
+    createFaultMetadata(possibleMatch,oper);
+    oper.setMethod(possibleMatch);
+    method2OperationMap.put(possibleMatch,oper);
+    return;
+  }
+  Class superClass=implClass.getSuperclass();
+  if (superClass != null && !superClass.getName().startsWith("java.") && !superClass.getName().startsWith("javax.") && (stopClasses == null || !stopClasses.contains(superClass.getName()))) {
+    syncOperationToClass(oper,superClass);
+  }
+  if (oper.getMethod() == null) {
+    InternalException ie=new InternalException(Messages.getMessage("serviceDescOperSync00",oper.getName(),implClass.getName()));
+    throw ie;
+  }
+}

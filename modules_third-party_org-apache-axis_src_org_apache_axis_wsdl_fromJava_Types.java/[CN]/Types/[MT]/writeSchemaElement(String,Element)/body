@@ -1,0 +1,52 @@
+{
+  if (wsdlTypesElem == null) {
+    try {
+      writeWsdlTypesElement();
+    }
+ catch (    Exception e) {
+      log.error(e);
+      return;
+    }
+  }
+  if ((namespaceURI == null) || namespaceURI.equals("")) {
+    throw new AxisFault(Constants.FAULT_SERVER_GENERAL,Messages.getMessage("noNamespace00",namespaceURI),null,null);
+  }
+  Element schemaElem=null;
+  NodeList nl=wsdlTypesElem.getChildNodes();
+  for (int i=0; i < nl.getLength(); i++) {
+    NamedNodeMap attrs=nl.item(i).getAttributes();
+    if (attrs != null) {
+      for (int n=0; n < attrs.getLength(); n++) {
+        Attr a=(Attr)attrs.item(n);
+        if (a.getName().equals("targetNamespace") && a.getValue().equals(namespaceURI)) {
+          schemaElem=(Element)nl.item(i);
+        }
+      }
+    }
+  }
+  if (schemaElem == null) {
+    schemaElem=docHolder.createElement("schema");
+    wsdlTypesElem.appendChild(schemaElem);
+    schemaElem.setAttribute("xmlns",Constants.URI_DEFAULT_SCHEMA_XSD);
+    schemaElem.setAttribute("targetNamespace",namespaceURI);
+    if (serviceDesc.getStyle() == Style.RPC) {
+      Element importElem=docHolder.createElement("import");
+      schemaElem.appendChild(importElem);
+      importElem.setAttribute("namespace",Constants.URI_DEFAULT_SOAP_ENC);
+    }
+    SOAPService service=null;
+    if (MessageContext.getCurrentContext() != null) {
+      service=MessageContext.getCurrentContext().getService();
+    }
+    if (service != null && isPresent((String)service.getOption("schemaQualified"),namespaceURI)) {
+      schemaElem.setAttribute("elementFormDefault","qualified");
+    }
+ else     if (service != null && isPresent((String)service.getOption("schemaUnqualified"),namespaceURI)) {
+    }
+ else     if ((serviceDesc.getStyle() == Style.DOCUMENT) || (serviceDesc.getStyle() == Style.WRAPPED)) {
+      schemaElem.setAttribute("elementFormDefault","qualified");
+    }
+    writeTypeNamespace(namespaceURI);
+  }
+  schemaElem.appendChild(element);
+}

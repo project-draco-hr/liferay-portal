@@ -1,0 +1,82 @@
+{
+  if (method2OperationMap.get(method) != null) {
+    return;
+  }
+  Class[] paramTypes=method.getParameterTypes();
+  ArrayList overloads=name2OperationsMap == null ? null : (ArrayList)name2OperationsMap.get(method.getName());
+  if (overloads != null && !overloads.isEmpty()) {
+    for (int i=0; i < overloads.size(); i++) {
+      OperationDesc op=(OperationDesc)overloads.get(i);
+      Method checkMethod=op.getMethod();
+      if (checkMethod != null) {
+        Class[] others=checkMethod.getParameterTypes();
+        if (paramTypes.length == others.length) {
+          int j=0;
+          for (; j < others.length; j++) {
+            if (!others[j].equals(paramTypes[j]))             break;
+          }
+          if (j == others.length)           return;
+        }
+      }
+    }
+  }
+  boolean isWSICompliant=JavaUtils.isTrue(AxisProperties.getProperty(Constants.WSIBP11_COMPAT_PROPERTY));
+  OperationDesc operation=new OperationDesc();
+  String name=method.getName();
+  if (isWSICompliant && name2OperationsMap != null) {
+    Collection methodNames=name2OperationsMap.keySet();
+    name=JavaUtils.getUniqueValue(methodNames,name);
+  }
+  operation.setName(name);
+  String defaultNS="";
+  if (namespaceMappings != null && !namespaceMappings.isEmpty()) {
+    defaultNS=(String)namespaceMappings.get(0);
+  }
+  if (defaultNS.length() == 0) {
+    defaultNS=Namespaces.makeNamespace(method.getDeclaringClass().getName());
+  }
+  operation.setElementQName(new QName(defaultNS,name));
+  operation.setMethod(method);
+  if (style == Style.MESSAGE) {
+    int messageOperType=checkMessageMethod(method);
+    if (messageOperType == OperationDesc.MSG_METHOD_NONCONFORMING)     return;
+    if (messageOperType == -1) {
+      throw new InternalException("Couldn't match method to any of the allowable message-style patterns!");
+    }
+    operation.setMessageOperationStyle(messageOperType);
+    operation.setReturnClass(Object.class);
+    operation.setReturnType(Constants.XSD_ANYTYPE);
+  }
+ else {
+    Class retClass=method.getReturnType();
+    operation.setReturnClass(retClass);
+    QName typeQName=getTypeQName(retClass);
+    operation.setReturnType(typeQName);
+    String[] paramNames=getParamNames(method);
+    for (int k=0; k < paramTypes.length; k++) {
+      Class type=paramTypes[k];
+      ParameterDesc paramDesc=new ParameterDesc();
+      String paramNamespace=(this.style == Style.RPC ? "" : operation.getElementQName().getNamespaceURI());
+      if (paramNames != null && paramNames[k] != null && paramNames[k].length() > 0) {
+        paramDesc.setQName(new QName(paramNamespace,paramNames[k]));
+      }
+ else {
+        paramDesc.setQName(new QName(paramNamespace,"in" + k));
+      }
+      Class heldClass=JavaUtils.getHolderValueType(type);
+      if (heldClass != null) {
+        paramDesc.setMode(ParameterDesc.INOUT);
+        paramDesc.setTypeQName(getTypeQName(heldClass));
+      }
+ else {
+        paramDesc.setMode(ParameterDesc.IN);
+        paramDesc.setTypeQName(getTypeQName(type));
+      }
+      paramDesc.setJavaType(type);
+      operation.addParameter(paramDesc);
+    }
+  }
+  createFaultMetadata(method,operation);
+  addOperationDesc(operation);
+  method2OperationMap.put(method,operation);
+}

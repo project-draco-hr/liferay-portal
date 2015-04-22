@@ -1,0 +1,41 @@
+{
+  if (introspectionComplete || implClass == null) {
+    return;
+  }
+  this.implClass=implClass;
+  if (Skeleton.class.isAssignableFrom(implClass)) {
+    isSkeletonClass=true;
+    loadSkeletonOperations();
+  }
+  AxisServiceConfig axisConfig=null;
+  try {
+    Method method=implClass.getDeclaredMethod("getAxisServiceConfig",new Class[]{});
+    if (method != null && Modifier.isStatic(method.getModifiers())) {
+      axisConfig=(AxisServiceConfig)method.invoke(null,null);
+    }
+  }
+ catch (  Exception e) {
+  }
+  if (axisConfig != null) {
+    String allowedMethodsStr=axisConfig.getAllowedMethods();
+    if (allowedMethodsStr != null && !"*".equals(allowedMethodsStr)) {
+      ArrayList methodList=new ArrayList();
+      StringTokenizer tokenizer=new StringTokenizer(allowedMethodsStr," ,");
+      while (tokenizer.hasMoreTokens()) {
+        methodList.add(tokenizer.nextToken());
+      }
+      setAllowedMethods(methodList);
+    }
+  }
+  loadServiceDescByIntrospectionRecursive(implClass);
+  for (Iterator iterator=operations.iterator(); iterator.hasNext(); ) {
+    OperationDesc operation=(OperationDesc)iterator.next();
+    if (operation.getMethod() == null) {
+      throw new InternalException(Messages.getMessage("badWSDDOperation",operation.getName(),"" + operation.getNumParams()));
+    }
+  }
+  if ((style == Style.MESSAGE) && operations.size() == 1) {
+    messageServiceDefaultOp=(OperationDesc)operations.get(0);
+  }
+  introspectionComplete=true;
+}

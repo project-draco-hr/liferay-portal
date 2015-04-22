@@ -1,0 +1,71 @@
+{
+  if ((qName == null) || Constants.equals(Constants.SOAP_ARRAY,qName)) {
+    qName=getTypeQName(type);
+  }
+  boolean anonymous=isAnonymousType(qName);
+  if (anonymous && (containingElement == null)) {
+    throw new AxisFault(Messages.getMessage("noContainerForAnonymousType",qName.toString()));
+  }
+  boolean addedToTypeList=addToTypesList(qName);
+  if (!addedToTypeList && !anonymous) {
+    if (containingElement != null) {
+      containingElement.setAttribute("type",getQNameString(qName));
+    }
+    Boolean storedResult=qnameReturnValue.get(getQNameString(qName));
+    if (storedResult == null) {
+      return true;
+    }
+    return storedResult.booleanValue();
+  }
+  SerializerFactory factory;
+  factory=(SerializerFactory)tm.getSerializer(type,qName);
+  if (factory == null) {
+    if (isEnumClass(type)) {
+      factory=new EnumSerializerFactory(type,qName);
+    }
+ else     if (isBeanCompatible(type,true)) {
+      factory=new BeanSerializerFactory(type,qName);
+    }
+ else {
+      if (addedToTypeList) {
+        qnameReturnValue.put(getQNameString(qName),Boolean.FALSE);
+      }
+      return false;
+    }
+  }
+  Serializer ser=(Serializer)factory.getSerializerAs(Constants.AXIS_SAX);
+  if (ser == null) {
+    throw new AxisFault(Messages.getMessage("NoSerializer00",type.getName()));
+  }
+  Element typeEl;
+  try {
+    typeEl=ser.writeSchema(type,this);
+  }
+ catch (  Exception e) {
+    throw AxisFault.makeFault(e);
+  }
+  if (anonymous) {
+    if (typeEl == null) {
+      containingElement.setAttribute("type",getQNameString(getTypeQName(type)));
+    }
+ else {
+      containingElement.appendChild(typeEl);
+    }
+  }
+ else {
+    if (typeEl != null) {
+      typeEl.setAttribute("name",qName.getLocalPart());
+      writeSchemaTypeDecl(qName,typeEl);
+    }
+    if (containingElement != null) {
+      containingElement.setAttribute("type",getQNameString(qName));
+    }
+  }
+  if (emitter != null) {
+    emitter.getQName2ClassMap().put(qName,type);
+  }
+  if (addedToTypeList) {
+    qnameReturnValue.put(getQNameString(qName),Boolean.TRUE);
+  }
+  return true;
+}
