@@ -6,6 +6,7 @@
   Document document=SAXReaderUtil.read(inputStream,true);
   Element rootElement=document.getRootElement();
   Map<String,FilterConfig> filterConfigs=new HashMap<>();
+  Map<String,Filter> filters=new HashMap<>();
   for (  Element filterElement : rootElement.elements("filter")) {
     String filterName=filterElement.elementText("filter-name");
     String filterClassName=filterElement.elementText("filter-class");
@@ -17,8 +18,11 @@
       initParameterMap.put(name,value);
     }
     FilterConfig filterConfig=new InvokerFilterConfig(servletContext,filterName,initParameterMap);
-    filterConfigs.put(filterName,filterConfig);
-    initFilter(servletContext,filterClassName,filterName,filterConfig);
+    Filter filter=initFilter(servletContext,filterClassName,filterName,filterConfig);
+    if (filter != null) {
+      filterConfigs.put(filterName,filterConfig);
+      filters.put(filterName,filter);
+    }
   }
   List<Element> filterMappingElements=rootElement.elements("filter-mapping");
   for (  Element filterMappingElement : filterMappingElements) {
@@ -41,6 +45,13 @@
       }
       continue;
     }
-    initFilterMapping(filterName,urlPatterns,dispatchers,filterConfig);
+    Filter filter=filters.get(filterName);
+    if (filter == null) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("No filter exists with filter name " + filterName);
+      }
+      return;
+    }
+    _filterMappings.add(new FilterMapping(filter,filterConfig,urlPatterns,dispatchers,filterName));
   }
 }
