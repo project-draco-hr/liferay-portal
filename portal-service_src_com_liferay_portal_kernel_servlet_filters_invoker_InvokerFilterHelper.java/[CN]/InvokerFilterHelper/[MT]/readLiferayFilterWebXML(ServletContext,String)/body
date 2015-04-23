@@ -5,8 +5,8 @@
   }
   Document document=SAXReaderUtil.read(inputStream,true);
   Element rootElement=document.getRootElement();
-  List<Element> filterElements=rootElement.elements("filter");
-  for (  Element filterElement : filterElements) {
+  Map<String,FilterConfig> filterConfigs=new HashMap<>();
+  for (  Element filterElement : rootElement.elements("filter")) {
     String filterName=filterElement.elementText("filter-name");
     String filterClassName=filterElement.elementText("filter-class");
     Map<String,String> initParameterMap=new HashMap<>();
@@ -16,7 +16,9 @@
       String value=initParamElement.elementText("param-value");
       initParameterMap.put(name,value);
     }
-    initFilter(servletContext,filterClassName,filterName,initParameterMap);
+    FilterConfig filterConfig=new InvokerFilterConfig(servletContext,filterName,initParameterMap);
+    filterConfigs.put(filterName,filterConfig);
+    initFilter(servletContext,filterClassName,filterName,filterConfig);
   }
   List<Element> filterMappingElements=rootElement.elements("filter-mapping");
   for (  Element filterMappingElement : filterMappingElements) {
@@ -32,6 +34,13 @@
       String dispatcher=StringUtil.toUpperCase(dispatcherElement.getTextTrim());
       dispatchers.add(dispatcher);
     }
-    initFilterMapping(filterName,urlPatterns,dispatchers);
+    FilterConfig filterConfig=filterConfigs.get(filterName);
+    if (filterConfig == null) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("No filter config exists with filter name " + filterName);
+      }
+      continue;
+    }
+    initFilterMapping(filterName,urlPatterns,dispatchers,filterConfig);
   }
 }
