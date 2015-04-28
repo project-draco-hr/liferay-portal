@@ -1,6 +1,25 @@
 {
-  Set<Runnable> runnables=_getMergeHooks();
-  for (  Runnable runnable : runnables) {
-    runnable.run();
+  String className=ProjectDataUtil.class.getName();
+synchronized (className.intern()) {
+    FileLock fileLock=_lockFile();
+    try {
+      File dataFile=new File(System.getProperty("net.sourceforge.cobertura.datafile"));
+      ProjectData projectData=null;
+      if (dataFile.exists()) {
+        projectData=_readProjectData(dataFile);
+      }
+ else {
+        projectData=new ProjectData();
+      }
+      _setThreadLocalProjectData(projectData);
+      for (      Runnable runnable : ProjectDataUtil.<Set<Runnable>>_getFieldValue("_mergeHooks")) {
+        runnable.run();
+      }
+      _writeProjectData(_getThreadLocalProjectData(),dataFile);
+    }
+  finally {
+      _unlockFile(fileLock);
+      _removeThreadLocalProjectData();
+    }
   }
 }
