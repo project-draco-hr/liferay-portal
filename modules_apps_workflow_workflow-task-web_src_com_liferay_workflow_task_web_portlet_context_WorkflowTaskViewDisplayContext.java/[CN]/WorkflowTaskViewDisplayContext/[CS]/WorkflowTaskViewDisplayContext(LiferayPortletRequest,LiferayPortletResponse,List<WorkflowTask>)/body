@@ -1,0 +1,39 @@
+{
+  _liferayPortletRequest=liferayPortletRequest;
+  ThemeDisplay themeDisplay=(ThemeDisplay)_liferayPortletRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  Company company=themeDisplay.getCompany();
+  _workflowHandlers=new HashMap<Long,WorkflowHandler<?>>();
+  _workflowContextClassPK=new HashMap<Long,Long>();
+  _workflowLogMap=new HashMap<Long,WorkflowLog>();
+  _selectedTab=ParamUtil.getString(_liferayPortletRequest,"tabs1",_PENDING);
+  _portletURL=liferayPortletResponse.createRenderURL();
+  _portletURL.setParameter("tabs1",_selectedTab);
+  _displayTerms=new WorkflowTaskDisplayTerms(liferayPortletRequest);
+  _locale=themeDisplay.getLocale();
+  _dateFormatDateTime=FastDateFormatFactoryUtil.getDateTime(_locale,themeDisplay.getTimeZone());
+  _workflowHandlersOfSearchableAssets=new ArrayList<WorkflowHandler<?>>();
+  List<WorkflowHandler<?>> workflowHandlers=WorkflowHandlerRegistryUtil.getWorkflowHandlers();
+  for (  WorkflowHandler<?> workflowHandler : workflowHandlers) {
+    if (workflowHandler.isAssetTypeSearchable()) {
+      _workflowHandlersOfSearchableAssets.add(workflowHandler);
+    }
+  }
+  for (  WorkflowTask workflowTask : workflowTasks) {
+    if (!_workflowHandlers.containsKey(workflowTask.getWorkflowInstanceId())) {
+      WorkflowInstance workflowInstance=WorkflowInstanceManagerUtil.getWorkflowInstance(company.getCompanyId(),workflowTask.getWorkflowInstanceId());
+      Map<String,Serializable> workflowContext=workflowInstance.getWorkflowContext();
+      String className=(String)workflowContext.get(WorkflowConstants.CONTEXT_ENTRY_CLASS_NAME);
+      long classPK=GetterUtil.getLong((String)workflowContext.get(WorkflowConstants.CONTEXT_ENTRY_CLASS_PK));
+      WorkflowHandler<?> workflowHandler=WorkflowHandlerRegistryUtil.getWorkflowHandler(className);
+      _workflowHandlers.put(workflowTask.getWorkflowInstanceId(),workflowHandler);
+      _workflowContextClassPK.put(workflowTask.getWorkflowInstanceId(),classPK);
+    }
+    if (!_workflowLogMap.containsKey(workflowTask.getWorkflowInstanceId())) {
+      List<WorkflowLog> workflowLogs=WorkflowLogManagerUtil.getWorkflowLogsByWorkflowInstance(company.getCompanyId(),workflowTask.getWorkflowInstanceId(),null,0,1,WorkflowComparatorFactoryUtil.getLogCreateDateComparator());
+      if (!workflowLogs.isEmpty()) {
+        WorkflowLog workflowLog=workflowLogs.get(0);
+        _workflowLogMap.put(workflowTask.getWorkflowInstanceId(),workflowLog);
+      }
+    }
+  }
+}
