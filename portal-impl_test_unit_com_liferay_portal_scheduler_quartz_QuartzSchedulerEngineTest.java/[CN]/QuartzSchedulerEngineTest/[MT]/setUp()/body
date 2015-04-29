@@ -8,9 +8,33 @@
   portalUUIDUtil.setPortalUUID(new PortalUUIDImpl());
   PropsUtil.setProps(new PropsImpl());
   RegistryUtil.setRegistry(new BasicRegistryImpl());
-  MessageBusUtil messageBusUtil=new MessageBusUtil();
-  messageBusUtil.setMessageBus(new DefaultMessageBus());
-  messageBusUtil.setSynchronousMessageSender(null);
+  Registry registry=RegistryUtil.getRegistry();
+  MessageBus messageBus=Mockito.mock(MessageBus.class);
+  registry.registerService(MessageBus.class,messageBus);
+  Mockito.when(messageBus.getDestination(Matchers.anyString())).then(new Answer<Destination>(){
+    @Override public Destination answer(    InvocationOnMock invocationOnMock) throws Throwable {
+      String destinationName=(String)invocationOnMock.getArguments()[0];
+      if (!_testDestination.getName().equals(destinationName)) {
+        throw new IllegalArgumentException("Invalid destination: " + destinationName);
+      }
+      return _testDestination;
+    }
+  }
+);
+  Mockito.when(messageBus.registerMessageListener(Matchers.anyString(),Matchers.any(MessageListener.class))).then(new Answer<Boolean>(){
+    @Override public Boolean answer(    InvocationOnMock invocationOnMock) throws Throwable {
+      _testDestination.register((MessageListener)invocationOnMock.getArguments()[1]);
+      return true;
+    }
+  }
+);
+  Mockito.when(messageBus.unregisterMessageListener(Matchers.anyString(),Matchers.any(MessageListener.class))).then(new Answer<Boolean>(){
+    @Override public Boolean answer(    InvocationOnMock invocationOnMock) throws Throwable {
+      _testDestination.unregister((MessageListener)invocationOnMock.getArguments()[1]);
+      return true;
+    }
+  }
+);
   _testDestination=new SynchronousDestination();
   _testDestination.setName(_TEST_DESTINATION_NAME);
   MessageBusUtil.addDestination(_testDestination);
