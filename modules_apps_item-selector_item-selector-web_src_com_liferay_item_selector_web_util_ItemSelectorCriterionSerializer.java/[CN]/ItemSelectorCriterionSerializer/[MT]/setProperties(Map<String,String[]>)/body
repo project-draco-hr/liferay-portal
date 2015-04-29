@@ -1,20 +1,19 @@
 {
-  for (  Map.Entry<String,String[]> entry : parameters.entrySet()) {
-    String key=entry.getKey();
-    if (!key.startsWith(_paramPrefix)) {
-      continue;
+  try {
+    String json=parameters.get(_paramPrefix + JSON)[0];
+    JSONDeserializer<Map> jsonDeserializer=JSONFactoryUtil.createJSONDeserializer();
+    Map<String,?> map=jsonDeserializer.deserialize(json);
+    for (    String serializableField : _serializableFields) {
+      Class<?> serializableFieldClass=PropertyUtils.getPropertyType(_itemSelectorCriterion,serializableField);
+      Object value=map.get(serializableField);
+      if (serializableFieldClass.isArray() && List.class.isInstance(value)) {
+        List<?> list=(List<?>)value;
+        value=list.toArray((Object[])Array.newInstance(serializableFieldClass.getComponentType(),list.size()));
+      }
+      PropertyUtils.setProperty(_itemSelectorCriterion,serializableField,value);
     }
-    key=key.substring(_paramPrefix.length());
-    if (_isInternalProperty(key)) {
-      continue;
-    }
-    String value=entry.getValue()[0];
-    try {
-      Class<?> clazz=PropertyUtils.getPropertyType(_itemSelectorCriterion,key);
-      PropertyUtils.setProperty(_itemSelectorCriterion,key,_deserialize(clazz,value));
-    }
- catch (    IllegalAccessException|InvocationTargetException|NoSuchMethodException e) {
-      throw new SystemException(e);
-    }
+  }
+ catch (  IllegalAccessException|NoSuchMethodException|InvocationTargetException e) {
+    throw new SystemException(e);
   }
 }
