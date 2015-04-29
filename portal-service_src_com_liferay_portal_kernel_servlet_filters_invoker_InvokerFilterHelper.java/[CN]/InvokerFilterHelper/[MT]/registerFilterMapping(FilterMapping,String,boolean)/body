@@ -1,20 +1,31 @@
 {
-  List<FilterMapping> filterMappings=_filterMappingsMap.get(filterName);
-  if (filterMappings == null) {
-    filterMappings=new CopyOnWriteArrayList<>();
-    List<FilterMapping> previousFilterMapping=_filterMappingsMap.putIfAbsent(filterName,filterMappings);
-    if (previousFilterMapping != null) {
-      filterMappings=previousFilterMapping;
+  while (true) {
+    boolean putIfAbsent=false;
+    List<FilterMapping> previousFilterMappings=_filterMappingsMap.get(filterName);
+    List<FilterMapping> filterMappings;
+    if (previousFilterMappings == null) {
+      putIfAbsent=true;
+      filterMappings=new ArrayList<>();
     }
-    _filterNames.add(filterName);
-  }
-  if (after) {
-    filterMappings.add(filterMapping);
-  }
  else {
-    filterMappings.add(0,filterMapping);
-  }
-  for (  InvokerFilter invokerFilter : _invokerFilters) {
-    invokerFilter.clearFilterChainsCache();
+      filterMappings=new ArrayList<>(previousFilterMappings);
+    }
+    if (after) {
+      filterMappings.add(filterMapping);
+    }
+ else {
+      filterMappings.add(0,filterMapping);
+    }
+    if (putIfAbsent) {
+      if (_filterMappingsMap.putIfAbsent(filterName,filterMappings) == null) {
+        _filterNames.add(filterName);
+        break;
+      }
+    }
+ else {
+      if (_filterMappingsMap.replace(filterName,previousFilterMappings,filterMappings)) {
+        break;
+      }
+    }
   }
 }
