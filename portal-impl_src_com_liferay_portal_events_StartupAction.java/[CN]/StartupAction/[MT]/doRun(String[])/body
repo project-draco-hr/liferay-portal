@@ -1,8 +1,8 @@
 {
   System.out.println("Starting " + ReleaseInfo.getReleaseInfo());
-  Registry registry=RegistryUtil.getRegistry();
-  ServiceTracker<MessageBus,MessageBus> messageBusServiceTracker=registry.trackServices(MessageBus.class,new MessageBusServiceTrackerCustomizer());
-  messageBusServiceTracker.open();
+  ServiceDependencyManager portalResiliencyServiceDependencyManager=new ServiceDependencyManager();
+  portalResiliencyServiceDependencyManager.registerDependencies(MessageBus.class,PortalExecutorManager.class);
+  portalResiliencyServiceDependencyManager.addServiceDependencyListener(new PortalResiliencyServiceDependencyLister());
   if (_log.isDebugEnabled()) {
     _log.debug("Add shutdown hook");
   }
@@ -34,8 +34,20 @@
     _log.debug("Verify database");
   }
   DBUpgrader.verify();
-  ServiceTracker<ClusterMasterExecutor,ClusterMasterExecutor> clusterMasterExecutorServiceTracker=registry.trackServices(ClusterMasterExecutor.class,new ClusterMasterExecutorServiceTrackerCustomizer());
-  clusterMasterExecutorServiceTracker.open();
+  ServiceDependencyManager backgroundTaskServiceDependencyManager=new ServiceDependencyManager();
+  backgroundTaskServiceDependencyManager.registerDependencies(ClusterExecutor.class,ClusterMasterExecutor.class);
+  backgroundTaskServiceDependencyManager.addServiceDependencyListener(new ServiceDependencyListener(){
+    @Override public void dependenciesFulfilled(){
+      Registry registry=RegistryUtil.getRegistry();
+      ClusterMasterExecutor clusterMasterExecutor=registry.getService(ClusterMasterExecutor.class);
+      if (!clusterMasterExecutor.isEnabled()) {
+        BackgroundTaskLocalServiceUtil.cleanUpBackgroundTasks();
+      }
+    }
+    @Override public void destroy(){
+    }
+  }
+);
   JspFactorySwapper.swap();
   CachedLoggerProvider.install();
 }
