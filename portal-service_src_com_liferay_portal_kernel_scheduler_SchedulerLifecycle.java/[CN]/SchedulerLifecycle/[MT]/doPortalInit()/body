@@ -1,9 +1,25 @@
 {
-  _portalInitialized=true;
-  if (!SchedulerEngineHelperUtil.isClusteredSchedulerEngine()) {
-    SchedulerEngineHelperUtil.start();
+  ServiceDependencyManager serviceDependencyManager=new ServiceDependencyManager();
+  serviceDependencyManager.addServiceDependencyListener(new ServiceDependencyListener(){
+    @Override public void dependenciesFulfilled(){
+      Registry registry=RegistryUtil.getRegistry();
+      SchedulerEngineHelper schedulerEngineHelper=registry.getService(SchedulerEngineHelper.class);
+      if (schedulerEngineHelper.isClusteredSchedulerEngine()) {
+        ClusterMasterExecutor clusterMasterExecutor=registry.getService(ClusterMasterExecutor.class);
+        clusterMasterExecutor.initialize();
+      }
+      try {
+        schedulerEngineHelper.start();
+      }
+ catch (      SchedulerException e) {
+        if (_log.isErrorEnabled()) {
+          _log.error("Unable to start scheduler engine",e);
+        }
+      }
+    }
+    @Override public void destroy(){
+    }
   }
- else {
-    clusteredInit();
-  }
+);
+  serviceDependencyManager.registerDependencies(ClusterMasterExecutor.class,SchedulerEngineHelper.class);
 }
