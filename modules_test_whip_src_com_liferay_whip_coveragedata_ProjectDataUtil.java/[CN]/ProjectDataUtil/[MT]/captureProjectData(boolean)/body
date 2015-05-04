@@ -1,20 +1,26 @@
 {
   String className=ProjectDataUtil.class.getName();
 synchronized (className.intern()) {
-    FileLock fileLock=_lockFile();
-    try {
-      File dataFile=new File(System.getProperty("net.sourceforge.cobertura.datafile"));
-      if (dataFile.exists()) {
-        _projectData.merge(_readProjectData(dataFile));
-        dataFile.delete();
+    try (RandomAccessFile randomAccessFile=new RandomAccessFile(InstrumentationAgent.getLockFile(),"rw")){
+      FileChannel fileChannel=randomAccessFile.getChannel();
+      FileLock fileLock=fileChannel.lock();
+      try {
+        File dataFile=new File(System.getProperty("net.sourceforge.cobertura.datafile"));
+        if (dataFile.exists()) {
+          _projectData.merge(_readProjectData(dataFile));
+          dataFile.delete();
+        }
+        if (saveSessionData) {
+          _writeProjectData(_projectData,dataFile);
+        }
+        return _projectData;
       }
-      if (saveSessionData) {
-        _writeProjectData(_projectData,dataFile);
-      }
-      return _projectData;
-    }
   finally {
-      _unlockFile(fileLock);
+        fileLock.release();
+      }
+    }
+ catch (    IOException ioe) {
+      throw new RuntimeException(ioe);
     }
   }
 }
