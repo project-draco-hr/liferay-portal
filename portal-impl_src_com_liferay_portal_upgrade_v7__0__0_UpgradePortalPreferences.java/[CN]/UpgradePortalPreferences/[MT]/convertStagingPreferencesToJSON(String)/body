@@ -1,0 +1,41 @@
+{
+  Document newDocument=SAXReaderUtil.createDocument();
+  Element newRootElement=SAXReaderUtil.createElement("portlet-preferences");
+  newDocument.add(newRootElement);
+  Document document=SAXReaderUtil.read(preferences);
+  Element rootElement=document.getRootElement();
+  Iterator<Element> itr=rootElement.elementIterator();
+  Map<String,String> stagingPreferencesMap=new HashMap<String,String>();
+  while (itr.hasNext()) {
+    Element preferenceElement=itr.next();
+    Element nameElement=preferenceElement.element("name");
+    String preferenceName=nameElement.getText();
+    if (preferenceName.contains(Staging.class.getName())) {
+      Element valueElement=preferenceElement.element("value");
+      String value=valueElement.getText();
+      int index=preferenceName.indexOf(StringPool.POUND);
+      stagingPreferencesMap.put(preferenceName.substring(index + 1),value);
+    }
+ else {
+      newRootElement.add(preferenceElement.createCopy());
+    }
+  }
+  JSONArray stagingPreferencesJsonArray=JSONFactoryUtil.createJSONArray();
+  for (  String key : stagingPreferencesMap.keySet()) {
+    JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+    jsonObject.put(key,stagingPreferencesMap.get(key));
+    stagingPreferencesJsonArray.put(jsonObject);
+  }
+  if (stagingPreferencesJsonArray.length() > 0) {
+    Element stagingPreferencesElement=SAXReaderUtil.createElement("preference");
+    Element stagingPreferencesNameElement=SAXReaderUtil.createElement("name");
+    String stagingPreferencesName=Staging.class.getName() + StringPool.POUND + _STAGING_RECENT_LAYOUT_IDS_MAP;
+    stagingPreferencesNameElement.setText(stagingPreferencesName);
+    Element stagingPreferencesValueElement=SAXReaderUtil.createElement("value");
+    stagingPreferencesValueElement.setText(stagingPreferencesJsonArray.toString());
+    stagingPreferencesElement.add(stagingPreferencesNameElement);
+    stagingPreferencesElement.add(stagingPreferencesValueElement);
+    newRootElement.add(stagingPreferencesElement);
+  }
+  return DDMXMLUtil.formatXML(newDocument);
+}
