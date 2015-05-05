@@ -11,6 +11,29 @@
     properties.put("jaxRsApplicationFilterStrings",new String[]{"(jaxrs.application=true)"});
     properties.put("contextPaths",new String[]{"/rest-test"});
     _restConfiguration.update(properties);
+    properties=new Hashtable<>();
+    properties.put("jaxrs.application",true);
+    _serviceRegistration=bundleContext.registerService(Application.class,new Greeter(),properties);
+    Filter filter=bundleContext.createFilter("(&(objectClass=" + Bus.class.getName() + ")("+ HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_PATH+ "="+ "/rest-test))");
+    ServiceTracker<Bus,Bus> serviceTracker=new ServiceTracker<>(bundleContext,filter,null);
+    serviceTracker.open();
+    Bus bus=serviceTracker.waitForService(10000L);
+    if (bus == null) {
+      throw new IllegalStateException("Bus was not registered within 10 seconds");
+    }
+    ServerRegistry serverRegistry=bus.getExtension(ServerRegistry.class);
+    List<Server> servers=null;
+    for (int i=0; i <= 100; i++) {
+      servers=serverRegistry.getServers();
+      if (!servers.isEmpty()) {
+        break;
+      }
+      Thread.sleep(100L);
+    }
+    if (servers.isEmpty()) {
+      cleanUp();
+      throw new IllegalStateException("Endpoint was not registered within 10 seconds");
+    }
   }
   finally {
     bundleContext.ungetService(serviceReference);
