@@ -1,11 +1,29 @@
 {
   ExportImportConfiguration exportImportConfiguration=getExportImportConfiguration(backgroundTask);
   clearBackgroundTaskStatus(backgroundTask);
+  File file=null;
+  HttpPrincipal httpPrincipal=null;
   MissingReferences missingReferences=null;
+  long stagingRequestId=0L;
   try {
     ExportImportThreadLocal.setLayoutStagingInProcess(true);
     ExportImportLifecycleManager.fireExportImportLifecycleEvent(EVENT_PUBLICATION_LAYOUT_REMOTE_STARTED,PROCESS_FLAG_LAYOUT_STAGING_IN_PROCESS,exportImportConfiguration);
-    missingReferences=TransactionHandlerUtil.invoke(transactionAttribute,new LayoutRemoteStagingCallable(backgroundTask.getBackgroundTaskId(),exportImportConfiguration));
+    Map<String,Serializable> settingsMap=exportImportConfiguration.getSettingsMap();
+    long sourceGroupId=MapUtil.getLong(settingsMap,"sourceGroupId");
+    boolean privateLayout=MapUtil.getBoolean(settingsMap,"privateLayout");
+    initThreadLocals(sourceGroupId,privateLayout);
+    Map<Long,Boolean> layoutIdMap=(Map<Long,Boolean>)settingsMap.get("layoutIdMap");
+    Map<String,String[]> parameterMap=(Map<String,String[]>)settingsMap.get("parameterMap");
+    long remoteGroupId=MapUtil.getLong(settingsMap,"remoteGroupId");
+    DateRange dateRange=ExportImportDateUtil.getDateRange(exportImportConfiguration);
+    Map<String,Serializable> taskContextMap=backgroundTask.getTaskContextMap();
+    httpPrincipal=(HttpPrincipal)taskContextMap.get("httpPrincipal");
+    file=exportLayoutsAsFile(sourceGroupId,privateLayout,layoutIdMap,parameterMap,remoteGroupId,dateRange.getStartDate(),dateRange.getEndDate(),httpPrincipal);
+    String checksum=FileUtil.getMD5Checksum(file);
+    stagingRequestId=StagingServiceHttp.createStagingRequest(httpPrincipal,remoteGroupId,checksum);
+    transferFileToRemoteLive(file,stagingRequestId,httpPrincipal);
+    markBackgroundTask(backgroundTask.getBackgroundTaskId(),"exported");
+    missingReferences=StagingServiceHttp.publishStagingRequest(httpPrincipal,stagingRequestId,privateLayout,parameterMap);
     ExportImportThreadLocal.setLayoutStagingInProcess(false);
     ExportImportLifecycleManager.fireExportImportLifecycleEvent(EVENT_PUBLICATION_LAYOUT_REMOTE_SUCCEEDED,PROCESS_FLAG_LAYOUT_STAGING_IN_PROCESS,exportImportConfiguration);
   }
@@ -18,7 +36,19 @@
  else     if (_log.isWarnEnabled()) {
       _log.warn("Unable to publish layout: " + t.getMessage());
     }
+    deleteTempLarOnFailure(file);
     throw new SystemException(t);
   }
+ finally {
+    if ((stagingRequestId > 0) && (httpPrincipal != null)) {
+      try {
+        StagingServiceHttp.cleanUpStagingRequest(httpPrincipal,stagingRequestId);
+      }
+ catch (      PortalException pe) {
+        _log.warn("Unable to clean up the remote live site");
+      }
+    }
+  }
+  deleteTempLarOnSuccess(file);
   return processMissingReferences(backgroundTask.getBackgroundTaskId(),missingReferences);
 }
