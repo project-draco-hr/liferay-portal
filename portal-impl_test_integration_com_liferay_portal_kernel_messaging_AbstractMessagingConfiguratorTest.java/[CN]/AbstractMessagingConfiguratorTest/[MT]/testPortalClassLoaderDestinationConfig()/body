@@ -1,0 +1,42 @@
+{
+  DefaultMessagingConfigurator defaultMessagingConfigurator=new DefaultMessagingConfigurator();
+  Set<DestinationConfiguration> destinationConfigurations=new HashSet<>();
+  destinationConfigurations.add(DestinationConfiguration.createSynchronousDestinationConfiguration("liferay/portaltest"));
+  destinationConfigurations.add(DestinationConfiguration.createParallelDestinationConfiguration("liferay/portaltest2"));
+  defaultMessagingConfigurator.setDestinationConfigurations(destinationConfigurations);
+  Map<String,List<MessageListener>> messageListeners=new HashMap<>();
+  List<MessageListener> testListeners=new ArrayList<>();
+  messageListeners.put("liferay/portaltest",testListeners);
+  testListeners.add(new TestMessageListener("liferay/portaltest"));
+  List<MessageListener> testListeners2=new ArrayList<>();
+  messageListeners.put("liferay/portaltest2",testListeners2);
+  testListeners2.add(new TestMessageListener("liferay/portaltest2"));
+  defaultMessagingConfigurator.setMessageListeners(messageListeners);
+  defaultMessagingConfigurator.afterPropertiesSet();
+  Registry registry=RegistryUtil.getRegistry();
+  Filter filter=registry.getFilter("(&(objectClass=com.liferay.portal.kernel.messaging.Destination)" + "(destination.name=*portaltest*))");
+  ServiceTracker<Destination,Destination> tracker=registry.trackServices(filter);
+  tracker.open();
+  try {
+    while (ArrayUtil.isEmpty(tracker.getServices())) {
+      Thread.currentThread().sleep(1000);
+    }
+    Object[] services=tracker.getServices();
+    Assert.assertEquals(2,services.length);
+    for (    Object service : services) {
+      Destination destination=(Destination)service;
+      Assert.assertTrue(destination.getName().contains("portaltest"));
+      if (destination.getName().equals("liferay/portaltest")) {
+        Assert.assertEquals(1,destination.getMessageListenerCount());
+      }
+      if (destination.getMessageListenerCount() > 0) {
+        Message message=new Message();
+        message.setDestinationName(destination.getName());
+        destination.send(message);
+      }
+    }
+  }
+ catch (  Exception e) {
+    Assert.fail(StackTraceUtil.getStackTrace(e));
+  }
+}
