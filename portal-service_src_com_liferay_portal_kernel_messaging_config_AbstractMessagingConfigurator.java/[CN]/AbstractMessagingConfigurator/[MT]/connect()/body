@@ -2,6 +2,8 @@
   if (SPIUtil.isSPI() && _portalMessagingConfigurator) {
     return;
   }
+  Registry registry=RegistryUtil.getRegistry();
+  _messageListenerServiceRegistrar=registry.getServiceRegistrar(MessageListener.class);
   Thread currentThread=Thread.currentThread();
   ClassLoader contextClassLoader=currentThread.getContextClassLoader();
   try {
@@ -9,24 +11,10 @@
     currentThread.setContextClassLoader(operatingClassLoader);
     for (    Map.Entry<String,List<MessageListener>> messageListeners : _messageListeners.entrySet()) {
       String destinationName=messageListeners.getKey();
-      if (SPIUtil.isSPI()) {
-        SPI spi=SPIUtil.getSPI();
-        try {
-          RegistrationReference registrationReference=spi.getRegistrationReference();
-          IntrabandRPCUtil.execute(registrationReference,new DestinationConfigurationProcessCallable(destinationName));
-        }
- catch (        Exception e) {
-          StringBundler sb=new StringBundler(4);
-          sb.append("Unable to install ");
-          sb.append(DestinationConfigurationProcessCallable.class.getName());
-          sb.append(" on MPI for ");
-          sb.append(destinationName);
-          _log.error(sb.toString(),e);
-        }
-      }
-      for (      MessageListener messageListener : messageListeners.getValue()) {
-        _messageBus.registerMessageListener(destinationName,messageListener);
-      }
+      ServiceDependencyManager serviceDependencyManager=new ServiceDependencyManager();
+      serviceDependencyManager.addServiceDependencyListener(new DestinationServiceDependencyListener(destinationName,messageListeners.getValue()));
+      Filter destinationFilter=registry.getFilter("(&(destination.name=" + destinationName + ")(objectClass="+ Destination.class.getName()+ "))");
+      serviceDependencyManager.registerDependencies(destinationFilter);
     }
   }
   finally {
