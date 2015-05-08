@@ -12,23 +12,24 @@
   }
   if ((fileContentBag != null) && PropsValues.COMBO_CHECK_TIMESTAMP) {
     long elapsedTime=System.currentTimeMillis() - fileContentBag._lastModified;
-    if ((resourceURL != null) && (elapsedTime <= PropsValues.COMBO_CHECK_TIMESTAMP_INTERVAL) && (URLUtil.getLastModifiedTime(resourceURL) == fileContentBag._lastModified)) {
+    if ((requestDispatcher != null) && (elapsedTime <= PropsValues.COMBO_CHECK_TIMESTAMP_INTERVAL) && (RequestDispatcherUtil.getLastModifiedTime(requestDispatcher,request,response) == fileContentBag._lastModified)) {
       return fileContentBag._fileContent;
     }
     _fileContentBagPortalCache.remove(fileContentKey);
   }
-  if (resourceURL == null) {
+  if (requestDispatcher == null) {
     fileContentBag=_EMPTY_FILE_CONTENT_BAG;
   }
  else {
-    String stringFileContent=StringUtil.read(resourceURL.openStream());
+    ObjectValuePair<String,Long> objectValuePair=RequestDispatcherUtil.getContentAndLastModifiedTime(requestDispatcher,request,response);
+    String stringFileContent=objectValuePair.getKey();
     if (!StringUtil.endsWith(resourcePath,_CSS_MINIFIED_SUFFIX) && !StringUtil.endsWith(resourcePath,_JAVASCRIPT_MINIFIED_SUFFIX)) {
       if (minifierType.equals("css")) {
         try {
           stringFileContent=DynamicCSSUtil.parseSass(getServletContext(),request,resourcePath,stringFileContent);
         }
  catch (        Exception e) {
-          _log.error("Unable to parse SASS on CSS " + resourceURL.getPath(),e);
+          _log.error("Unable to parse SASS on CSS " + resourcePath,e);
           if (_log.isDebugEnabled()) {
             _log.debug(stringFileContent);
           }
@@ -47,7 +48,7 @@
         stringFileContent=MinifierUtil.minifyJavaScript(resourcePath,stringFileContent);
       }
     }
-    fileContentBag=new FileContentBag(stringFileContent.getBytes(StringPool.UTF8),URLUtil.getLastModifiedTime(resourceURL));
+    fileContentBag=new FileContentBag(stringFileContent.getBytes(StringPool.UTF8),objectValuePair.getValue());
   }
   if (PropsValues.COMBO_CHECK_TIMESTAMP) {
     int timeToLive=(int)(PropsValues.COMBO_CHECK_TIMESTAMP_INTERVAL / Time.SECOND);
