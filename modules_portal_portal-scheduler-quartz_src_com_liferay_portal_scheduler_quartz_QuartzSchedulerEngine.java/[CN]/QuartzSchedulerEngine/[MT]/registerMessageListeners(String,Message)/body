@@ -1,0 +1,26 @@
+{
+  String messageListenerClassName=message.getString(SchedulerEngine.MESSAGE_LISTENER_CLASS_NAME);
+  if (Validator.isNull(messageListenerClassName)) {
+    return;
+  }
+  String portletId=message.getString(SchedulerEngine.PORTLET_ID);
+  ClassLoader classLoader=null;
+  if (Validator.isNull(portletId)) {
+    classLoader=PortalClassLoaderUtil.getClassLoader();
+  }
+ else {
+    Portlet portlet=PortletLocalServiceUtil.getPortletById(portletId);
+    PortletApp portletApp=portlet.getPortletApp();
+    ServletContext servletContext=portletApp.getServletContext();
+    classLoader=servletContext.getClassLoader();
+  }
+  if (classLoader == null) {
+    throw new SchedulerException("Unable to find class loader for portlet " + portletId);
+  }
+  MessageListener schedulerEventListener=getMessageListener(messageListenerClassName,classLoader);
+  SchedulerEventMessageListenerWrapper schedulerEventListenerWrapper=new SchedulerEventMessageListenerWrapper();
+  schedulerEventListenerWrapper.setMessageListener(schedulerEventListener);
+  schedulerEventListenerWrapper.afterPropertiesSet();
+  MessageBusUtil.registerMessageListener(destinationName,schedulerEventListenerWrapper);
+  message.put(SchedulerEngine.MESSAGE_LISTENER_UUID,schedulerEventListenerWrapper.getMessageListenerUUID());
+}

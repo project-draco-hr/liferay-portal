@@ -1,0 +1,19 @@
+{
+  List<String> groupNames=_persistedScheduler.getJobGroupNames();
+  for (  String groupName : groupNames) {
+    Set<JobKey> jobkeys=_persistedScheduler.getJobKeys(GroupMatcher.jobGroupEquals(groupName));
+    for (    JobKey jobKey : jobkeys) {
+      Trigger trigger=_persistedScheduler.getTrigger(new TriggerKey(jobKey.getName(),jobKey.getGroup()));
+      if (trigger != null) {
+        continue;
+      }
+      JobDetail jobDetail=_persistedScheduler.getJobDetail(jobKey);
+      JobDataMap jobDataMap=jobDetail.getJobDataMap();
+      Message message=getMessage(jobDataMap);
+      message.put(SchedulerEngine.JOB_NAME,jobKey.getName());
+      message.put(SchedulerEngine.GROUP_NAME,jobKey.getGroup());
+      SchedulerEngineHelperUtil.auditSchedulerJobs(message,TriggerState.EXPIRED);
+      _persistedScheduler.deleteJob(jobKey);
+    }
+  }
+}
