@@ -5,16 +5,21 @@
   try {
     long classNameId=PortalUtil.getClassNameId(DLFileEntryConstants.getClassName());
     con=DataAccess.getUpgradeOptimizedConnection();
-    ps=con.prepareStatement("select entryId, classPK from AssetEntry where " + "classNameId =" + classNameId + " and classPK not in"+ "(select fileVersionId from DLFileVersion);");
+    StringBundler sb=new StringBundler(5);
+    sb.append("select classPK, entryId from AssetEntry where ");
+    sb.append("classNameId = ");
+    sb.append(classNameId);
+    sb.append(" and classPK not in (select fileVersionId from ");
+    sb.append("DLFileVersion)");
+    ps=con.prepareStatement(sb.toString());
     rs=ps.executeQuery();
     while (rs.next()) {
       long classPK=rs.getLong("classPK");
       long entryId=rs.getLong("entryId");
       DLFileEntry dlFileEntry=DLFileEntryLocalServiceUtil.fetchDLFileEntry(classPK);
-      if (dlFileEntry != null) {
-        continue;
+      if (dlFileEntry == null) {
+        AssetEntryLocalServiceUtil.deleteAssetEntry(entryId);
       }
-      AssetEntryLocalServiceUtil.deleteAssetEntry(entryId);
     }
   }
   finally {
