@@ -29,25 +29,39 @@
   if (_log.isDebugEnabled()) {
     _log.debug("Initialize scheduler engine lifecycle");
   }
-  SchedulerEngineHelperUtil.initialize();
+  ServiceDependencyManager schedulerServiceDependencyManager=new ServiceDependencyManager();
+  schedulerServiceDependencyManager.addServiceDependencyListener(new ServiceDependencyListener(){
+    @Override public void dependenciesFulfilled(){
+      SchedulerLifecycle schedulerLifecycle=new SchedulerLifecycle();
+      schedulerLifecycle.registerPortalLifecycle(PortalLifecycle.METHOD_INIT);
+    }
+    @Override public void destroy(){
+    }
+  }
+);
+  final Registry registry=RegistryUtil.getRegistry();
+  Filter filter=registry.getFilter("(objectClass=com.liferay.portal.scheduler.quartz.internal." + "QuartzSchemaManager)");
+  schedulerServiceDependencyManager.registerDependencies(new Class[]{SchedulerEngineHelper.class},new Filter[]{filter});
   if (_log.isDebugEnabled()) {
     _log.debug("Verify database");
   }
   DBUpgrader.verify();
-  ServiceDependencyManager backgroundTaskServiceDependencyManager=new ServiceDependencyManager();
-  backgroundTaskServiceDependencyManager.registerDependencies(ClusterExecutor.class,ClusterMasterExecutor.class);
-  backgroundTaskServiceDependencyManager.addServiceDependencyListener(new ServiceDependencyListener(){
+  ServiceDependencyManager clusterMasterExecutorServiceDependencyManager=new ServiceDependencyManager();
+  clusterMasterExecutorServiceDependencyManager.addServiceDependencyListener(new ServiceDependencyListener(){
     @Override public void dependenciesFulfilled(){
-      Registry registry=RegistryUtil.getRegistry();
       ClusterMasterExecutor clusterMasterExecutor=registry.getService(ClusterMasterExecutor.class);
       if (!clusterMasterExecutor.isEnabled()) {
         BackgroundTaskLocalServiceUtil.cleanUpBackgroundTasks();
+      }
+ else {
+        clusterMasterExecutor.notifyMasterTokenTransitionListeners();
       }
     }
     @Override public void destroy(){
     }
   }
 );
+  clusterMasterExecutorServiceDependencyManager.registerDependencies(ClusterExecutor.class,ClusterMasterExecutor.class);
   JspFactorySwapper.swap();
   CachedLoggerProvider.install();
 }
