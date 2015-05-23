@@ -1,0 +1,56 @@
+{
+  DirectDeployTask directDeployTask=GradleUtil.addTask(project,AUTO_UPDATE_XML_TASK_NAME,DirectDeployTask.class);
+  directDeployTask.setAppServerDeployDir(directDeployTask.getTemporaryDir());
+  directDeployTask.setWebAppType("portlet");
+  directDeployTask.doFirst(new Action<Task>(){
+    @Override public void execute(    Task task){
+      DirectDeployTask directDeployTask=(DirectDeployTask)task;
+      Jar jar=(Jar)GradleUtil.getTask(directDeployTask.getProject(),JavaPlugin.JAR_TASK_NAME);
+      File jarFile=jar.getArchivePath();
+      jarFile.renameTo(directDeployTask.getWebAppFile());
+    }
+  }
+);
+  directDeployTask.doLast(new Action<Task>(){
+    @Override public void execute(    Task task){
+      DirectDeployTask directDeployTask=(DirectDeployTask)task;
+      Project project=directDeployTask.getProject();
+      File warFile=directDeployTask.getWebAppFile();
+      Jar jar=(Jar)GradleUtil.getTask(project,JavaPlugin.JAR_TASK_NAME);
+      String deployedPluginDirName=jar.getArchiveName();
+      deployedPluginDirName=deployedPluginDirName.substring(0,deployedPluginDirName.lastIndexOf('.'));
+      File deployedPluginDir=new File(directDeployTask.getAppServerDeployDir(),deployedPluginDirName);
+      if (!deployedPluginDir.exists()) {
+        deployedPluginDir=new File(directDeployTask.getAppServerDeployDir(),project.getName());
+      }
+      deployedPluginDirName=project.relativePath(deployedPluginDir);
+      LiferayExtension liferayExtension=GradleUtil.getExtension(project,LiferayExtension.class);
+      String[][] filesets=new String[][]{{project.relativePath(liferayExtension.getAppServerPortalDir()),"WEB-INF/tld/c.tld"},{deployedPluginDirName,"WEB-INF/liferay-web.xml,WEB-INF/web.xml"},{deployedPluginDirName,"WEB-INF/tld/*"}};
+      FileUtil.jar(project,warFile,"preserve",true,filesets);
+      warFile.renameTo(jar.getArchivePath());
+    }
+  }
+);
+  directDeployTask.onlyIf(new Spec<Task>(){
+    @Override public boolean isSatisfiedBy(    Task task){
+      Project project=task.getProject();
+      LiferayOSGiExtension liferayOSGiExtension=GradleUtil.getExtension(project,LiferayOSGiExtension.class);
+      if (liferayOSGiExtension.isAutoUpdateXml() && FileUtil.exists(project,"docroot/WEB-INF/portlet.xml")) {
+        return true;
+      }
+      return false;
+    }
+  }
+);
+  TaskInputs taskInputs=directDeployTask.getInputs();
+  taskInputs.file(new Callable<File>(){
+    @Override public File call() throws Exception {
+      Jar jar=(Jar)GradleUtil.getTask(project,JavaPlugin.JAR_TASK_NAME);
+      return jar.getArchivePath();
+    }
+  }
+);
+  Jar jar=(Jar)GradleUtil.getTask(project,JavaPlugin.JAR_TASK_NAME);
+  jar.finalizedBy(directDeployTask);
+  return directDeployTask;
+}
