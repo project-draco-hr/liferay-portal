@@ -1,0 +1,41 @@
+{
+  Task task=project.task(BUILD_WSDD_JAR_TASK_NAME);
+  TaskOutputs taskOutputs=task.getOutputs();
+  taskOutputs.file(new Callable<File>(){
+    @Override public File call() throws Exception {
+      Jar jar=(Jar)GradleUtil.getTask(project,JavaPlugin.JAR_TASK_NAME);
+      String bundleSymbolicName=getBundleInstruction(project,Constants.BUNDLE_SYMBOLICNAME);
+      String fileName=bundleSymbolicName + "-wsdd-" + project.getVersion()+ "."+ Jar.DEFAULT_EXTENSION;
+      return new File(jar.getDestinationDir(),fileName);
+    }
+  }
+);
+  task.doLast(new Action<Task>(){
+    @Override public void execute(    Task task){
+      Project project=task.getProject();
+      BundleExtension bundleExtension=GradleUtil.getExtension(project,BundleExtension.class);
+      Factory<JarBuilder> jarBuilderFactory=bundleExtension.getJarBuilderFactory();
+      JarBuilder jarBuilder=jarBuilderFactory.create();
+      jarBuilder.withBase(BundleUtils.getBase(project));
+      jarBuilder.withClasspath(BundleUtils.getClasspath(project));
+      Map<String,String> properties=getBundleDefaultInstructions(project);
+      String bundleName=getBundleInstruction(project,Constants.BUNDLE_NAME);
+      properties.put(Constants.BUNDLE_NAME,bundleName + " WSDD descriptors");
+      String bundleSymbolicName=getBundleInstruction(project,Constants.BUNDLE_SYMBOLICNAME);
+      properties.put(Constants.BUNDLE_SYMBOLICNAME,bundleSymbolicName + ".wsdd");
+      properties.put(Constants.FRAGMENT_HOST,bundleSymbolicName);
+      properties.put(Constants.INCLUDE_RESOURCE,"WEB-INF/=server-config.wsdd,classes;filter:=*.wsdd");
+      jarBuilder.withProperties(properties);
+      jarBuilder.withSourcepath(BundleUtils.getSources(project));
+      jarBuilder.withTrace(bundleExtension.isTrace());
+      jarBuilder.withVersion(BundleUtils.getVersion(project));
+      TaskOutputs taskOutputs=task.getOutputs();
+      FileCollection fileCollection=taskOutputs.getFiles();
+      jarBuilder.writeJarTo(fileCollection.getSingleFile());
+    }
+  }
+);
+  BuildWSDDTask buildWSDDTask=(BuildWSDDTask)GradleUtil.getTask(project,WSDDBuilderPlugin.BUILD_WSDD_TASK_NAME);
+  buildWSDDTask.finalizedBy(task);
+  return task;
+}
