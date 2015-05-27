@@ -1,0 +1,41 @@
+{
+  if (_property == null) {
+    throw new BuildException("Property attribute is required",getLocation());
+  }
+  if (_path == null) {
+    throw new BuildException("Path attribute is required",getLocation());
+  }
+  if (_gitDir == null) {
+    Project currentProject=getProject();
+    _gitDir=currentProject.getBaseDir();
+  }
+  FileRepositoryBuilder fileRepositoryBuilder=new FileRepositoryBuilder();
+  fileRepositoryBuilder.readEnvironment();
+  fileRepositoryBuilder.findGitDir(_gitDir);
+  String relativePath=PathUtil.toRelativePath(fileRepositoryBuilder.getGitDir(),_path);
+  try {
+    Repository repository=fileRepositoryBuilder.build();
+    RevWalk revWalk=new RevWalk(repository);
+    RevCommit headRevCommit=revWalk.lookupCommit(repository.resolve(Constants.HEAD));
+    revWalk.setTreeFilter(AndTreeFilter.create(PathFilter.create(relativePath),TreeFilter.ANY_DIFF));
+    revWalk.setRevFilter(MaxCountRevFilter.create(2));
+    revWalk.markStart(headRevCommit);
+    Iterator<RevCommit> iterator=revWalk.iterator();
+    while (iterator.hasNext()) {
+      RevCommit revCommit=iterator.next();
+      TreeWalk treeWalk=new TreeWalk(repository);
+      treeWalk.addTree(revCommit.getTree());
+      treeWalk.setRecursive(true);
+      treeWalk.setFilter(AndTreeFilter.create(PathFilter.create(relativePath + "/" + _ignoreFileName),TreeFilter.ANY_DIFF));
+      if (!treeWalk.next()) {
+        Project currentProject=getProject();
+        currentProject.setNewProperty(_property,revCommit.name());
+        break;
+      }
+    }
+    revWalk.dispose();
+  }
+ catch (  Exception e) {
+    throw new BuildException("Unable to get head hash for path " + _path,e);
+  }
+}
