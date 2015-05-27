@@ -5,17 +5,23 @@
     while (iterator.hasNext()) {
       Node dependencyNode=iterator.next();
       String conf=(String)dependencyNode.attribute("conf");
-      if (Validator.isNotNull(conf) && !conf.startsWith("default")) {
+      if (Validator.isNotNull(conf) && !conf.startsWith("default") && !conf.startsWith("internal")) {
         continue;
       }
       String group=(String)dependencyNode.attribute("org");
       String name=(String)dependencyNode.attribute("name");
       String version=(String)dependencyNode.attribute("rev");
+      boolean optional=false;
       boolean transitive=true;
-      if (Validator.isNotNull(conf) && conf.equals("default->master")) {
-        transitive=false;
+      if (Validator.isNotNull(conf)) {
+        if (conf.equals("default->master")) {
+          transitive=false;
+        }
+ else         if (conf.equals("internal->master")) {
+          optional=true;
+        }
       }
-      contents.add(wrapDependency(group,name,version,transitive));
+      contents.add(wrapDependency(JavaPlugin.COMPILE_CONFIGURATION_NAME,group,name,version,transitive,optional));
     }
   }
   String requiredDeploymentContexts=_pluginPackageProperties.getProperty("required-deployment-contexts");
@@ -24,7 +30,7 @@
     for (    String deploymentContext : requiredDeploymentContextsArray) {
       String serviceJarFileName=getServiceJarFileName(deploymentContext);
       if (FileUtil.exists(_project,serviceJarFileName)) {
-        contents.add(wrapServiceJarDependency(serviceJarFileName));
+        contents.add(wrapServiceJarDependency(JavaPlugin.COMPILE_CONFIGURATION_NAME,serviceJarFileName));
       }
     }
   }
@@ -47,8 +53,9 @@
       if (Validator.isNull(projectPath)) {
         throw new GradleException("Unable to find project dependency " + projectFileName);
       }
-      contents.add(wrapProjectDependency(projectPath));
+      contents.add(wrapProjectDependency(JavaPlugin.COMPILE_CONFIGURATION_NAME,projectPath));
     }
   }
-  return wrapContents(contents,1,"(",JavaPlugin.COMPILE_CONFIGURATION_NAME,")",true);
+  Collections.sort(contents);
+  return contents;
 }
