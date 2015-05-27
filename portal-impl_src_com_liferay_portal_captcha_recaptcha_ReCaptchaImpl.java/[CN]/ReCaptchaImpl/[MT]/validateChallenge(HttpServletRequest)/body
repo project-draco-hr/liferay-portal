@@ -1,17 +1,15 @@
 {
-  String reCaptchaChallenge=ParamUtil.getString(request,"recaptcha_challenge_field");
-  String reCaptchaResponse=ParamUtil.getString(request,"recaptcha_response_field");
+  String reCaptchaResponse=ParamUtil.getString(request,"g-recaptcha-response");
   Http.Options options=new Http.Options();
-  options.addPart("challenge",reCaptchaChallenge);
   try {
-    options.addPart("privatekey",PrefsPropsUtil.getString(PropsKeys.CAPTCHA_ENGINE_RECAPTCHA_KEY_PRIVATE,PropsValues.CAPTCHA_ENGINE_RECAPTCHA_KEY_PRIVATE));
+    options.addPart("secret",PrefsPropsUtil.getString(PropsKeys.CAPTCHA_ENGINE_RECAPTCHA_KEY_PRIVATE,PropsValues.CAPTCHA_ENGINE_RECAPTCHA_KEY_PRIVATE));
   }
  catch (  SystemException se) {
     _log.error(se,se);
   }
   options.addPart("remoteip",request.getRemoteAddr());
   options.addPart("response",reCaptchaResponse);
-  options.setLocation(HttpUtil.protocolize(PropsValues.CAPTCHA_ENGINE_RECAPTCHA_URL_VERIFY,request.isSecure()));
+  options.setLocation(PropsValues.CAPTCHA_ENGINE_RECAPTCHA_URL_VERIFY);
   options.setPost(true);
   String content=null;
   try {
@@ -25,10 +23,28 @@
     _log.error("reCAPTCHA did not return a result");
     throw new CaptchaTextException();
   }
-  String[] messages=content.split("\r?\n");
-  if (messages.length < 1) {
+  try {
+    JSONObject jsonObject=JSONFactoryUtil.createJSONObject(content);
+    String success=jsonObject.getString("success");
+    if (StringUtil.equalsIgnoreCase(success,"true")) {
+      return true;
+    }
+    JSONArray jsonArray=jsonObject.getJSONArray("error-codes");
+    if ((jsonArray == null) || (jsonArray.length() == 0)) {
+      return false;
+    }
+    StringBundler sb=new StringBundler(jsonArray.length() * 2 - 1);
+    for (int i=0; i < jsonArray.length(); i++) {
+      sb.append(jsonArray.getString(i));
+      if (i < (jsonArray.length() - 1)) {
+        sb.append(StringPool.COMMA_AND_SPACE);
+      }
+    }
+    _log.error("reCAPTCHA encountered an error: " + sb.toString());
+    return false;
+  }
+ catch (  JSONException jsone) {
     _log.error("reCAPTCHA did not return a valid result: " + content);
     throw new CaptchaTextException();
   }
-  return GetterUtil.getBoolean(messages[0]);
 }
