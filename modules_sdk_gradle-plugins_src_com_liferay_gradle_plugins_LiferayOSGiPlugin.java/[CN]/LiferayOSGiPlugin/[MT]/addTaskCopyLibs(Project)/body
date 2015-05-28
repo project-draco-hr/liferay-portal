@@ -1,15 +1,24 @@
 {
   Copy copy=GradleUtil.addTask(project,COPY_LIBS_TASK_NAME,Copy.class);
-  Configuration configuration=GradleUtil.getConfiguration(project,JavaPlugin.RUNTIME_CONFIGURATION_NAME);
-  copy.from(configuration);
-  configuration=GradleUtil.getConfiguration(project,ProvidedBasePlugin.getPROVIDED_CONFIGURATION_NAME());
-  copy.from(configuration);
+  copy.from(new Callable<FileCollection>(){
+    @Override public FileCollection call() throws Exception {
+      JavaCompile javaCompile=(JavaCompile)GradleUtil.getTask(project,JavaPlugin.COMPILE_JAVA_TASK_NAME);
+      return javaCompile.getClasspath();
+    }
+  }
+);
   copy.include(new Spec<FileTreeElement>(){
     @Override public boolean isSatisfiedBy(    FileTreeElement fileTreeElement){
       File file=fileTreeElement.getFile();
+      if (ArrayUtil.contains(_COPY_LIBS_FILE_NAMES,file.getName())) {
+        return true;
+      }
       Gradle gradle=project.getGradle();
+      if (FileUtil.isChild(file,gradle.getGradleUserHomeDir())) {
+        return true;
+      }
       Set<File> projectDependencyDirs=_getProjectDependencyDirs();
-      if (FileUtil.isChild(file,gradle.getGradleUserHomeDir()) || projectDependencyDirs.contains(file.getParentFile())) {
+      if (projectDependencyDirs.contains(file.getParentFile())) {
         return true;
       }
       return false;
@@ -46,7 +55,7 @@
         String libDirName=project.relativePath(getLibDir(project));
         libDirName=libDirName.replace('\\','/') + "/";
         for (        String resource : resources) {
-          if (resource.startsWith(libDirName) || resource.startsWith("@" + libDirName)) {
+          if (resource.startsWith(libDirName) || resource.startsWith("@" + libDirName) || resource.contains("=@" + libDirName)) {
             return true;
           }
         }
