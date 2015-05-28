@@ -7,6 +7,14 @@
   }
   File gitDir=PathUtil.getGitDir(_gitDir,getProject(),getLocation());
   String relativePath=PathUtil.toRelativePath(gitDir,_path);
+  if (_useCache) {
+    String hash=_hashes.get(relativePath);
+    if (hash != null) {
+      Project currentProject=getProject();
+      currentProject.setNewProperty(_property,hash);
+      return;
+    }
+  }
   try (Repository repository=RepositoryCache.open(FileKey.exact(gitDir,FS.DETECTED))){
     RevWalk revWalk=new RevWalk(repository);
     RevCommit headRevCommit=revWalk.lookupCommit(repository.resolve(Constants.HEAD));
@@ -28,8 +36,12 @@
         revCommit=secondRevCommit;
       }
     }
+    String hash=revCommit.name();
     Project currentProject=getProject();
-    currentProject.setNewProperty(_property,revCommit.name());
+    currentProject.setNewProperty(_property,hash);
+    if (_useCache) {
+      _hashes.put(relativePath,hash);
+    }
     revWalk.dispose();
   }
  catch (  Exception e) {

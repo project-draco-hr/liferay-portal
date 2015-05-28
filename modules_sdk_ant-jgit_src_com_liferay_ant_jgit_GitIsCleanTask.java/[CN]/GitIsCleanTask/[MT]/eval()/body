@@ -3,13 +3,24 @@
     throw new BuildException("Path attribute is required",getLocation());
   }
   File gitDir=PathUtil.getGitDir(_gitDir,getProject(),getLocation());
+  String relativePath=PathUtil.toRelativePath(gitDir,_path);
+  if (_useCache) {
+    Boolean cleanFlag=_cleanFlags.get(relativePath);
+    if (cleanFlag != null) {
+      return cleanFlag;
+    }
+  }
   try (Repository repository=RepositoryCache.open(RepositoryCache.FileKey.exact(gitDir,FS.DETECTED))){
     Git git=new Git(new DirCacheCachedRepositoryWrapper(repository));
     StatusCommand statusCommand=git.status();
     statusCommand.setIgnoreSubmodules(IgnoreSubmoduleMode.ALL);
-    statusCommand.addPath(PathUtil.toRelativePath(gitDir,_path));
+    statusCommand.addPath(relativePath);
     Status status=statusCommand.call();
-    return status.isClean();
+    Boolean cleanFlag=status.isClean();
+    if (_useCache) {
+      _cleanFlags.put(relativePath,cleanFlag);
+    }
+    return cleanFlag;
   }
  catch (  Exception e) {
     throw new BuildException("Unable to check cleanness for path " + _path,e);
