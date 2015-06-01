@@ -1,0 +1,47 @@
+{
+  final ExportActionableDynamicQuery exportActionableDynamicQuery=new ExportActionableDynamicQuery(){
+    @Override public long performCount() throws PortalException {
+      ManifestSummary manifestSummary=portletDataContext.getManifestSummary();
+      StagedModelType stagedModelType=getStagedModelType();
+      long modelAdditionCount=super.performCount();
+      manifestSummary.addModelAdditionCount(stagedModelType.toString(),modelAdditionCount);
+      long modelDeletionCount=ExportImportHelperUtil.getModelDeletionCount(portletDataContext,stagedModelType);
+      manifestSummary.addModelDeletionCount(stagedModelType.toString(),modelDeletionCount);
+      return modelAdditionCount;
+    }
+  }
+;
+  initActionableDynamicQuery(exportActionableDynamicQuery);
+  exportActionableDynamicQuery.setAddCriteriaMethod(new ActionableDynamicQuery.AddCriteriaMethod(){
+    @Override public void addCriteria(    DynamicQuery dynamicQuery){
+      Criterion modifiedDateCriterion=portletDataContext.getDateRangeCriteria("modifiedDate");
+      Criterion statusDateCriterion=portletDataContext.getDateRangeCriteria("statusDate");
+      if ((modifiedDateCriterion != null) && (statusDateCriterion != null)) {
+        Disjunction disjunction=RestrictionsFactoryUtil.disjunction();
+        disjunction.add(modifiedDateCriterion);
+        disjunction.add(statusDateCriterion);
+        dynamicQuery.add(disjunction);
+      }
+      Property workflowStatusProperty=PropertyFactoryUtil.forName("status");
+      if (portletDataContext.isInitialPublication()) {
+        dynamicQuery.add(workflowStatusProperty.ne(WorkflowConstants.STATUS_IN_TRASH));
+      }
+ else {
+        StagedModelDataHandler<?> stagedModelDataHandler=StagedModelDataHandlerRegistryUtil.getStagedModelDataHandler(CalendarBooking.class.getName());
+        dynamicQuery.add(workflowStatusProperty.in(stagedModelDataHandler.getExportableStatuses()));
+      }
+    }
+  }
+);
+  exportActionableDynamicQuery.setCompanyId(portletDataContext.getCompanyId());
+  exportActionableDynamicQuery.setGroupId(portletDataContext.getScopeGroupId());
+  exportActionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod(){
+    @Override public void performAction(    Object object) throws PortalException {
+      CalendarBooking stagedModel=(CalendarBooking)object;
+      StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,stagedModel);
+    }
+  }
+);
+  exportActionableDynamicQuery.setStagedModelType(new StagedModelType(PortalUtil.getClassNameId(CalendarBooking.class.getName())));
+  return exportActionableDynamicQuery;
+}

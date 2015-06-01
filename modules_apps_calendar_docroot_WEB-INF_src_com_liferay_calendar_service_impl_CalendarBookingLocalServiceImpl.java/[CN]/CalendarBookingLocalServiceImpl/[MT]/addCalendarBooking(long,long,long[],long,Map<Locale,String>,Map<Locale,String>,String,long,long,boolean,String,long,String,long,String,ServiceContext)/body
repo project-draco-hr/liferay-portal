@@ -1,0 +1,64 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  Calendar calendar=calendarPersistence.findByPrimaryKey(calendarId);
+  long calendarBookingId=counterLocalService.increment();
+  for (  Locale locale : descriptionMap.keySet()) {
+    String sanitizedDescription=SanitizerUtil.sanitize(calendar.getCompanyId(),calendar.getGroupId(),userId,CalendarBooking.class.getName(),calendarBookingId,ContentTypes.TEXT_HTML,Sanitizer.MODE_ALL,descriptionMap.get(locale),null);
+    descriptionMap.put(locale,sanitizedDescription);
+  }
+  java.util.Calendar startTimeJCalendar=JCalendarUtil.getJCalendar(startTime);
+  java.util.Calendar endTimeJCalendar=JCalendarUtil.getJCalendar(endTime);
+  if (allDay) {
+    startTimeJCalendar=JCalendarUtil.toMidnightJCalendar(startTimeJCalendar);
+    endTimeJCalendar=JCalendarUtil.toLastHourJCalendar(endTimeJCalendar);
+  }
+  if (firstReminder < secondReminder) {
+    long originalSecondReminder=secondReminder;
+    secondReminder=firstReminder;
+    firstReminder=originalSecondReminder;
+  }
+  Date now=new Date();
+  validate(titleMap,startTimeJCalendar,endTimeJCalendar);
+  CalendarBooking calendarBooking=calendarBookingPersistence.create(calendarBookingId);
+  calendarBooking.setGroupId(calendar.getGroupId());
+  calendarBooking.setCompanyId(user.getCompanyId());
+  calendarBooking.setUserId(user.getUserId());
+  calendarBooking.setUserName(user.getFullName());
+  calendarBooking.setCreateDate(serviceContext.getCreateDate(now));
+  calendarBooking.setModifiedDate(serviceContext.getModifiedDate(now));
+  calendarBooking.setCalendarId(calendarId);
+  calendarBooking.setCalendarResourceId(calendar.getCalendarResourceId());
+  if (parentCalendarBookingId > 0) {
+    calendarBooking.setParentCalendarBookingId(parentCalendarBookingId);
+  }
+ else {
+    calendarBooking.setParentCalendarBookingId(calendarBookingId);
+  }
+  String vEventUid=(String)serviceContext.getAttribute("vEventUid");
+  if (vEventUid == null) {
+    vEventUid=PortalUUIDUtil.generate();
+  }
+  calendarBooking.setVEventUid(vEventUid);
+  calendarBooking.setTitleMap(titleMap);
+  calendarBooking.setDescriptionMap(descriptionMap);
+  calendarBooking.setLocation(location);
+  calendarBooking.setStartTime(startTimeJCalendar.getTimeInMillis());
+  calendarBooking.setEndTime(endTimeJCalendar.getTimeInMillis());
+  calendarBooking.setAllDay(allDay);
+  calendarBooking.setRecurrence(recurrence);
+  calendarBooking.setFirstReminder(firstReminder);
+  calendarBooking.setFirstReminderType(firstReminderType);
+  calendarBooking.setSecondReminder(secondReminder);
+  calendarBooking.setSecondReminderType(secondReminderType);
+  calendarBooking.setExpandoBridgeAttributes(serviceContext);
+  calendarBooking.setStatus(CalendarBookingWorkflowConstants.STATUS_DRAFT);
+  calendarBooking.setStatusDate(serviceContext.getModifiedDate(now));
+  calendarBookingPersistence.update(calendarBooking);
+  addChildCalendarBookings(calendarBooking,childCalendarIds,serviceContext);
+  resourceLocalService.addModelResources(calendarBooking,serviceContext);
+  updateAsset(userId,calendarBooking,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames(),serviceContext.getAssetLinkEntryIds());
+  socialActivityLocalService.addActivity(userId,calendarBooking.getGroupId(),CalendarBooking.class.getName(),calendarBookingId,CalendarActivityKeys.ADD_CALENDAR_BOOKING,getExtraDataJSON(calendarBooking),0);
+  sendNotification(calendarBooking,NotificationTemplateType.INVITE,serviceContext);
+  WorkflowHandlerRegistryUtil.startWorkflowInstance(calendarBooking.getCompanyId(),calendarBooking.getGroupId(),userId,CalendarBooking.class.getName(),calendarBooking.getCalendarBookingId(),calendarBooking,serviceContext);
+  return calendarBooking;
+}

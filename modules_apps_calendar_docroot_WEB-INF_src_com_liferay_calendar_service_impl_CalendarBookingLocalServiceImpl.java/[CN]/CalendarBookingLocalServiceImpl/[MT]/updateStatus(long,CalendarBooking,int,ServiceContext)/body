@@ -1,0 +1,48 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  Date now=new Date();
+  int oldStatus=calendarBooking.getStatus();
+  calendarBooking.setModifiedDate(serviceContext.getModifiedDate(now));
+  calendarBooking.setStatus(status);
+  calendarBooking.setStatusByUserId(user.getUserId());
+  calendarBooking.setStatusByUserName(user.getFullName());
+  calendarBooking.setStatusDate(serviceContext.getModifiedDate(now));
+  calendarBookingPersistence.update(calendarBooking);
+  if (status == CalendarBookingWorkflowConstants.STATUS_IN_TRASH) {
+    List<CalendarBooking> childCalendarBookings=calendarBooking.getChildCalendarBookings();
+    for (    CalendarBooking childCalendarBooking : childCalendarBookings) {
+      if (childCalendarBooking.equals(calendarBooking)) {
+        continue;
+      }
+      updateStatus(userId,childCalendarBooking,CalendarBookingWorkflowConstants.STATUS_IN_TRASH,serviceContext);
+    }
+  }
+ else   if (oldStatus == CalendarBookingWorkflowConstants.STATUS_IN_TRASH) {
+    List<CalendarBooking> childCalendarBookings=calendarBooking.getChildCalendarBookings();
+    for (    CalendarBooking childCalendarBooking : childCalendarBookings) {
+      if (childCalendarBooking.equals(calendarBooking)) {
+        continue;
+      }
+      updateStatus(userId,childCalendarBooking,CalendarBookingWorkflowConstants.STATUS_PENDING,serviceContext);
+    }
+  }
+  if (status == CalendarBookingWorkflowConstants.STATUS_APPROVED) {
+    assetEntryLocalService.updateVisible(CalendarBooking.class.getName(),calendarBooking.getCalendarBookingId(),true);
+  }
+ else   if (status == CalendarBookingWorkflowConstants.STATUS_IN_TRASH) {
+    assetEntryLocalService.updateVisible(CalendarBooking.class.getName(),calendarBooking.getCalendarBookingId(),false);
+  }
+  if (oldStatus == WorkflowConstants.STATUS_IN_TRASH) {
+    trashEntryLocalService.deleteEntry(CalendarBooking.class.getName(),calendarBooking.getCalendarBookingId());
+  }
+  if (status == CalendarBookingWorkflowConstants.STATUS_IN_TRASH) {
+    if (calendarBooking.isMasterBooking()) {
+      trashEntryLocalService.addTrashEntry(userId,calendarBooking.getGroupId(),CalendarBooking.class.getName(),calendarBooking.getCalendarBookingId(),calendarBooking.getUuid(),null,oldStatus,null,null);
+    }
+ else {
+      trashEntryLocalService.addTrashEntry(userId,calendarBooking.getGroupId(),CalendarBooking.class.getName(),calendarBooking.getCalendarBookingId(),calendarBooking.getUuid(),null,CalendarBookingWorkflowConstants.STATUS_PENDING,null,null);
+    }
+    sendNotification(calendarBooking,NotificationTemplateType.MOVED_TO_TRASH,serviceContext);
+  }
+  return calendarBooking;
+}

@@ -1,0 +1,69 @@
+{
+  VEvent vEvent=new VEvent();
+  PropertyList propertyList=vEvent.getProperties();
+  Uid uid=new Uid(calendarBooking.getVEventUid());
+  propertyList.add(uid);
+  if (calendarBooking.isAllDay()) {
+    DtStart dtStart=new DtStart(new Date(calendarBooking.getStartTime()));
+    propertyList.add(dtStart);
+    java.util.Calendar endJCalendar=JCalendarUtil.getJCalendar(calendarBooking.getEndTime());
+    endJCalendar.add(java.util.Calendar.DAY_OF_MONTH,1);
+    DtEnd dtEnd=new DtEnd(new Date(endJCalendar.getTime()));
+    propertyList.add(dtEnd);
+  }
+ else {
+    DtStart dtStart=new DtStart(toICalDateTime(calendarBooking.getStartTime()));
+    propertyList.add(dtStart);
+    DtEnd dtEnd=new DtEnd(toICalDateTime(calendarBooking.getEndTime()));
+    propertyList.add(dtEnd);
+  }
+  User user=UserLocalServiceUtil.getUser(calendarBooking.getUserId());
+  Summary summary=new Summary(calendarBooking.getTitle(user.getLocale()));
+  propertyList.add(summary);
+  Company company=CompanyLocalServiceUtil.getCompany(calendarBooking.getCompanyId());
+  String calendarBookingDescription=StringUtil.replace(calendarBooking.getDescription(user.getLocale()),new String[]{"href=\"/","src=\"/"},new String[]{"href=\"" + company.getPortalURL(calendarBooking.getGroupId()) + "/","src=\"" + company.getPortalURL(calendarBooking.getGroupId()) + "/"});
+  Description description=new Description(calendarBookingDescription);
+  propertyList.add(description);
+  XProperty xProperty=new XProperty("X-ALT-DESC",calendarBookingDescription);
+  ParameterList parameters=xProperty.getParameters();
+  parameters.add(new XParameter("FMTTYPE","text/html"));
+  propertyList.add(xProperty);
+  Location location=new Location(calendarBooking.getLocation());
+  propertyList.add(location);
+  if (calendarBooking.isRecurring()) {
+    String recurrence=calendarBooking.getRecurrence();
+    int index=recurrence.indexOf(StringPool.NEW_LINE);
+    if (index > 0) {
+      recurrence=recurrence.substring(0,index);
+    }
+    String value=StringUtil.replace(recurrence,_RRULE,StringPool.BLANK);
+    RRule rRule=new RRule(value);
+    propertyList.add(rRule);
+    ExDate exDate=toICalExDate(calendarBooking.getRecurrenceObj());
+    if (exDate != null) {
+      propertyList.add(exDate);
+    }
+  }
+  ComponentList componentList=vEvent.getAlarms();
+  long firstReminder=calendarBooking.getFirstReminder();
+  if (firstReminder > 0) {
+    VAlarm vAlarm=toICalAlarm(calendarBooking.getFirstReminderNotificationType(),firstReminder,user.getEmailAddress());
+    componentList.add(vAlarm);
+  }
+  long secondReminder=calendarBooking.getSecondReminder();
+  if (secondReminder > 0) {
+    VAlarm alarm=toICalAlarm(calendarBooking.getSecondReminderNotificationType(),secondReminder,user.getEmailAddress());
+    componentList.add(alarm);
+  }
+  List<CalendarBooking> childCalendarBookings=calendarBooking.getChildCalendarBookings();
+  for (  CalendarBooking childCalendarBooking : childCalendarBookings) {
+    CalendarResource calResource=childCalendarBooking.getCalendarResource();
+    if (!calResource.isUser() || (calendarBooking.getCalendarBookingId() == childCalendarBooking.getCalendarBookingId())) {
+      continue;
+    }
+    User calResourceUser=UserLocalServiceUtil.getUser(calResource.getClassPK());
+    Attendee attendee=toICalAttendee(calResourceUser.getFullName(),calResourceUser.getEmailAddress(),childCalendarBooking.getStatus());
+    propertyList.add(attendee);
+  }
+  return vEvent;
+}

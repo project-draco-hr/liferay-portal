@@ -1,0 +1,154 @@
+{
+  Calendar calendar=CalendarLocalServiceUtil.getCalendar(calendarId);
+  User user=UserLocalServiceUtil.getUser(calendar.getUserId());
+  Map<Locale,String> titleMap=new HashMap<>();
+  Summary summary=vEvent.getSummary();
+  if (summary != null) {
+    String title=ModelHintsUtil.trimString(CalendarBooking.class.getName(),"title",summary.getValue());
+    titleMap.put(user.getLocale(),title);
+  }
+  Map<Locale,String> descriptionMap=new HashMap<>();
+  Description description=vEvent.getDescription();
+  if (description != null) {
+    descriptionMap.put(user.getLocale(),description.getValue());
+  }
+  String locationString=StringPool.BLANK;
+  Location location=vEvent.getLocation();
+  if (location != null) {
+    locationString=location.getValue();
+  }
+  DtStart dtStart=vEvent.getStartDate();
+  Date startDate=dtStart.getDate();
+  DtEnd dtEnd=vEvent.getEndDate();
+  Date endDate=dtEnd.getDate();
+  boolean allDay=false;
+  if (isICalDateOnly(dtStart)) {
+    allDay=true;
+    long time=endDate.getTime();
+    endDate.setTime(time - 1);
+  }
+  RRule rrule=(RRule)vEvent.getProperty(Property.RRULE);
+  String recurrence=StringPool.BLANK;
+  if (rrule != null) {
+    recurrence=StringUtil.trim(rrule.toString());
+    PropertyList propertyList=vEvent.getProperties(Property.EXDATE);
+    if (!propertyList.isEmpty()) {
+      StringBundler sb=new StringBundler();
+      Iterator<ExDate> iterator=propertyList.iterator();
+      while (iterator.hasNext()) {
+        ExDate exDate=iterator.next();
+        DateList dateList=exDate.getDates();
+        ListIterator<Date> listIterator=dateList.listIterator();
+        while (listIterator.hasNext()) {
+          Date date=listIterator.next();
+          java.util.Calendar jCalendar=JCalendarUtil.getJCalendar(date.getTime());
+          int year=jCalendar.get(java.util.Calendar.YEAR);
+          int month=jCalendar.get(java.util.Calendar.MONTH) + 1;
+          int day=jCalendar.get(java.util.Calendar.DATE);
+          int hour=jCalendar.get(java.util.Calendar.HOUR_OF_DAY);
+          int minute=jCalendar.get(java.util.Calendar.MINUTE);
+          int second=jCalendar.get(java.util.Calendar.SECOND);
+          sb.append(String.format(_EXDATE_FORMAT,year,month,day,hour,minute,second));
+          if (listIterator.hasNext()) {
+            sb.append(StringPool.COMMA);
+          }
+        }
+        if (iterator.hasNext()) {
+          sb.append(StringPool.COMMA);
+        }
+      }
+      recurrence=recurrence.concat(StringPool.NEW_LINE).concat(_EXDATE).concat(sb.toString());
+    }
+  }
+  ComponentList componentList=vEvent.getAlarms();
+  long[] reminders=new long[componentList.size()];
+  String[] reminderTypes=new String[componentList.size()];
+  int i=0;
+  for (Iterator<VAlarm> iterator=componentList.iterator(); iterator.hasNext(); ) {
+    VAlarm vAlarm=iterator.next();
+    Action action=vAlarm.getAction();
+    String value=StringUtil.lowerCase(action.getValue());
+    if (!isActionSupported(value)) {
+      continue;
+    }
+    reminderTypes[i]=value;
+    Trigger trigger=vAlarm.getTrigger();
+    long time=0;
+    DateTime dateTime=trigger.getDateTime();
+    Dur dur=trigger.getDuration();
+    if ((dateTime == null) && (dur == null)) {
+      continue;
+    }
+    if (dateTime != null) {
+      time=startDate.getTime() - dateTime.getTime();
+      if (time < 0) {
+        continue;
+      }
+    }
+ else {
+      if (!dur.isNegative()) {
+        continue;
+      }
+      time+=dur.getWeeks() * Time.WEEK;
+      time+=dur.getDays() * Time.DAY;
+      time+=dur.getHours() * Time.HOUR;
+      time+=dur.getMinutes() * Time.MINUTE;
+      time+=dur.getSeconds() * Time.SECOND;
+    }
+    reminders[i]=time;
+    i++;
+  }
+  long firstReminder=0;
+  String firstReminderType=null;
+  long secondReminder=0;
+  String secondReminderType=null;
+  if (i > 0) {
+    firstReminder=reminders[0];
+    firstReminderType=reminderTypes[0];
+  }
+  if (i > 1) {
+    secondReminder=reminders[1];
+    secondReminderType=reminderTypes[1];
+  }
+  PropertyList propertyList=vEvent.getProperties(Property.ATTENDEE);
+  List<Long> childCalendarIds=new ArrayList<>();
+  for (Iterator<Attendee> iterator=propertyList.iterator(); iterator.hasNext(); ) {
+    Attendee attendee=iterator.next();
+    URI uri=attendee.getCalAddress();
+    if (uri == null) {
+      continue;
+    }
+    User attendeeUser=UserLocalServiceUtil.fetchUserByEmailAddress(calendar.getCompanyId(),uri.getSchemeSpecificPart());
+    if ((attendeeUser == null) || (calendar.getUserId() == attendeeUser.getUserId())) {
+      continue;
+    }
+    ServiceContext serviceContext=new ServiceContext();
+    serviceContext.setCompanyId(calendar.getCompanyId());
+    serviceContext.setScopeGroupId(calendar.getGroupId());
+    CalendarResource calendarResource=CalendarResourceUtil.getUserCalendarResource(attendeeUser.getUserId(),serviceContext);
+    if (calendarResource == null) {
+      continue;
+    }
+    childCalendarIds.add(calendarResource.getDefaultCalendarId());
+  }
+  long[] childCalendarIdsArray=ArrayUtil.toArray(childCalendarIds.toArray(new Long[childCalendarIds.size()]));
+  CalendarBooking calendarBooking=null;
+  String vEventUidValue=null;
+  Uid uid=vEvent.getUid();
+  if (uid != null) {
+    vEventUidValue=uid.getValue();
+    calendarBooking=CalendarBookingLocalServiceUtil.fetchCalendarBooking(calendarId,vEventUidValue);
+  }
+  ServiceContext serviceContext=new ServiceContext();
+  serviceContext.setAddGroupPermissions(true);
+  serviceContext.setAddGuestPermissions(true);
+  serviceContext.setAttribute("sendNotification",Boolean.FALSE);
+  serviceContext.setAttribute("vEventUid",vEventUidValue);
+  serviceContext.setScopeGroupId(calendar.getGroupId());
+  if (calendarBooking == null) {
+    CalendarBookingServiceUtil.addCalendarBooking(calendarId,childCalendarIdsArray,CalendarBookingConstants.PARENT_CALENDAR_BOOKING_ID_DEFAULT,titleMap,descriptionMap,locationString,startDate.getTime(),endDate.getTime(),allDay,recurrence,firstReminder,firstReminderType,secondReminder,secondReminderType,serviceContext);
+  }
+ else {
+    CalendarBookingServiceUtil.updateCalendarBooking(calendarBooking.getCalendarBookingId(),calendarId,childCalendarIdsArray,titleMap,descriptionMap,locationString,startDate.getTime(),endDate.getTime(),allDay,recurrence,firstReminder,firstReminderType,secondReminder,secondReminderType,calendarBooking.getStatus(),serviceContext);
+  }
+}

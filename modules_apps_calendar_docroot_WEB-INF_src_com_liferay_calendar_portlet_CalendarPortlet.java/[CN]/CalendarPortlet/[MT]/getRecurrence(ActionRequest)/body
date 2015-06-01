@@ -1,0 +1,55 @@
+{
+  boolean repeat=ParamUtil.getBoolean(actionRequest,"repeat");
+  if (!repeat) {
+    return null;
+  }
+  Recurrence recurrence=new Recurrence();
+  int count=0;
+  String ends=ParamUtil.getString(actionRequest,"ends");
+  if (ends.equals("after")) {
+    count=ParamUtil.getInteger(actionRequest,"count");
+  }
+  recurrence.setCount(count);
+  Frequency frequency=Frequency.parse(ParamUtil.getString(actionRequest,"frequency"));
+  recurrence.setFrequency(frequency);
+  int interval=ParamUtil.getInteger(actionRequest,"interval");
+  recurrence.setInterval(interval);
+  java.util.Calendar untilJCalendar=null;
+  if (ends.equals("on")) {
+    int untilDateDay=ParamUtil.getInteger(actionRequest,"untilDateDay");
+    int untilDateMonth=ParamUtil.getInteger(actionRequest,"untilDateMonth");
+    int untilDateYear=ParamUtil.getInteger(actionRequest,"untilDateYear");
+    untilJCalendar=CalendarFactoryUtil.getCalendar();
+    untilJCalendar.set(java.util.Calendar.DATE,untilDateDay);
+    untilJCalendar.set(java.util.Calendar.MONTH,untilDateMonth);
+    untilJCalendar.set(java.util.Calendar.YEAR,untilDateYear);
+  }
+  recurrence.setUntilJCalendar(untilJCalendar);
+  List<PositionalWeekday> positionalWeekdays=new ArrayList<>();
+  if (frequency == Frequency.WEEKLY) {
+    for (    Weekday weekday : Weekday.values()) {
+      boolean checked=ParamUtil.getBoolean(actionRequest,weekday.getValue());
+      if (checked) {
+        positionalWeekdays.add(new PositionalWeekday(weekday,0));
+      }
+    }
+  }
+ else   if ((frequency == Frequency.MONTHLY) || (frequency == Frequency.YEARLY)) {
+    boolean repeatOnWeekday=ParamUtil.getBoolean(actionRequest,"repeatOnWeekday");
+    if (repeatOnWeekday) {
+      int position=ParamUtil.getInteger(actionRequest,"position");
+      Weekday weekday=Weekday.parse(ParamUtil.getString(actionRequest,"weekday"));
+      positionalWeekdays.add(new PositionalWeekday(weekday,position));
+      if (frequency == Frequency.YEARLY) {
+        List<Integer> months=Arrays.asList(ParamUtil.getInteger(actionRequest,"startTimeMonth"));
+        recurrence.setMonths(months);
+      }
+    }
+  }
+  recurrence.setPositionalWeekdays(positionalWeekdays);
+  String[] exceptionDates=StringUtil.split(ParamUtil.getString(actionRequest,"exceptionDates"));
+  for (  String exceptionDate : exceptionDates) {
+    recurrence.addExceptionDate(JCalendarUtil.getJCalendar(Long.valueOf(exceptionDate)));
+  }
+  return RecurrenceSerializer.serialize(recurrence);
+}

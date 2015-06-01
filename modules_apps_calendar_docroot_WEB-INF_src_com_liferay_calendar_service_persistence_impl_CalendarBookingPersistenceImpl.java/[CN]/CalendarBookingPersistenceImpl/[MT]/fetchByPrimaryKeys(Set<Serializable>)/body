@@ -1,0 +1,60 @@
+{
+  if (primaryKeys.isEmpty()) {
+    return Collections.emptyMap();
+  }
+  Map<Serializable,CalendarBooking> map=new HashMap<Serializable,CalendarBooking>();
+  if (primaryKeys.size() == 1) {
+    Iterator<Serializable> iterator=primaryKeys.iterator();
+    Serializable primaryKey=iterator.next();
+    CalendarBooking calendarBooking=fetchByPrimaryKey(primaryKey);
+    if (calendarBooking != null) {
+      map.put(primaryKey,calendarBooking);
+    }
+    return map;
+  }
+  Set<Serializable> uncachedPrimaryKeys=null;
+  for (  Serializable primaryKey : primaryKeys) {
+    CalendarBooking calendarBooking=(CalendarBooking)EntityCacheUtil.getResult(CalendarBookingModelImpl.ENTITY_CACHE_ENABLED,CalendarBookingImpl.class,primaryKey);
+    if (calendarBooking == null) {
+      if (uncachedPrimaryKeys == null) {
+        uncachedPrimaryKeys=new HashSet<Serializable>();
+      }
+      uncachedPrimaryKeys.add(primaryKey);
+    }
+ else {
+      map.put(primaryKey,calendarBooking);
+    }
+  }
+  if (uncachedPrimaryKeys == null) {
+    return map;
+  }
+  StringBundler query=new StringBundler((uncachedPrimaryKeys.size() * 2) + 1);
+  query.append(_SQL_SELECT_CALENDARBOOKING_WHERE_PKS_IN);
+  for (  Serializable primaryKey : uncachedPrimaryKeys) {
+    query.append(String.valueOf(primaryKey));
+    query.append(StringPool.COMMA);
+  }
+  query.setIndex(query.index() - 1);
+  query.append(StringPool.CLOSE_PARENTHESIS);
+  String sql=query.toString();
+  Session session=null;
+  try {
+    session=openSession();
+    Query q=session.createQuery(sql);
+    for (    CalendarBooking calendarBooking : (List<CalendarBooking>)q.list()) {
+      map.put(calendarBooking.getPrimaryKeyObj(),calendarBooking);
+      cacheResult(calendarBooking);
+      uncachedPrimaryKeys.remove(calendarBooking.getPrimaryKeyObj());
+    }
+    for (    Serializable primaryKey : uncachedPrimaryKeys) {
+      EntityCacheUtil.putResult(CalendarBookingModelImpl.ENTITY_CACHE_ENABLED,CalendarBookingImpl.class,primaryKey,_nullCalendarBooking);
+    }
+  }
+ catch (  Exception e) {
+    throw processException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+  return map;
+}

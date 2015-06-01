@@ -1,0 +1,28 @@
+{
+  if (!calendarBooking.isMasterBooking()) {
+    return;
+  }
+  List<CalendarBooking> childCalendarBookings=calendarBookingPersistence.findByParentCalendarBookingId(calendarBooking.getCalendarBookingId());
+  Set<Long> existingCalendarBookingIds=new HashSet<>(childCalendarIds.length);
+  for (  CalendarBooking childCalendarBooking : childCalendarBookings) {
+    if (childCalendarBooking.isMasterBooking() || (childCalendarBooking.isDenied() && ArrayUtil.contains(childCalendarIds,childCalendarBooking.getCalendarId()))) {
+      continue;
+    }
+    deleteCalendarBooking(childCalendarBooking.getCalendarBookingId());
+    existingCalendarBookingIds.add(childCalendarBooking.getCalendarId());
+  }
+  for (  long calendarId : childCalendarIds) {
+    int count=calendarBookingPersistence.countByC_P(calendarId,calendarBooking.getCalendarBookingId());
+    if (count > 0) {
+      continue;
+    }
+    serviceContext.setAttribute("sendNotification",false);
+    CalendarBooking childCalendarBooking=addCalendarBooking(calendarBooking.getUserId(),calendarId,new long[0],calendarBooking.getCalendarBookingId(),calendarBooking.getTitleMap(),calendarBooking.getDescriptionMap(),calendarBooking.getLocation(),calendarBooking.getStartTime(),calendarBooking.getEndTime(),calendarBooking.getAllDay(),calendarBooking.getRecurrence(),calendarBooking.getFirstReminder(),calendarBooking.getFirstReminderType(),calendarBooking.getSecondReminder(),calendarBooking.getSecondReminderType(),serviceContext);
+    serviceContext.setAttribute("sendNotification",true);
+    NotificationTemplateType notificationTemplateType=NotificationTemplateType.INVITE;
+    if (existingCalendarBookingIds.contains(childCalendarBooking.getCalendarId())) {
+      notificationTemplateType=NotificationTemplateType.UPDATE;
+    }
+    sendNotification(childCalendarBooking,notificationTemplateType,serviceContext);
+  }
+}
