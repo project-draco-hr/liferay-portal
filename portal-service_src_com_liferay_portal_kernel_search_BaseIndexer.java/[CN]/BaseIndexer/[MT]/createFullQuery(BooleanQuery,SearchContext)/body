@@ -6,17 +6,26 @@
     indexerPostProcessor.postProcessSearchQuery(searchQuery,searchContext);
   }
   Map<String,Facet> facets=searchContext.getFacets();
+  BooleanFilter facetFilter=new BooleanFilter();
   for (  Facet facet : facets.values()) {
-    BooleanClause<Query> facetClause=facet.getFacetClause();
-    if (facetClause != null) {
-      contextQuery.add(facetClause.getClause(),facetClause.getBooleanClauseOccur());
+    BooleanClause<Filter> facetFilterClause=facet.getFacetFilterClause();
+    if (facetFilterClause != null) {
+      facetFilter.add(facetFilterClause.getClause(),facetFilterClause.getBooleanClauseOccur());
     }
   }
+  doAddFacetClause(searchContext,facetFilter,facets.values());
+  BooleanFilter fullQueryFilter=new BooleanFilter();
+  if (facetFilter.hasClauses()) {
+    fullQueryFilter.add(facetFilter,BooleanClauseOccur.MUST);
+  }
   BooleanQuery fullQuery=BooleanQueryFactoryUtil.create(searchContext);
-  QueryFilter queryFilter=new QueryFilter(contextQuery);
-  BooleanFilter booleanFilter=new BooleanFilter();
-  booleanFilter.add(queryFilter,BooleanClauseOccur.MUST);
-  fullQuery.setPreBooleanFilter(booleanFilter);
+  if (contextQuery.hasClauses()) {
+    QueryFilter queryFilter=new QueryFilter(contextQuery);
+    fullQueryFilter.add(queryFilter,BooleanClauseOccur.MUST);
+  }
+  if (fullQueryFilter.hasClauses()) {
+    fullQuery.setPreBooleanFilter(fullQueryFilter);
+  }
   if (searchQuery.hasClauses()) {
     fullQuery.add(searchQuery,BooleanClauseOccur.MUST);
   }
