@@ -1,0 +1,38 @@
+{
+  BooleanQuery searchQuery=BooleanQueryFactoryUtil.create(searchContext);
+  addSearchKeywords(searchQuery,searchContext);
+  postProcessSearchQuery(searchQuery,searchContext);
+  for (  IndexerPostProcessor indexerPostProcessor : _indexerPostProcessors) {
+    indexerPostProcessor.postProcessSearchQuery(searchQuery,searchContext);
+  }
+  Map<String,Facet> facets=searchContext.getFacets();
+  BooleanFilter facetBooleanFilter=new BooleanFilter();
+  for (  Facet facet : facets.values()) {
+    BooleanClause<Filter> filterBooleanClause=facet.getFacetFilterBooleanClause();
+    if (filterBooleanClause != null) {
+      facetBooleanFilter.add(filterBooleanClause.getClause(),filterBooleanClause.getBooleanClauseOccur());
+    }
+  }
+  addFacetClause(searchContext,facetBooleanFilter,facets.values());
+  if (facetBooleanFilter.hasClauses()) {
+    queryBooleanFilter.add(facetBooleanFilter,BooleanClauseOccur.MUST);
+  }
+  BooleanQuery fullBooleanQuery=BooleanQueryFactoryUtil.create(searchContext);
+  if (queryBooleanFilter.hasClauses()) {
+    fullBooleanQuery.setPreBooleanFilter(queryBooleanFilter);
+  }
+  if (searchQuery.hasClauses()) {
+    fullBooleanQuery.add(searchQuery,BooleanClauseOccur.MUST);
+  }
+  BooleanClause<Query>[] booleanClauses=searchContext.getBooleanClauses();
+  if (booleanClauses != null) {
+    for (    BooleanClause<Query> booleanClause : booleanClauses) {
+      fullBooleanQuery.add(booleanClause.getClause(),booleanClause.getBooleanClauseOccur());
+    }
+  }
+  postProcessFullQuery(fullBooleanQuery,searchContext);
+  for (  IndexerPostProcessor indexerPostProcessor : _indexerPostProcessors) {
+    indexerPostProcessor.postProcessFullQuery(fullBooleanQuery,searchContext);
+  }
+  return fullBooleanQuery;
+}

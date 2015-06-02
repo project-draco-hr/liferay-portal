@@ -1,21 +1,23 @@
 {
   try {
-    BooleanQuery contextQuery=BooleanQueryFactoryUtil.create(searchContext);
-    contextQuery.addRequiredTerm(Field.COMPANY_ID,searchContext.getCompanyId());
+    BooleanFilter queryBooleanFilter=new BooleanFilter();
+    queryBooleanFilter.addRequiredTerm(Field.COMPANY_ID,searchContext.getCompanyId());
     List<TrashHandler> trashHandlers=TrashHandlerRegistryUtil.getTrashHandlers();
     for (    TrashHandler trashHandler : trashHandlers) {
       Query query=trashHandler.getExcludeQuery(searchContext);
       if (query != null) {
-        contextQuery.add(query,BooleanClauseOccur.MUST_NOT);
+        queryBooleanFilter.add(new QueryFilter(query),BooleanClauseOccur.MUST_NOT);
       }
     }
-    BooleanQuery groupQuery=BooleanQueryFactoryUtil.create(searchContext);
+    BooleanFilter groupBooleanFilter=new BooleanFilter();
     for (    long groupId : searchContext.getGroupIds()) {
-      groupQuery.addTerm(Field.GROUP_ID,String.valueOf(groupId),false,BooleanClauseOccur.SHOULD);
+      groupBooleanFilter.addTerm(Field.GROUP_ID,String.valueOf(groupId),BooleanClauseOccur.SHOULD);
     }
-    contextQuery.add(groupQuery,BooleanClauseOccur.MUST);
-    contextQuery.addRequiredTerm(Field.STATUS,WorkflowConstants.STATUS_IN_TRASH);
-    BooleanQuery fullQuery=createFullQuery(contextQuery,searchContext);
+    if (groupBooleanFilter.hasClauses()) {
+      queryBooleanFilter.add(groupBooleanFilter,BooleanClauseOccur.MUST);
+    }
+    queryBooleanFilter.addRequiredTerm(Field.STATUS,WorkflowConstants.STATUS_IN_TRASH);
+    BooleanQuery fullQuery=createFullQuery(queryBooleanFilter,searchContext);
     return fullQuery;
   }
  catch (  SearchException se) {

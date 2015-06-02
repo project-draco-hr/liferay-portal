@@ -1,0 +1,32 @@
+{
+  PermissionChecker permissionChecker=PermissionThreadLocal.getPermissionChecker();
+  long[] allCategoryIds=_assetEntryQuery.getAllCategoryIds();
+  if (allCategoryIds.length == 0) {
+    return;
+  }
+  long[] filteredAllCategoryIds=AssetUtil.filterCategoryIds(permissionChecker,allCategoryIds);
+  if (allCategoryIds.length != filteredAllCategoryIds.length) {
+    addImpossibleTerm(queryBooleanFilter,Field.ASSET_CATEGORY_IDS);
+    return;
+  }
+  BooleanFilter categoryIdsBooleanFilter=new BooleanFilter();
+  for (  long allCategoryId : filteredAllCategoryIds) {
+    AssetCategory assetCategory=AssetCategoryLocalServiceUtil.fetchAssetCategory(allCategoryId);
+    if (assetCategory == null) {
+      continue;
+    }
+    List<Long> categoryIds=new ArrayList<>();
+    if (PropsValues.ASSET_CATEGORIES_SEARCH_HIERARCHICAL) {
+      categoryIds.addAll(AssetCategoryLocalServiceUtil.getSubcategoryIds(allCategoryId));
+    }
+    if (categoryIds.isEmpty()) {
+      categoryIds.add(allCategoryId);
+    }
+    BooleanFilter categoryIdBooleanFilter=new BooleanFilter();
+    for (    long categoryId : categoryIds) {
+      categoryIdBooleanFilter.addTerm(Field.ASSET_CATEGORY_IDS,categoryId);
+    }
+    categoryIdsBooleanFilter.add(categoryIdBooleanFilter,BooleanClauseOccur.MUST);
+  }
+  queryBooleanFilter.add(categoryIdsBooleanFilter,BooleanClauseOccur.MUST);
+}
