@@ -1,0 +1,34 @@
+{
+  addStatus(contextFilter,searchContext);
+  if (searchContext.isIncludeAttachments()) {
+    addRelatedClassNames(contextFilter,searchContext);
+  }
+  contextFilter.addRequiredTerm(Field.HIDDEN,searchContext.isIncludeAttachments());
+  addSearchClassTypeIds(contextFilter,searchContext);
+  String ddmStructureFieldName=(String)searchContext.getAttribute("ddmStructureFieldName");
+  Serializable ddmStructureFieldValue=searchContext.getAttribute("ddmStructureFieldValue");
+  if (Validator.isNotNull(ddmStructureFieldName) && Validator.isNotNull(ddmStructureFieldValue)) {
+    String[] ddmStructureFieldNameParts=StringUtil.split(ddmStructureFieldName,DDMIndexer.DDM_FIELD_SEPARATOR);
+    DDMStructure structure=DDMStructureLocalServiceUtil.getStructure(GetterUtil.getLong(ddmStructureFieldNameParts[1]));
+    String fieldName=StringUtil.replaceLast(ddmStructureFieldNameParts[2],StringPool.UNDERLINE.concat(LocaleUtil.toLanguageId(searchContext.getLocale())),StringPool.BLANK);
+    try {
+      ddmStructureFieldValue=DDMUtil.getIndexedFieldValue(ddmStructureFieldValue,structure.getFieldType(fieldName));
+    }
+ catch (    StructureFieldException sfe) {
+      if (_log.isDebugEnabled()) {
+        _log.debug(sfe,sfe);
+      }
+    }
+    BooleanQuery booleanQuery=BooleanQueryFactoryUtil.create(searchContext);
+    booleanQuery.addRequiredTerm(ddmStructureFieldName,StringPool.QUOTE + ddmStructureFieldValue + StringPool.QUOTE);
+    contextFilter.add(new QueryFilter(booleanQuery));
+  }
+  String[] mimeTypes=(String[])searchContext.getAttribute("mimeTypes");
+  if (ArrayUtil.isNotEmpty(mimeTypes)) {
+    BooleanFilter mimeTypesFilter=new BooleanFilter();
+    for (    String mimeType : mimeTypes) {
+      mimeTypesFilter.addTerm("mimeType",StringUtil.replace(mimeType,CharPool.FORWARD_SLASH,CharPool.UNDERLINE));
+    }
+    contextFilter.add(mimeTypesFilter,BooleanClauseOccur.MUST);
+  }
+}

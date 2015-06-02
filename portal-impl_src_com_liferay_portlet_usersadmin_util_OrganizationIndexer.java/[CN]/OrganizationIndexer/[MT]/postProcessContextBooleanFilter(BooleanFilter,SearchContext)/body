@@ -1,0 +1,30 @@
+{
+  LinkedHashMap<String,Object> params=(LinkedHashMap<String,Object>)searchContext.getAttribute("params");
+  if (params == null) {
+    return;
+  }
+  List<Long> excludedOrganizationIds=(List<Long>)params.get("excludedOrganizationIds");
+  if (ListUtil.isNotEmpty(excludedOrganizationIds)) {
+    BooleanFilter booleanFilter=new BooleanFilter();
+    for (    long excludedOrganizationId : excludedOrganizationIds) {
+      booleanFilter.addTerm("organizationId",String.valueOf(excludedOrganizationId));
+    }
+    contextFilter.add(booleanFilter,BooleanClauseOccur.MUST_NOT);
+  }
+  List<Organization> organizationsTree=(List<Organization>)params.get("organizationsTree");
+  if (ListUtil.isNotEmpty(organizationsTree)) {
+    BooleanFilter booleanFilter=new BooleanFilter();
+    for (    Organization organization : organizationsTree) {
+      String treePath=organization.buildTreePath();
+      WildcardQuery wildcardQuery=WildcardQueryFactoryUtil.create(searchContext,Field.TREE_PATH,treePath);
+      booleanFilter.add(new QueryFilter(wildcardQuery));
+    }
+    contextFilter.add(booleanFilter,BooleanClauseOccur.MUST);
+  }
+ else {
+    long parentOrganizationId=GetterUtil.getLong(searchContext.getAttribute("parentOrganizationId"));
+    if (parentOrganizationId != OrganizationConstants.ANY_PARENT_ORGANIZATION_ID) {
+      contextFilter.addRequiredTerm("parentOrganizationId",parentOrganizationId);
+    }
+  }
+}
