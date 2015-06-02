@@ -1,0 +1,25 @@
+{
+  final JSONObject notificationEventJSONObject=JSONFactoryUtil.createJSONObject();
+  notificationEventJSONObject.put("className",MicroblogsEntry.class.getName());
+  notificationEventJSONObject.put("classPK",microblogsEntry.getMicroblogsEntryId());
+  notificationEventJSONObject.put("entryTitle",MicroblogsUtil.getProcessedContent(StringUtil.shorten(microblogsEntry.getContent(),50),serviceContext));
+  AssetRendererFactory assetRendererFactory=AssetRendererFactoryRegistryUtil.getAssetRendererFactoryByClassName(MicroblogsEntry.class.getName());
+  AssetRenderer assetRenderer=assetRendererFactory.getAssetRenderer(microblogsEntry.getMicroblogsEntryId());
+  String entryURL=StringPool.BLANK;
+  try {
+    entryURL=assetRenderer.getURLViewInContext(serviceContext.getLiferayPortletRequest(),serviceContext.getLiferayPortletResponse(),null);
+  }
+ catch (  Exception e) {
+  }
+  notificationEventJSONObject.put("entryURL",entryURL);
+  notificationEventJSONObject.put("userId",microblogsEntry.getUserId());
+  final List<Long> receiverUserIds=MicroblogsUtil.getSubscriberUserIds(microblogsEntry);
+  Callable<Void> callable=new Callable<Void>(){
+    @Override public Void call() throws Exception {
+      MessageBusUtil.sendMessage(DestinationNames.ASYNC_SERVICE,new NotificationProcessCallable(receiverUserIds,microblogsEntry,notificationEventJSONObject));
+      return null;
+    }
+  }
+;
+  TransactionCommitCallbackRegistryUtil.registerCallback(callable);
+}
