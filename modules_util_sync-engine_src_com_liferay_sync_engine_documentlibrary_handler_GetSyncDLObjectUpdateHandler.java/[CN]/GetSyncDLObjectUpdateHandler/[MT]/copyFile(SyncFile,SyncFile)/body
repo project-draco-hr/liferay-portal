@@ -1,0 +1,16 @@
+{
+  if (_logger.isDebugEnabled()) {
+    _logger.debug("Copying file {} to {}",sourceSyncFile.getFilePathName(),targetSyncFile.getFilePathName());
+  }
+  SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(sourceSyncFile.getSyncAccountId());
+  Path tempFilePath=FileUtil.getFilePath(syncAccount.getFilePathName(),".data",String.valueOf(targetSyncFile.getSyncFileId()));
+  Files.copy(Paths.get(sourceSyncFile.getFilePathName()),tempFilePath,StandardCopyOption.REPLACE_EXISTING);
+  FileKeyUtil.writeFileKey(tempFilePath,String.valueOf(targetSyncFile.getSyncFileId()),false);
+  Watcher watcher=WatcherRegistry.getWatcher(getSyncAccountId());
+  List<String> downloadedFilePathNames=watcher.getDownloadedFilePathNames();
+  downloadedFilePathNames.add(targetSyncFile.getFilePathName());
+  Files.move(tempFilePath,Paths.get(targetSyncFile.getFilePathName()),StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
+  targetSyncFile.setState(SyncFile.STATE_SYNCED);
+  targetSyncFile.setUiEvent(SyncFile.UI_EVENT_DOWNLOADED_NEW);
+  SyncFileService.update(targetSyncFile);
+}
