@@ -3,8 +3,9 @@
   if (userId > 0) {
     permissionBooleanFilter.addTerm(Field.USER_ID,userId);
   }
-  BooleanFilter groupsBooleanFilter=new BooleanFilter();
-  BooleanFilter rolesBooleanFilter=new BooleanFilter();
+  TermsFilter groupsTermsFilter=new TermsFilter(Field.GROUP_ID);
+  TermsFilter groupRolesTermsFilter=new TermsFilter(Field.GROUP_ROLE_ID);
+  TermsFilter rolesTermsFilter=new TermsFilter(Field.ROLE_ID);
   for (  Role role : roles) {
     String roleName=role.getName();
     if (roleName.equals(RoleConstants.ADMINISTRATOR)) {
@@ -18,38 +19,41 @@
     }
     for (    Group group : groups) {
       if (ResourcePermissionLocalServiceUtil.hasResourcePermission(companyId,className,ResourceConstants.SCOPE_GROUP,String.valueOf(group.getGroupId()),role.getRoleId(),ActionKeys.VIEW)) {
-        groupsBooleanFilter.addTerm(Field.GROUP_ID,group.getGroupId());
+        groupsTermsFilter.addValue(String.valueOf(group.getGroupId()));
       }
       if ((role.getType() != RoleConstants.TYPE_REGULAR) && ResourcePermissionLocalServiceUtil.hasResourcePermission(companyId,className,ResourceConstants.SCOPE_GROUP_TEMPLATE,String.valueOf(GroupConstants.DEFAULT_PARENT_GROUP_ID),role.getRoleId(),ActionKeys.VIEW)) {
         List<Role> groupRoles=groupIdsToRoles.get(group.getGroupId());
         if (groupRoles.contains(role)) {
-          groupsBooleanFilter.addTerm(Field.GROUP_ID,group.getGroupId());
+          groupsTermsFilter.addValue(String.valueOf(group.getGroupId()));
         }
       }
       if (group.isSite() && !roleName.equals(RoleConstants.SITE_MEMBER) && (role.getType() == RoleConstants.TYPE_SITE)) {
-        rolesBooleanFilter.addTerm(Field.GROUP_ROLE_ID,group.getGroupId() + StringPool.DASH + role.getRoleId());
+        groupRolesTermsFilter.addValue(group.getGroupId() + StringPool.DASH + role.getRoleId());
       }
     }
     if (ArrayUtil.isNotEmpty(groupIds)) {
       for (      long groupId : groupIds) {
         if (ResourcePermissionLocalServiceUtil.hasResourcePermission(companyId,className,ResourceConstants.SCOPE_GROUP,String.valueOf(groupId),role.getRoleId(),ActionKeys.VIEW)) {
-          groupsBooleanFilter.addTerm(Field.GROUP_ID,groupId);
+          groupsTermsFilter.addValue(String.valueOf(groupId));
         }
       }
     }
-    rolesBooleanFilter.addTerm(Field.ROLE_ID,role.getRoleId());
+    rolesTermsFilter.addValue(String.valueOf(role.getRoleId()));
   }
   for (  Group group : groups) {
-    addRequiredMemberRole(group,rolesBooleanFilter);
+    addRequiredMemberRole(group,groupRolesTermsFilter);
   }
   for (  UserGroupRole userGroupRole : userGroupRoles) {
-    rolesBooleanFilter.addTerm(Field.GROUP_ROLE_ID,userGroupRole.getGroupId() + StringPool.DASH + userGroupRole.getRoleId());
+    groupRolesTermsFilter.addValue(userGroupRole.getGroupId() + StringPool.DASH + userGroupRole.getRoleId());
   }
-  if (groupsBooleanFilter.hasClauses()) {
-    permissionBooleanFilter.add(groupsBooleanFilter);
+  if (!groupsTermsFilter.isEmpty()) {
+    permissionBooleanFilter.add(groupsTermsFilter);
   }
-  if (rolesBooleanFilter.hasClauses()) {
-    permissionBooleanFilter.add(rolesBooleanFilter);
+  if (!groupRolesTermsFilter.isEmpty()) {
+    permissionBooleanFilter.add(groupRolesTermsFilter);
+  }
+  if (!rolesTermsFilter.isEmpty()) {
+    permissionBooleanFilter.add(rolesTermsFilter);
   }
   if (!permissionBooleanFilter.hasClauses()) {
     return booleanFilter;
