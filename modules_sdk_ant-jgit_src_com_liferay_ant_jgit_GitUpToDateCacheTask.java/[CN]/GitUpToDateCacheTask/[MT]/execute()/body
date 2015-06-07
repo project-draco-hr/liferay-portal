@@ -1,0 +1,33 @@
+{
+  if (_dir == null) {
+    throw new BuildException("Dir attribute is required",getLocation());
+  }
+  List<Path> paths=scanSnapshotPaths();
+  if (paths.isEmpty()) {
+    return;
+  }
+  Properties properties=new Properties();
+  properties.put("pname",UpToDateUtil.getProcessName());
+  File gitDir=PathUtil.getGitDir(_gitDir,getProject(),getLocation());
+  try (Repository repository=RepositoryCache.open(FileKey.exact(gitDir,FS.DETECTED))){
+    Git git=new Git(repository);
+    for (    Path path : paths) {
+      String relativePath=PathUtil.toRelativePath(gitDir,path.toString());
+      if (!UpToDateUtil.isClean(git,relativePath)) {
+        properties.put(relativePath,"false");
+        continue;
+      }
+      properties.put(relativePath,Boolean.toString(!UpToDateUtil.hasChangedSince(repository,relativePath,getModuleSnapshotGitHash(path))));
+    }
+    if (properties.size() > 1) {
+      File cacheFile=new File(_dir,_cacheFileName);
+      cacheFile.deleteOnExit();
+      try (OutputStream outputStream=new FileOutputStream(cacheFile)){
+        properties.store(outputStream,null);
+      }
+     }
+  }
+ catch (  Exception e) {
+    throw new BuildException(e);
+  }
+}

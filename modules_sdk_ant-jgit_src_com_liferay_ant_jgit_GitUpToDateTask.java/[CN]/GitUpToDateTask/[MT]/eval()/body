@@ -1,0 +1,37 @@
+{
+  if (_path == null) {
+    throw new BuildException("Path attribute is required",getLocation());
+  }
+  if (_since == null) {
+    throw new BuildException("Since attribute is required",getLocation());
+  }
+  try {
+    Map<String,Boolean> upToDateMap=loadUpToDateCache();
+    File gitDir=PathUtil.getGitDir(_gitDir,getProject(),getLocation());
+    String relativePath=PathUtil.toRelativePath(gitDir,_path);
+    if (upToDateMap == null) {
+      log("Unable to load cache file, fallback to up to date " + "checking",Project.MSG_VERBOSE);
+    }
+ else {
+      Boolean upToDate=upToDateMap.get(relativePath);
+      if (upToDate == null) {
+        log("Cache missed for " + relativePath + ", fallback to up to date checking",Project.MSG_VERBOSE);
+      }
+ else {
+        return upToDate;
+      }
+    }
+    try (Repository repository=RepositoryCache.open(FileKey.exact(gitDir,FS.DETECTED))){
+      if (UpToDateUtil.isClean(new Git(repository),relativePath) && !UpToDateUtil.hasChangedSince(repository,relativePath,_since)) {
+        return true;
+      }
+      return false;
+    }
+ catch (    Exception e) {
+      throw new BuildException("Unable to check cleanness for path " + _path,e);
+    }
+  }
+ catch (  IOException ioe) {
+    throw new BuildException(ioe);
+  }
+}
