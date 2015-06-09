@@ -1,0 +1,49 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+  long commentId=ParamUtil.getLong(request,"commentId");
+  String className=ParamUtil.getString(request,"className");
+  long classPK=ParamUtil.getLong(request,"classPK");
+  long parentCommentId=ParamUtil.getLong(request,"parentCommentId");
+  String subject=ParamUtil.getString(request,"subject");
+  String body=ParamUtil.getString(request,"body");
+  Function<String,ServiceContext> serviceContextFunction=new ServiceContextFunction(request);
+  DiscussionPermission discussionPermission=CommentManagerUtil.getDiscussionPermission(themeDisplay.getPermissionChecker());
+  if (commentId <= 0) {
+    User user=null;
+    if (themeDisplay.isSignedIn()) {
+      user=themeDisplay.getUser();
+    }
+ else {
+      String emailAddress=ParamUtil.getString(request,"emailAddress");
+      user=UserLocalServiceUtil.fetchUserByEmailAddress(themeDisplay.getCompanyId(),emailAddress);
+      if ((user == null) || (user.getStatus() != WorkflowConstants.STATUS_INCOMPLETE)) {
+        return 0;
+      }
+    }
+    String name=PrincipalThreadLocal.getName();
+    PrincipalThreadLocal.setName(user.getUserId());
+    try {
+      discussionPermission.checkAddPermission(themeDisplay.getCompanyId(),themeDisplay.getScopeGroupId(),className,classPK);
+      commentId=CommentManagerUtil.addComment(user.getUserId(),className,classPK,user.getFullName(),parentCommentId,subject,body,serviceContextFunction);
+    }
+  finally {
+      PrincipalThreadLocal.setName(name);
+    }
+  }
+ else {
+    if (Validator.isNull(className) || (classPK == 0)) {
+      Comment comment=CommentManagerUtil.fetchComment(commentId);
+      if (comment != null) {
+        className=comment.getClassName();
+        classPK=comment.getClassPK();
+      }
+    }
+    discussionPermission.checkUpdatePermission(commentId);
+    commentId=CommentManagerUtil.updateComment(themeDisplay.getUserId(),className,classPK,commentId,subject,body,serviceContextFunction);
+  }
+  boolean subscribe=ParamUtil.getBoolean(request,"subscribe");
+  if (subscribe) {
+    CommentManagerUtil.subscribeDiscussion(themeDisplay.getUserId(),themeDisplay.getScopeGroupId(),className,classPK);
+  }
+  return commentId;
+}
