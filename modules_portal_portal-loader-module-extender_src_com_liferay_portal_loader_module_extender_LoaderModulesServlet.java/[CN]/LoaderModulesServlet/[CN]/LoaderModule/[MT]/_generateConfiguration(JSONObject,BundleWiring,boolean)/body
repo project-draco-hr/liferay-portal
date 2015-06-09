@@ -1,0 +1,49 @@
+{
+  if (!_details.loader_modules_apply_versioning()) {
+    if (versionedModuleName) {
+      return "";
+    }
+    return jsonObject.toString();
+  }
+  List<BundleWire> requiredWires=bundleWiring.getRequiredWires(Details.OSGI_WEBRESOURCE);
+  JSONArray names=jsonObject.names();
+  for (int i=0; i < names.length(); i++) {
+    String name=(String)names.get(i);
+    int x=name.indexOf('/');
+    if (x == -1) {
+      continue;
+    }
+    String moduleName=name.substring(0,x);
+    String modulePath=name.substring(x);
+    if (!moduleName.equals(getName())) {
+      continue;
+    }
+    moduleName=getName() + "@" + getVersion()+ modulePath;
+    JSONObject curObject=jsonObject.getJSONObject(name);
+    JSONArray jsonArray=curObject.getJSONArray("dependencies");
+    for (int j=0; j < jsonArray.length(); j++) {
+      String dependency=jsonArray.getString(j);
+      int y=dependency.indexOf('/');
+      if (y == -1) {
+        continue;
+      }
+      String dependencyName=dependency.substring(0,y);
+      String dependencyPath=dependency.substring(y);
+      if (dependencyName.equals(getName())) {
+        dependencyName=getName() + "@" + getVersion()+ dependencyPath;
+        jsonArray.put(j,dependencyName);
+      }
+ else {
+        _normalizeDependencies(dependencyName,dependencyPath,jsonArray,j,requiredWires);
+      }
+    }
+    if (versionedModuleName) {
+      jsonObject.remove(name);
+      jsonObject.put(moduleName,curObject);
+    }
+ else {
+      jsonObject.put(name,curObject);
+    }
+  }
+  return jsonObject.toString();
+}
