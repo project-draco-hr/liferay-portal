@@ -1,15 +1,21 @@
 {
+  SearchResponseScroller searchResponseScroller=null;
   try {
+    MatchAllQueryBuilder matchAllQueryBuilder=QueryBuilders.matchAllQuery();
+    TermFilterBuilder termFilterBuilder=FilterBuilders.termFilter(Field.ENTRY_CLASS_NAME,className);
+    termFilterBuilder.cache(false);
+    QueryBuilder queryBuilder=QueryBuilders.filteredQuery(matchAllQueryBuilder,termFilterBuilder);
     Client client=_elasticsearchConnectionManager.getClient();
-    DeleteByQueryRequestBuilder deleteByQueryRequestBuilder=client.prepareDeleteByQuery(String.valueOf(searchContext.getCompanyId()));
-    BoolQueryBuilder boolQueryBuilder=QueryBuilders.boolQuery();
-    boolQueryBuilder.must(QueryBuilders.termQuery(Field.ENTRY_CLASS_NAME,className));
-    deleteByQueryRequestBuilder.setQuery(boolQueryBuilder);
-    Future<DeleteByQueryResponse> future=deleteByQueryRequestBuilder.execute();
-    DeleteByQueryResponse deleteByQueryResponse=future.get();
-    LogUtil.logActionResponse(_log,deleteByQueryResponse);
+    searchResponseScroller=new SearchResponseScroller(client,searchContext,queryBuilder,TimeValue.timeValueSeconds(30),DocumentTypes.LIFERAY);
+    searchResponseScroller.prepare();
+    searchResponseScroller.scroll(_searchHitsProcessor);
   }
  catch (  Exception e) {
     throw new SearchException("Unable to delete data for entity " + className,e);
+  }
+ finally {
+    if (searchResponseScroller != null) {
+      searchResponseScroller.close();
+    }
   }
 }

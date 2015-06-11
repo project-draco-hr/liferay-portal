@@ -1,9 +1,18 @@
 {
-  Client client=_elasticsearchConnectionManager.getClient();
-  DeleteByQueryRequestBuilder deleteByQueryRequestBuilder=client.prepareDeleteByQuery(String.valueOf(searchContext.getCompanyId()));
-  deleteByQueryRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
-  deleteByQueryRequestBuilder.setTypes(indexType);
-  Future<DeleteByQueryResponse> deleteByQueryRequestFuture=deleteByQueryRequestBuilder.execute();
-  DeleteByQueryResponse deleteByQueryResponse=deleteByQueryRequestFuture.get();
-  LogUtil.logActionResponse(_log,deleteByQueryResponse);
+  if (_searchHitsProcessor == null) {
+    throw new IllegalStateException("Module not properly initialized");
+  }
+  SearchResponseScroller searchResponseScroller=null;
+  try {
+    MatchAllQueryBuilder matchAllQueryBuilder=QueryBuilders.matchAllQuery();
+    Client client=_elasticsearchConnectionManager.getClient();
+    searchResponseScroller=new SearchResponseScroller(client,searchContext,matchAllQueryBuilder,TimeValue.timeValueSeconds(30),indexType);
+    searchResponseScroller.prepare();
+    searchResponseScroller.scroll(_searchHitsProcessor);
+  }
+  finally {
+    if (searchResponseScroller != null) {
+      searchResponseScroller.close();
+    }
+  }
 }
