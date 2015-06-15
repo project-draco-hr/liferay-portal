@@ -1,18 +1,23 @@
 {
-  ExecutorService executorService=Executors.newFixedThreadPool(10);
-  List<LockingJob> lockingJobs=new ArrayList<>();
-  for (int i=0; i < 10; i++) {
-    LockingJob lockingJob=new LockingJob("className","key","owner-" + i,10);
-    lockingJobs.add(lockingJob);
-    executorService.execute(lockingJob);
-  }
-  executorService.shutdown();
-  Assert.assertTrue(executorService.awaitTermination(600,TimeUnit.SECONDS));
-  for (  LockingJob lockingJob : lockingJobs) {
-    SystemException systemException=lockingJob.getSystemException();
-    if (systemException != null) {
-      throw systemException;
+  try (CaptureAppender captureAppender=Log4JLoggerTestUtil.configureLog4JLogger(JDBCExceptionReporter.class.getName(),Level.ERROR)){
+    ExecutorService executorService=Executors.newFixedThreadPool(10);
+    List<LockingJob> lockingJobs=new ArrayList<>();
+    for (int i=0; i < 10; i++) {
+      LockingJob lockingJob=new LockingJob("className","key","owner-" + i,10);
+      lockingJobs.add(lockingJob);
+      executorService.execute(lockingJob);
+    }
+    executorService.shutdown();
+    Assert.assertTrue(executorService.awaitTermination(600,TimeUnit.SECONDS));
+    for (    LockingJob lockingJob : lockingJobs) {
+      SystemException systemException=lockingJob.getSystemException();
+      if (systemException != null) {
+        throw systemException;
+      }
+    }
+    Assert.assertFalse(LockLocalServiceUtil.isLocked("className","key"));
+    for (    LoggingEvent loggingEvent : captureAppender.getLoggingEvents()) {
+      Assert.assertEquals("Deadlock found when trying to get lock; try restarting " + "transaction",loggingEvent.getMessage());
     }
   }
-  Assert.assertFalse(LockLocalServiceUtil.isLocked("className","key"));
-}
+ }
