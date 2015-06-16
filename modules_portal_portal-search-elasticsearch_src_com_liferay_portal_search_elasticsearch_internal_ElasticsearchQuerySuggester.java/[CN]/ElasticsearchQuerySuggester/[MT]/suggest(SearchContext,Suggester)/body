@@ -1,0 +1,27 @@
+{
+  StopWatch stopWatch=new StopWatch();
+  stopWatch.start();
+  Client client=_elasticsearchConnectionManager.getClient();
+  SuggestBuilder suggestBuilder=_suggesterTranslator.translate(suggester,searchContext);
+  SuggestRequestBuilder suggestRequestBuilder=client.prepareSuggest(String.valueOf(searchContext.getCompanyId()));
+  for (  SuggestBuilder.SuggestionBuilder suggestionBuilder : suggestBuilder.getSuggestion()) {
+    suggestRequestBuilder.addSuggestion(suggestionBuilder);
+  }
+  if (suggester instanceof AggregateSuggester) {
+    AggregateSuggester aggregateSuggester=(AggregateSuggester)suggester;
+    suggestRequestBuilder.setSuggestText(aggregateSuggester.getValue());
+  }
+  ActionFuture<SuggestResponse> future=suggestRequestBuilder.execute();
+  SuggestResponse suggestResponse=future.actionGet();
+  Suggest suggest=suggestResponse.getSuggest();
+  SuggesterResults suggesterResults=new SuggesterResults();
+  for (  Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestion : suggest) {
+    SuggesterResult suggesterResult=translate(suggestion);
+    suggesterResults.addSuggesterResult(suggesterResult);
+  }
+  if (_log.isInfoEnabled()) {
+    stopWatch.stop();
+    _log.info("Spell checked keywords in " + stopWatch.getTime() + "ms");
+  }
+  return suggesterResults;
+}

@@ -1,28 +1,21 @@
 {
-  StopWatch stopWatch=new StopWatch();
-  stopWatch.start();
-  SuggestBuilder.SuggestionBuilder<TermSuggestionBuilder> suggestionBuilder=SuggestBuilders.termSuggestion(_REQUEST_TYPE_SPELL_CHECK);
-  Suggest.Suggestion<?> suggestion=getSuggestion(searchContext,suggestionBuilder,DocumentTypes.SPELL_CHECK,Field.SPELL_CHECK_WORD,_REQUEST_TYPE_SPELL_CHECK,max);
-  if (suggestion == null) {
-    return Collections.emptyMap();
-  }
+  String field=DocumentImpl.getLocalizedName(searchContext.getLocale(),Field.SPELL_CHECK_WORD);
+  TermSuggester termSuggester=new TermSuggester(_REQUEST_TYPE_SPELL_CHECK,field,searchContext.getKeywords());
+  termSuggester.setSize(max);
+  SuggesterResults suggesterResults=suggest(searchContext,termSuggester);
   Map<String,List<String>> suggestionsMap=new HashMap<>();
-  for (  Object entry : suggestion.getEntries()) {
-    Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option> suggestionEntry=(Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>)entry;
-    String text=String.valueOf(suggestionEntry.getText());
-    List<String> suggestionsList=suggestionsMap.get(text);
-    if (suggestionsList == null) {
-      suggestionsList=new ArrayList<>();
-      suggestionsMap.put(text,suggestionsList);
+  for (  SuggesterResult suggesterResult : suggesterResults.getSuggesterResults()) {
+    for (    SuggesterResult.Entry suggesterResultEntry : suggesterResult.getEntries()) {
+      String text=suggesterResultEntry.getText();
+      List<String> suggestionsList=suggestionsMap.get(text);
+      if (suggestionsList == null) {
+        suggestionsList=new ArrayList<>();
+        suggestionsMap.put(text,suggestionsList);
+      }
+      for (      SuggesterResult.Entry.Option suggesterResultEntryOption : suggesterResultEntry.getOptions()) {
+        suggestionsList.add(suggesterResultEntryOption.getText());
+      }
     }
-    for (    Suggest.Suggestion.Entry.Option option : suggestionEntry.getOptions()) {
-      String optionText=String.valueOf(option.getText());
-      suggestionsList.add(optionText);
-    }
-  }
-  if (_log.isInfoEnabled()) {
-    stopWatch.stop();
-    _log.info("Spell checked keywords in " + stopWatch.getTime() + "ms");
   }
   return suggestionsMap;
 }
