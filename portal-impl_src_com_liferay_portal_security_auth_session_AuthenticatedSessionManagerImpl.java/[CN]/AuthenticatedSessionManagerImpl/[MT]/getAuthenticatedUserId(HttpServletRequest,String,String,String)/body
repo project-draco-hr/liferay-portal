@@ -1,0 +1,48 @@
+{
+  long userId=GetterUtil.getLong(login);
+  Company company=PortalUtil.getCompany(request);
+  String requestURI=request.getRequestURI();
+  String contextPath=PortalUtil.getPathContext();
+  if (requestURI.startsWith(contextPath.concat("/api/liferay"))) {
+    throw new AuthException();
+  }
+ else {
+    Map<String,String[]> headerMap=new HashMap<>();
+    Enumeration<String> enu1=request.getHeaderNames();
+    while (enu1.hasMoreElements()) {
+      String name=enu1.nextElement();
+      Enumeration<String> enu2=request.getHeaders(name);
+      List<String> headers=new ArrayList<>();
+      while (enu2.hasMoreElements()) {
+        String value=enu2.nextElement();
+        headers.add(value);
+      }
+      headerMap.put(name,headers.toArray(new String[headers.size()]));
+    }
+    Map<String,String[]> parameterMap=request.getParameterMap();
+    Map<String,Object> resultsMap=new HashMap<>();
+    if (Validator.isNull(authType)) {
+      authType=company.getAuthType();
+    }
+    int authResult=Authenticator.FAILURE;
+    if (authType.equals(CompanyConstants.AUTH_TYPE_EA)) {
+      authResult=UserLocalServiceUtil.authenticateByEmailAddress(company.getCompanyId(),login,password,headerMap,parameterMap,resultsMap);
+      userId=MapUtil.getLong(resultsMap,"userId",userId);
+    }
+ else     if (authType.equals(CompanyConstants.AUTH_TYPE_SN)) {
+      authResult=UserLocalServiceUtil.authenticateByScreenName(company.getCompanyId(),login,password,headerMap,parameterMap,resultsMap);
+      userId=MapUtil.getLong(resultsMap,"userId",userId);
+    }
+ else     if (authType.equals(CompanyConstants.AUTH_TYPE_ID)) {
+      authResult=UserLocalServiceUtil.authenticateByUserId(company.getCompanyId(),userId,password,headerMap,parameterMap,resultsMap);
+    }
+    if (authResult != Authenticator.SUCCESS) {
+      User user=UserLocalServiceUtil.fetchUser(userId);
+      if (user != null) {
+        UserLocalServiceUtil.checkLockout(user);
+      }
+      throw new AuthException();
+    }
+  }
+  return userId;
+}

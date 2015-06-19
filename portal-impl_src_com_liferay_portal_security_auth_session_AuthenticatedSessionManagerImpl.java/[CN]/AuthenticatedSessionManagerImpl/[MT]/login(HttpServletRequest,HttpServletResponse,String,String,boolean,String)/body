@@ -1,0 +1,97 @@
+{
+  CookieKeys.validateSupportCookie(request);
+  HttpSession session=request.getSession();
+  Company company=PortalUtil.getCompany(request);
+  long userId=getAuthenticatedUserId(request,login,password,authType);
+  if (!PropsValues.AUTH_SIMULTANEOUS_LOGINS) {
+    signOutSimultaneousLogins(userId);
+  }
+  if (PropsValues.SESSION_ENABLE_PHISHING_PROTECTION) {
+    session=renewSession(request,session);
+  }
+  String domain=CookieKeys.getDomain(request);
+  User user=UserLocalServiceUtil.getUserById(userId);
+  String userIdString=String.valueOf(userId);
+  session.setAttribute("j_username",userIdString);
+  if (PropsValues.PORTAL_JAAS_PLAIN_PASSWORD) {
+    session.setAttribute("j_password",password);
+  }
+ else {
+    session.setAttribute("j_password",user.getPassword());
+  }
+  session.setAttribute("j_remoteuser",userIdString);
+  if (PropsValues.SESSION_STORE_PASSWORD) {
+    session.setAttribute(WebKeys.USER_PASSWORD,password);
+  }
+  Cookie companyIdCookie=new Cookie(CookieKeys.COMPANY_ID,String.valueOf(company.getCompanyId()));
+  if (Validator.isNotNull(domain)) {
+    companyIdCookie.setDomain(domain);
+  }
+  companyIdCookie.setPath(StringPool.SLASH);
+  Cookie idCookie=new Cookie(CookieKeys.ID,Encryptor.encrypt(company.getKeyObj(),userIdString));
+  if (Validator.isNotNull(domain)) {
+    idCookie.setDomain(domain);
+  }
+  idCookie.setPath(StringPool.SLASH);
+  Cookie passwordCookie=new Cookie(CookieKeys.PASSWORD,Encryptor.encrypt(company.getKeyObj(),password));
+  if (Validator.isNotNull(domain)) {
+    passwordCookie.setDomain(domain);
+  }
+  passwordCookie.setPath(StringPool.SLASH);
+  Cookie rememberMeCookie=new Cookie(CookieKeys.REMEMBER_ME,Boolean.TRUE.toString());
+  if (Validator.isNotNull(domain)) {
+    rememberMeCookie.setDomain(domain);
+  }
+  rememberMeCookie.setPath(StringPool.SLASH);
+  int loginMaxAge=PropsValues.COMPANY_SECURITY_AUTO_LOGIN_MAX_AGE;
+  String userUUID=userIdString.concat(StringPool.PERIOD).concat(String.valueOf(System.nanoTime()));
+  Cookie userUUIDCookie=new Cookie(CookieKeys.USER_UUID,Encryptor.encrypt(company.getKeyObj(),userUUID));
+  userUUIDCookie.setPath(StringPool.SLASH);
+  session.setAttribute(WebKeys.USER_UUID,userUUID);
+  if (PropsValues.SESSION_DISABLED) {
+    rememberMe=true;
+  }
+  if (rememberMe) {
+    companyIdCookie.setMaxAge(loginMaxAge);
+    idCookie.setMaxAge(loginMaxAge);
+    passwordCookie.setMaxAge(loginMaxAge);
+    rememberMeCookie.setMaxAge(loginMaxAge);
+    userUUIDCookie.setMaxAge(loginMaxAge);
+  }
+ else {
+    companyIdCookie.setMaxAge(-1);
+    idCookie.setMaxAge(-1);
+    passwordCookie.setMaxAge(-1);
+    rememberMeCookie.setMaxAge(0);
+    userUUIDCookie.setMaxAge(-1);
+  }
+  Cookie loginCookie=new Cookie(CookieKeys.LOGIN,login);
+  if (Validator.isNotNull(domain)) {
+    loginCookie.setDomain(domain);
+  }
+  loginCookie.setMaxAge(loginMaxAge);
+  loginCookie.setPath(StringPool.SLASH);
+  Cookie screenNameCookie=new Cookie(CookieKeys.SCREEN_NAME,Encryptor.encrypt(company.getKeyObj(),user.getScreenName()));
+  if (Validator.isNotNull(domain)) {
+    screenNameCookie.setDomain(domain);
+  }
+  screenNameCookie.setMaxAge(loginMaxAge);
+  screenNameCookie.setPath(StringPool.SLASH);
+  boolean secure=request.isSecure();
+  if (secure && !PropsValues.COMPANY_SECURITY_AUTH_REQUIRES_HTTPS && !StringUtil.equalsIgnoreCase(Http.HTTPS,PropsValues.WEB_SERVER_PROTOCOL)) {
+    Boolean httpsInitial=(Boolean)session.getAttribute(WebKeys.HTTPS_INITIAL);
+    if ((httpsInitial == null) || !httpsInitial.booleanValue()) {
+      secure=false;
+    }
+  }
+  CookieKeys.addCookie(request,response,companyIdCookie,secure);
+  CookieKeys.addCookie(request,response,idCookie,secure);
+  CookieKeys.addCookie(request,response,userUUIDCookie,secure);
+  if (rememberMe) {
+    CookieKeys.addCookie(request,response,loginCookie,secure);
+    CookieKeys.addCookie(request,response,passwordCookie,secure);
+    CookieKeys.addCookie(request,response,rememberMeCookie,secure);
+    CookieKeys.addCookie(request,response,screenNameCookie,secure);
+  }
+  AuthenticatedUserUUIDStoreUtil.register(userUUID);
+}
