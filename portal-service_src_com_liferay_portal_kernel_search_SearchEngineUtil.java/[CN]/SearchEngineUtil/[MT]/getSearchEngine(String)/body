@@ -1,21 +1,16 @@
 {
   PortalRuntimePermission.checkSearchEngine(searchEngineId);
   SearchEngine searchEngine=_searchEngines.get(searchEngineId);
-  if (searchEngine == null) {
-    if (SYSTEM_ENGINE_ID.equals(searchEngineId)) {
-      waitForSystemSearchEngine();
-      searchEngine=_searchEngines.get(SYSTEM_ENGINE_ID);
-      if (searchEngine == null) {
-        throw new IllegalStateException("Unable to find search engine " + SYSTEM_ENGINE_ID);
-      }
-      return searchEngine;
-    }
-    if (getDefaultSearchEngineId().equals(searchEngineId)) {
-      throw new IllegalStateException("There is no default search engine configured with ID " + getDefaultSearchEngineId());
-    }
-    if (_log.isWarnEnabled()) {
-      _log.warn("There is no search engine configured with ID " + searchEngineId);
-    }
+  if (searchEngine != null) {
+    return searchEngine;
   }
-  return searchEngine;
+synchronized (_queuingSearchEngines) {
+    searchEngine=_queuingSearchEngines.get(searchEngineId);
+    if (searchEngine == null) {
+      QueuingSearchEngine queuingSearchEngine=new QueuingSearchEngine(_queueCapacity);
+      _queuingSearchEngines.put(searchEngineId,queuingSearchEngine);
+      searchEngine=queuingSearchEngine;
+    }
+    return searchEngine;
+  }
 }
