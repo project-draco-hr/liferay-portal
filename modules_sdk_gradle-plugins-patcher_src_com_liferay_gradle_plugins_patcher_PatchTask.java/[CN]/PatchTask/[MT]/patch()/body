@@ -1,0 +1,54 @@
+{
+  final File temporaryDir=getTemporaryDir();
+  _project.delete(temporaryDir);
+  temporaryDir.mkdir();
+  Closure<Void> closure=new Closure<Void>(null){
+    @SuppressWarnings("unused") public void doCall(    CopySpec copySpec) throws Exception {
+      final String originalLibSrcDirName=getOriginalLibSrcDirName();
+      if (!originalLibSrcDirName.equals(".")) {
+        copySpec.eachFile(new Action<FileCopyDetails>(){
+          @Override public void execute(          FileCopyDetails fileCopyDetails){
+            RelativePath relativePath=fileCopyDetails.getRelativePath();
+            String relativePathString=relativePath.getPathString();
+            if (!relativePathString.startsWith(originalLibSrcDirName + "/")) {
+              fileCopyDetails.exclude();
+              return;
+            }
+            relativePathString=relativePathString.substring(originalLibSrcDirName.length() + 1);
+            fileCopyDetails.setRelativePath(RelativePath.parse(true,relativePathString));
+          }
+        }
+);
+      }
+      copySpec.from(_project.zipTree(getOriginalLibSrcFile()));
+      copySpec.include(getFileNames());
+      copySpec.into(temporaryDir);
+      copySpec.setIncludeEmptyDirs(false);
+    }
+  }
+;
+  _project.copy(closure);
+  for (  final File patchFile : getPatchFiles()) {
+    _project.exec(new Action<ExecSpec>(){
+      @Override public void execute(      ExecSpec execSpec){
+        execSpec.setExecutable("patch");
+        execSpec.setWorkingDir(temporaryDir);
+        execSpec.args("--input=" + FileUtil.relativize(patchFile,temporaryDir));
+        execSpec.args("--strip=1");
+      }
+    }
+);
+  }
+  FileTree fileTree=_project.fileTree(temporaryDir);
+  for (  File file : fileTree) {
+    File patchedSrcDir=getPatchedSrcDir(file.getName());
+    if (patchedSrcDir == null) {
+      continue;
+    }
+    Path patchedSrcDirPath=patchedSrcDir.toPath();
+    String relativePath=FileUtil.relativize(file,temporaryDir);
+    patchedSrcDirPath=patchedSrcDirPath.resolve(relativePath);
+    Files.createDirectories(patchedSrcDirPath.getParent());
+    Files.move(file.toPath(),patchedSrcDirPath,StandardCopyOption.REPLACE_EXISTING);
+  }
+}
