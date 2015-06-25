@@ -1,0 +1,29 @@
+{
+  final ExportActionableDynamicQuery commentActionableDynamicQuery=MBMessageLocalServiceUtil.getExportActionableDynamicQuery(portletDataContext);
+  commentActionableDynamicQuery.setAddCriteriaMethod(new ActionableDynamicQuery.AddCriteriaMethod(){
+    @Override public void addCriteria(    DynamicQuery dynamicQuery){
+      Criterion modifiedDateCriterion=portletDataContext.getDateRangeCriteria("modifiedDate");
+      Criterion statusDateCriterion=portletDataContext.getDateRangeCriteria("statusDate");
+      if ((modifiedDateCriterion != null) && (statusDateCriterion != null)) {
+        Disjunction disjunction=RestrictionsFactoryUtil.disjunction();
+        disjunction.add(modifiedDateCriterion);
+        disjunction.add(statusDateCriterion);
+        dynamicQuery.add(disjunction);
+      }
+      Property classNameIdProperty=PropertyFactoryUtil.forName("classNameId");
+      dynamicQuery.add(classNameIdProperty.gt(0L));
+      Property parentMessageIdProperty=PropertyFactoryUtil.forName("parentMessageId");
+      dynamicQuery.add(parentMessageIdProperty.gt(MBMessageConstants.DEFAULT_PARENT_MESSAGE_ID));
+      Property workflowStatusProperty=PropertyFactoryUtil.forName("status");
+      if (portletDataContext.isInitialPublication()) {
+        dynamicQuery.add(workflowStatusProperty.ne(WorkflowConstants.STATUS_IN_TRASH));
+      }
+ else {
+        StagedModelDataHandler<?> stagedModelDataHandler=StagedModelDataHandlerRegistryUtil.getStagedModelDataHandler(MBMessage.class.getName());
+        dynamicQuery.add(workflowStatusProperty.in(stagedModelDataHandler.getExportableStatuses()));
+      }
+    }
+  }
+);
+  return commentActionableDynamicQuery;
+}
