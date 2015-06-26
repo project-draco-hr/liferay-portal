@@ -1,0 +1,36 @@
+{
+  resourceLocalService.deleteResource(dlFolder.getCompanyId(),DLFolder.class.getName(),ResourceConstants.SCOPE_INDIVIDUAL,dlFolder.getFolderId());
+  webDAVPropsLocalService.deleteWebDAVProps(DLFolder.class.getName(),dlFolder.getFolderId());
+  dlFileEntryLocalService.deleteFileEntries(dlFolder.getGroupId(),dlFolder.getFolderId(),includeTrashedEntries);
+  List<Long> fileEntryTypeIds=new ArrayList<>();
+  for (  DLFileEntryType dlFileEntryType : dlFileEntryTypeLocalService.getDLFolderDLFileEntryTypes(dlFolder.getFolderId())) {
+    fileEntryTypeIds.add(dlFileEntryType.getFileEntryTypeId());
+  }
+  if (fileEntryTypeIds.isEmpty()) {
+    fileEntryTypeIds.add(DLFileEntryTypeConstants.FILE_ENTRY_TYPE_ID_ALL);
+  }
+  dlFileEntryTypeLocalService.unsetFolderFileEntryTypes(dlFolder.getFolderId());
+  dlFileShortcutLocalService.deleteFileShortcuts(dlFolder.getGroupId(),dlFolder.getFolderId(),includeTrashedEntries);
+  expandoRowLocalService.deleteRows(dlFolder.getFolderId());
+  dlFolderPersistence.remove(dlFolder);
+  try {
+    if (includeTrashedEntries) {
+      DLStoreUtil.deleteDirectory(dlFolder.getCompanyId(),dlFolder.getFolderId(),StringPool.BLANK);
+    }
+  }
+ catch (  NoSuchDirectoryException nsde) {
+    if (_log.isDebugEnabled()) {
+      _log.debug(nsde.getMessage());
+    }
+  }
+  for (  long fileEntryTypeId : fileEntryTypeIds) {
+    WorkflowDefinitionLink workflowDefinitionLink=null;
+    try {
+      workflowDefinitionLink=workflowDefinitionLinkLocalService.getWorkflowDefinitionLink(dlFolder.getCompanyId(),dlFolder.getGroupId(),DLFolder.class.getName(),dlFolder.getFolderId(),fileEntryTypeId);
+    }
+ catch (    NoSuchWorkflowDefinitionLinkException nswdle) {
+      continue;
+    }
+    workflowDefinitionLinkLocalService.deleteWorkflowDefinitionLink(workflowDefinitionLink);
+  }
+}
