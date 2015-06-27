@@ -1,11 +1,18 @@
 {
-  Project project=getProject();
-  File managerDir=new File(getTomcatDir(),"webapps/manager");
+  final File managerDir=new File(getTomcatDir(),"webapps/manager");
   if (!managerDir.exists()) {
-    File tomcatZipFile=new File(getTemporaryDir(),"tomcat.zip");
-    FileUtil.get(project,getTomcatZipUrl(),tomcatZipFile);
-    FileUtil.unzip(project,tomcatZipFile,managerDir.getParentFile(),2,null,new String[]{"apache-tomcat-*/webapps/manager/**/*"});
-    project.delete(tomcatZipFile);
+    final File tomcatZipFile=FileUtil.get(_project,getTomcatZipUrl());
+    Closure<Void> closure=new Closure<Void>(null){
+      @SuppressWarnings("unused") public void doCall(      CopySpec copySpec){
+        copySpec.eachFile(new StripPathSegmentsAction(2));
+        copySpec.from(_project.zipTree(tomcatZipFile));
+        copySpec.include("apache-tomcat-*/webapps/manager/**/*");
+        copySpec.into(managerDir.getParentFile());
+        copySpec.setIncludeEmptyDirs(false);
+      }
+    }
+;
+    _project.copy(closure);
   }
   Document document=null;
   final File tomcatUsersXmlFile=new File(getTomcatDir(),"conf/tomcat-users.xml");
