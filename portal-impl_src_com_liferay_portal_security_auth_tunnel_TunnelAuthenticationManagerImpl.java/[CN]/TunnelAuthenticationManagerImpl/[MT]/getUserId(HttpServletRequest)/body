@@ -1,3 +1,44 @@
 {
-  return 0;
+  HttpAuthorizationHeader httpAuthorizationHeader=HttpAuthManagerUtil.parse(httpServletRequest);
+  String scheme=httpAuthorizationHeader.getScheme();
+  if (!StringUtil.equalsIgnoreCase(scheme,HttpAuthorizationHeader.SCHEME_BASIC)) {
+    AuthException authException=new RemoteAuthException("Invalid scheme " + scheme);
+    authException.setType(AuthException.INTERNAL_SERVER_ERROR);
+    throw authException;
+  }
+  String login=httpAuthorizationHeader.getAuthParameter(HttpAuthorizationHeader.AUTH_PARAMETER_NAME_USERNAME);
+  String password=httpAuthorizationHeader.getAuthParameter(HttpAuthorizationHeader.AUTH_PARAMETER_NAME_PASSWORD);
+  long companyId=PortalInstances.getCompanyId(httpServletRequest);
+  String expectedPassword=null;
+  try {
+    expectedPassword=Encryptor.encrypt(getSharedSecretKey(),login);
+  }
+ catch (  EncryptorException ee) {
+    AuthException authException=new RemoteAuthException(ee);
+    authException.setType(AuthException.INTERNAL_SERVER_ERROR);
+    throw authException;
+  }
+catch (  AuthException ae) {
+    AuthException authException=new RemoteAuthException();
+    authException.setType(ae.getType());
+    throw authException;
+  }
+  if (!password.equals(expectedPassword)) {
+    AuthException authException=new RemoteAuthException();
+    authException.setType(RemoteAuthException.WRONG_SHARED_SECRET);
+    throw authException;
+  }
+  User user=UserLocalServiceUtil.fetchUser(GetterUtil.getLong(login));
+  if (user == null) {
+    user=UserLocalServiceUtil.fetchUserByEmailAddress(companyId,login);
+    if (user == null) {
+      user=UserLocalServiceUtil.fetchUserByScreenName(companyId,login);
+    }
+  }
+  if (user == null) {
+    AuthException authException=new RemoteAuthException("Unable to find user " + login);
+    authException.setType(AuthException.INTERNAL_SERVER_ERROR);
+    throw authException;
+  }
+  return user.getUserId();
 }

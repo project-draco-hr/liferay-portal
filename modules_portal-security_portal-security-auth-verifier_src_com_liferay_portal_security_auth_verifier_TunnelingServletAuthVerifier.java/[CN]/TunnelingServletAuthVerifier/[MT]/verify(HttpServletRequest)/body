@@ -1,77 +1,11 @@
 {
-  String authorization=request.getHeader("Authorization");
+  String authorization=request.getHeader(HttpHeaders.AUTHORIZATION);
   if (authorization == null) {
     return null;
   }
-  StringTokenizer st=new StringTokenizer(authorization);
-  if (!st.hasMoreTokens()) {
-    return null;
-  }
-  String basic=st.nextToken();
-  if (!StringUtil.equalsIgnoreCase(basic,HttpServletRequest.BASIC_AUTH)) {
-    return null;
-  }
-  String encodedCredentials=st.nextToken();
-  if (_log.isDebugEnabled()) {
-    _log.debug("Encoded credentials " + encodedCredentials);
-  }
-  String decodedCredentials=new String(Base64.decode(encodedCredentials));
-  if (_log.isDebugEnabled()) {
-    _log.debug("Decoded credentials " + decodedCredentials);
-  }
-  int index=decodedCredentials.indexOf(CharPool.COLON);
-  if (index == -1) {
-    return null;
-  }
-  String login=GetterUtil.getString(decodedCredentials.substring(0,index));
-  String password=decodedCredentials.substring(index + 1);
-  String expectedPassword=null;
-  try {
-    expectedPassword=Encryptor.encrypt(TunnelUtil.getSharedSecretKey(),login);
-  }
- catch (  EncryptorException ee) {
-    AuthException authException=new RemoteAuthException(ee);
-    authException.setType(AuthException.INTERNAL_SERVER_ERROR);
-    throw authException;
-  }
-catch (  AuthException ae) {
-    AuthException authException=new RemoteAuthException();
-    authException.setType(ae.getType());
-    throw authException;
-  }
-  if (!password.equals(expectedPassword)) {
-    AuthException authException=new RemoteAuthException();
-    authException.setType(RemoteAuthException.WRONG_SHARED_SECRET);
-    throw authException;
-  }
-  User user=null;
-  try {
-    user=UserLocalServiceUtil.fetchUser(GetterUtil.getLong(login));
-    if (user == null) {
-      Company company=PortalUtil.getCompany(request);
-      user=UserLocalServiceUtil.fetchUserByEmailAddress(company.getCompanyId(),login);
-      if (user == null) {
-        user=UserLocalServiceUtil.fetchUserByScreenName(company.getCompanyId(),login);
-      }
-    }
-  }
- catch (  PortalException pe) {
-    if (_log.isWarnEnabled()) {
-      _log.warn("Unable to find company",pe);
-    }
-  }
-catch (  SystemException se) {
-    if (_log.isWarnEnabled()) {
-      _log.warn("Unable to find user",se);
-    }
-  }
-  if (user == null) {
-    AuthException authException=new RemoteAuthException();
-    authException.setType(AuthException.INTERNAL_SERVER_ERROR);
-    throw authException;
-  }
+  long userId=TunnelAuthenticationManagerUtil.getUserId(request);
   String[] credentials=new String[2];
-  credentials[0]=String.valueOf(user.getUserId());
-  credentials[1]=password;
+  credentials[0]=String.valueOf(userId);
+  credentials[1]=StringPool.BLANK;
   return credentials;
 }
