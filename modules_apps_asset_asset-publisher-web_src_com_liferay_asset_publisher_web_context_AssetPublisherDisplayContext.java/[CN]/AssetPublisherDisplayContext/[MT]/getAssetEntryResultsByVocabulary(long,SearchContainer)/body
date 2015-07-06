@@ -1,0 +1,42 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)_request.getAttribute(WebKeys.THEME_DISPLAY);
+  AssetEntryQuery assetEntryQuery=getAssetEntryQuery();
+  List<Tuple> assetEntryResults=new ArrayList<>();
+  List<AssetCategory> assetCategories=AssetCategoryLocalServiceUtil.getVocabularyRootCategories(assetVocabularyId,QueryUtil.ALL_POS,QueryUtil.ALL_POS,null);
+  assetEntryQuery.setClassNameIds(getClassNameIds());
+  int end=searchContainer.getEnd();
+  int start=searchContainer.getStart();
+  int total=0;
+  for (  AssetCategory assetCategory : assetCategories) {
+    long[] oldAllCategoryIds=assetEntryQuery.getAllCategoryIds();
+    long[] newAllAssetCategoryIds=ArrayUtil.append(oldAllCategoryIds,assetCategory.getCategoryId());
+    assetEntryQuery.setAllCategoryIds(newAllAssetCategoryIds);
+    BaseModelSearchResult<AssetEntry> baseModelSearchResult=getAssetEntries(assetEntryQuery,start,end);
+    int groupTotal=baseModelSearchResult.getLength();
+    total+=groupTotal;
+    List<AssetEntry> results=baseModelSearchResult.getBaseModels();
+    if (!results.isEmpty() && (start < groupTotal)) {
+      String title=assetCategory.getTitle(themeDisplay.getLocale());
+      assetEntryResults.add(new Tuple(title,results));
+    }
+    if (groupTotal > 0) {
+      if ((end > 0) && (end > groupTotal)) {
+        end-=groupTotal;
+      }
+ else {
+        end=0;
+      }
+      if ((start > 0) && (start > groupTotal)) {
+        start-=groupTotal;
+      }
+ else {
+        start=0;
+      }
+    }
+    assetEntryQuery.setAllCategoryIds(oldAllCategoryIds);
+    assetEntryQuery.setEnd(QueryUtil.ALL_POS);
+    assetEntryQuery.setStart(QueryUtil.ALL_POS);
+  }
+  searchContainer.setTotal(total);
+  return assetEntryResults;
+}
