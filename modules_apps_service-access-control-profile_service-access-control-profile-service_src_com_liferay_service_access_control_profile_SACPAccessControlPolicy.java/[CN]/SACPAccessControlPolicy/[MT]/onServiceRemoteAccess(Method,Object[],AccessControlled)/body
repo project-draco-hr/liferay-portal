@@ -1,15 +1,5 @@
 {
   List<String> serviceAccessControlProfileNames=ServiceAccessControlProfileThreadLocal.getActiveServiceAccessControlProfileNames();
-  if (serviceAccessControlProfileNames == null) {
-    PermissionChecker permissionChecker=PermissionThreadLocal.getPermissionChecker();
-    boolean authenticated=false;
-    if ((permissionChecker != null) && permissionChecker.isSignedIn()) {
-      authenticated=true;
-    }
-    if (authenticated) {
-      return;
-    }
-  }
   SACPConfiguration sacpConfiguration=null;
   try {
     sacpConfiguration=_settingsFactory.getSettings(SACPConfiguration.class,new CompanyServiceSettingsLocator(CompanyThreadLocal.getCompanyId(),SACPConstants.SERVICE_NAME));
@@ -22,7 +12,13 @@
       serviceAccessControlProfileNames=new ArrayList<>();
       ServiceAccessControlProfileThreadLocal.setActiveServiceAccessControlProfileNames(serviceAccessControlProfileNames);
     }
-    serviceAccessControlProfileNames.add(sacpConfiguration.defaultSACPEntryName());
+    AccessControlContext accessControlContext=AccessControlUtil.getAccessControlContext();
+    if (accessControlContext.isTokenAuthentication()) {
+      serviceAccessControlProfileNames.add(sacpConfiguration.defaultApplicationSACPEntryName());
+    }
+ else {
+      serviceAccessControlProfileNames.add(sacpConfiguration.defaultSACPEntryName());
+    }
   }
   long companyId=CompanyThreadLocal.getCompanyId();
   Set<String> allowedServiceSignatures=new HashSet<>();
@@ -34,6 +30,9 @@
  catch (    PortalException pe) {
       throw new SecurityException(pe);
     }
+  }
+  if (allowedServiceSignatures.contains(StringPool.STAR)) {
+    return;
   }
   Class<?> clazz=method.getDeclaringClass();
   String className=clazz.getName();
