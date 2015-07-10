@@ -1,12 +1,11 @@
 {
   BooleanClauseOccur booleanClauseOccur=getBooleanClauseOccur(occur);
   if (query instanceof org.apache.lucene.search.TermQuery) {
-    Set<Term> terms=new HashSet<>();
-    query.extractTerms(terms);
-    for (    Term term : terms) {
-      String termValue=term.text();
-      booleanQuery.addTerm(term.field(),termValue,false,getBooleanClauseOccur(occur));
-    }
+    org.apache.lucene.search.TermQuery luceneTermQuery=(org.apache.lucene.search.TermQuery)query;
+    Term term=luceneTermQuery.getTerm();
+    String termValue=term.text();
+    TermQuery termQuery=new TermQueryImpl(term.field(),termValue);
+    booleanQuery.add(termQuery,getBooleanClauseOccur(occur));
   }
  else   if (query instanceof org.apache.lucene.search.BooleanQuery) {
     org.apache.lucene.search.BooleanQuery curBooleanQuery=(org.apache.lucene.search.BooleanQuery)query;
@@ -34,7 +33,8 @@
     org.apache.lucene.search.FuzzyQuery fuzzyQuery=(org.apache.lucene.search.FuzzyQuery)query;
     Term term=fuzzyQuery.getTerm();
     String termValue=term.text().concat(StringPool.STAR);
-    booleanQuery.addTerm(term.field(),termValue,true,booleanClauseOccur);
+    WildcardQuery wildcardQuery=new WildcardQueryImpl(term.field(),termValue);
+    booleanQuery.add(wildcardQuery,booleanClauseOccur);
   }
  else   if (query instanceof org.apache.lucene.search.PhraseQuery) {
     org.apache.lucene.search.PhraseQuery phraseQuery=(org.apache.lucene.search.PhraseQuery)query;
@@ -44,22 +44,25 @@
       sb.append(term.text());
       sb.append(StringPool.SPACE);
     }
-    booleanQuery.addTerm(terms[0].field(),sb.toString().trim(),false,booleanClauseOccur);
+    TermQuery termQuery=new TermQueryImpl(terms[0].field(),sb.toString().trim());
+    booleanQuery.add(termQuery,booleanClauseOccur);
   }
  else   if (query instanceof org.apache.lucene.search.PrefixQuery) {
     org.apache.lucene.search.PrefixQuery prefixQuery=(org.apache.lucene.search.PrefixQuery)query;
     Term prefixTerm=prefixQuery.getPrefix();
     String termValue=prefixTerm.text().concat(StringPool.STAR);
-    booleanQuery.addTerm(prefixTerm.field(),termValue,true,booleanClauseOccur);
+    WildcardQuery wildcardQuery=new WildcardQueryImpl(prefixTerm.field(),termValue);
+    booleanQuery.add(wildcardQuery,booleanClauseOccur);
   }
  else   if (query instanceof org.apache.lucene.search.TermRangeQuery) {
     org.apache.lucene.search.TermRangeQuery termRangeQuery=(org.apache.lucene.search.TermRangeQuery)query;
-    booleanQuery.addRangeTerm(termRangeQuery.getField(),termRangeQuery.getLowerTerm(),termRangeQuery.getUpperTerm());
+    booleanQuery.addRangeTerm(termRangeQuery.getField(),termRangeQuery.getLowerTerm().utf8ToString(),termRangeQuery.getUpperTerm().utf8ToString());
   }
  else   if (query instanceof org.apache.lucene.search.WildcardQuery) {
-    org.apache.lucene.search.WildcardQuery wildcardQuery=(org.apache.lucene.search.WildcardQuery)query;
-    Term wildcardTerm=wildcardQuery.getTerm();
-    booleanQuery.addTerm(wildcardTerm.field(),wildcardTerm.text(),true,booleanClauseOccur);
+    org.apache.lucene.search.WildcardQuery luceneWildcardQuery=(org.apache.lucene.search.WildcardQuery)query;
+    Term wildcardTerm=luceneWildcardQuery.getTerm();
+    WildcardQuery wildcardQuery=new WildcardQueryImpl(wildcardTerm.field(),wildcardTerm.text());
+    booleanQuery.add(wildcardQuery,booleanClauseOccur);
   }
  else {
     if (_log.isWarnEnabled()) {
