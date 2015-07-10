@@ -1,0 +1,30 @@
+{
+  ZipReader zipReader=null;
+  try {
+    ExportImportThreadLocal.setPortletDataDeletionImportInProcess(true);
+    Map<String,Serializable> settingsMap=exportImportConfiguration.getSettingsMap();
+    Map<String,String[]> parameterMap=(Map<String,String[]>)settingsMap.get("parameterMap");
+    String portletId=MapUtil.getString(settingsMap,"portletId");
+    long targetPlid=MapUtil.getLong(settingsMap,"targetPlid");
+    long targetGroupId=MapUtil.getLong(settingsMap,"targetGroupId");
+    Layout layout=LayoutLocalServiceUtil.getLayout(targetPlid);
+    zipReader=ZipReaderFactoryUtil.getZipReader(file);
+    validateFile(layout.getCompanyId(),targetGroupId,portletId,zipReader);
+    PortletDataContext portletDataContext=getPortletDataContext(exportImportConfiguration,file);
+    boolean deletePortletData=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.DELETE_PORTLET_DATA);
+    if (deletePortletData) {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Deleting portlet data");
+      }
+      deletePortletData(portletDataContext);
+    }
+    populateDeletionStagedModelTypes(portletDataContext);
+    _deletionSystemEventImporter.importDeletionSystemEvents(portletDataContext);
+  }
+  finally {
+    ExportImportThreadLocal.setPortletDataDeletionImportInProcess(false);
+    if (zipReader != null) {
+      zipReader.close();
+    }
+  }
+}
