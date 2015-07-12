@@ -1,19 +1,15 @@
 {
   try (CaptureAppender captureAppender=Log4JLoggerTestUtil.configureLog4JLogger(JDBCExceptionReporter.class.getName(),Level.ERROR)){
     ExecutorService executorService=Executors.newFixedThreadPool(10);
-    List<LockingJob> lockingJobs=new ArrayList<>();
+    List<Future<Void>> futures=new ArrayList<>();
     for (int i=0; i < 10; i++) {
       LockingJob lockingJob=new LockingJob("className","key","owner-" + i,10);
-      lockingJobs.add(lockingJob);
-      executorService.execute(lockingJob);
+      futures.add(executorService.submit(lockingJob));
     }
     executorService.shutdown();
     Assert.assertTrue(executorService.awaitTermination(600,TimeUnit.SECONDS));
-    for (    LockingJob lockingJob : lockingJobs) {
-      RuntimeException runtimeException=lockingJob.getRuntimeException();
-      if (runtimeException != null) {
-        throw runtimeException;
-      }
+    for (    Future<Void> future : futures) {
+      future.get();
     }
     Assert.assertFalse(LockLocalServiceUtil.isLocked("className","key"));
     for (    LoggingEvent loggingEvent : captureAppender.getLoggingEvents()) {
