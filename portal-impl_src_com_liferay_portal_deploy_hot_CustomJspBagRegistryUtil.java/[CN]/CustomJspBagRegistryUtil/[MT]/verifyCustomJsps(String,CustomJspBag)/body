@@ -1,0 +1,45 @@
+{
+  Set<String> customJsps=new HashSet<>();
+  for (  String customJsp : customJspBag.getCustomJsps()) {
+    String portalJsp=getPortalJsp(customJsp,customJspBag.getCustomJspDir());
+    customJsps.add(portalJsp);
+  }
+  Map<String,String> conflictingCustomJsps=new HashMap<>();
+  for (  Map.Entry<String,CustomJspBag> entry : _customJspBagsMap.entrySet()) {
+    CustomJspBag currentCustomJspBag=entry.getValue();
+    if (!currentCustomJspBag.isCustomJspGlobal()) {
+      continue;
+    }
+    String currentServletContextName=entry.getKey();
+    List<String> currentCustomJsps=currentCustomJspBag.getCustomJsps();
+    for (    String currentCustomJsp : currentCustomJsps) {
+      String currentPortalJsp=getPortalJsp(currentCustomJsp,currentCustomJspBag.getCustomJspDir());
+      if (customJsps.contains(currentPortalJsp)) {
+        conflictingCustomJsps.put(currentPortalJsp,currentServletContextName);
+      }
+    }
+  }
+  if (conflictingCustomJsps.isEmpty()) {
+    return;
+  }
+  _log.error(servletContextName + " conflicts with the installed hooks");
+  if (_log.isDebugEnabled()) {
+    Log log=SanitizerLogWrapper.allowCRLF(_log);
+    StringBundler sb=new StringBundler(conflictingCustomJsps.size() * 4 + 2);
+    sb.append("Colliding JSP files in ");
+    sb.append(servletContextName);
+    sb.append(StringPool.NEW_LINE);
+    int i=0;
+    for (    Map.Entry<String,String> entry : conflictingCustomJsps.entrySet()) {
+      sb.append(entry.getKey());
+      sb.append(" with ");
+      sb.append(entry.getValue());
+      if ((i + 1) < conflictingCustomJsps.size()) {
+        sb.append(StringPool.NEW_LINE);
+      }
+      i++;
+    }
+    log.debug(sb.toString());
+  }
+  throw new DuplicateCustomJspException();
+}
