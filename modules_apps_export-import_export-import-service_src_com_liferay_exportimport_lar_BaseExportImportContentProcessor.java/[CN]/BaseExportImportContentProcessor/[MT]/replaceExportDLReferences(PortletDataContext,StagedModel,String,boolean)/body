@@ -1,0 +1,49 @@
+{
+  Group group=GroupLocalServiceUtil.getGroup(portletDataContext.getGroupId());
+  if (group.isStagingGroup()) {
+    group=group.getLiveGroup();
+  }
+  if (group.isStaged() && !group.isStagedRemotely() && !group.isStagedPortlet(PortletKeys.DOCUMENT_LIBRARY)) {
+    return content;
+  }
+  StringBuilder sb=new StringBuilder(content);
+  String contextPath=PortalUtil.getPathContext();
+  String[] patterns={contextPath.concat("/c/document_library/get_file?"),contextPath.concat("/documents/"),contextPath.concat("/image/image_gallery?")};
+  int beginPos=-1;
+  int endPos=content.length();
+  while (true) {
+    beginPos=StringUtil.lastIndexOfAny(content,patterns,endPos);
+    if (beginPos == -1) {
+      break;
+    }
+    Map<String,String[]> dlReferenceParameters=getDLReferenceParameters(portletDataContext,content,beginPos + contextPath.length(),endPos);
+    FileEntry fileEntry=getFileEntry(dlReferenceParameters);
+    if (fileEntry == null) {
+      endPos=beginPos - 1;
+      continue;
+    }
+    endPos=MapUtil.getInteger(dlReferenceParameters,"endPos");
+    try {
+      if (exportReferencedContent) {
+        StagedModelDataHandlerUtil.exportReferenceStagedModel(portletDataContext,entityStagedModel,fileEntry,PortletDataContext.REFERENCE_TYPE_DEPENDENCY);
+      }
+ else {
+        Element entityElement=portletDataContext.getExportDataElement(entityStagedModel);
+        portletDataContext.addReferenceElement(entityStagedModel,entityElement,fileEntry,PortletDataContext.REFERENCE_TYPE_DEPENDENCY,true);
+      }
+      String path=ExportImportPathUtil.getModelPath(fileEntry);
+      sb.replace(beginPos,endPos,"[$dl-reference=" + path + "$]");
+      deleteTimestampParameters(sb,beginPos);
+    }
+ catch (    Exception e) {
+      if (_log.isDebugEnabled()) {
+        _log.debug(e,e);
+      }
+ else       if (_log.isWarnEnabled()) {
+        _log.warn(e.getMessage());
+      }
+    }
+    endPos=beginPos - 1;
+  }
+  return sb.toString();
+}

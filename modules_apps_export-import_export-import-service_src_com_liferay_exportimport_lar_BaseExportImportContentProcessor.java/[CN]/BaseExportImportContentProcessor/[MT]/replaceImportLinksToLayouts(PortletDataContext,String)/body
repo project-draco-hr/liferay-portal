@@ -1,0 +1,35 @@
+{
+  List<String> oldLinksToLayout=new ArrayList<>();
+  List<String> newLinksToLayout=new ArrayList<>();
+  Matcher matcher=importLinksToLayoutPattern.matcher(content);
+  Map<Long,Long> layoutPlids=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(Layout.class);
+  String layoutsImportMode=MapUtil.getString(portletDataContext.getParameterMap(),PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE,PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_MERGE_BY_LAYOUT_UUID);
+  while (matcher.find()) {
+    long oldPlid=GetterUtil.getLong(matcher.group(4));
+    Long newPlid=MapUtil.getLong(layoutPlids,oldPlid);
+    long oldGroupId=GetterUtil.getLong(matcher.group(6));
+    long newGroupId=oldGroupId;
+    long oldLayoutId=GetterUtil.getLong(matcher.group(1));
+    long newLayoutId=oldLayoutId;
+    Layout layout=LayoutLocalServiceUtil.fetchLayout(newPlid);
+    if (layout != null) {
+      newGroupId=layout.getGroupId();
+      newLayoutId=layout.getLayoutId();
+    }
+ else     if (_log.isWarnEnabled()) {
+      _log.warn("Unable to get layout with plid " + oldPlid);
+    }
+    String oldLinkToLayout=matcher.group(0);
+    String newLinkToLayout=StringUtil.replaceFirst(oldLinkToLayout,new String[]{StringPool.AT + oldPlid,String.valueOf(oldLayoutId)},new String[]{StringPool.BLANK,String.valueOf(newLayoutId)});
+    if ((layout != null) && layout.isPublicLayout() && layoutsImportMode.equals(PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_CREATED_FROM_PROTOTYPE)) {
+      newLinkToLayout=StringUtil.replace(newLinkToLayout,"private-group","public");
+    }
+    if ((oldGroupId != 0) && (oldGroupId != newGroupId)) {
+      newLinkToLayout=StringUtil.replaceLast(newLinkToLayout,String.valueOf(oldGroupId),String.valueOf(newGroupId));
+    }
+    oldLinksToLayout.add(oldLinkToLayout);
+    newLinksToLayout.add(newLinkToLayout);
+  }
+  content=StringUtil.replace(content,ArrayUtil.toStringArray(oldLinksToLayout.toArray()),ArrayUtil.toStringArray(newLinksToLayout.toArray()));
+  return content;
+}

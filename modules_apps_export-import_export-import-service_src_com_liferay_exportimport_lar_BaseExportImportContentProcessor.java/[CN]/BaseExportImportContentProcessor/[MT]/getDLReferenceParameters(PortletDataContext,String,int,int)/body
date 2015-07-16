@@ -1,0 +1,51 @@
+{
+  boolean legacyURL=true;
+  char[] stopChars=DL_REFERENCE_LEGACY_STOP_CHARS;
+  if (content.startsWith("/documents/",beginPos)) {
+    legacyURL=false;
+    stopChars=DL_REFERENCE_STOP_CHARS;
+  }
+  endPos=StringUtil.indexOfAny(content,stopChars,beginPos,endPos);
+  if (endPos == -1) {
+    return null;
+  }
+  Map<String,String[]> map=new HashMap<>();
+  String dlReference=content.substring(beginPos,endPos);
+  while (dlReference.contains(StringPool.AMPERSAND_ENCODED)) {
+    dlReference=dlReference.replace(StringPool.AMPERSAND_ENCODED,StringPool.AMPERSAND);
+  }
+  if (!legacyURL) {
+    String[] pathArray=dlReference.split(StringPool.SLASH);
+    if (pathArray.length < 3) {
+      return map;
+    }
+    map.put("groupId",new String[]{pathArray[2]});
+    if (pathArray.length == 4) {
+      map.put("uuid",new String[]{pathArray[3]});
+    }
+ else     if (pathArray.length == 5) {
+      map.put("folderId",new String[]{pathArray[3]});
+      map.put("title",new String[]{HttpUtil.decodeURL(pathArray[4])});
+    }
+ else     if (pathArray.length > 5) {
+      map.put("uuid",new String[]{pathArray[5]});
+    }
+  }
+ else {
+    dlReference=dlReference.substring(dlReference.indexOf(CharPool.QUESTION) + 1);
+    map=HttpUtil.parameterMapFromString(dlReference);
+    if (map.containsKey("img_id")) {
+      map.put("image_id",map.get("img_id"));
+    }
+ else     if (map.containsKey("i_id")) {
+      map.put("image_id",map.get("i_id"));
+    }
+  }
+  map.put("endPos",new String[]{String.valueOf(endPos)});
+  String groupIdString=MapUtil.getString(map,"groupId");
+  if (groupIdString.equals("@group_id@")) {
+    groupIdString=String.valueOf(portletDataContext.getScopeGroupId());
+    map.put("groupId",new String[]{groupIdString});
+  }
+  return map;
+}

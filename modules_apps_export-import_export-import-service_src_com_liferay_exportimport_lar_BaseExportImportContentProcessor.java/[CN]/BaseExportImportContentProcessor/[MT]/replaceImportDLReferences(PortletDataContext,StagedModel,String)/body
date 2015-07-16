@@ -1,0 +1,38 @@
+{
+  List<Element> referenceElements=portletDataContext.getReferenceElements(entityStagedModel,DLFileEntry.class);
+  for (  Element referenceElement : referenceElements) {
+    long classPK=GetterUtil.getLong(referenceElement.attributeValue("class-pk"));
+    Element referenceDataElement=portletDataContext.getReferenceDataElement(entityStagedModel,DLFileEntry.class,classPK);
+    String path=null;
+    if (referenceDataElement != null) {
+      path=referenceDataElement.attributeValue("path");
+    }
+    long groupId=GetterUtil.getLong(referenceElement.attributeValue("group-id"));
+    if (Validator.isNull(path)) {
+      String className=referenceElement.attributeValue("class-name");
+      path=ExportImportPathUtil.getModelPath(groupId,className,classPK);
+    }
+    if (!content.contains("[$dl-reference=" + path + "$]")) {
+      continue;
+    }
+    StagedModelDataHandlerUtil.importReferenceStagedModel(portletDataContext,entityStagedModel,DLFileEntry.class,classPK);
+    Map<Long,Long> dlFileEntryIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(DLFileEntry.class);
+    long fileEntryId=MapUtil.getLong(dlFileEntryIds,classPK,classPK);
+    FileEntry importedFileEntry=null;
+    try {
+      importedFileEntry=DLAppLocalServiceUtil.getFileEntry(fileEntryId);
+    }
+ catch (    PortalException pe) {
+      if (_log.isDebugEnabled()) {
+        _log.debug(pe,pe);
+      }
+ else       if (_log.isWarnEnabled()) {
+        _log.warn(pe.getMessage());
+      }
+      continue;
+    }
+    String url=DLUtil.getPreviewURL(importedFileEntry,importedFileEntry.getFileVersion(),null,StringPool.BLANK,false,false);
+    content=StringUtil.replace(content,"[$dl-reference=" + path + "$]",url);
+  }
+  return content;
+}
