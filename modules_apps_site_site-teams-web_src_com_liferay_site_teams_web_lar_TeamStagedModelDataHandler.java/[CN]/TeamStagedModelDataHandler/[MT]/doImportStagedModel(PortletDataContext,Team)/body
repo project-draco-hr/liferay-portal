@@ -1,0 +1,32 @@
+{
+  long userId=portletDataContext.getUserId(team.getUserUuid());
+  Team existingTeam=TeamLocalServiceUtil.fetchTeamByUuidAndGroupId(team.getUuid(),portletDataContext.getScopeGroupId());
+  Team importedTeam=null;
+  if (existingTeam == null) {
+    ServiceContext serviceContext=portletDataContext.createServiceContext(team);
+    serviceContext.setUuid(team.getUuid());
+    importedTeam=TeamLocalServiceUtil.addTeam(userId,portletDataContext.getScopeGroupId(),team.getName(),team.getDescription(),serviceContext);
+  }
+ else {
+    importedTeam=TeamLocalServiceUtil.updateTeam(existingTeam.getTeamId(),team.getName(),team.getDescription());
+  }
+  List<Element> userElements=portletDataContext.getReferenceElements(team,User.class);
+  for (  Element element : userElements) {
+    long companyId=GetterUtil.getLong(element.attributeValue("company-id"));
+    String uuid=element.attributeValue("uuid");
+    User user=UserLocalServiceUtil.fetchUserByUuidAndCompanyId(uuid,companyId);
+    if ((user != null) && !UserLocalServiceUtil.hasTeamUser(importedTeam.getTeamId(),user.getUserId())) {
+      UserLocalServiceUtil.addTeamUser(importedTeam.getTeamId(),user);
+    }
+  }
+  List<Element> userGroupElements=portletDataContext.getReferenceElements(team,UserGroup.class);
+  for (  Element element : userGroupElements) {
+    long companyId=GetterUtil.getLong(element.attributeValue("company-id"));
+    String uuid=element.attributeValue("uuid");
+    UserGroup userGroup=UserGroupLocalServiceUtil.fetchUserGroupByUuidAndCompanyId(uuid,companyId);
+    if ((userGroup != null) && !UserGroupLocalServiceUtil.hasTeamUserGroup(importedTeam.getTeamId(),userGroup.getUserGroupId())) {
+      UserGroupLocalServiceUtil.addTeamUserGroup(importedTeam.getTeamId(),userGroup);
+    }
+  }
+  portletDataContext.importClassedModel(team,importedTeam);
+}
