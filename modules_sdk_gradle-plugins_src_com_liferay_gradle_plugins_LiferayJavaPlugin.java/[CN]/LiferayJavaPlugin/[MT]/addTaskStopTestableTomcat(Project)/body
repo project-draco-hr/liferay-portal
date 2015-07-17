@@ -1,24 +1,49 @@
 {
-  StopAppServerTask stopTestableTomcatTask=GradleUtil.addTask(project,STOP_TESTABLE_TOMCAT_TASK_NAME,StopAppServerTask.class);
+  final StopAppServerTask stopTestableTomcatTask=GradleUtil.addTask(project,STOP_TESTABLE_TOMCAT_TASK_NAME,StopAppServerTask.class);
   stopTestableTomcatTask.setAppServerType("tomcat");
-  stopTestableTomcatTask.doLast(new Action<Task>(){
+  Action<Task> action=new Action<Task>(){
     @Override public void execute(    Task task){
-      Project project=task.getProject();
-      File testablePortalStartedFile=new File(project.getRootDir(),_TESTABLE_PORTAL_STARTED_FILE_NAME);
-      project.delete(testablePortalStartedFile);
-    }
-  }
-);
-  stopTestableTomcatTask.onlyIf(new Spec<Task>(){
-    @Override public boolean isSatisfiedBy(    Task task){
-      Project project=task.getProject();
-      File testablePortalStartedFile=new File(project.getRootDir(),_TESTABLE_PORTAL_STARTED_FILE_NAME);
-      if (testablePortalStartedFile.exists()) {
-        return true;
+      StopAppServerTask stopAppServerTask=(StopAppServerTask)task;
+      File appServerBinDir=stopAppServerTask.getAppServerBinDir();
+      _startedAppServersReentrantLock.lock();
+      try {
+        if (!_startedAppServerBinDirs.contains(appServerBinDir)) {
+          if (_logger.isDebugEnabled()) {
+            _logger.debug("App Server " + appServerBinDir + " is already stopped");
+          }
+          throw new StopExecutionException();
+        }
+        int originalCounter=_updateStartedAppServerStopCounters(appServerBinDir,false);
+        if (originalCounter > 1) {
+          if (_logger.isDebugEnabled()) {
+            _logger.debug("App Server " + appServerBinDir + " cannot be stopped now, still "+ (originalCounter - 1)+ " to execute");
+          }
+          throw new StopExecutionException();
+        }
       }
-      return false;
+  finally {
+        _startedAppServersReentrantLock.unlock();
+      }
     }
   }
-);
+;
+  stopTestableTomcatTask.doFirst(action);
+  Gradle gradle=project.getGradle();
+  TaskExecutionGraph taskExecutionGraph=gradle.getTaskGraph();
+  Closure<Void> closure=new Closure<Void>(null){
+    @SuppressWarnings("unused") public void doCall(    TaskExecutionGraph taskExecutionGraph){
+      if (taskExecutionGraph.hasTask(stopTestableTomcatTask)) {
+        _startedAppServersReentrantLock.lock();
+        try {
+          _updateStartedAppServerStopCounters(stopTestableTomcatTask.getAppServerBinDir(),true);
+        }
+  finally {
+          _startedAppServersReentrantLock.unlock();
+        }
+      }
+    }
+  }
+;
+  taskExecutionGraph.whenReady(closure);
   return stopTestableTomcatTask;
 }

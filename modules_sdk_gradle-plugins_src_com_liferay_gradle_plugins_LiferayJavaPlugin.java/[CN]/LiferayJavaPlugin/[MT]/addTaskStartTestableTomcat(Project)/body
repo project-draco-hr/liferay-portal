@@ -1,19 +1,8 @@
 {
   StartAppServerTask startTestableTomcatTask=GradleUtil.addTask(project,START_TESTABLE_TOMCAT_TASK_NAME,StartAppServerTask.class);
   startTestableTomcatTask.dependsOn(SETUP_TESTABLE_TOMCAT_TASK_NAME);
+  startTestableTomcatTask.finalizedBy(STOP_TESTABLE_TOMCAT_TASK_NAME);
   startTestableTomcatTask.setAppServerType("tomcat");
-  startTestableTomcatTask.doFirst(new Action<Task>(){
-    @Override public void execute(    Task task){
-      Project project=task.getProject();
-      File testablePortalStartedFile=new File(project.getRootDir(),_TESTABLE_PORTAL_STARTED_FILE_NAME);
-      try {
-        Files.createFile(testablePortalStartedFile.toPath());
-      }
- catch (      Exception e) {
-      }
-    }
-  }
-);
   startTestableTomcatTask.doFirst(new Action<Task>(){
     @Override public void execute(    Task task){
       Project project=task.getProject();
@@ -23,5 +12,41 @@
     }
   }
 );
+  Action<Task> action=new Action<Task>(){
+    @Override public void execute(    Task task){
+      StartAppServerTask startAppServerTask=(StartAppServerTask)task;
+      File appServerBinDir=startAppServerTask.getAppServerBinDir();
+      boolean started=false;
+      _startedAppServersReentrantLock.lock();
+      try {
+        if (_startedAppServerBinDirs.contains(appServerBinDir)) {
+          started=true;
+        }
+ else {
+          _startedAppServerBinDirs.add(appServerBinDir);
+        }
+      }
+  finally {
+        _startedAppServersReentrantLock.unlock();
+      }
+      if (started) {
+        if (_logger.isDebugEnabled()) {
+          _logger.debug("App Server " + appServerBinDir + " is already started");
+        }
+        Project project=startAppServerTask.getProject();
+        Gradle gradle=project.getGradle();
+        StartParameter startParameter=gradle.getStartParameter();
+        if (startParameter.isParallelProjectExecutionEnabled()) {
+          if (_logger.isDebugEnabled()) {
+            _logger.debug("Waiting for App Server " + appServerBinDir + " to be reachable");
+          }
+          startAppServerTask.waitForAppServer();
+        }
+        throw new StopExecutionException();
+      }
+    }
+  }
+;
+  startTestableTomcatTask.doFirst(action);
   return startTestableTomcatTask;
 }
