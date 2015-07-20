@@ -1,0 +1,41 @@
+{
+  try {
+    KaleoDefinition kaleoDefinition=kaleoDefinitionLocalService.getKaleoDefinition(workflowDefinitionName,workflowDefinitionVersion,serviceContext);
+    if (!kaleoDefinition.isActive()) {
+      throw new WorkflowException("Inactive workflow definition with name " + workflowDefinitionName + " and version "+ workflowDefinitionVersion);
+    }
+    KaleoNode kaleoStartNode=kaleoDefinition.getKaleoStartNode();
+    if (Validator.isNotNull(transitionName)) {
+      kaleoStartNode.getKaleoTransition(transitionName);
+    }
+    long scopeGroupId=serviceContext.getScopeGroupId();
+    if (scopeGroupId != WorkflowConstants.DEFAULT_GROUP_ID) {
+      Group group=GroupLocalServiceUtil.getGroup(scopeGroupId);
+      if (group.isLayout()) {
+        group=GroupLocalServiceUtil.getGroup(group.getParentGroupId());
+        serviceContext.setScopeGroupId(group.getGroupId());
+      }
+    }
+    KaleoInstance kaleoInstance=kaleoInstanceLocalService.addKaleoInstance(kaleoDefinition.getKaleoDefinitionId(),kaleoDefinition.getName(),kaleoDefinition.getVersion(),workflowContext,serviceContext);
+    KaleoInstanceToken rootKaleoInstanceToken=kaleoInstance.getRootKaleoInstanceToken(workflowContext,serviceContext);
+    rootKaleoInstanceToken.setCurrentKaleoNode(kaleoStartNode);
+    kaleoLogLocalService.addWorkflowInstanceStartKaleoLog(rootKaleoInstanceToken,serviceContext);
+    final ExecutionContext executionContext=new ExecutionContext(rootKaleoInstanceToken,workflowContext,serviceContext);
+    TransactionCommitCallbackUtil.registerCallback(new Callable<Void>(){
+      @Override public Void call() throws Exception {
+        try {
+          _kaleoSignaler.signalEntry(transitionName,executionContext);
+        }
+ catch (        Exception e) {
+          throw new WorkflowException("Unable to start workflow",e);
+        }
+        return null;
+      }
+    }
+);
+    return WorkflowModelUtil.toWorkflowInstance(kaleoInstance,rootKaleoInstanceToken,workflowContext);
+  }
+ catch (  Exception e) {
+    throw new WorkflowException(e);
+  }
+}

@@ -1,0 +1,24 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getConnection();
+    ps=con.prepareStatement("select " + fieldName + ", workflowContext from "+ tableName+ " where workflowContext is not null and workflowContext "+ "not like '%serializable%'");
+    rs=ps.executeQuery();
+    JSONSerializer jsonSerializer=new JSONSerializer();
+    jsonSerializer.registerDefaultSerializers();
+    while (rs.next()) {
+      long fieldValue=rs.getLong(fieldName);
+      String workflowContext=rs.getString("workflowContext");
+      if (Validator.isNull(workflowContext)) {
+        continue;
+      }
+      workflowContext=WorkflowContextUtil.convert((Map<String,Serializable>)jsonSerializer.fromJSON(workflowContext));
+      updateWorkflowContext(tableName,fieldName,fieldValue,workflowContext);
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}

@@ -1,0 +1,47 @@
+{
+  KaleoDefinition kaleoDefinition=null;
+  try {
+    kaleoDefinition=KaleoDefinitionLocalServiceUtil.incrementKaleoDefinition(definition,title,serviceContext);
+  }
+ catch (  NoSuchDefinitionException nsde) {
+    kaleoDefinition=KaleoDefinitionLocalServiceUtil.addKaleoDefinition(definition.getName(),title,definition.getDescription(),definition.getContent(),definition.getVersion(),serviceContext);
+  }
+  long kaleoDefinitionId=kaleoDefinition.getKaleoDefinitionId();
+  Collection<Node> nodes=definition.getNodes();
+  Map<String,KaleoNode> kaleoNodesMap=new HashMap<>();
+  for (  Node node : nodes) {
+    KaleoNode kaleoNode=KaleoNodeLocalServiceUtil.addKaleoNode(kaleoDefinitionId,node,serviceContext);
+    kaleoNodesMap.put(node.getName(),kaleoNode);
+    NodeType nodeType=node.getNodeType();
+    if (nodeType.equals(NodeType.TASK)) {
+      Task task=(Task)node;
+      KaleoTaskLocalServiceUtil.addKaleoTask(kaleoDefinitionId,kaleoNode.getKaleoNodeId(),task,serviceContext);
+    }
+ else     if (nodeType.equals(NodeType.CONDITION)) {
+      Condition condition=(Condition)node;
+      KaleoConditionLocalServiceUtil.addKaleoCondition(kaleoDefinitionId,kaleoNode.getKaleoNodeId(),condition,serviceContext);
+    }
+  }
+  for (  Node node : nodes) {
+    KaleoNode kaleoNode=kaleoNodesMap.get(node.getName());
+    for (    Transition transition : node.getOutgoingTransitionsList()) {
+      KaleoNode sourceKaleoNode=kaleoNodesMap.get(transition.getSourceNode().getName());
+      if (sourceKaleoNode == null) {
+        throw new WorkflowException("Unable to find source node " + transition.getSourceNode());
+      }
+      KaleoNode targetKaleoNode=kaleoNodesMap.get(transition.getTargetNode().getName());
+      if (targetKaleoNode == null) {
+        throw new WorkflowException("Unable to find target node " + transition.getTargetNode());
+      }
+      KaleoTransitionLocalServiceUtil.addKaleoTransition(kaleoNode.getKaleoDefinitionId(),kaleoNode.getKaleoNodeId(),transition,sourceKaleoNode,targetKaleoNode,serviceContext);
+    }
+  }
+  State initialState=definition.getInitialState();
+  if (initialState == null) {
+    throw new WorkflowException("No initial state found in definition");
+  }
+  String startKaleoNodeName=initialState.getName();
+  KaleoNode kaleoNode=kaleoNodesMap.get(startKaleoNodeName);
+  KaleoDefinitionLocalServiceUtil.activateKaleoDefinition(kaleoDefinitionId,kaleoNode.getKaleoNodeId(),serviceContext);
+  return WorkflowModelUtil.toWorkflowDefinition(kaleoDefinition);
+}

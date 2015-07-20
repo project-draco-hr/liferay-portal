@@ -1,0 +1,34 @@
+{
+  Lock lock=null;
+  try {
+    lock=LockManagerUtil.lock(userId,WorkflowTask.class.getName(),workflowTaskInstanceId,String.valueOf(userId),false,1000);
+  }
+ catch (  PortalException pe) {
+    if (pe instanceof DuplicateLockException) {
+      throw new WorkflowException("Workflow task " + workflowTaskInstanceId + " is locked by user "+ userId,pe);
+    }
+    throw new WorkflowException("Unable to lock workflow task " + workflowTaskInstanceId,pe);
+  }
+  try {
+    ServiceContext serviceContext=new ServiceContext();
+    serviceContext.setCompanyId(companyId);
+    serviceContext.setUserId(userId);
+    WorkflowTask workflowTask=_taskManager.completeWorkflowTask(workflowTaskInstanceId,transitionName,comment,workflowContext,serviceContext);
+    KaleoTaskInstanceToken kaleoTaskInstanceToken=KaleoTaskInstanceTokenLocalServiceUtil.getKaleoTaskInstanceToken(workflowTask.getWorkflowTaskId());
+    KaleoInstanceToken kaleoInstanceToken=kaleoTaskInstanceToken.getKaleoInstanceToken();
+    if (workflowContext == null) {
+      workflowContext=WorkflowContextUtil.convert(kaleoInstanceToken.getKaleoInstance().getWorkflowContext());
+    }
+    workflowContext.put(WorkflowConstants.CONTEXT_TASK_COMMENTS,comment);
+    workflowContext.put(WorkflowConstants.CONTEXT_TRANSITION_NAME,transitionName);
+    ExecutionContext executionContext=new ExecutionContext(kaleoInstanceToken,kaleoTaskInstanceToken,workflowContext,serviceContext);
+    _kaleoSignaler.signalExit(transitionName,executionContext);
+    return workflowTask;
+  }
+ catch (  Exception e) {
+    throw new WorkflowException("Unable to complete task",e);
+  }
+ finally {
+    LockManagerUtil.unlock(lock.getClassName(),lock.getKey());
+  }
+}

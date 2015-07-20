@@ -1,0 +1,19 @@
+{
+  KaleoTaskInstanceToken kaleoTaskInstanceToken=kaleoTaskInstanceTokenLocalService.getKaleoTaskInstanceToken(workflowTaskInstanceId);
+  List<KaleoTaskAssignmentInstance> previousTaskAssignmentInstances=kaleoTaskInstanceToken.getKaleoTaskAssignmentInstances();
+  workflowContext=updateWorkflowContext(workflowContext,kaleoTaskInstanceToken);
+  if (kaleoTaskInstanceToken.isCompleted()) {
+    throw new WorkflowException("Cannot reassign a completed task " + workflowTaskInstanceId);
+  }
+  if (dueDate != null) {
+    kaleoTaskInstanceTokenLocalService.updateDueDate(workflowTaskInstanceId,dueDate,serviceContext);
+  }
+  kaleoTaskInstanceToken=kaleoTaskInstanceTokenLocalService.assignKaleoTaskInstanceToken(kaleoTaskInstanceToken.getKaleoTaskInstanceTokenId(),assigneeClassName,assigneeClassPK,workflowContext,serviceContext);
+  workflowContext.put(WorkflowConstants.CONTEXT_TASK_COMMENTS,comment);
+  ExecutionContext executionContext=new ExecutionContext(kaleoTaskInstanceToken.getKaleoInstanceToken(),kaleoTaskInstanceToken,workflowContext,serviceContext);
+  KaleoTask kaleoTask=kaleoTaskInstanceToken.getKaleoTask();
+  ActionExecutorUtil.executeKaleoActions(KaleoNode.class.getName(),kaleoTask.getKaleoNodeId(),ExecutionType.ON_ASSIGNMENT,executionContext);
+  NotificationUtil.sendKaleoNotifications(KaleoNode.class.getName(),kaleoTask.getKaleoNodeId(),ExecutionType.ON_ASSIGNMENT,executionContext);
+  kaleoLogLocalService.addTaskAssignmentKaleoLog(previousTaskAssignmentInstances,kaleoTaskInstanceToken,comment,workflowContext,serviceContext);
+  return WorkflowModelUtil.toWorkflowTask(kaleoTaskInstanceToken,workflowContext);
+}

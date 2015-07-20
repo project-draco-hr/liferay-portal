@@ -1,0 +1,36 @@
+{
+  Join join=null;
+  List<Node> targetNodes=new ArrayList<>();
+  Map<Join,Fork> joinForkMap=new HashMap<>();
+  targetNodes.add(fork);
+  for (  Transition transition : fork.getOutgoingTransitionsList()) {
+    targetNodes.add(transition.getTargetNode());
+  }
+  for (int i=1; i < targetNodes.size(); i++) {
+    Node targetNode=targetNodes.get(i);
+    NodeType nodeType=targetNode.getNodeType();
+    if (nodeType.equals(NodeType.FORK)) {
+      Join localJoin=traverse((Fork)targetNode);
+      joinForkMap.put(localJoin,(Fork)targetNode);
+      List<Node> unvisitedTargetNodes=getUnvisitedNodes(targetNodes,localJoin.getOutgoingTransitionsList(),true);
+      targetNodes.addAll(unvisitedTargetNodes);
+    }
+ else     if (nodeType.equals(NodeType.JOIN) || nodeType.equals(NodeType.JOIN_XOR)) {
+      if (Validator.isNull(join)) {
+        join=(Join)targetNode;
+      }
+ else       if (!Validator.equals(join,targetNode)) {
+        throw new WorkflowException("Fork " + fork.getName() + " and join "+ targetNode.getName()+ " are not paired");
+      }
+    }
+ else {
+      List<Node> unvisitedTargetNodes=getUnvisitedNodes(targetNodes,targetNode.getOutgoingTransitionsList(),true);
+      targetNodes.addAll(unvisitedTargetNodes);
+    }
+  }
+  if (join == null) {
+    throw new WorkflowException("No matching join found for fork " + fork.getName());
+  }
+  reverseTraverse(fork,join,targetNodes,joinForkMap);
+  return join;
+}
