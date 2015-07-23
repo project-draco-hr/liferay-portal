@@ -1,5 +1,16 @@
 {
   DLFileEntry dlFileEntry=(DLFileEntry)baseModel;
-  FileEntry fileEntry=DLAppServiceUtil.updateFileEntry(dlFileEntry.getFileEntryId(),null,dlFileEntry.getMimeType(),keywords,StringPool.BLANK,StringPool.BLANK,true,(byte[])null,serviceContext);
-  return (DLFileEntry)fileEntry.getModel();
-}
+  try (CaptureAppender captureAppender=Log4JLoggerTestUtil.configureLog4JLogger(BaseStore.class.getName(),Level.WARN)){
+    DLFileVersion dlFileVersion=DLFileVersionLocalServiceUtil.fetchLatestFileVersion(dlFileEntry.getFileEntryId(),!dlFileEntry.isCheckedOut());
+    FileEntry fileEntry=DLAppServiceUtil.updateFileEntry(dlFileEntry.getFileEntryId(),null,dlFileEntry.getMimeType(),keywords,StringPool.BLANK,StringPool.BLANK,true,(byte[])null,serviceContext);
+    List<LoggingEvent> loggingEvents=captureAppender.getLoggingEvents();
+    if (dlFileVersion.isApproved()) {
+      Assert.assertEquals(1,loggingEvents.size());
+      LoggingEvent loggingEvent=loggingEvents.get(0);
+      String message=(String)loggingEvent.getMessage();
+      Assert.assertTrue(message.startsWith("Unable to delete file {companyId=" + fileEntry.getCompanyId()));
+      Assert.assertTrue(message.endsWith("versionLabel=PWC} because it does not exist"));
+    }
+    return (DLFileEntry)fileEntry.getModel();
+  }
+ }
