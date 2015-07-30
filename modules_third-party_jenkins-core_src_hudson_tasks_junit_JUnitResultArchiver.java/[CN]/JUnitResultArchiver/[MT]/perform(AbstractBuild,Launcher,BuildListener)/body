@@ -1,0 +1,43 @@
+{
+  listener.getLogger().println(Messages.JUnitResultArchiver_Recording());
+  TestResultAction action;
+  listener.getLogger().println("Liferay patched " + JUnitResultArchiver.class);
+  final String testResults=build.getEnvironment(listener).expand(this.testResults);
+  try {
+    TestResult result=parse(testResults,build,launcher,listener);
+    try {
+      action=new TestResultAction(build,result,listener);
+    }
+ catch (    NullPointerException npe) {
+      throw new AbortException(Messages.JUnitResultArchiver_BadXML(testResults));
+    }
+    result.freeze(action);
+    if (result.isEmpty()) {
+      throw new AbortException(Messages.JUnitResultArchiver_ResultIsEmpty());
+    }
+    List<Data> data=new ArrayList<Data>();
+    if (testDataPublishers != null) {
+      for (      TestDataPublisher tdp : testDataPublishers) {
+        Data d=tdp.getTestData(build,launcher,listener,result);
+        if (d != null) {
+          data.add(d);
+        }
+      }
+    }
+    action.setData(data);
+  }
+ catch (  AbortException e) {
+    if (build.getResult() == Result.FAILURE)     return true;
+    listener.getLogger().println(e.getMessage());
+    build.setResult(Result.FAILURE);
+    return true;
+  }
+catch (  IOException e) {
+    e.printStackTrace(listener.error("Failed to archive test reports"));
+    build.setResult(Result.FAILURE);
+    return true;
+  }
+  build.addAction(action);
+  if (action.getResult().getFailCount() > 0)   build.setResult(Result.UNSTABLE);
+  return true;
+}
