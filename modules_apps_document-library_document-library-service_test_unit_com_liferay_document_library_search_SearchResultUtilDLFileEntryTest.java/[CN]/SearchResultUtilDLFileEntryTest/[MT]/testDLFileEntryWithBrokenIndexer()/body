@@ -1,12 +1,11 @@
 {
-  when(dlAppLocalService.getFileEntry(SearchTestUtil.ENTRY_CLASS_PK)).thenReturn(_fileEntry);
-  Indexer<?> indexer=Mockito.mock(Indexer.class);
-  Mockito.doThrow(IllegalArgumentException.class).when(indexer).getSummary((Document)Matchers.any(),Matchers.anyString(),(PortletRequest)Matchers.any(),(PortletResponse)Matchers.any());
-  stub(method(IndexerRegistryUtil.class,"getIndexer",String.class)).toReturn(indexer);
+  Mockito.when(_dlAppLocalService.getFileEntry(SearchTestUtil.ENTRY_CLASS_PK)).thenReturn(_fileEntry);
+  Mockito.doThrow(new IllegalArgumentException()).when(_indexer).getSummary((Document)Matchers.any(),Matchers.anyString(),(PortletRequest)Matchers.any(),(PortletResponse)Matchers.any());
+  Mockito.when(_indexerRegistry.getIndexer(Mockito.anyString())).thenReturn(_indexer);
   Document document=SearchTestUtil.createAttachmentDocument(_DL_FILE_ENTRY_CLASS_NAME);
   String snippet=RandomTestUtil.randomString();
   document.add(new Field(Field.SNIPPET,snippet));
-  try (CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(SearchResultUtil.class.getName(),Level.WARNING)){
+  try (CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(SearchResultTranslatorImpl.class.getName(),Level.WARNING)){
     SearchResult searchResult=assertOneSearchResult(document);
     List<LogRecord> logRecords=captureHandler.getLogRecords();
     Assert.assertEquals(1,logRecords.size());
@@ -16,11 +15,10 @@
     Assert.assertEquals(SearchTestUtil.ATTACHMENT_OWNER_CLASS_NAME,searchResult.getClassName());
     Assert.assertEquals(SearchTestUtil.ATTACHMENT_OWNER_CLASS_PK,searchResult.getClassPK());
     Assert.assertNull(searchResult.getSummary());
-    verifyStatic();
-    IndexerRegistryUtil.getIndexer(_DL_FILE_ENTRY_CLASS_NAME);
-    Mockito.verify(indexer).getSummary(document,snippet,null,null);
+    Mockito.verify(_indexerRegistry).getIndexer(_DL_FILE_ENTRY_CLASS_NAME);
+    Mockito.verify(_indexer).getSummary(document,snippet,null,null);
     assertEmptyFileEntryRelatedSearchResults(searchResult);
-    Mockito.verify(dlAppLocalService).getFileEntry(SearchTestUtil.ENTRY_CLASS_PK);
+    Mockito.verify(_dlAppLocalService).getFileEntry(SearchTestUtil.ENTRY_CLASS_PK);
     assertEmptyCommentRelatedSearchResults(searchResult);
     assertEmptyVersions(searchResult);
   }
