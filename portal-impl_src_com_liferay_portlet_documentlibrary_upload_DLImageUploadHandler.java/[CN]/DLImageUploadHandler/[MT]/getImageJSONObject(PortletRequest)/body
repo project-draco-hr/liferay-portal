@@ -1,0 +1,35 @@
+{
+  UploadPortletRequest uploadPortletRequest=PortalUtil.getUploadPortletRequest(portletRequest);
+  ThemeDisplay themeDisplay=(ThemeDisplay)portletRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  JSONObject imageJSONObject=JSONFactoryUtil.createJSONObject();
+  InputStream inputStream=null;
+  try {
+    long repositoryId=ParamUtil.getLong(uploadPortletRequest,"repositoryId");
+    long folderId=ParamUtil.getLong(uploadPortletRequest,"folderId");
+    String fileName=uploadPortletRequest.getFileName("imageSelectorFileName");
+    if (folderId > 0) {
+      Folder folder=DLAppServiceUtil.getFolder(folderId);
+      if (folder.getGroupId() != themeDisplay.getScopeGroupId()) {
+        throw new NoSuchFolderException("{folderId=" + folderId + "}");
+      }
+    }
+    String contentType=uploadPortletRequest.getContentType("imageSelectorFileName");
+    long size=uploadPortletRequest.getSize("imageSelectorFileName");
+    if (size == 0) {
+      contentType=MimeTypesUtil.getContentType(fileName);
+    }
+    validateFile(fileName,contentType,size);
+    inputStream=uploadPortletRequest.getFileAsStream("imageSelectorFileName");
+    ServiceContext serviceContext=ServiceContextFactory.getInstance(DLFileEntry.class.getName(),uploadPortletRequest);
+    FileEntry fileEntry=DLAppServiceUtil.addFileEntry(repositoryId,folderId,fileName,contentType,fileName,StringPool.BLANK,StringPool.BLANK,inputStream,size,serviceContext);
+    imageJSONObject.put("url",DLUtil.getPreviewURL(fileEntry,fileEntry.getLatestFileVersion(),themeDisplay,StringPool.BLANK));
+    imageJSONObject.put("fileEntryId",fileEntry.getFileEntryId());
+    return imageJSONObject;
+  }
+ catch (  IOException ioe) {
+    throw new SystemException(ioe);
+  }
+ finally {
+    StreamUtil.cleanUp(inputStream);
+  }
+}
