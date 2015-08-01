@@ -48,72 +48,79 @@ catch (      PortletException pe) {
       }
     }
   }
-  long companyId=company.getCompanyId();
-  SearchEngineUtil.initialize(companyId);
-  checkCompanyKey(companyId);
-  User defaultUser=userPersistence.fetchByC_DU(companyId,true);
-  if (defaultUser != null) {
-    if (!defaultUser.isAgreedToTermsOfUse()) {
+  CompanyProvider companyProvider=_serviceCompanyProvider.getCompanyProvider();
+  try {
+    long companyId=company.getCompanyId();
+    _serviceCompanyProvider.setCompanyProvider(new CustomCompanyProvider(companyId));
+    SearchEngineUtil.initialize(companyId);
+    checkCompanyKey(companyId);
+    User defaultUser=userPersistence.fetchByC_DU(companyId,true);
+    if (defaultUser != null) {
+      if (!defaultUser.isAgreedToTermsOfUse()) {
+        defaultUser.setAgreedToTermsOfUse(true);
+        userPersistence.update(defaultUser);
+      }
+    }
+ else {
+      long userId=counterLocalService.increment();
+      defaultUser=userPersistence.create(userId);
+      defaultUser.setCompanyId(companyId);
+      defaultUser.setDefaultUser(true);
+      defaultUser.setContactId(counterLocalService.increment());
+      defaultUser.setPassword("password");
+      defaultUser.setScreenName(String.valueOf(defaultUser.getUserId()));
+      defaultUser.setEmailAddress("default@" + company.getMx());
+      if (Validator.isNotNull(PropsValues.COMPANY_DEFAULT_LOCALE)) {
+        defaultUser.setLanguageId(PropsValues.COMPANY_DEFAULT_LOCALE);
+      }
+ else {
+        Locale locale=LocaleUtil.getDefault();
+        defaultUser.setLanguageId(locale.toString());
+      }
+      if (Validator.isNotNull(PropsValues.COMPANY_DEFAULT_TIME_ZONE)) {
+        defaultUser.setTimeZoneId(PropsValues.COMPANY_DEFAULT_TIME_ZONE);
+      }
+ else {
+        TimeZone timeZone=TimeZoneUtil.getDefault();
+        defaultUser.setTimeZoneId(timeZone.getID());
+      }
+      String greeting=LanguageUtil.format(defaultUser.getLocale(),"welcome",null,false);
+      defaultUser.setGreeting(greeting + StringPool.EXCLAMATION);
+      defaultUser.setLoginDate(now);
+      defaultUser.setFailedLoginAttempts(0);
       defaultUser.setAgreedToTermsOfUse(true);
+      defaultUser.setStatus(WorkflowConstants.STATUS_APPROVED);
       userPersistence.update(defaultUser);
+      Contact defaultContact=contactPersistence.create(defaultUser.getContactId());
+      defaultContact.setCompanyId(defaultUser.getCompanyId());
+      defaultContact.setUserId(defaultUser.getUserId());
+      defaultContact.setUserName(StringPool.BLANK);
+      defaultContact.setClassName(User.class.getName());
+      defaultContact.setClassPK(defaultUser.getUserId());
+      defaultContact.setAccountId(company.getAccountId());
+      defaultContact.setParentContactId(ContactConstants.DEFAULT_PARENT_CONTACT_ID);
+      defaultContact.setEmailAddress(defaultUser.getEmailAddress());
+      defaultContact.setFirstName(StringPool.BLANK);
+      defaultContact.setMiddleName(StringPool.BLANK);
+      defaultContact.setLastName(StringPool.BLANK);
+      defaultContact.setMale(true);
+      defaultContact.setBirthday(now);
+      contactPersistence.update(defaultContact);
     }
+    roleLocalService.checkSystemRoles(companyId);
+    groupLocalService.checkSystemGroups(companyId);
+    groupLocalService.checkCompanyGroup(companyId);
+    passwordPolicyLocalService.checkDefaultPasswordPolicy(companyId);
+    Role guestRole=roleLocalService.getRole(companyId,RoleConstants.GUEST);
+    roleLocalService.setUserRoles(defaultUser.getUserId(),new long[]{guestRole.getRoleId()});
+    if (userPersistence.countByCompanyId(companyId) == 1) {
+      String emailAddress=PropsValues.DEFAULT_ADMIN_EMAIL_ADDRESS_PREFIX + "@" + mx;
+      userLocalService.addDefaultAdminUser(companyId,PropsValues.DEFAULT_ADMIN_SCREEN_NAME,emailAddress,defaultUser.getLocale(),PropsValues.DEFAULT_ADMIN_FIRST_NAME,PropsValues.DEFAULT_ADMIN_MIDDLE_NAME,PropsValues.DEFAULT_ADMIN_LAST_NAME);
+    }
+    portletLocalService.checkPortlets(companyId);
   }
- else {
-    long userId=counterLocalService.increment();
-    defaultUser=userPersistence.create(userId);
-    defaultUser.setCompanyId(companyId);
-    defaultUser.setDefaultUser(true);
-    defaultUser.setContactId(counterLocalService.increment());
-    defaultUser.setPassword("password");
-    defaultUser.setScreenName(String.valueOf(defaultUser.getUserId()));
-    defaultUser.setEmailAddress("default@" + company.getMx());
-    if (Validator.isNotNull(PropsValues.COMPANY_DEFAULT_LOCALE)) {
-      defaultUser.setLanguageId(PropsValues.COMPANY_DEFAULT_LOCALE);
-    }
- else {
-      Locale locale=LocaleUtil.getDefault();
-      defaultUser.setLanguageId(locale.toString());
-    }
-    if (Validator.isNotNull(PropsValues.COMPANY_DEFAULT_TIME_ZONE)) {
-      defaultUser.setTimeZoneId(PropsValues.COMPANY_DEFAULT_TIME_ZONE);
-    }
- else {
-      TimeZone timeZone=TimeZoneUtil.getDefault();
-      defaultUser.setTimeZoneId(timeZone.getID());
-    }
-    String greeting=LanguageUtil.format(defaultUser.getLocale(),"welcome",null,false);
-    defaultUser.setGreeting(greeting + StringPool.EXCLAMATION);
-    defaultUser.setLoginDate(now);
-    defaultUser.setFailedLoginAttempts(0);
-    defaultUser.setAgreedToTermsOfUse(true);
-    defaultUser.setStatus(WorkflowConstants.STATUS_APPROVED);
-    userPersistence.update(defaultUser);
-    Contact defaultContact=contactPersistence.create(defaultUser.getContactId());
-    defaultContact.setCompanyId(defaultUser.getCompanyId());
-    defaultContact.setUserId(defaultUser.getUserId());
-    defaultContact.setUserName(StringPool.BLANK);
-    defaultContact.setClassName(User.class.getName());
-    defaultContact.setClassPK(defaultUser.getUserId());
-    defaultContact.setAccountId(company.getAccountId());
-    defaultContact.setParentContactId(ContactConstants.DEFAULT_PARENT_CONTACT_ID);
-    defaultContact.setEmailAddress(defaultUser.getEmailAddress());
-    defaultContact.setFirstName(StringPool.BLANK);
-    defaultContact.setMiddleName(StringPool.BLANK);
-    defaultContact.setLastName(StringPool.BLANK);
-    defaultContact.setMale(true);
-    defaultContact.setBirthday(now);
-    contactPersistence.update(defaultContact);
+  finally {
+    _serviceCompanyProvider.setCompanyProvider(companyProvider);
   }
-  roleLocalService.checkSystemRoles(companyId);
-  groupLocalService.checkSystemGroups(companyId);
-  groupLocalService.checkCompanyGroup(companyId);
-  passwordPolicyLocalService.checkDefaultPasswordPolicy(companyId);
-  Role guestRole=roleLocalService.getRole(companyId,RoleConstants.GUEST);
-  roleLocalService.setUserRoles(defaultUser.getUserId(),new long[]{guestRole.getRoleId()});
-  if (userPersistence.countByCompanyId(companyId) == 1) {
-    String emailAddress=PropsValues.DEFAULT_ADMIN_EMAIL_ADDRESS_PREFIX + "@" + mx;
-    userLocalService.addDefaultAdminUser(companyId,PropsValues.DEFAULT_ADMIN_SCREEN_NAME,emailAddress,defaultUser.getLocale(),PropsValues.DEFAULT_ADMIN_FIRST_NAME,PropsValues.DEFAULT_ADMIN_MIDDLE_NAME,PropsValues.DEFAULT_ADMIN_LAST_NAME);
-  }
-  portletLocalService.checkPortlets(companyId);
   return company;
 }
