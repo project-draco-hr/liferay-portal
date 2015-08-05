@@ -1,0 +1,48 @@
+{
+  String[] tokens=StringUtils.split(location,'/');
+  String group=null;
+  String module=null;
+  String version=tokens[tokens.length - 2];
+  if (StringUtils.endsWithIgnoreCase(version,"-SNAPSHOT")) {
+    group=StringUtils.join(tokens,'.',0,tokens.length - 3);
+    module=tokens[tokens.length - 3];
+  }
+ else {
+    group=StringUtils.join(tokens,'.',0,tokens.length - 2);
+    module=version;
+    version=null;
+  }
+  File moduleDir=new File(_getGradleUserHome(),_FILES_CACHE_DIR_NAME + "/" + group+ "/"+ module);
+  if (!moduleDir.exists()) {
+    return null;
+  }
+  if (StringUtils.isNotBlank(version)) {
+    File artifactDir=new File(moduleDir,version);
+    if (!artifactDir.exists()) {
+      return null;
+    }
+  }
+  Metadata metadata=new Metadata();
+  metadata.setArtifactId(module);
+  metadata.setGroupId(group);
+  Versioning versioning=new Versioning();
+  if (StringUtils.isNotBlank(version)) {
+    metadata.setVersion(version);
+  }
+ else {
+    SortedSet<ComparableVersion> moduleVersions=_getModuleVersions(moduleDir,false);
+    for (    ComparableVersion moduleVersion : moduleVersions) {
+      versioning.addVersion(moduleVersion.toString());
+    }
+  }
+  versioning.setLatest(_getModuleLatestVersion(moduleDir,false));
+  versioning.setRelease(_getModuleLatestVersion(moduleDir,true));
+  metadata.setVersioning(versioning);
+  MetadataXpp3Writer metadataXpp3Writer=new MetadataXpp3Writer();
+  ByteArrayOutputStream byteArrayOutputStream=new ByteArrayOutputStream();
+  metadataXpp3Writer.write(byteArrayOutputStream,metadata);
+  HttpResponse httpResponse=new BasicHttpResponse(new BasicStatusLine(HttpVersion.HTTP_1_1,HttpStatus.SC_OK,null));
+  httpResponse.setEntity(new ByteArrayEntity(byteArrayOutputStream.toByteArray(),ContentType.APPLICATION_XML));
+  httpResponse.setHeader(HttpHeaders.CONTENT_LENGTH,String.valueOf(byteArrayOutputStream.size()));
+  return new HttpResponseResource(HttpGet.METHOD_NAME,uri,httpResponse);
+}
