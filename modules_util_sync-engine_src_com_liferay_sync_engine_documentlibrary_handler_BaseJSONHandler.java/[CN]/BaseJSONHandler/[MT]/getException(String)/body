@@ -1,4 +1,5 @@
 {
+  String exception=null;
   JsonNode responseJsonNode=null;
   try {
     response=StringEscapeUtils.unescapeJava(response);
@@ -13,15 +14,34 @@
     if (exceptionJsonNode == null) {
       return "";
     }
-    return exceptionJsonNode.asText();
+    exception=exceptionJsonNode.asText();
+    if (exception.startsWith("No JSON web service action associated with path")) {
+      return "com.liferay.portal.kernel.jsonwebservice." + "NoSuchJSONWebServiceException";
+    }
   }
-  JsonNode typeJsonNode=null;
-  JsonNode rootCauseJsonNode=responseJsonNode.get("rootCause");
-  if (rootCauseJsonNode != null) {
-    typeJsonNode=rootCauseJsonNode.get("type");
-  }
+  if (exception == null) {
+    JsonNode typeJsonNode=null;
+    JsonNode rootCauseJsonNode=responseJsonNode.get("rootCause");
+    if (rootCauseJsonNode != null) {
+      typeJsonNode=rootCauseJsonNode.get("type");
+    }
  else {
-    typeJsonNode=errorJsonNode.get("type");
+      typeJsonNode=errorJsonNode.get("type");
+    }
+    exception=typeJsonNode.asText();
   }
-  return typeJsonNode.asText();
+  if (exception.equals("java.lang.RuntimeException")) {
+    JsonNode messageJsonNode=null;
+    if (errorJsonNode != null) {
+      messageJsonNode=errorJsonNode.get("message");
+    }
+ else {
+      messageJsonNode=responseJsonNode.get("message");
+    }
+    String message=messageJsonNode.asText();
+    if (message.startsWith("No JSON web service action associated with path")) {
+      return "com.liferay.portal.kernel.jsonwebservice." + "NoSuchJSONWebServiceException";
+    }
+  }
+  return exception;
 }
