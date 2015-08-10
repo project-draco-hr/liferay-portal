@@ -1,7 +1,7 @@
 {
   ServiceContext serviceContext=ServiceContextTestUtil.getServiceContext(_group1.getGroupId());
   BaseModel<?> parentBaseModel=getParentBaseModel(_group1,serviceContext);
-  SearchContext searchContext=SearchContextTestUtil.getSearchContext();
+  final SearchContext searchContext=SearchContextTestUtil.getSearchContext();
   searchContext.setGroupIds(assetEntryQuery.getGroupIds());
   for (  Date expirationDate : expirationDates) {
     addBaseModel(parentBaseModel,RandomTestUtil.randomString(),expirationDate,serviceContext);
@@ -9,15 +9,13 @@
   assetEntryQuery.setOrderByCol1("expirationDate");
   assetEntryQuery.setOrderByType1(orderByType);
   Arrays.sort(expirationDates);
-  DateFormat dateFormat=DateFormatFactoryUtil.getSimpleDateFormat(PropsValues.INDEX_DATE_FORMAT_PATTERN);
-  AssetEntry[] assetEntries=search(assetEntryQuery,searchContext);
-  for (int i=0; i < assetEntries.length; i++) {
-    AssetEntry assetEntry=assetEntries[i];
-    String expirationDate=dateFormat.format(assetEntry.getExpirationDate());
-    int index=i;
-    if (orderByType.equals("desc")) {
-      index=assetEntries.length - 1 - i;
+  final DateFormat dateFormat=DateFormatFactoryUtil.getSimpleDateFormat(PropsValues.INDEX_DATE_FORMAT_PATTERN);
+  IdempotentRetryAssert.retryAssert(10,TimeUnit.SECONDS,new Callable<Void>(){
+    @Override public Void call() throws Exception {
+      List<AssetEntry> assetEntries=search(assetEntryQuery,searchContext);
+      Assert.assertEquals(ArrayUtils.toString(format(expirationDates,dateFormat)),ArrayUtils.toString(format(getExpirationDates(assetEntries,orderByType),dateFormat)));
+      return null;
     }
-    Assert.assertEquals(expirationDate,dateFormat.format(expirationDates[index]));
   }
+);
 }

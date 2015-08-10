@@ -6,16 +6,17 @@
   }
   assetEntryQuery.setOrderByCol1("title");
   assetEntryQuery.setOrderByType1(orderByType);
-  SearchContext searchContext=SearchContextTestUtil.getSearchContext();
+  final SearchContext searchContext=SearchContextTestUtil.getSearchContext();
   searchContext.setGroupIds(assetEntryQuery.getGroupIds());
-  for (  Locale locale : locales) {
+  for (  final Locale locale : locales) {
     searchContext.setLocale(locale);
-    AssetEntry[] assetEntries=search(assetEntryQuery,searchContext);
-    for (int i=0; i < assetEntries.length; i++) {
-      AssetEntry assetEntry=assetEntries[i];
-      String title=assetEntry.getTitle(locale);
-      Map<Locale,String> orderedTitleMap=orderedTitleMaps.get(i);
-      Assert.assertEquals(orderedTitleMap.get(locale),title);
+    IdempotentRetryAssert.retryAssert(10,TimeUnit.SECONDS,new Callable<Void>(){
+      @Override public Void call() throws Exception {
+        List<AssetEntry> assetEntries=search(assetEntryQuery,searchContext);
+        Assert.assertEquals(ArrayUtils.toString(getOrderedTitles(orderedTitleMaps,locale)),ArrayUtils.toString(getTitles(assetEntries,locale)));
+        return null;
+      }
     }
+);
   }
 }
