@@ -1,0 +1,35 @@
+{
+  final String portletToTarget="TEST_TARGET";
+  properties.put("com.liferay.portlet.add-default-resource",Boolean.TRUE);
+  properties.put("com.liferay.portlet.system",Boolean.TRUE);
+  setUpPortlet(new RequestTestPortlet(map),properties,portletToTarget,false);
+  properties=new Hashtable<>();
+  Map<String,String> ignored=new HashMap<>();
+  requestTestPortlet=new RequestTestPortlet(ignored){
+    @Override public void serveResource(    ResourceRequest resourceRequest,    ResourceResponse resourceResponse) throws IOException, PortletException {
+      PortletURL portletURL=PortletURLFactoryUtil.create(resourceRequest,portletToTarget,layout.getPlid(),PortletRequest.RENDER_PHASE);
+      String queryString=HttpUtil.getQueryString(portletURL.toString());
+      Map<String,String[]> parameterMap=HttpUtil.getParameterMap(queryString);
+      String p_p_auth=MapUtil.getString(parameterMap,"p_p_auth");
+      PrintWriter writer=resourceResponse.getWriter();
+      writer.write(p_p_auth);
+    }
+  }
+;
+  setUpPortlet(requestTestPortlet,properties,PortletKeys.TEST_PORTLET);
+  MockHttpServletRequest request=getRequest();
+  PortletURL portletURL=new PortletURLImpl(request,PortletKeys.TEST_PORTLET,layout.getPlid(),PortletRequest.RESOURCE_PHASE);
+  Map<String,List<String>> responseMap=request(portletURL.toString());
+  String p_p_auth=responseMap.get("responseBody").get(0);
+  List<String> cookies=responseMap.get("Set-Cookie");
+  map.clear();
+  portletURL=new PortletURLImpl(request,portletToTarget,layout.getPlid(),PortletRequest.RESOURCE_PHASE);
+  portletURL.setWindowState(WindowState.MAXIMIZED);
+  String url=portletURL.toString();
+  url=HttpUtil.setParameter(url,"p_p_auth",p_p_auth);
+  Map<String,List<String>> headers=new HashMap<>();
+  headers.put("Cookie",cookies);
+  responseMap=request(url,headers);
+  Assert.assertEquals("200",responseMap.get("responseCode").get(0));
+  Assert.assertTrue(map.containsKey("serveResource"));
+}
