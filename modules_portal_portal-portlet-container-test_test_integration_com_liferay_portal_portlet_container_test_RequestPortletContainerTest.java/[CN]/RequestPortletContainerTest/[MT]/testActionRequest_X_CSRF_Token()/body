@@ -1,18 +1,12 @@
 {
-  final String portletToTarget="TEST_TARGET";
-  properties.put("com.liferay.portlet.add-default-resource",Boolean.TRUE);
-  properties.put("com.liferay.portlet.system",Boolean.TRUE);
-  setUpPortlet(new RequestTestPortlet(map),properties,portletToTarget,false);
-  properties=new Hashtable<>();
-  Map<String,String> ignored=new HashMap<>();
-  requestTestPortlet=new RequestTestPortlet(ignored){
+  requestTestPortlet=new TestPortlet(map){
     @Override public void serveResource(    ResourceRequest resourceRequest,    ResourceResponse resourceResponse) throws IOException {
-      PortletURL portletURL=PortletURLFactoryUtil.create(resourceRequest,portletToTarget,layout.getPlid(),PortletRequest.RENDER_PHASE);
+      PortletURL portletURL=resourceResponse.createActionURL();
       String queryString=HttpUtil.getQueryString(portletURL.toString());
       Map<String,String[]> parameterMap=HttpUtil.getParameterMap(queryString);
-      String p_p_auth=MapUtil.getString(parameterMap,"p_p_auth");
+      String p_auth=MapUtil.getString(parameterMap,"p_auth");
       PrintWriter writer=resourceResponse.getWriter();
-      writer.write(p_p_auth);
+      writer.write(p_auth);
     }
   }
 ;
@@ -20,16 +14,16 @@
   HttpServletRequest request=getHttpServletRequest();
   PortletURL portletURL=new PortletURLImpl(request,_TEST_PORTLET_ID,layout.getPlid(),PortletRequest.RESOURCE_PHASE);
   Map<String,List<String>> responseMap=request(portletURL.toString());
-  String p_p_auth=getString(responseMap,"body");
+  String p_auth=getString(responseMap,"body");
   List<String> cookies=responseMap.get("Set-Cookie");
   map.clear();
-  portletURL=new PortletURLImpl(request,portletToTarget,layout.getPlid(),PortletRequest.RENDER_PHASE);
-  portletURL.setWindowState(WindowState.MAXIMIZED);
+  portletURL=new PortletURLImpl(request,_TEST_PORTLET_ID,layout.getPlid(),PortletRequest.ACTION_PHASE);
   String url=portletURL.toString();
-  url=HttpUtil.setParameter(url,"p_p_auth",p_p_auth);
+  url=HttpUtil.removeParameter(url,"p_auth");
   Map<String,List<String>> headers=new HashMap<>();
   headers.put("Cookie",cookies);
+  headers.put("X-CSRF-Token",Collections.singletonList(p_auth));
   responseMap=request(url,headers);
   Assert.assertEquals("200",getString(responseMap,"code"));
-  Assert.assertTrue(map.containsKey("render"));
+  Assert.assertTrue(map.containsKey("processAction"));
 }
