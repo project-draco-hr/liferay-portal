@@ -2,8 +2,25 @@
   System.setProperty("portal:jdbc.default.liferay.pool.provider","hikaricp");
   InitUtil.init();
   ServerDetector.init(ServerDetector.TOMCAT_ID);
-  DataSource dataSource=DataSourceFactoryUtil.initDataSource(_properties);
-  Class<?> dataSourceClass=dataSource.getClass();
+  DataSource dataSource=null;
+  try (CaptureAppender captureAppender=Log4JLoggerTestUtil.configureLog4JLogger(JarUtil.class.getName(),Level.INFO)){
+    dataSource=DataSourceFactoryUtil.initDataSource(_properties);
+    List<LoggingEvent> loggingEvents=captureAppender.getLoggingEvents();
+    Assert.assertEquals(4,loggingEvents.size());
+    LoggingEvent loggingEvent=loggingEvents.get(0);
+    String message=(String)loggingEvent.getMessage();
+    Assert.assertTrue(message.startsWith("Downloading "));
+    loggingEvent=loggingEvents.get(1);
+    message=(String)loggingEvent.getMessage();
+    Assert.assertTrue(message.startsWith("Downloaded "));
+    loggingEvent=loggingEvents.get(2);
+    message=(String)loggingEvent.getMessage();
+    Assert.assertTrue(message.startsWith("Installing "));
+    loggingEvent=loggingEvents.get(3);
+    message=(String)loggingEvent.getMessage();
+    Assert.assertTrue(message.startsWith("Installed "));
+  }
+   Class<?> dataSourceClass=dataSource.getClass();
   Assert.assertEquals("com.zaxxer.hikari.HikariDataSource",dataSourceClass.getName());
   for (int i=0; i < _CHECKOUT_COUNT; i++) {
     Connection connection=dataSource.getConnection();
