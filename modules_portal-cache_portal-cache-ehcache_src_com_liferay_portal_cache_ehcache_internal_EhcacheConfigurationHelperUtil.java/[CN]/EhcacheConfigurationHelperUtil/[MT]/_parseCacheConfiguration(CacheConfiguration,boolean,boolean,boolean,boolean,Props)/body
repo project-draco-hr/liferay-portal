@@ -6,7 +6,7 @@
   if (portalCacheName == null) {
     portalCacheName=PortalCacheConfiguration.DEFAULT_PORTAL_CACHE_NAME;
   }
-  Map<CallbackConfiguration,PortalCacheListenerScope> portalCacheListenerConfigurations=new HashMap<>();
+  Map<Properties,PortalCacheListenerScope> portalCacheListenerConfigurations=new HashMap<>();
   List<CacheEventListenerFactoryConfiguration> cacheEventListenerConfigurations=cacheConfiguration.getCacheEventListenerConfigurations();
   for (  CacheEventListenerFactoryConfiguration cacheEventListenerFactoryConfiguration : cacheEventListenerConfigurations) {
     String factoryClassName=_parseFactoryClassName(cacheEventListenerFactoryConfiguration.getFullyQualifiedClassPath(),props);
@@ -14,33 +14,26 @@
     PortalCacheListenerScope portalCacheListenerScope=_portalCacheListenerScopes.get(cacheEventListenerFactoryConfiguration.getListenFor());
     if (factoryClassName.equals(props.get(PropsKeys.EHCACHE_CACHE_EVENT_LISTENER_FACTORY))) {
       if (clusterAware && clusterEnabled) {
-        if (clusterLinkReplicationEnabled) {
-          portalCacheListenerConfigurations.put(new CallbackConfiguration(ClusterLinkCallbackFactory.INSTANCE,properties),portalCacheListenerScope);
-        }
- else {
+        if (!clusterLinkReplicationEnabled) {
           properties.put(EhcacheConstants.CACHE_EVENT_LISTENER_FACTORY_CLASS_NAME,factoryClassName);
-          portalCacheListenerConfigurations.put(new CallbackConfiguration(EhcacheCallbackFactory.INSTANCE,properties),portalCacheListenerScope);
         }
         properties.put(PortalCacheReplicator.REPLICATOR,true);
+        portalCacheListenerConfigurations.put(properties,portalCacheListenerScope);
       }
     }
  else     if (!usingDefault) {
       properties.put(EhcacheConstants.CACHE_EVENT_LISTENER_FACTORY_CLASS_NAME,factoryClassName);
-      portalCacheListenerConfigurations.put(new CallbackConfiguration(EhcacheCallbackFactory.INSTANCE,properties),portalCacheListenerScope);
+      portalCacheListenerConfigurations.put(properties,portalCacheListenerScope);
     }
   }
   cacheEventListenerConfigurations.clear();
-  CallbackConfiguration portalCacheBootstrapLoaderConfiguration=null;
+  Properties portalCacheBootstrapLoaderConfiguration=null;
   BootstrapCacheLoaderFactoryConfiguration bootstrapCacheLoaderFactoryConfiguration=cacheConfiguration.getBootstrapCacheLoaderFactoryConfiguration();
   if (bootstrapCacheLoaderFactoryConfiguration != null) {
-    Properties properties=_parseProperties(bootstrapCacheLoaderFactoryConfiguration.getProperties(),bootstrapCacheLoaderFactoryConfiguration.getPropertySeparator(),props);
+    portalCacheBootstrapLoaderConfiguration=_parseProperties(bootstrapCacheLoaderFactoryConfiguration.getProperties(),bootstrapCacheLoaderFactoryConfiguration.getPropertySeparator(),props);
     if (clusterAware && clusterEnabled) {
-      if (clusterLinkReplicationEnabled) {
-        portalCacheBootstrapLoaderConfiguration=new CallbackConfiguration(ClusterLinkCallbackFactory.INSTANCE,properties);
-      }
- else {
-        properties.put(EhcacheConstants.BOOTSTRAP_CACHE_LOADER_FACTORY_CLASS_NAME,_parseFactoryClassName(bootstrapCacheLoaderFactoryConfiguration.getFullyQualifiedClassPath(),props));
-        portalCacheBootstrapLoaderConfiguration=new CallbackConfiguration(EhcacheCallbackFactory.INSTANCE,properties);
+      if (!clusterLinkReplicationEnabled) {
+        portalCacheBootstrapLoaderConfiguration.put(EhcacheConstants.BOOTSTRAP_CACHE_LOADER_FACTORY_CLASS_NAME,_parseFactoryClassName(bootstrapCacheLoaderFactoryConfiguration.getFullyQualifiedClassPath(),props));
       }
     }
     cacheConfiguration.addBootstrapCacheLoaderFactory(null);
