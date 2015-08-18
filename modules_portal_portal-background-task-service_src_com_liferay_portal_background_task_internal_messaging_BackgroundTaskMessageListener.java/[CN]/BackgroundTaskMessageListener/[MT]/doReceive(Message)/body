@@ -2,7 +2,7 @@
   long backgroundTaskId=(Long)message.get("backgroundTaskId");
   BackgroundTaskThreadLocal.setBackgroundTaskId(backgroundTaskId);
   ServiceContext serviceContext=new ServiceContext();
-  BackgroundTask backgroundTask=BackgroundTaskManagerUtil.amendBackgroundTask(backgroundTaskId,null,BackgroundTaskConstants.STATUS_IN_PROGRESS,serviceContext);
+  BackgroundTask backgroundTask=_backgroundTaskManager.amendBackgroundTask(backgroundTaskId,null,BackgroundTaskConstants.STATUS_IN_PROGRESS,serviceContext);
   if (backgroundTask == null) {
     return;
   }
@@ -18,13 +18,13 @@
     }
     backgroundTaskExecutor=(BackgroundTaskExecutor)InstanceFactory.newInstance(classLoader,backgroundTask.getTaskExecutorClassName());
     backgroundTaskExecutor=wrapBackgroundTaskExecutor(backgroundTaskExecutor,classLoader);
-    BackgroundTaskStatusRegistryUtil.registerBackgroundTaskStatus(backgroundTaskId);
+    _backgroundTaskStatusRegistry.registerBackgroundTaskStatus(backgroundTaskId);
     BackgroundTaskStatusMessageTranslator backgroundTaskStatusMessageTranslator=backgroundTaskExecutor.getBackgroundTaskStatusMessageTranslator();
     if (backgroundTaskStatusMessageTranslator != null) {
-      backgroundTaskStatusMessageListener=new BackgroundTaskStatusMessageListener(backgroundTaskId,backgroundTaskStatusMessageTranslator);
-      MessageBusUtil.registerMessageListener(DestinationNames.BACKGROUND_TASK_STATUS,backgroundTaskStatusMessageListener);
+      backgroundTaskStatusMessageListener=new BackgroundTaskStatusMessageListener(backgroundTaskId,backgroundTaskStatusMessageTranslator,_backgroundTaskStatusRegistry);
+      _messageBus.registerMessageListener(DestinationNames.BACKGROUND_TASK_STATUS,backgroundTaskStatusMessageListener);
     }
-    backgroundTask=BackgroundTaskManagerUtil.fetchBackgroundTask(backgroundTask.getBackgroundTaskId());
+    backgroundTask=_backgroundTaskManager.fetchBackgroundTask(backgroundTask.getBackgroundTaskId());
     BackgroundTaskResult backgroundTaskResult=backgroundTaskExecutor.execute(backgroundTask);
     status=backgroundTaskResult.getStatus();
     statusMessage=backgroundTaskResult.getStatusMessage();
@@ -54,16 +54,16 @@ catch (  Exception e) {
     _log.error("Unable to execute background task",e);
   }
  finally {
-    BackgroundTaskManagerUtil.amendBackgroundTask(backgroundTaskId,null,status,statusMessage,serviceContext);
-    BackgroundTaskStatusRegistryUtil.unregisterBackgroundTaskStatus(backgroundTaskId);
+    _backgroundTaskManager.amendBackgroundTask(backgroundTaskId,null,status,statusMessage,serviceContext);
+    _backgroundTaskStatusRegistry.unregisterBackgroundTaskStatus(backgroundTaskId);
     if (backgroundTaskStatusMessageListener != null) {
-      MessageBusUtil.unregisterMessageListener(DestinationNames.BACKGROUND_TASK_STATUS,backgroundTaskStatusMessageListener);
+      _messageBus.unregisterMessageListener(DestinationNames.BACKGROUND_TASK_STATUS,backgroundTaskStatusMessageListener);
     }
     Message responseMessage=new Message();
     responseMessage.put("backgroundTaskId",backgroundTask.getBackgroundTaskId());
     responseMessage.put("name",backgroundTask.getName());
     responseMessage.put("status",status);
     responseMessage.put("taskExecutorClassName",backgroundTask.getTaskExecutorClassName());
-    MessageBusUtil.sendMessage(DestinationNames.BACKGROUND_TASK_STATUS,responseMessage);
+    _messageBus.sendMessage(DestinationNames.BACKGROUND_TASK_STATUS,responseMessage);
   }
 }
