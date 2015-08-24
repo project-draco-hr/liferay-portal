@@ -4,13 +4,35 @@
     String subject="Test Message " + i;
     doAsUserThreads[i]=new AddMessageThread(_userIds[i],subject);
   }
-  for (  DoAsUserThread doAsUserThread : doAsUserThreads) {
-    doAsUserThread.start();
+  try (CaptureAppender captureAppender1=Log4JLoggerTestUtil.configureLog4JLogger(DefaultTransactionExecutor.class.getName(),Level.ERROR);CaptureAppender captureAppender2=Log4JLoggerTestUtil.configureLog4JLogger(SynchronousDestination.class.getName(),Level.ERROR);CaptureAppender captureAppender3=Log4JLoggerTestUtil.configureLog4JLogger(DoAsUserThread.class.getName(),Level.ERROR);CaptureAppender captureAppender4=Log4JLoggerTestUtil.configureLog4JLogger(JDBCExceptionReporter.class.getName(),Level.ERROR)){
+    for (    DoAsUserThread doAsUserThread : doAsUserThreads) {
+      doAsUserThread.start();
+    }
+    for (    DoAsUserThread doAsUserThread : doAsUserThreads) {
+      doAsUserThread.join();
+    }
+    List<LoggingEvent> loggingEvents=captureAppender1.getLoggingEvents();
+    for (    LoggingEvent loggingEvent : loggingEvents) {
+      Assert.assertEquals("Application exception overridden by commit exception",loggingEvent.getMessage());
+    }
+    loggingEvents=captureAppender2.getLoggingEvents();
+    for (    LoggingEvent loggingEvent : loggingEvents) {
+      String message=loggingEvent.getRenderedMessage();
+      Assert.assertTrue(message.startsWith("Unable to process message {destinationName=" + "liferay/async_service"));
+    }
+    loggingEvents=captureAppender3.getLoggingEvents();
+    for (    LoggingEvent loggingEvent : loggingEvents) {
+      String message=loggingEvent.getRenderedMessage();
+      Assert.assertTrue(message.startsWith("com.liferay.portal.kernel.exception.SystemException:" + " com.liferay.portal.kernel.dao.orm.ORMException:" + " org.hibernate.exception."+ "GenericJDBCException: Could not execute"));
+    }
+    loggingEvents=captureAppender4.getLoggingEvents();
+    for (    LoggingEvent loggingEvent : loggingEvents) {
+      String message=loggingEvent.getRenderedMessage();
+      Assert.assertTrue(message.contains("Your server command"));
+      Assert.assertTrue(message.contains("encountered a deadlock situation. " + "Please re-run your command."));
+    }
   }
-  for (  DoAsUserThread doAsUserThread : doAsUserThreads) {
-    doAsUserThread.join();
-  }
-  int successCount=0;
+   int successCount=0;
   for (  DoAsUserThread doAsUserThread : doAsUserThreads) {
     if (doAsUserThread.isSuccess()) {
       successCount++;
