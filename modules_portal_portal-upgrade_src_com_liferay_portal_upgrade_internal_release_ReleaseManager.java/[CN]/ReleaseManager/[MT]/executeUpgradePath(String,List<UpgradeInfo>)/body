@@ -1,0 +1,38 @@
+{
+  OutputStreamProvider outputStreamProvider=_outputStreamProviderTracker.getDefaultOutputStreamProvider();
+  OutputStreamProvider.OutputStreamInformation outputStreamInformation=outputStreamProvider.create("upgrade-" + componentName);
+  final OutputStream outputStream=outputStreamInformation.getOutputStream();
+  StreamUtil.withStdOut(outputStream,new Runnable(){
+    @Override public void run(){
+      for (      UpgradeInfo upgradeInfo : upgradeInfos) {
+        UpgradeStep upgradeStep=upgradeInfo.getUpgradeStep();
+        try {
+          upgradeStep.upgrade(new DatabaseProcessContext(){
+            @Override public DatabaseContext getDatabaseContext(){
+              return new DatabaseContext();
+            }
+            @Override public OutputStream getOutputStream(){
+              return outputStream;
+            }
+          }
+);
+          _releaseLocalService.updateRelease(componentName,upgradeInfo.getToVersionString(),upgradeInfo.getFromVersionString());
+        }
+ catch (        Exception e) {
+          throw new RuntimeException(e);
+        }
+      }
+    }
+  }
+);
+  try {
+    outputStream.close();
+  }
+ catch (  IOException ioe) {
+    throw new RuntimeException(ioe);
+  }
+  Release release=_releaseLocalService.fetchRelease(componentName);
+  if (release != null) {
+    _releasePublisher.publish(release);
+  }
+}
