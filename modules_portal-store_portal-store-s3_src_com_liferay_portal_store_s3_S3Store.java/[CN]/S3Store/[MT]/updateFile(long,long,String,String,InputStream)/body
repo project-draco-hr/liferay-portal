@@ -3,15 +3,13 @@
     throw new DuplicateFileException(companyId,repositoryId,fileName,versionLabel);
   }
   try {
-    S3Object s3Object=new S3Object(_s3Bucket,getKey(companyId,repositoryId,fileName,versionLabel));
-    s3Object.setDataInputStream(is);
-    _s3Service.putObject(_s3Bucket,s3Object);
+    ObjectMetadata objectMetadata=constructMetadata(fileName);
+    String objectKey=_s3KeyTransformer.getFileVersionKey(companyId,repositoryId,fileName,versionLabel);
+    PutObjectRequest request=new PutObjectRequest(_bucketName,objectKey,is,objectMetadata);
+    _amazonS3.putObject(request);
   }
- catch (  Exception e) {
-    if (isS3NoSuchKeyException(e)) {
-      throw new NoSuchFileException(companyId,repositoryId,fileName,versionLabel,e);
-    }
-    throw new SystemException(e);
+ catch (  AmazonClientException ae) {
+    throw convertAWSException(ae);
   }
  finally {
     StreamUtil.cleanUp(is);

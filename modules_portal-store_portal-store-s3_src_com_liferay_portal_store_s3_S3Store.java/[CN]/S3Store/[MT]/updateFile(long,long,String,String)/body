@@ -1,38 +1,5 @@
 {
-  File tempFile=null;
-  InputStream is=null;
-  S3Object newS3Object=null;
-  if (!hasFile(companyId,repositoryId,fileName)) {
-    throw new NoSuchFileException(companyId,repositoryId,fileName);
-  }
-  if (hasFile(companyId,repositoryId,newFileName)) {
-    throw new DuplicateFileException(companyId,repositoryId,newFileName);
-  }
-  try {
-    S3Object[] s3Objects=_s3Service.listObjects(_s3Bucket.getName(),getKey(companyId,repositoryId,fileName),null);
-    for (    S3Object oldS3Object : s3Objects) {
-      String oldKey=oldS3Object.getKey();
-      oldS3Object=_s3Service.getObject(_s3Bucket.getName(),oldKey);
-      tempFile=new File(SystemProperties.get(SystemProperties.TMP_DIR) + File.separator + PortalUUIDUtil.generate());
-      FileUtil.write(tempFile,oldS3Object.getDataInputStream());
-      oldS3Object.closeDataInputStream();
-      is=new FileInputStream(tempFile);
-      String newPrefix=getKey(companyId,repositoryId,newFileName);
-      int x=oldKey.indexOf(StringPool.SLASH);
-      x=oldKey.indexOf(CharPool.SLASH,x + 1);
-      x=oldKey.indexOf(CharPool.SLASH,x + 1);
-      String newKey=newPrefix + oldKey.substring(x);
-      newS3Object=new S3Object(_s3Bucket,newKey);
-      newS3Object.setDataInputStream(is);
-      _s3Service.putObject(_s3Bucket,newS3Object);
-      _s3Service.deleteObject(_s3Bucket,oldKey);
-    }
-  }
- catch (  Exception e) {
-    throw new SystemException(e);
-  }
- finally {
-    StreamUtil.cleanUp(is);
-    FileUtil.delete(tempFile);
-  }
+  String oldPrefix=_s3KeyTransformer.getFileKey(companyId,repositoryId,fileName);
+  String newPrefix=_s3KeyTransformer.getFileKey(companyId,repositoryId,newFileName);
+  moveObjects(oldPrefix,newPrefix);
 }
