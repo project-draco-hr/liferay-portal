@@ -1,0 +1,30 @@
+{
+  StringBundler sb=new StringBundler(5);
+  sb.append(SystemProperties.get(SystemProperties.TMP_DIR));
+  sb.append(_TEMP_DIR_NAME);
+  sb.append(DateUtil.getCurrentDate(_TEMP_DIR_PATTERN,LocaleUtil.getDefault()));
+  sb.append(_s3KeyTransformer.getNormalizedFileName(fileName));
+  ObjectMetadata metadata=s3Object.getObjectMetadata();
+  Date lastModifiedDate=metadata.getLastModified();
+  sb.append(lastModifiedDate.getTime());
+  String tempFileName=sb.toString();
+  File tempFile=new File(tempFileName);
+  if (tempFile.exists() && (tempFile.lastModified() >= lastModifiedDate.getTime())) {
+    return tempFile;
+  }
+  InputStream inputStream=s3Object.getObjectContent();
+  if (inputStream == null) {
+    throw new IOException("S3 object input stream is null");
+  }
+  OutputStream outputStream=null;
+  try {
+    File parentFile=tempFile.getParentFile();
+    FileUtil.mkdirs(parentFile);
+    outputStream=new FileOutputStream(tempFile);
+    StreamUtil.transfer(inputStream,outputStream);
+  }
+  finally {
+    StreamUtil.cleanUp(inputStream,outputStream);
+  }
+  return tempFile;
+}
