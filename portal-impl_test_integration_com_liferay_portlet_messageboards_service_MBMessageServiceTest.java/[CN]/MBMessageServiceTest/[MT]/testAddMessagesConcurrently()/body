@@ -4,7 +4,7 @@
     String subject="Test Message " + i;
     doAsUserThreads[i]=new AddMessageThread(_userIds[i],subject);
   }
-  try (CaptureAppender captureAppender1=Log4JLoggerTestUtil.configureLog4JLogger(DefaultTransactionExecutor.class.getName(),Level.ERROR);CaptureAppender captureAppender2=Log4JLoggerTestUtil.configureLog4JLogger(SynchronousDestination.class.getName(),Level.ERROR);CaptureAppender captureAppender3=Log4JLoggerTestUtil.configureLog4JLogger(DoAsUserThread.class.getName(),Level.ERROR);CaptureAppender captureAppender4=Log4JLoggerTestUtil.configureLog4JLogger(JDBCExceptionReporter.class.getName(),Level.ERROR)){
+  try (CaptureAppender captureAppender1=Log4JLoggerTestUtil.configureLog4JLogger(BasePersistenceImpl.class.getName(),Level.ERROR);CaptureAppender captureAppender2=Log4JLoggerTestUtil.configureLog4JLogger(DoAsUserThread.class.getName(),Level.ERROR);CaptureAppender captureAppender3=Log4JLoggerTestUtil.configureLog4JLogger(JDBCExceptionReporter.class.getName(),Level.ERROR)){
     for (    DoAsUserThread doAsUserThread : doAsUserThreads) {
       doAsUserThread.start();
     }
@@ -15,22 +15,17 @@
     String dbType=db.getType();
     if (dbType.equals(DB.TYPE_SYBASE)) {
       for (      LoggingEvent loggingEvent : captureAppender1.getLoggingEvents()) {
-        Assert.assertEquals("Application exception overridden by commit exception",loggingEvent.getMessage());
+        String message=loggingEvent.getRenderedMessage();
+        Assert.assertTrue(message.startsWith("Caught unexpected exception"));
       }
       for (      LoggingEvent loggingEvent : captureAppender2.getLoggingEvents()) {
         String message=loggingEvent.getRenderedMessage();
-        Assert.assertTrue(message.startsWith("Unable to process message {destinationName=" + DestinationNames.ASYNC_SERVICE));
-      }
-      for (      LoggingEvent loggingEvent : captureAppender3.getLoggingEvents()) {
-        String message=loggingEvent.getRenderedMessage();
         StringBundler sb=new StringBundler();
         sb.append("com.liferay.portal.kernel.exception.");
-        sb.append("SystemException: com.liferay.portal.kernel.");
-        sb.append("dao.orm.ORMException: org.hibernate.exception.");
-        sb.append("GenericJDBCException: Could not execute");
+        sb.append("SystemException:");
         Assert.assertTrue(message.startsWith(sb.toString()));
       }
-      for (      LoggingEvent loggingEvent : captureAppender4.getLoggingEvents()) {
+      for (      LoggingEvent loggingEvent : captureAppender3.getLoggingEvents()) {
         String message=loggingEvent.getRenderedMessage();
         Assert.assertTrue(message.contains("Your server command"));
         Assert.assertTrue(message.contains("encountered a deadlock situation. Please re-run " + "your command."));
