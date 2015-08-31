@@ -3,20 +3,30 @@
   final String nodeUrl=getNodeUrl();
   final Project project=getProject();
   final File nodeFile=FileUtil.get(project,nodeUrl);
-  project.copy(new Action<CopySpec>(){
-    @Override public void execute(    CopySpec copySpec){
-      if (nodeUrl.endsWith(".tar.gz")) {
-        copySpec.eachFile(new StripPathSegmentsAction(1));
-        copySpec.from(project.tarTree(nodeFile));
-        copySpec.setIncludeEmptyDirs(false);
+  if (nodeUrl.endsWith(".tar.gz")) {
+    project.delete(nodeDir);
+    project.exec(new Action<ExecSpec>(){
+      @Override public void execute(      ExecSpec execSpec){
+        execSpec.args("xfz",project.relativePath(nodeFile));
+        execSpec.args("-C",project.relativePath(nodeDir.getParentFile()));
+        execSpec.setExecutable("tar");
       }
- else {
-        copySpec.from(nodeFile);
-      }
-      copySpec.into(nodeDir);
     }
-  }
 );
+    String dirName=nodeFile.getName();
+    dirName=dirName.substring(0,dirName.lastIndexOf(".tar.gz"));
+    File dir=new File(nodeDir.getParentFile(),dirName);
+    dir.renameTo(nodeDir);
+  }
+ else {
+    project.copy(new Action<CopySpec>(){
+      @Override public void execute(      CopySpec copySpec){
+        copySpec.from(nodeFile);
+        copySpec.into(nodeDir);
+      }
+    }
+);
+  }
   if (OSDetector.isWindows()) {
     final File npmFile=FileUtil.get(project,getNpmUrl());
     project.copy(new Action<CopySpec>(){
