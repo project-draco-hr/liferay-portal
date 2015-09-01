@@ -6,16 +6,20 @@
   DDMStructureVersion latestStructureVersion=ddmStructureVersionLocalService.getLatestStructureVersion(structure.getStructureId());
   boolean majorVersion=GetterUtil.getBoolean(serviceContext.getAttribute("majorVersion"));
   String version=getNextVersion(latestStructureVersion.getVersion(),majorVersion);
+  DDMStructure structureClone=(DDMStructure)SerializableUtil.clone(structure);
   structure.setVersion(version);
   structure.setNameMap(nameMap);
   structure.setVersionUserId(user.getUserId());
   structure.setVersionUserName(user.getFullName());
   structure.setDescriptionMap(descriptionMap);
   structure.setDefinition(DDMFormJSONSerializerUtil.serialize(ddmForm));
+  DDMStructureVersion structureVersion=addStructureVersion(user,structure,version,serviceContext);
+  if (!structureVersion.isApproved()) {
+    return structureClone;
+  }
+  ddmStructureLayoutLocalService.addStructureLayout(structureVersion.getUserId(),structureVersion.getGroupId(),structureVersion.getStructureVersionId(),ddmFormLayout,serviceContext);
   ddmStructurePersistence.update(structure);
   syncStructureTemplatesFields(structure);
-  DDMStructureVersion structureVersion=addStructureVersion(user,structure,version,serviceContext);
-  ddmStructureLayoutLocalService.addStructureLayout(structureVersion.getUserId(),structureVersion.getGroupId(),structureVersion.getStructureVersionId(),ddmFormLayout,serviceContext);
   Indexer<?> indexer=IndexerRegistryUtil.nullSafeGetIndexer(structure.getClassName());
   if (indexer instanceof DDMStructureIndexer) {
     DDMStructureIndexer ddmStructureIndexer=(DDMStructureIndexer)indexer;
