@@ -1,31 +1,24 @@
 {
-  long coverImageId=0;
-  byte[] bytes=null;
-  try {
-    bytes=coverImageImageSelector.getCroppedImageBytes();
-  }
- catch (  IOException ioe) {
-    if (_log.isDebugEnabled()) {
-      _log.debug("Unable to get cropped image from image selector image " + coverImageImageSelector.getImageId());
-    }
-  }
-  if (bytes == null) {
-    return 0;
+  FileEntry fileEntry=PortletFileRepositoryUtil.getPortletFileEntry(coverImageImageSelector.getImageId());
+  BlogsEntryAttachmentFileEntryHelper blogsEntryAttachmentFileEntryHelper=new BlogsEntryAttachmentFileEntryHelper();
+  if (fileEntry.isRepositoryCapabilityProvided(TemporaryFileEntriesCapability.class)) {
+    Folder folder=addAttachmentsFolder(userId,groupId);
+    blogsEntryAttachmentFileEntryHelper.addBlogsEntryAttachmentFileEntry(groupId,userId,entryId,folder,fileEntry.getTitle(),fileEntry.getMimeType(),fileEntry.getContentStream());
   }
   File file=null;
   try {
+    byte[] bytes=coverImageImageSelector.getCroppedImageBytes();
+    if (bytes == null) {
+      return 0;
+    }
     file=FileUtil.createTempFile(bytes);
-    String title=coverImageImageSelector.getTitle();
-    String mimeType=coverImageImageSelector.getMimeType();
+    String title=fileEntry.getTitle();
     if (Validator.isNull(title)) {
       title=StringUtil.randomString() + "_tempCroppedImage_" + entryId;
     }
-    ServiceContext serviceContext=new ServiceContext();
-    serviceContext.setAddGroupPermissions(true);
-    serviceContext.setAddGuestPermissions(true);
-    Folder folder=addAttachmentsFolder(userId,groupId);
-    FileEntry fileEntry=PortletFileRepositoryUtil.addPortletFileEntry(groupId,userId,BlogsEntry.class.getName(),entryId,BlogsConstants.SERVICE_NAME,folder.getFolderId(),file,title,mimeType,false);
-    coverImageId=fileEntry.getFileEntryId();
+    Folder folder=addCoverImageFolder(userId,groupId);
+    FileEntry coverImageFileEntry=blogsEntryAttachmentFileEntryHelper.addBlogsEntryAttachmentFileEntry(groupId,userId,entryId,folder,title,fileEntry.getMimeType(),file);
+    return coverImageFileEntry.getFileEntryId();
   }
  catch (  IOException ioe) {
     if (_log.isDebugEnabled()) {
@@ -35,5 +28,5 @@
  finally {
     FileUtil.delete(file);
   }
-  return coverImageId;
+  return 0;
 }
