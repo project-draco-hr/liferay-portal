@@ -1,0 +1,34 @@
+{
+  if (mockMultipartHttpServletRequest.getInputStream() == null) {
+    throw new IllegalStateException("An inputStream must be present on the mock request.");
+  }
+  String[] cookies=mockMultipartHttpServletRequest.getParameterValues("Cookie");
+  if ((cookies == null) || (cookies.length == 0)) {
+    throw new IllegalStateException("Valid cookies must be present on the mock request.");
+  }
+  PostMethod postMethod=new PostMethod(url);
+  for (  String cookie : cookies) {
+    postMethod.addRequestHeader(new Header("Cookie",cookie));
+  }
+  byte[] bytes=toByteArray(mockMultipartHttpServletRequest.getInputStream());
+  Part[] parts={new FilePart(fileNameParameter,new ByteArrayPartSource(fileNameParameter,bytes))};
+  MultipartRequestEntity multipartRequestEntity=new MultipartRequestEntity(parts,postMethod.getParams());
+  postMethod.setRequestEntity(multipartRequestEntity);
+  HttpClient client=new HttpClient();
+  client.executeMethod(postMethod);
+  Map<String,List<String>> responseMap=new HashMap<>();
+  StatusLine statusLine=postMethod.getStatusLine();
+  String code=String.valueOf(statusLine.getStatusCode());
+  responseMap.put("code",Arrays.asList(code));
+  InputStream inputStream=postMethod.getResponseBodyAsStream();
+  Header[] headers=postMethod.getRequestHeaders();
+  for (  Header header : headers) {
+    HeaderElement[] elements=header.getElements();
+    for (    HeaderElement element : elements) {
+      String key=header.getName() + "[" + element.getName()+ "]";
+      responseMap.put(key,Arrays.asList(element.getValue()));
+    }
+  }
+  responseMap.put("body",Arrays.asList(read(inputStream)));
+  return responseMap;
+}
