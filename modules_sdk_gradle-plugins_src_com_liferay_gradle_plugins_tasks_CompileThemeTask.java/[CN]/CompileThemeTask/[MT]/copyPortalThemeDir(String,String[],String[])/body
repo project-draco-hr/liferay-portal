@@ -1,42 +1,20 @@
 {
-  final String prefix="/" + theme + "/";
-  final File themeResourcesDir=getThemeResourcesDir(theme);
-  final File frontendThemesFile=getFrontendThemesFile();
-  final File themeRootDir=getThemeRootDir();
-  if (themeResourcesDir != null) {
-    Closure<Void> closure=new Closure<Void>(null){
-      @SuppressWarnings("unused") public void doCall(      CopySpec copySpec){
-        copySpec.from(new File(themeResourcesDir,prefix));
-        if (ArrayUtil.isNotEmpty(excludes)) {
-          copySpec.exclude(excludes);
-        }
-        copySpec.include(includes);
-        copySpec.into(themeRootDir);
+  String prefix="META-INF/resources/" + theme + "/";
+  final File frontendThemeFile=getFrontendThemeFile(theme);
+  final String[] prefixedExcludes=StringUtil.prepend(excludes,prefix);
+  final String[] prefixedIncludes=StringUtil.prepend(includes,prefix);
+  Closure<Void> closure=new Closure<Void>(null){
+    @SuppressWarnings("unused") public void doCall(    CopySpec copySpec){
+      copySpec.eachFile(new StripPathSegmentsAction(3));
+      if (ArrayUtil.isNotEmpty(prefixedExcludes)) {
+        copySpec.exclude(prefixedExcludes);
       }
+      copySpec.from(_project.zipTree(frontendThemeFile));
+      copySpec.include(prefixedIncludes);
+      copySpec.into(getThemeRootDir());
+      copySpec.setIncludeEmptyDirs(false);
     }
+  }
 ;
-    _project.copy(closure);
-  }
- else   if (frontendThemesFile != null) {
-    String jarPrefix="META-INF/resources" + prefix;
-    final String[] prefixedExcludes=StringUtil.prepend(excludes,jarPrefix);
-    final String[] prefixedIncludes=StringUtil.prepend(includes,jarPrefix);
-    Closure<Void> closure=new Closure<Void>(null){
-      @SuppressWarnings("unused") public void doCall(      CopySpec copySpec){
-        copySpec.eachFile(new StripPathSegmentsAction(5));
-        if (ArrayUtil.isNotEmpty(prefixedExcludes)) {
-          copySpec.exclude(prefixedExcludes);
-        }
-        copySpec.from(_project.zipTree(frontendThemesFile));
-        copySpec.include(prefixedIncludes);
-        copySpec.into(themeRootDir);
-        copySpec.setIncludeEmptyDirs(false);
-      }
-    }
-;
-    _project.copy(closure);
-  }
- else {
-    throw new GradleException("Unable to find frontend themes web");
-  }
+  _project.copy(closure);
 }
