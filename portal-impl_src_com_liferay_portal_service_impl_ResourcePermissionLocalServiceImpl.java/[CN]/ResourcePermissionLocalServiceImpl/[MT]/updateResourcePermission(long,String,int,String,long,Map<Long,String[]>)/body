@@ -1,30 +1,27 @@
 {
-  DB db=DBFactoryUtil.getDB();
-  String dbType=db.getType();
-  if (!dbType.equals(DB.TYPE_HYPERSONIC)) {
-    doUpdateResourcePermission(companyId,name,scope,primKey,ownerId,roleIdsToActionIds);
-    return;
-  }
-  StringBundler sb=new StringBundler(9);
-  sb.append(companyId);
-  sb.append(StringPool.POUND);
-  sb.append(name);
-  sb.append(StringPool.POUND);
-  sb.append(scope);
-  sb.append(StringPool.POUND);
-  sb.append(primKey);
-  sb.append(StringPool.POUND);
-  sb.append(StringUtil.merge(roleIdsToActionIds.keySet()));
-  Class<?> clazz=getClass();
-  String groupName=clazz.getName();
-  String key=sb.toString();
-  Lock lock=LockRegistry.allocateLock(groupName,key);
-  lock.lock();
+  boolean flushResourcePermissionEnabled=PermissionThreadLocal.isFlushResourcePermissionEnabled(name,primKey);
+  PermissionThreadLocal.setFlushResourcePermissionEnabled(name,primKey,false);
   try {
-    doUpdateResourcePermission(companyId,name,scope,primKey,ownerId,roleIdsToActionIds);
+    long[] roleIds=ArrayUtil.toLongArray(roleIdsToActionIds.keySet());
+    List<ResourcePermission> resourcePermissions=resourcePermissionPersistence.findByC_N_S_P_R(companyId,name,scope,primKey,roleIds);
+    for (    ResourcePermission resourcePermission : resourcePermissions) {
+      long roleId=resourcePermission.getRoleId();
+      String[] actionIds=roleIdsToActionIds.remove(roleId);
+      doUpdateResourcePermission(companyId,name,scope,primKey,ownerId,roleId,actionIds,ResourcePermissionConstants.OPERATOR_SET,true);
+    }
+    if (roleIdsToActionIds.isEmpty()) {
+      return;
+    }
+    for (    Map.Entry<Long,String[]> entry : roleIdsToActionIds.entrySet()) {
+      long roleId=entry.getKey();
+      String[] actionIds=entry.getValue();
+      doUpdateResourcePermission(companyId,name,scope,primKey,ownerId,roleId,actionIds,ResourcePermissionConstants.OPERATOR_SET,false);
+    }
+    TransactionCommitCallbackUtil.registerCallback(new UpdateResourcePermissionCallable(name,primKey));
   }
   finally {
-    lock.unlock();
-    LockRegistry.freeLock(groupName,key);
+    PermissionThreadLocal.setFlushResourcePermissionEnabled(name,primKey,flushResourcePermissionEnabled);
+    PermissionCacheUtil.clearResourcePermissionCache(scope,name,primKey);
+    SearchEngineUtil.updatePermissionFields(name,primKey);
   }
 }
