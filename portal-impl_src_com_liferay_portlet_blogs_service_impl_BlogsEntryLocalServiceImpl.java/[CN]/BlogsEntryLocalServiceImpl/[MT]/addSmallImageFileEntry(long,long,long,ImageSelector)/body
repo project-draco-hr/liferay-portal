@@ -1,0 +1,30 @@
+{
+  FileEntry fileEntry=PortletFileRepositoryUtil.getPortletFileEntry(imageSelector.getImageId());
+  BlogsEntryAttachmentFileEntryHelper blogsEntryAttachmentFileEntryHelper=new BlogsEntryAttachmentFileEntryHelper();
+  if (fileEntry.isRepositoryCapabilityProvided(TemporaryFileEntriesCapability.class)) {
+    Folder folder=addAttachmentsFolder(userId,groupId);
+    blogsEntryAttachmentFileEntryHelper.addBlogsEntryAttachmentFileEntry(groupId,userId,entryId,folder.getFolderId(),fileEntry.getTitle(),fileEntry.getMimeType(),fileEntry.getContentStream());
+  }
+  File file=null;
+  try {
+    ImageBag imageBag=ImageToolUtil.read(fileEntry.getContentStream());
+    RenderedImage renderedImage=imageBag.getRenderedImage();
+    BlogsGroupServiceSettings blogsGroupServiceSettings=BlogsGroupServiceSettings.getInstance(groupId);
+    renderedImage=ImageToolUtil.scale(renderedImage,blogsGroupServiceSettings.getSmallImageWidth());
+    byte[] bytes=ImageToolUtil.getBytes(renderedImage,imageBag.getType());
+    file=FileUtil.createTempFile(bytes);
+    String title=imageSelector.getTitle();
+    if (Validator.isNull(title)) {
+      title=StringUtil.randomString() + "_tempScaledImage_" + entryId;
+    }
+    Folder folder=addSmallImageFolder(userId,groupId);
+    FileEntry smallImageFileEntry=PortletFileRepositoryUtil.addPortletFileEntry(groupId,userId,BlogsEntry.class.getName(),entryId,BlogsConstants.SERVICE_NAME,folder.getFolderId(),file,title,imageSelector.getMimeType(),false);
+    return smallImageFileEntry.getFileEntryId();
+  }
+ catch (  IOException e) {
+    throw new EntrySmallImageScaleException();
+  }
+ finally {
+    FileUtil.delete(file);
+  }
+}
