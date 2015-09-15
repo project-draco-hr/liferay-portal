@@ -1,0 +1,57 @@
+{
+  Retry retry=findAnnotation(methodInvocation);
+  if (retry == _nullRetry) {
+    return methodInvocation.proceed();
+  }
+  int numberOfRetries=retry.retries();
+  if (numberOfRetries < 0) {
+    numberOfRetries=GetterUtil.getInteger(PropsValues.RETRY_ADVICE_DEFAULT_RETRIES,numberOfRetries);
+  }
+  int totalRetries=numberOfRetries;
+  if (numberOfRetries >= 0) {
+    numberOfRetries++;
+  }
+  Property[] properties=retry.properties();
+  Map<String,String> propertyMap=new HashMap<>();
+  for (  Property property : properties) {
+    propertyMap.put(property.propName(),property.propValue());
+  }
+  Class<? extends RetryAdviceAcceptor> clazz=retry.acceptor();
+  RetryAdviceAcceptor retryAdviceAcceptor=clazz.newInstance();
+  ServiceBeanMethodInvocation serviceBeanMethodInvocation=(ServiceBeanMethodInvocation)methodInvocation;
+  serviceBeanMethodInvocation.mark();
+  Object returnValue=null;
+  Throwable throwable=null;
+  while ((numberOfRetries < 0) || (numberOfRetries-- > 0)) {
+    try {
+      returnValue=serviceBeanMethodInvocation.proceed();
+      if (!retryAdviceAcceptor.accept(returnValue,null,propertyMap)) {
+        return returnValue;
+      }
+ else {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Unsatisfactory result from " + methodInvocation.getMethod() + ". Retrying "+ numberOfRetries+ " more times.");
+        }
+      }
+    }
+ catch (    Throwable t) {
+      throwable=t;
+      if (!retryAdviceAcceptor.accept(null,t,propertyMap)) {
+        throw t;
+      }
+ else {
+        if (_log.isWarnEnabled()) {
+          _log.error("Exception thrown from " + methodInvocation.getMethod() + ". Retrying "+ numberOfRetries+ " more times.");
+        }
+      }
+    }
+    serviceBeanMethodInvocation.reset();
+  }
+  if (_log.isWarnEnabled()) {
+    _log.warn("Unable to get a result after " + totalRetries + " retries.");
+  }
+  if (returnValue != null) {
+    return returnValue;
+  }
+  throw throwable;
+}
