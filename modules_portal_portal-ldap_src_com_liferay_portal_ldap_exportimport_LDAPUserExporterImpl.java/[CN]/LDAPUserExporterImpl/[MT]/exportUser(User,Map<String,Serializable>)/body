@@ -3,23 +3,23 @@
     return;
   }
   long companyId=user.getCompanyId();
-  if (!PrefsPropsUtil.getBoolean(companyId,PropsKeys.LDAP_AUTH_ENABLED,_ldapAuthConfiguration.enabled()) || !LDAPSettingsUtil.isExportEnabled(companyId)) {
+  if (!PrefsPropsUtil.getBoolean(companyId,PropsKeys.LDAP_AUTH_ENABLED,_ldapAuthConfiguration.enabled()) || !_ldapSettings.isExportEnabled(companyId)) {
     return;
   }
-  long ldapServerId=PortalLDAPUtil.getLdapServerId(companyId,user.getScreenName(),user.getEmailAddress());
-  LdapContext ldapContext=PortalLDAPUtil.getContext(ldapServerId,companyId);
+  long ldapServerId=_portalLDAP.getLdapServerId(companyId,user.getScreenName(),user.getEmailAddress());
+  LdapContext ldapContext=_portalLDAP.getContext(ldapServerId,companyId);
   try {
     if (ldapContext == null) {
       return;
     }
-    Properties userMappings=LDAPSettingsUtil.getUserMappings(ldapServerId,companyId);
-    Properties userExpandoMappings=LDAPSettingsUtil.getUserExpandoMappings(ldapServerId,companyId);
-    Binding binding=PortalLDAPUtil.getUser(ldapServerId,user.getCompanyId(),user.getScreenName(),user.getEmailAddress(),true);
+    Properties userMappings=_ldapSettings.getUserMappings(ldapServerId,companyId);
+    Properties userExpandoMappings=_ldapSettings.getUserExpandoMappings(ldapServerId,companyId);
+    Binding binding=_portalLDAP.getUser(ldapServerId,user.getCompanyId(),user.getScreenName(),user.getEmailAddress(),true);
     if (binding == null) {
       binding=addUser(ldapServerId,ldapContext,user,userMappings);
     }
  else {
-      Attributes attributes=PortalLDAPUtil.getUserAttributes(ldapServerId,companyId,ldapContext,PortalLDAPUtil.getNameInNamespace(ldapServerId,companyId,binding));
+      Attributes attributes=_portalLDAP.getUserAttributes(ldapServerId,companyId,ldapContext,_portalLDAP.getNameInNamespace(ldapServerId,companyId,binding));
       String modifyTimestamp=LDAPUtil.getAttributeString(attributes,"modifyTimestamp");
       if (Validator.isNotNull(modifyTimestamp)) {
         Date modifiedDate=LDAPUtil.parseDate(modifyTimestamp);
@@ -32,17 +32,17 @@
       }
     }
     Name name=new CompositeName();
-    name.add(PortalLDAPUtil.getNameInNamespace(ldapServerId,companyId,binding));
+    name.add(_portalLDAP.getNameInNamespace(ldapServerId,companyId,binding));
     Modifications modifications=_portalToLDAPConverter.getLDAPUserModifications(user,userExpandoAttributes,userMappings,userExpandoMappings);
     if (modifications == null) {
       return;
     }
     ModificationItem[] modificationItems=modifications.getItems();
     ldapContext.modifyAttributes(name,modificationItems);
-    if (!LDAPSettingsUtil.isExportGroupEnabled(companyId)) {
+    if (!_ldapSettings.isExportGroupEnabled(companyId)) {
       return;
     }
-    List<UserGroup> userGroups=UserGroupLocalServiceUtil.getUserUserGroups(user.getUserId());
+    List<UserGroup> userGroups=_userGroupLocalService.getUserUserGroups(user.getUserId());
     for (    UserGroup userGroup : userGroups) {
       exportUser(user.getUserId(),userGroup.getUserGroupId(),UserOperation.ADD);
     }
