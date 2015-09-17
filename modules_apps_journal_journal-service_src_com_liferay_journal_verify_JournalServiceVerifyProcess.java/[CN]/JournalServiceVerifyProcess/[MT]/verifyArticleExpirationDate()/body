@@ -1,0 +1,46 @@
+{
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getUpgradeOptimizedConnection();
+    StringBundler sb=new StringBundler(17);
+    sb.append("select JournalArticle.* from JournalArticle ");
+    sb.append("left join JournalArticle tempJournalArticle ");
+    sb.append("on (JournalArticle.status = ");
+    sb.append(WorkflowConstants.STATUS_APPROVED);
+    sb.append(") and (tempJournalArticle.status = ");
+    sb.append(WorkflowConstants.STATUS_APPROVED);
+    sb.append(") and (JournalArticle.groupId = ");
+    sb.append(" tempJournalArticle.groupId) and ");
+    sb.append("(JournalArticle.articleId = ");
+    sb.append("tempJournalArticle.articleId) and ");
+    sb.append("(JournalArticle.version < tempJournalArticle.version) ");
+    sb.append("where (JournalArticle.classNameId = ");
+    sb.append(JournalArticleConstants.CLASSNAME_ID_DEFAULT);
+    sb.append(") and (JournalArticle.status =");
+    sb.append(WorkflowConstants.STATUS_APPROVED);
+    sb.append(") and (JournalArticle.expirationDate is not null) ");
+    sb.append("and (tempJournalArticle.version is null)");
+    ps=con.prepareStatement(sb.toString());
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      long articleId=rs.getLong("articleId");
+      long groupId=rs.getLong("groupId");
+      Timestamp expirationDate=rs.getTimestamp("expirationDate");
+      sb=new StringBundler(8);
+      sb.append("update JournalArticle set expirationDate = '");
+      sb.append(expirationDate);
+      sb.append("' where articleId = ");
+      sb.append(articleId);
+      sb.append(" and groupId = ");
+      sb.append(groupId);
+      sb.append(" and status = ");
+      sb.append(WorkflowConstants.STATUS_APPROVED);
+      runSQL(sb.toString());
+    }
+  }
+  finally {
+    DataAccess.cleanUp(con,ps,rs);
+  }
+}
