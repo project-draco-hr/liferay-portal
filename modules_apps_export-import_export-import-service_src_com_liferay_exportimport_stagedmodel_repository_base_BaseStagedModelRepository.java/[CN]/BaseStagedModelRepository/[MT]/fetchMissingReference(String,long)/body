@@ -1,0 +1,49 @@
+{
+  T existingStagedModel=fetchStagedModelByUuidAndGroupId(uuid,groupId);
+  if ((existingStagedModel != null) && !isStagedModelInTrash(existingStagedModel)) {
+    return existingStagedModel;
+  }
+  try {
+    Group originalGroup=GroupLocalServiceUtil.getGroup(groupId);
+    Group group=originalGroup.getParentGroup();
+    while (group != null) {
+      existingStagedModel=fetchStagedModelByUuidAndGroupId(uuid,group.getGroupId());
+      if (existingStagedModel != null) {
+        break;
+      }
+      group=group.getParentGroup();
+    }
+    if ((existingStagedModel != null) && !isStagedModelInTrash(existingStagedModel)) {
+      return existingStagedModel;
+    }
+    List<T> existingStagedModels=fetchStagedModelsByUuidAndCompanyId(uuid,originalGroup.getCompanyId());
+    for (    T stagedModel : existingStagedModels) {
+      try {
+        if (stagedModel instanceof StagedGroupedModel) {
+          StagedGroupedModel stagedGroupedModel=(StagedGroupedModel)stagedModel;
+          group=GroupLocalServiceUtil.getGroup(stagedGroupedModel.getGroupId());
+          if (!group.isStagingGroup() && !isStagedModelInTrash(stagedModel)) {
+            return stagedModel;
+          }
+        }
+ else         if (!isStagedModelInTrash(stagedModel)) {
+          return stagedModel;
+        }
+      }
+ catch (      PortalException pe) {
+        if (_log.isDebugEnabled()) {
+          _log.debug(pe,pe);
+        }
+      }
+    }
+  }
+ catch (  Exception e) {
+    if (_log.isDebugEnabled()) {
+      _log.debug(e,e);
+    }
+ else     if (_log.isWarnEnabled()) {
+      _log.warn("Unable to fetch missing reference staged model from " + "group " + groupId);
+    }
+  }
+  return null;
+}
