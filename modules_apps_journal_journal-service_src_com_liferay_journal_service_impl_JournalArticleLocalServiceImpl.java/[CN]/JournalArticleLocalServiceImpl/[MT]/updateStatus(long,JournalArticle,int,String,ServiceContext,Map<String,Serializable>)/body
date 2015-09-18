@@ -20,11 +20,18 @@
   article.setStatusDate(serviceContext.getModifiedDate(now));
   journalArticlePersistence.update(article);
   if ((status == WorkflowConstants.STATUS_APPROVED) && (article.getExpirationDate() != null) && (JournalServiceConfigurationValues.JOURNAL_ARTICLE_EXPIRE_ALL_VERSIONS)&& !ExportImportThreadLocal.isImportInProcess()) {
-    List<JournalArticle> currentArticles=journalArticlePersistence.findByG_A(article.getGroupId(),article.getArticleId(),QueryUtil.ALL_POS,QueryUtil.ALL_POS,new ArticleVersionComparator(true));
-    for (    JournalArticle currentArticle : currentArticles) {
-      currentArticle.setExpirationDate(article.getExpirationDate());
-      journalArticlePersistence.update(currentArticle);
+    final List<JournalArticle> articles=journalArticlePersistence.findByG_A(article.getGroupId(),article.getArticleId());
+    final Date expirationDate=article.getExpirationDate();
+    TransactionCommitCallbackUtil.registerCallback(new Callable<Void>(){
+      @Override public Void call() throws Exception {
+        for (        JournalArticle currentArticle : articles) {
+          currentArticle.setExpirationDate(expirationDate);
+          journalArticleLocalService.updateJournalArticle(currentArticle);
+        }
+        return null;
+      }
     }
+);
   }
   if (hasModifiedLatestApprovedVersion(article.getGroupId(),article.getArticleId(),article.getVersion())) {
     if (status == WorkflowConstants.STATUS_APPROVED) {
