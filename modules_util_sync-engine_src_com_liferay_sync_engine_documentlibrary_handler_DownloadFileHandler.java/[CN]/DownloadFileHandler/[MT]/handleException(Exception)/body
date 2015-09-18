@@ -1,25 +1,33 @@
 {
-  if (!(e instanceof HttpResponseException)) {
-    super.handleException(e);
-    return;
+  if (e instanceof ConnectionClosedException) {
+    String message=e.getMessage();
+    if (message.startsWith("Premature end of Content-Length")) {
+      _logger.error(message,e);
+      FileEventUtil.downloadFile(getSyncAccountId(),getLocalSyncFile(),false);
+      return;
+    }
   }
-  _logger.error(e.getMessage(),e);
-  HttpResponseException hre=(HttpResponseException)e;
-  int statusCode=hre.getStatusCode();
-  if (statusCode != HttpStatus.SC_NOT_FOUND) {
-    super.handleException(e);
-    return;
-  }
-  SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(getSyncAccountId());
-  if (syncAccount.getState() != SyncAccount.STATE_CONNECTED) {
-    super.handleException(e);
-    return;
-  }
-  SyncFile syncFile=getLocalSyncFile();
-  if ((Boolean)getParameterValue("patch")) {
-    FileEventUtil.downloadFile(getSyncAccountId(),syncFile);
-  }
+ else   if (e instanceof HttpResponseException) {
+    _logger.error(e.getMessage(),e);
+    HttpResponseException hre=(HttpResponseException)e;
+    int statusCode=hre.getStatusCode();
+    if (statusCode != HttpStatus.SC_NOT_FOUND) {
+      super.handleException(e);
+      return;
+    }
+    SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(getSyncAccountId());
+    if (syncAccount.getState() != SyncAccount.STATE_CONNECTED) {
+      super.handleException(e);
+      return;
+    }
+    SyncFile syncFile=getLocalSyncFile();
+    if ((Boolean)getParameterValue("patch")) {
+      FileEventUtil.downloadFile(getSyncAccountId(),syncFile,false);
+    }
  else {
-    SyncFileService.deleteSyncFile(syncFile,false);
+      SyncFileService.deleteSyncFile(syncFile,false);
+    }
+    return;
   }
+  super.handleException(e);
 }
