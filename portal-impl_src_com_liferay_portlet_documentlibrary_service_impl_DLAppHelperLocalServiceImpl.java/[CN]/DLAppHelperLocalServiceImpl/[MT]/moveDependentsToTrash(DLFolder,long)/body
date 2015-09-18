@@ -1,56 +1,55 @@
 {
-  List<DLFileEntry> dlFileEntries=dlFileEntryLocalService.getFileEntries(dlFolder.getGroupId(),dlFolder.getFolderId());
-  for (  DLFileEntry dlFileEntry : dlFileEntries) {
-    if (dlFileEntry.isInTrashExplicitly()) {
-      continue;
-    }
-    dlFileShortcutLocalService.disableFileShortcuts(dlFileEntry.getFileEntryId());
-    List<DLFileVersion> dlFileVersions=dlFileVersionLocalService.getFileVersions(dlFileEntry.getFileEntryId(),WorkflowConstants.STATUS_ANY);
-    for (    DLFileVersion dlFileVersion : dlFileVersions) {
-      int oldStatus=dlFileVersion.getStatus();
-      dlFileVersion.setStatus(WorkflowConstants.STATUS_IN_TRASH);
-      dlFileVersionPersistence.update(dlFileVersion);
-      if (oldStatus != WorkflowConstants.STATUS_APPROVED) {
-        int status=oldStatus;
-        if (oldStatus == WorkflowConstants.STATUS_PENDING) {
-          status=WorkflowConstants.STATUS_DRAFT;
+  List<DLFolder> dlFolders=dlFolderPersistence.findByG_M_T_H(dlFolder.getGroupId(),false,CustomSQLUtil.keywords(dlFolder.getTreePath())[0],false);
+  for (  DLFolder curFolder : dlFolders) {
+    List<DLFileEntry> dlFileEntries=dlFileEntryLocalService.getFileEntries(curFolder.getGroupId(),curFolder.getFolderId());
+    for (    DLFileEntry dlFileEntry : dlFileEntries) {
+      if (dlFileEntry.isInTrashExplicitly()) {
+        continue;
+      }
+      dlFileShortcutLocalService.disableFileShortcuts(dlFileEntry.getFileEntryId());
+      List<DLFileVersion> dlFileVersions=dlFileVersionLocalService.getFileVersions(dlFileEntry.getFileEntryId(),WorkflowConstants.STATUS_ANY);
+      for (      DLFileVersion dlFileVersion : dlFileVersions) {
+        int oldStatus=dlFileVersion.getStatus();
+        dlFileVersion.setStatus(WorkflowConstants.STATUS_IN_TRASH);
+        dlFileVersionPersistence.update(dlFileVersion);
+        if (oldStatus != WorkflowConstants.STATUS_APPROVED) {
+          int status=oldStatus;
+          if (oldStatus == WorkflowConstants.STATUS_PENDING) {
+            status=WorkflowConstants.STATUS_DRAFT;
+          }
+          trashVersionLocalService.addTrashVersion(trashEntryId,DLFileVersion.class.getName(),dlFileVersion.getFileVersionId(),status,null);
         }
-        trashVersionLocalService.addTrashVersion(trashEntryId,DLFileVersion.class.getName(),dlFileVersion.getFileVersionId(),status,null);
+        if (oldStatus == WorkflowConstants.STATUS_PENDING) {
+          workflowInstanceLinkLocalService.deleteWorkflowInstanceLink(dlFileVersion.getCompanyId(),dlFileVersion.getGroupId(),DLFileEntryConstants.getClassName(),dlFileVersion.getFileVersionId());
+        }
       }
-      if (oldStatus == WorkflowConstants.STATUS_PENDING) {
-        workflowInstanceLinkLocalService.deleteWorkflowInstanceLink(dlFileVersion.getCompanyId(),dlFileVersion.getGroupId(),DLFileEntryConstants.getClassName(),dlFileVersion.getFileVersionId());
+      assetEntryLocalService.updateVisible(DLFileEntryConstants.getClassName(),dlFileEntry.getFileEntryId(),false);
+      Indexer<DLFileEntry> indexer=IndexerRegistryUtil.nullSafeGetIndexer(DLFileEntry.class);
+      indexer.reindex(dlFileEntry);
+    }
+    List<DLFileShortcut> dlFileShortcuts=dlFileShortcutPersistence.findByG_F(curFolder.getGroupId(),curFolder.getFolderId());
+    for (    DLFileShortcut dlFileShortcut : dlFileShortcuts) {
+      if (dlFileShortcut.isInTrash()) {
+        continue;
+      }
+      int oldStatus=dlFileShortcut.getStatus();
+      dlFileShortcut.setStatus(WorkflowConstants.STATUS_IN_TRASH);
+      dlFileShortcutPersistence.update(dlFileShortcut);
+      if (oldStatus != WorkflowConstants.STATUS_APPROVED) {
+        trashVersionLocalService.addTrashVersion(trashEntryId,DLFileShortcutConstants.getClassName(),dlFileShortcut.getFileShortcutId(),oldStatus,null);
       }
     }
-    assetEntryLocalService.updateVisible(DLFileEntryConstants.getClassName(),dlFileEntry.getFileEntryId(),false);
-    Indexer<DLFileEntry> indexer=IndexerRegistryUtil.nullSafeGetIndexer(DLFileEntry.class);
-    indexer.reindex(dlFileEntry);
-  }
-  List<DLFileShortcut> dlFileShortcuts=dlFileShortcutPersistence.findByG_F(dlFolder.getGroupId(),dlFolder.getFolderId());
-  for (  DLFileShortcut dlFileShortcut : dlFileShortcuts) {
-    if (dlFileShortcut.isInTrash()) {
+    if (curFolder.isInTrashExplicitly() || curFolder.equals(dlFolder)) {
       continue;
     }
-    int oldStatus=dlFileShortcut.getStatus();
-    dlFileShortcut.setStatus(WorkflowConstants.STATUS_IN_TRASH);
-    dlFileShortcutPersistence.update(dlFileShortcut);
+    int oldStatus=curFolder.getStatus();
+    curFolder.setStatus(WorkflowConstants.STATUS_IN_TRASH);
+    dlFolderPersistence.update(curFolder);
     if (oldStatus != WorkflowConstants.STATUS_APPROVED) {
-      trashVersionLocalService.addTrashVersion(trashEntryId,DLFileShortcutConstants.getClassName(),dlFileShortcut.getFileShortcutId(),oldStatus,null);
+      trashVersionLocalService.addTrashVersion(trashEntryId,DLFolder.class.getName(),curFolder.getFolderId(),oldStatus,null);
     }
-  }
-  List<DLFolder> dlFolders=dlFolderLocalService.getFolders(dlFolder.getGroupId(),dlFolder.getFolderId(),false);
-  for (  DLFolder subFolder : dlFolders) {
-    if (subFolder.isInTrashExplicitly()) {
-      continue;
-    }
-    int oldStatus=subFolder.getStatus();
-    subFolder.setStatus(WorkflowConstants.STATUS_IN_TRASH);
-    dlFolderPersistence.update(subFolder);
-    if (oldStatus != WorkflowConstants.STATUS_APPROVED) {
-      trashVersionLocalService.addTrashVersion(trashEntryId,DLFolder.class.getName(),subFolder.getFolderId(),oldStatus,null);
-    }
-    moveDependentsToTrash(subFolder,trashEntryId);
-    assetEntryLocalService.updateVisible(DLFolderConstants.getClassName(),subFolder.getFolderId(),false);
+    assetEntryLocalService.updateVisible(DLFolderConstants.getClassName(),curFolder.getFolderId(),false);
     Indexer<DLFolder> indexer=IndexerRegistryUtil.nullSafeGetIndexer(DLFolder.class);
-    indexer.reindex(subFolder);
+    indexer.reindex(curFolder);
   }
 }
