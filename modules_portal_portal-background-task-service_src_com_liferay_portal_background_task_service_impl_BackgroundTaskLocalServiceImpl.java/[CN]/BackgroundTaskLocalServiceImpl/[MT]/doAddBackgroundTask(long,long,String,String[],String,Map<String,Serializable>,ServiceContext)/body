@@ -1,0 +1,29 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  final long backgroundTaskId=counterLocalService.increment();
+  BackgroundTask backgroundTask=backgroundTaskPersistence.create(backgroundTaskId);
+  backgroundTask.setCompanyId(user.getCompanyId());
+  backgroundTask.setGroupId(groupId);
+  backgroundTask.setUserId(userId);
+  backgroundTask.setUserName(user.getFullName());
+  backgroundTask.setName(name);
+  if (ArrayUtil.isNotEmpty(servletContextNames)) {
+    backgroundTask.setServletContextNames(StringUtil.merge(servletContextNames));
+  }
+  backgroundTask.setTaskExecutorClassName(taskExecutorClassName);
+  if (taskContextMap == null) {
+    taskContextMap=new HashMap<>();
+  }
+  _backgroundTaskThreadLocalManager.serializeThreadLocals(taskContextMap);
+  backgroundTask.setTaskContextMap(taskContextMap);
+  backgroundTask.setStatus(BackgroundTaskConstants.STATUS_NEW);
+  backgroundTaskPersistence.update(backgroundTask);
+  TransactionCommitCallbackUtil.registerCallback(new Callable<Void>(){
+    @Override public Void call() throws Exception {
+      backgroundTaskLocalService.triggerBackgroundTask(backgroundTaskId);
+      return null;
+    }
+  }
+);
+  return backgroundTask;
+}
