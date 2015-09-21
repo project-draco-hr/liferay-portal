@@ -13,6 +13,8 @@
     _log.error(e,e);
     throw e;
   }
+  boolean portletParallelRender=GetterUtil.getBoolean(request.getAttribute(WebKeys.PORTLET_PARALLEL_RENDER));
+  Lock lock=null;
   Map<String,StringBundler> contentsMap=new HashMap<>();
   Map<Integer,List<PortletRenderer>> portletRenderersMap=processor.getPortletRenderers();
   for (  Map.Entry<Integer,List<PortletRenderer>> entry : portletRenderersMap.entrySet()) {
@@ -22,19 +24,45 @@
     List<PortletRenderer> portletRenderers=entry.getValue();
     StopWatch stopWatch=new StopWatch();
     stopWatch.start();
-    if (_log.isDebugEnabled()) {
-      _log.debug("Start serial rendering");
-    }
-    for (    PortletRenderer portletRenderer : portletRenderers) {
-      Portlet portlet=portletRenderer.getPortlet();
-      contentsMap.put(portlet.getPortletId(),portletRenderer.render(request,response));
+    if (portletParallelRender && (portletRenderers.size() > 1)) {
       if (_log.isDebugEnabled()) {
-        _log.debug("Serially rendered portlet " + portlet.getPortletId() + " in "+ stopWatch.getTime()+ " ms");
+        _log.debug("Start parallel rendering");
+      }
+      if (lock == null) {
+        lock=new ReentrantLock();
+      }
+      request.setAttribute(WebKeys.PARALLEL_RENDERING_MERGE_LOCK,lock);
+      ObjectValuePair<HttpServletRequest,Closeable> objectValuePair=ThreadLocalFacadeServletRequestWrapperUtil.inject(request);
+      try {
+        parallelyRenderPortlets(objectValuePair.getKey(),response,processor,contentsMap,portletRenderers);
+      }
+  finally {
+        Closeable closeable=objectValuePair.getValue();
+        closeable.close();
+      }
+      request.removeAttribute(WebKeys.PARALLEL_RENDERING_MERGE_LOCK);
+      if (_log.isDebugEnabled()) {
+        _log.debug("Finished parallel rendering in " + stopWatch.getTime() + " ms");
       }
     }
-    if (_log.isDebugEnabled()) {
-      _log.debug("Finished serial rendering in " + stopWatch.getTime() + " ms");
+ else {
+      if (_log.isDebugEnabled()) {
+        _log.debug("Start serial rendering");
+      }
+      for (      PortletRenderer portletRenderer : portletRenderers) {
+        Portlet portlet=portletRenderer.getPortlet();
+        contentsMap.put(portlet.getPortletId(),portletRenderer.render(request,response));
+        if (_log.isDebugEnabled()) {
+          _log.debug("Serially rendered portlet " + portlet.getPortletId() + " in "+ stopWatch.getTime()+ " ms");
+        }
+      }
+      if (_log.isDebugEnabled()) {
+        _log.debug("Finished serial rendering in " + stopWatch.getTime() + " ms");
+      }
     }
+  }
+  if (portletParallelRender && (_waitTime == Integer.MAX_VALUE)) {
+    _waitTime=PropsValues.LAYOUT_PARALLEL_RENDER_TIMEOUT;
   }
   StringBundler sb=StringUtil.replaceWithStringBundler(unsyncStringWriter.toString(),"[$TEMPLATE_PORTLET_","$]",contentsMap);
   return sb;
