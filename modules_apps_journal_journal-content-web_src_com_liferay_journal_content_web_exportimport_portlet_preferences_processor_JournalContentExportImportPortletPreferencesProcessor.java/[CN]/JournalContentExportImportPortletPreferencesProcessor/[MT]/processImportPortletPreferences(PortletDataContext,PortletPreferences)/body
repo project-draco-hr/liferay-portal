@@ -1,5 +1,10 @@
 {
-  portletDataContext.importPortletPermissions(JournalPermission.RESOURCE_NAME);
+  try {
+    portletDataContext.importPortletPermissions(JournalPermission.RESOURCE_NAME);
+  }
+ catch (  PortalException pe) {
+    throw new PortletDataException("Unable to import portlet permissions",pe);
+  }
   long previousScopeGroupId=portletDataContext.getScopeGroupId();
   Map<Long,Long> groupIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(Group.class);
   long importGroupId=GetterUtil.getLong(portletPreferences.getValue("groupId",null));
@@ -9,26 +14,34 @@
   StagedModelDataHandlerUtil.importReferenceStagedModels(portletDataContext,DDMTemplate.class);
   StagedModelDataHandlerUtil.importReferenceStagedModels(portletDataContext,JournalArticle.class);
   String articleId=portletPreferences.getValue("articleId",null);
-  if (Validator.isNotNull(articleId)) {
-    Map<String,String> articleIds=(Map<String,String>)portletDataContext.getNewPrimaryKeysMap(JournalArticle.class + ".articleId");
-    articleId=MapUtil.getString(articleIds,articleId,articleId);
-    portletPreferences.setValue("articleId",articleId);
-    portletPreferences.setValue("groupId",String.valueOf(groupId));
-    Layout layout=LayoutLocalServiceUtil.getLayout(portletDataContext.getPlid());
-    JournalContentSearchLocalServiceUtil.updateContentSearch(layout.getGroupId(),layout.isPrivateLayout(),layout.getLayoutId(),portletId,articleId,true);
-  }
+  try {
+    if (Validator.isNotNull(articleId)) {
+      Map<String,String> articleIds=(Map<String,String>)portletDataContext.getNewPrimaryKeysMap(JournalArticle.class + ".articleId");
+      articleId=MapUtil.getString(articleIds,articleId,articleId);
+      portletPreferences.setValue("articleId",articleId);
+      portletPreferences.setValue("groupId",String.valueOf(groupId));
+      Layout layout=LayoutLocalServiceUtil.fetchLayout(portletDataContext.getPlid());
+      JournalContentSearchLocalServiceUtil.updateContentSearch(layout.getGroupId(),layout.isPrivateLayout(),layout.getLayoutId(),portletDataContext.getPortletId(),articleId,true);
+    }
  else {
-    portletPreferences.setValue("groupId",StringPool.BLANK);
-    portletPreferences.setValue("articleId",StringPool.BLANK);
-  }
-  String ddmTemplateKey=portletPreferences.getValue("ddmTemplateKey",null);
-  if (Validator.isNotNull(ddmTemplateKey)) {
-    Map<String,String> ddmTemplateKeys=(Map<String,String>)portletDataContext.getNewPrimaryKeysMap(DDMTemplate.class + ".ddmTemplateKey");
-    ddmTemplateKey=MapUtil.getString(ddmTemplateKeys,ddmTemplateKey,ddmTemplateKey);
-    portletPreferences.setValue("ddmTemplateKey",ddmTemplateKey);
-  }
+      portletPreferences.setValue("groupId",StringPool.BLANK);
+      portletPreferences.setValue("articleId",StringPool.BLANK);
+    }
+    String ddmTemplateKey=portletPreferences.getValue("ddmTemplateKey",null);
+    if (Validator.isNotNull(ddmTemplateKey)) {
+      Map<String,String> ddmTemplateKeys=(Map<String,String>)portletDataContext.getNewPrimaryKeysMap(DDMTemplate.class + ".ddmTemplateKey");
+      ddmTemplateKey=MapUtil.getString(ddmTemplateKeys,ddmTemplateKey,ddmTemplateKey);
+      portletPreferences.setValue("ddmTemplateKey",ddmTemplateKey);
+    }
  else {
-    portletPreferences.setValue("ddmTemplateKey",StringPool.BLANK);
+      portletPreferences.setValue("ddmTemplateKey",StringPool.BLANK);
+    }
+  }
+ catch (  PortalException pe) {
+    throw new PortletDataException("Unable to update journal content search data during import",pe);
+  }
+catch (  ReadOnlyException roe) {
+    throw new PortletDataException("Unable to update portlet preferences during import",roe);
   }
   portletDataContext.setScopeGroupId(previousScopeGroupId);
   return portletPreferences;
