@@ -1,0 +1,46 @@
+{
+  ServletContext servletContext=servletContextEvent.getServletContext();
+  String deploymentFileNames=servletContext.getInitParameter("deployment-files");
+  if ((deploymentFileNames == null) || deploymentFileNames.equals("")) {
+    servletContext.log("No deployment files are specified in the web.xml");
+    return;
+  }
+  String deploymentPath=servletContext.getInitParameter("deployment-path");
+  if ((deploymentPath == null) || deploymentPath.equals("")) {
+    servletContext.log("No deployment path is specified in the web.xml");
+    return;
+  }
+  File deploymentPathFile=new File(deploymentPath);
+  if (!deploymentPathFile.exists()) {
+    servletContext.log("The deployment path " + deploymentPath + " does not exist");
+    return;
+  }
+  if (!deploymentPathFile.isDirectory()) {
+    servletContext.log("The deployment path " + deploymentPath + " is not a directory");
+    return;
+  }
+  if (!deploymentPathFile.canWrite()) {
+    servletContext.log("The deployment path " + deploymentPath + " is not writable");
+    return;
+  }
+  for (  String deploymentFileName : deploymentFileNames.split(",")) {
+    String fileName=deploymentFileName.trim();
+    if (deploymentFileName.lastIndexOf("/") != -1) {
+      fileName=deploymentFileName.substring(deploymentFileName.lastIndexOf("/") + 1);
+    }
+    try {
+      InputStream inputStream=servletContext.getResourceAsStream(deploymentFileName);
+      if (inputStream == null) {
+        servletContext.log("Could not find " + deploymentFileName + " in the WAR file");
+        continue;
+      }
+      servletContext.log("Copying " + deploymentFileName);
+      File file=new File(deploymentPathFile,fileName);
+      copy(servletContext,inputStream,new FileOutputStream(file));
+      servletContext.log("Successfully copied " + deploymentFileName + " to "+ file.getAbsolutePath());
+    }
+ catch (    Exception e) {
+      servletContext.log("An error occured while attempting to process " + deploymentFileName + ":\n"+ e.getMessage(),e);
+    }
+  }
+}
