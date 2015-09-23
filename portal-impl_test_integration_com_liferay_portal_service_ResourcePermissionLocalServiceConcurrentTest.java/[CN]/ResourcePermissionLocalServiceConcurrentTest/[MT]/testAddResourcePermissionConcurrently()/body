@@ -1,0 +1,32 @@
+{
+  SynchronousInvocationHandler.enable();
+  try {
+    final String primKey=RandomTestUtil.randomString(UniqueStringRandomizerBumper.INSTANCE);
+    Callable<ResourcePermission> callable=new Callable<ResourcePermission>(){
+      @Override public ResourcePermission call() throws PortalException {
+        Role role=RoleLocalServiceUtil.getRole(TestPropsValues.getCompanyId(),RoleConstants.GUEST);
+        ResourcePermissionLocalServiceUtil.addResourcePermission(TestPropsValues.getCompanyId(),_name,0,primKey,role.getRoleId(),_actionId);
+        return ResourcePermissionLocalServiceUtil.fetchResourcePermission(TestPropsValues.getCompanyId(),_name,0,primKey,role.getRoleId());
+      }
+    }
+;
+    List<FutureTask<ResourcePermission>> futureTasks=new ArrayList<>();
+    for (int i=0; i < _threadCount; i++) {
+      FutureTask<ResourcePermission> futureTask=new FutureTask<>(callable);
+      Thread thread=new Thread(futureTask,ResourcePermissionLocalServiceConcurrentTest.class.getName() + "-concurrent-addResourcePermission-" + i);
+      thread.start();
+      futureTasks.add(futureTask);
+    }
+    Set<ResourcePermission> resourcePermissions=new HashSet<>();
+    for (    FutureTask<ResourcePermission> futureTask : futureTasks) {
+      resourcePermissions.add(futureTask.get());
+    }
+    Assert.assertEquals(resourcePermissions.toString(),1,resourcePermissions.size());
+    Iterator<ResourcePermission> iterator=resourcePermissions.iterator();
+    _resourcePermission=iterator.next();
+    Assert.assertEquals(_resourceAction.getBitwiseValue(),_resourcePermission.getActionIds());
+  }
+  finally {
+    SynchronousInvocationHandler.disable();
+  }
+}
