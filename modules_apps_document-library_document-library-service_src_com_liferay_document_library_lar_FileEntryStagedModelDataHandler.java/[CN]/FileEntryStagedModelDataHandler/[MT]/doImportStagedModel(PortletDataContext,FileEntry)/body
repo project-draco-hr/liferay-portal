@@ -36,8 +36,6 @@
   importMetaData(portletDataContext,fileEntryElement,fileEntry,serviceContext);
   FileEntry importedFileEntry=null;
   String titleWithExtension=DLUtil.getTitleWithExtension(fileEntry);
-  String extension=fileEntry.getExtension();
-  String periodAndExtension=StringPool.PERIOD.concat(extension);
   if (portletDataContext.isDataStrategyMirror()) {
     FileEntry existingFileEntry=fetchStagedModelByUuidAndGroupId(fileEntry.getUuid(),portletDataContext.getScopeGroupId());
     FileVersion fileVersion=fileEntry.getFileVersion();
@@ -49,22 +47,7 @@
           DLAppLocalServiceUtil.deleteFileEntry(existingTitleFileEntry.getFileEntryId());
         }
  else {
-          boolean titleHasExtension=false;
-          if (fileEntryTitle.endsWith(periodAndExtension)) {
-            fileEntryTitle=FileUtil.stripExtension(fileEntryTitle);
-            titleHasExtension=true;
-          }
-          for (int i=1; ; i++) {
-            fileEntryTitle+=StringPool.SPACE + i;
-            titleWithExtension=fileEntryTitle + periodAndExtension;
-            existingTitleFileEntry=FileEntryUtil.fetchByR_F_T(portletDataContext.getScopeGroupId(),folderId,titleWithExtension);
-            if (existingTitleFileEntry == null) {
-              if (titleHasExtension) {
-                fileEntryTitle+=periodAndExtension;
-              }
-              break;
-            }
-          }
+          fileEntryTitle=DLFileEntryLocalServiceUtil.getUniqueTitle(portletDataContext.getScopeGroupId(),folderId,-1,fileEntryTitle,fileEntry.getExtension());
         }
       }
       serviceContext.setAttribute("fileVersionUuid",fileVersion.getUuid());
@@ -134,24 +117,8 @@
     }
   }
  else {
-    try {
-      importedFileEntry=DLAppLocalServiceUtil.addFileEntry(userId,portletDataContext.getScopeGroupId(),folderId,titleWithExtension,fileEntry.getMimeType(),fileEntry.getTitle(),fileEntry.getDescription(),null,is,fileEntry.getSize(),serviceContext);
-    }
- catch (    DuplicateFileException dfe) {
-      if (_log.isDebugEnabled()) {
-        _log.debug(dfe,dfe);
-      }
-      String title=fileEntry.getTitle();
-      String[] titleParts=title.split("\\.",2);
-      title=titleParts[0] + StringUtil.randomString();
-      if (titleParts.length > 1) {
-        title+=StringPool.PERIOD + titleParts[1];
-      }
-      if (!title.endsWith(periodAndExtension)) {
-        title+=periodAndExtension;
-      }
-      importedFileEntry=DLAppLocalServiceUtil.addFileEntry(userId,portletDataContext.getScopeGroupId(),folderId,title,fileEntry.getMimeType(),title,fileEntry.getDescription(),null,is,fileEntry.getSize(),serviceContext);
-    }
+    String fileEntryTitle=DLFileEntryLocalServiceUtil.getUniqueTitle(portletDataContext.getScopeGroupId(),folderId,-1,fileEntry.getTitle(),fileEntry.getExtension());
+    importedFileEntry=DLAppLocalServiceUtil.addFileEntry(userId,portletDataContext.getScopeGroupId(),folderId,titleWithExtension,fileEntry.getMimeType(),fileEntryTitle,fileEntry.getDescription(),null,is,fileEntry.getSize(),serviceContext);
   }
   if (portletDataContext.getBooleanParameter("document_library","previews-and-thumbnails")) {
     DLProcessorRegistryUtil.importGeneratedFiles(portletDataContext,fileEntry,importedFileEntry,fileEntryElement);
