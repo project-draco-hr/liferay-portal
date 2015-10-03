@@ -1,0 +1,81 @@
+{
+  boolean pagination=true;
+  FinderPath finderPath=null;
+  Object[] finderArgs=null;
+  if ((start == QueryUtil.ALL_POS) && (end == QueryUtil.ALL_POS) && (orderByComparator == null)) {
+    pagination=false;
+    finderPath=FINDER_PATH_WITHOUT_PAGINATION_FIND_BY_FORMAT;
+    finderArgs=new Object[]{format};
+  }
+ else {
+    finderPath=FINDER_PATH_WITH_PAGINATION_FIND_BY_FORMAT;
+    finderArgs=new Object[]{format,start,end,orderByComparator};
+  }
+  List<WikiPage> list=null;
+  if (retrieveFromCache) {
+    list=(List<WikiPage>)FinderCacheUtil.getResult(finderPath,finderArgs,this);
+    if ((list != null) && !list.isEmpty()) {
+      for (      WikiPage wikiPage : list) {
+        if (!Validator.equals(format,wikiPage.getFormat())) {
+          list=null;
+          break;
+        }
+      }
+    }
+  }
+  if (list == null) {
+    StringBundler query=null;
+    if (orderByComparator != null) {
+      query=new StringBundler(3 + (orderByComparator.getOrderByFields().length * 3));
+    }
+ else {
+      query=new StringBundler(3);
+    }
+    query.append(_SQL_SELECT_WIKIPAGE_WHERE);
+    boolean bindFormat=false;
+    if (format == null) {
+      query.append(_FINDER_COLUMN_FORMAT_FORMAT_1);
+    }
+ else     if (format.equals(StringPool.BLANK)) {
+      query.append(_FINDER_COLUMN_FORMAT_FORMAT_3);
+    }
+ else {
+      bindFormat=true;
+      query.append(_FINDER_COLUMN_FORMAT_FORMAT_2);
+    }
+    if (orderByComparator != null) {
+      appendOrderByComparator(query,_ORDER_BY_ENTITY_ALIAS,orderByComparator);
+    }
+ else     if (pagination) {
+      query.append(WikiPageModelImpl.ORDER_BY_JPQL);
+    }
+    String sql=query.toString();
+    Session session=null;
+    try {
+      session=openSession();
+      Query q=session.createQuery(sql);
+      QueryPos qPos=QueryPos.getInstance(q);
+      if (bindFormat) {
+        qPos.add(format);
+      }
+      if (!pagination) {
+        list=(List<WikiPage>)QueryUtil.list(q,getDialect(),start,end,false);
+        Collections.sort(list);
+        list=Collections.unmodifiableList(list);
+      }
+ else {
+        list=(List<WikiPage>)QueryUtil.list(q,getDialect(),start,end);
+      }
+      cacheResult(list);
+      FinderCacheUtil.putResult(finderPath,finderArgs,list);
+    }
+ catch (    Exception e) {
+      FinderCacheUtil.removeResult(finderPath,finderArgs);
+      throw processException(e);
+    }
+ finally {
+      closeSession(session);
+    }
+  }
+  return list;
+}
