@@ -1,0 +1,28 @@
+{
+  Dictionary<String,Object> properties=new Hashtable<>();
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_NAME,_bundle.getSymbolicName());
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_PATH,"/" + _bundle.getSymbolicName());
+  BundleContext bundleContext=_bundle.getBundleContext();
+  ServiceRegistration<ServletContextHelper> servletContextHelperServiceRegistration=bundleContext.registerService(ServletContextHelper.class,new ServletContextHelper(_bundle){
+    @Override public URL getResource(    String name){
+      if (name.startsWith("/")) {
+        name=name.substring(1);
+      }
+      return _bundle.getResource(name);
+    }
+  }
+,properties);
+  properties=new Hashtable<>();
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_SELECT,_bundle.getSymbolicName());
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_FILTER_INIT_PARAM_PREFIX + "auth.verifier.TunnelingServletAuthVerifier.hosts.allowed",StringUtil.merge(_httpTunnelExtenderConfiguration.hostsAllowed()));
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_FILTER_NAME,"AuthVerifierFilter");
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_FILTER_PATTERN,"/api/liferay/do");
+  ServiceRegistration<Filter> authVerifierFilterServiceRegistration=bundleContext.registerService(Filter.class,new AuthVerifierFilter(),properties);
+  properties=new Hashtable<>();
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_SELECT,_bundle.getSymbolicName());
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_SERVLET_NAME,"HttpTunnelServlet");
+  properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_SERVLET_PATTERN,"/api/liferay/do");
+  properties.put("servlet.init.httpMethods","POST");
+  ServiceRegistration<Servlet> tunnelServletServiceRegistration=bundleContext.registerService(Servlet.class,new TunnelServlet(),properties);
+  _httpBundleTunnelRegistrationInfo=new HttpBundleTunnelRegistrationInfo(authVerifierFilterServiceRegistration,tunnelServletServiceRegistration,servletContextHelperServiceRegistration);
+}
