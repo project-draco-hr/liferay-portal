@@ -1,21 +1,20 @@
 {
-  Session session=null;
-  try {
-    session=_sessionFactory.openSession();
-    Query q=session.createSynchronizedSQLQuery(_SQL_SELECT_COMPARE_STRINGS);
-    QueryPos qPos=QueryPos.getInstance(q);
-    qPos.add(data1);
-    qPos.add(data2);
-    List<Clob> clobs=(List<Clob>)QueryUtil.list(q,_sessionFactory.getDialect(),QueryUtil.ALL_POS,QueryUtil.ALL_POS,false);
-    List<String> dataStrings=new ArrayList<>(clobs.size());
-    for (    Clob clob : clobs) {
-      try (InputStream inputStream=clob.getAsciiStream()){
-        dataStrings.add(StringUtil.read(inputStream));
-      }
-     }
-    return dataStrings;
-  }
-  finally {
-    _sessionFactory.closeSession(session);
-  }
-}
+  try (Connection connection=DataAccess.getConnection();PreparedStatement preparedStatement=connection.prepareStatement(SQLTransformer.transform(_SQL_SELECT_COMPARE_STRINGS))){
+    Clob clob1=connection.createClob();
+    clob1.setString(1,data1);
+    preparedStatement.setClob(1,clob1);
+    Clob clob2=connection.createClob();
+    clob2.setString(1,data2);
+    preparedStatement.setClob(2,clob2);
+    try (ResultSet resultSet=preparedStatement.executeQuery()){
+      List<String> dataStrings=new ArrayList<>();
+      while (resultSet.next()) {
+        Clob clob=resultSet.getClob(1);
+        try (InputStream inputStream=clob.getAsciiStream()){
+          dataStrings.add(StringUtil.read(inputStream));
+        }
+       }
+      return dataStrings;
+    }
+   }
+ }
