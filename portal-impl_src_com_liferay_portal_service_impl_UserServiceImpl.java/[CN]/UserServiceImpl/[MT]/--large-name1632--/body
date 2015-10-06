@@ -1,0 +1,165 @@
+{
+  UserPermissionUtil.check(getPermissionChecker(),userId,organizationIds,ActionKeys.UPDATE);
+  User user=userPersistence.findByPrimaryKey(userId);
+  if (addresses != null) {
+    UsersAdminUtil.updateAddresses(Contact.class.getName(),user.getContactId(),addresses);
+  }
+  if (emailAddresses != null) {
+    UsersAdminUtil.updateEmailAddresses(Contact.class.getName(),user.getContactId(),emailAddresses);
+  }
+  if (phones != null) {
+    UsersAdminUtil.updatePhones(Contact.class.getName(),user.getContactId(),phones);
+  }
+  if (websites != null) {
+    UsersAdminUtil.updateWebsites(Contact.class.getName(),user.getContactId(),websites);
+  }
+  if (announcementsDelivers != null) {
+    updateAnnouncementsDeliveries(user.getUserId(),announcementsDelivers);
+  }
+  long curUserId=getUserId();
+  if (curUserId == userId) {
+    emailAddress=StringUtil.toLowerCase(emailAddress.trim());
+    if (!StringUtil.equalsIgnoreCase(emailAddress,user.getEmailAddress())) {
+      validateEmailAddress(user,emailAddress);
+    }
+  }
+  validateUpdatePermission(user,screenName,emailAddress,firstName,middleName,lastName,prefixId,suffixId,birthdayMonth,birthdayDay,birthdayYear,male,jobTitle);
+  long[] oldGroupIds=user.getGroupIds();
+  List<Long> addGroupIds=new ArrayList<>();
+  List<Long> removeGroupIds=Collections.emptyList();
+  if (groupIds != null) {
+    removeGroupIds=ListUtil.toList(oldGroupIds);
+    groupIds=checkGroups(userId,groupIds);
+    for (    long groupId : groupIds) {
+      if (ArrayUtil.contains(oldGroupIds,groupId)) {
+        removeGroupIds.remove(groupId);
+      }
+ else {
+        addGroupIds.add(groupId);
+      }
+    }
+    if (!addGroupIds.isEmpty() || !removeGroupIds.isEmpty()) {
+      SiteMembershipPolicyUtil.checkMembership(new long[]{userId},ArrayUtil.toLongArray(addGroupIds),ArrayUtil.toLongArray(removeGroupIds));
+    }
+  }
+  long[] oldOrganizationIds=user.getOrganizationIds();
+  List<Long> addOrganizationIds=new ArrayList<>();
+  List<Long> removeOrganizationIds=Collections.emptyList();
+  if (organizationIds != null) {
+    removeOrganizationIds=ListUtil.toList(oldOrganizationIds);
+    organizationIds=checkOrganizations(userId,organizationIds);
+    for (    long organizationId : organizationIds) {
+      if (ArrayUtil.contains(oldOrganizationIds,organizationId)) {
+        removeOrganizationIds.remove(organizationId);
+      }
+ else {
+        addOrganizationIds.add(organizationId);
+      }
+    }
+    if (!addOrganizationIds.isEmpty() || !removeOrganizationIds.isEmpty()) {
+      OrganizationMembershipPolicyUtil.checkMembership(new long[]{userId},ArrayUtil.toLongArray(addOrganizationIds),ArrayUtil.toLongArray(removeOrganizationIds));
+    }
+  }
+  long[] oldRoleIds=user.getRoleIds();
+  List<Long> addRoleIds=new ArrayList<>();
+  List<Long> removeRoleIds=Collections.emptyList();
+  if (roleIds != null) {
+    removeRoleIds=ListUtil.toList(oldRoleIds);
+    roleIds=checkRoles(userId,roleIds);
+    for (    long roleId : roleIds) {
+      if (ArrayUtil.contains(oldRoleIds,roleId)) {
+        removeRoleIds.remove(roleId);
+      }
+ else {
+        addRoleIds.add(roleId);
+      }
+    }
+    if (!addRoleIds.isEmpty() || !removeRoleIds.isEmpty()) {
+      RoleMembershipPolicyUtil.checkRoles(new long[]{userId},ArrayUtil.toLongArray(addRoleIds),ArrayUtil.toLongArray(removeRoleIds));
+    }
+  }
+  List<UserGroupRole> oldOrganizationUserGroupRoles=new ArrayList<>();
+  List<UserGroupRole> oldSiteUserGroupRoles=new ArrayList<>();
+  List<UserGroupRole> oldUserGroupRoles=userGroupRolePersistence.findByUserId(userId);
+  for (  UserGroupRole oldUserGroupRole : oldUserGroupRoles) {
+    Role role=oldUserGroupRole.getRole();
+    if (role.getType() == RoleConstants.TYPE_ORGANIZATION) {
+      oldOrganizationUserGroupRoles.add(oldUserGroupRole);
+    }
+ else     if (role.getType() == RoleConstants.TYPE_SITE) {
+      oldSiteUserGroupRoles.add(oldUserGroupRole);
+    }
+  }
+  List<UserGroupRole> addOrganizationUserGroupRoles=new ArrayList<>();
+  List<UserGroupRole> removeOrganizationUserGroupRoles=Collections.emptyList();
+  List<UserGroupRole> addSiteUserGroupRoles=new ArrayList<>();
+  List<UserGroupRole> removeSiteUserGroupRoles=Collections.emptyList();
+  if (userGroupRoles != null) {
+    userGroupRoles=checkUserGroupRoles(userId,userGroupRoles);
+    removeOrganizationUserGroupRoles=ListUtil.copy(oldOrganizationUserGroupRoles);
+    removeSiteUserGroupRoles=ListUtil.copy(oldSiteUserGroupRoles);
+    for (    UserGroupRole userGroupRole : userGroupRoles) {
+      Role role=userGroupRole.getRole();
+      if (role.getType() == RoleConstants.TYPE_ORGANIZATION) {
+        if (oldOrganizationUserGroupRoles.contains(userGroupRole)) {
+          removeOrganizationUserGroupRoles.remove(userGroupRole);
+        }
+ else {
+          addOrganizationUserGroupRoles.add(userGroupRole);
+        }
+      }
+ else       if (role.getType() == RoleConstants.TYPE_SITE) {
+        if (oldSiteUserGroupRoles.contains(userGroupRole)) {
+          removeSiteUserGroupRoles.remove(userGroupRole);
+        }
+ else {
+          addSiteUserGroupRoles.add(userGroupRole);
+        }
+      }
+    }
+    if (!addOrganizationUserGroupRoles.isEmpty() || !removeOrganizationUserGroupRoles.isEmpty()) {
+      OrganizationMembershipPolicyUtil.checkRoles(addOrganizationUserGroupRoles,removeOrganizationUserGroupRoles);
+    }
+    if (!addSiteUserGroupRoles.isEmpty() || !removeSiteUserGroupRoles.isEmpty()) {
+      SiteMembershipPolicyUtil.checkRoles(addSiteUserGroupRoles,removeSiteUserGroupRoles);
+    }
+  }
+  long[] oldUserGroupIds=user.getUserGroupIds();
+  List<Long> addUserGroupIds=new ArrayList<>();
+  List<Long> removeUserGroupIds=Collections.emptyList();
+  if (userGroupIds != null) {
+    removeUserGroupIds=ListUtil.toList(oldUserGroupIds);
+    userGroupIds=checkUserGroupIds(userId,userGroupIds);
+    for (    long userGroupId : userGroupIds) {
+      if (ArrayUtil.contains(oldUserGroupIds,userGroupId)) {
+        removeUserGroupIds.remove(userGroupId);
+      }
+ else {
+        addUserGroupIds.add(userGroupId);
+      }
+    }
+    if (!addUserGroupIds.isEmpty() || !removeUserGroupIds.isEmpty()) {
+      UserGroupMembershipPolicyUtil.checkMembership(new long[]{userId},ArrayUtil.toLongArray(addUserGroupIds),ArrayUtil.toLongArray(removeUserGroupIds));
+    }
+  }
+  user=userLocalService.updateUser(userId,oldPassword,newPassword1,newPassword2,passwordReset,reminderQueryQuestion,reminderQueryAnswer,screenName,emailAddress,facebookId,openId,portrait,portraitBytes,languageId,timeZoneId,greeting,comments,firstName,middleName,lastName,prefixId,suffixId,male,birthdayMonth,birthdayDay,birthdayYear,smsSn,aimSn,facebookSn,icqSn,jabberSn,mySpaceSn,skypeSn,twitterSn,ymSn,jobTitle,groupIds,organizationIds,roleIds,userGroupRoles,userGroupIds,serviceContext);
+  if (!addGroupIds.isEmpty() || !removeGroupIds.isEmpty()) {
+    SiteMembershipPolicyUtil.propagateMembership(new long[]{user.getUserId()},ArrayUtil.toLongArray(addGroupIds),ArrayUtil.toLongArray(removeGroupIds));
+  }
+  if (!addOrganizationIds.isEmpty() || !removeOrganizationIds.isEmpty()) {
+    OrganizationMembershipPolicyUtil.propagateMembership(new long[]{user.getUserId()},ArrayUtil.toLongArray(addOrganizationIds),ArrayUtil.toLongArray(removeOrganizationIds));
+  }
+  if (!addRoleIds.isEmpty() || !removeRoleIds.isEmpty()) {
+    RoleMembershipPolicyUtil.propagateRoles(new long[]{user.getUserId()},ArrayUtil.toLongArray(addRoleIds),ArrayUtil.toLongArray(removeRoleIds));
+  }
+  if (!addSiteUserGroupRoles.isEmpty() || !removeSiteUserGroupRoles.isEmpty()) {
+    SiteMembershipPolicyUtil.propagateRoles(addSiteUserGroupRoles,removeSiteUserGroupRoles);
+  }
+  if (!addOrganizationUserGroupRoles.isEmpty() || !removeOrganizationUserGroupRoles.isEmpty()) {
+    OrganizationMembershipPolicyUtil.propagateRoles(addOrganizationUserGroupRoles,removeOrganizationUserGroupRoles);
+  }
+  if (!addUserGroupIds.isEmpty() || !removeUserGroupIds.isEmpty()) {
+    UserGroupMembershipPolicyUtil.propagateMembership(new long[]{user.getUserId()},ArrayUtil.toLongArray(addUserGroupIds),ArrayUtil.toLongArray(removeUserGroupIds));
+  }
+  return user;
+}
