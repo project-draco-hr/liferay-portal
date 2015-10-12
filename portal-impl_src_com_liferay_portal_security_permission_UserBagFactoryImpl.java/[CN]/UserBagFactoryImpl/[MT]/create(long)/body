@@ -1,0 +1,28 @@
+{
+  UserPermissionCheckerBag userPermissionCheckerBag=PermissionCacheUtil.getUserBag(userId);
+  if (userPermissionCheckerBag != null) {
+    return userPermissionCheckerBag;
+  }
+  try {
+    List<Group> userGroups=GroupLocalServiceUtil.getUserGroups(userId,true);
+    List<Organization> userOrgs=getUserOrgs(userId);
+    Set<Group> userOrgGroups=SetUtil.fromList(GroupLocalServiceUtil.getOrganizationsGroups(userOrgs));
+    List<UserGroup> userUserGroups=UserGroupLocalServiceUtil.getUserUserGroups(userId);
+    List<Group> userUserGroupGroups=GroupLocalServiceUtil.getUserGroupsGroups(userUserGroups);
+    Set<Role> userRoles=new HashSet<>();
+    if (!userGroups.isEmpty()) {
+      List<Role> userRelatedRoles=RoleLocalServiceUtil.getUserRelatedRoles(userId,userGroups);
+      userRoles.addAll(userRelatedRoles);
+    }
+ else {
+      userRoles.addAll(RoleLocalServiceUtil.getUserRoles(userId));
+    }
+    userPermissionCheckerBag=new UserPermissionCheckerBagImpl(userId,SetUtil.fromList(userGroups),userOrgs,userOrgGroups,userUserGroupGroups,userRoles);
+    PermissionCacheUtil.putUserBag(userId,userPermissionCheckerBag);
+    return userPermissionCheckerBag;
+  }
+ catch (  Exception e) {
+    PermissionCacheUtil.removeUserBag(userId);
+    throw e;
+  }
+}
