@@ -1,21 +1,16 @@
 {
-  long userId=portletDataContext.getUserId(entry.getUserUuid());
   Map<Long,Long> folderIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(BookmarksFolder.class);
   long folderId=MapUtil.getLong(folderIds,entry.getFolderId(),entry.getFolderId());
-  ServiceContext serviceContext=portletDataContext.createServiceContext(entry);
-  BookmarksEntry importedEntry=null;
-  if (portletDataContext.isDataStrategyMirror()) {
-    BookmarksEntry existingEntry=fetchStagedModelByUuidAndGroupId(entry.getUuid(),portletDataContext.getScopeGroupId());
-    if (existingEntry == null) {
-      serviceContext.setUuid(entry.getUuid());
-      importedEntry=BookmarksEntryLocalServiceUtil.addEntry(userId,portletDataContext.getScopeGroupId(),folderId,entry.getName(),entry.getUrl(),entry.getDescription(),serviceContext);
-    }
- else {
-      importedEntry=BookmarksEntryLocalServiceUtil.updateEntry(userId,existingEntry.getEntryId(),portletDataContext.getScopeGroupId(),folderId,entry.getName(),entry.getUrl(),entry.getDescription(),serviceContext);
-    }
+  BookmarksEntry importedEntry=(BookmarksEntry)entry.clone();
+  importedEntry.setGroupId(portletDataContext.getScopeGroupId());
+  importedEntry.setFolderId(folderId);
+  BookmarksEntry existingEntry=fetchStagedModelByUuidAndGroupId(entry.getUuid(),portletDataContext.getScopeGroupId());
+  if (existingEntry == null) {
+    importedEntry=_stagedModelRepository.addStagedModel(portletDataContext,importedEntry);
   }
  else {
-    importedEntry=BookmarksEntryLocalServiceUtil.addEntry(userId,portletDataContext.getScopeGroupId(),folderId,entry.getName(),entry.getUrl(),entry.getDescription(),serviceContext);
+    entry.setEntryId(existingEntry.getEntryId());
+    importedEntry=_stagedModelRepository.updateStagedModel(portletDataContext,importedEntry);
   }
   portletDataContext.importClassedModel(entry,importedEntry);
 }
