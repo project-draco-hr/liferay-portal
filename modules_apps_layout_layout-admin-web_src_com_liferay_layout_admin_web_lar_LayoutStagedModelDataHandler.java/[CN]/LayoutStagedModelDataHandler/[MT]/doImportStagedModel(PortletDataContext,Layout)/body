@@ -8,8 +8,8 @@
   boolean privateLayout=portletDataContext.isPrivateLayout();
   String action=layoutElement.attributeValue(Constants.ACTION);
   if (action.equals(Constants.DELETE)) {
-    Layout deletingLayout=LayoutLocalServiceUtil.fetchLayoutByUuidAndGroupId(layoutUuid,groupId,privateLayout);
-    LayoutLocalServiceUtil.deleteLayout(deletingLayout,false,ServiceContextThreadLocal.getServiceContext());
+    Layout deletingLayout=_layoutLocalService.fetchLayoutByUuidAndGroupId(layoutUuid,groupId,privateLayout);
+    _layoutLocalService.deleteLayout(deletingLayout,false,ServiceContextThreadLocal.getServiceContext());
     return;
   }
   Map<Long,Layout> layouts=(Map<Long,Layout>)portletDataContext.getNewPrimaryKeysMap(Layout.class + ".layout");
@@ -18,13 +18,13 @@
   String friendlyURL=layout.getFriendlyURL();
   String layoutsImportMode=MapUtil.getString(portletDataContext.getParameterMap(),PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE,PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_MERGE_BY_LAYOUT_UUID);
   if (layoutsImportMode.equals(PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_ADD_AS_NEW)) {
-    layoutId=LayoutLocalServiceUtil.getNextLayoutId(groupId,privateLayout);
+    layoutId=_layoutLocalService.getNextLayoutId(groupId,privateLayout);
     friendlyURL=StringPool.SLASH + layoutId;
   }
  else   if (layoutsImportMode.equals(PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_MERGE_BY_LAYOUT_NAME)) {
     Locale locale=LocaleUtil.getSiteDefault();
     String localizedName=layout.getName(locale);
-    List<Layout> previousLayouts=LayoutLocalServiceUtil.getLayouts(groupId,privateLayout);
+    List<Layout> previousLayouts=_layoutLocalService.getLayouts(groupId,privateLayout);
     for (    Layout curLayout : previousLayouts) {
       if (localizedName.equals(curLayout.getName(locale)) || friendlyURL.equals(curLayout.getFriendlyURL())) {
         existingLayout=curLayout;
@@ -32,19 +32,19 @@
       }
     }
     if (existingLayout == null) {
-      layoutId=LayoutLocalServiceUtil.getNextLayoutId(groupId,privateLayout);
+      layoutId=_layoutLocalService.getNextLayoutId(groupId,privateLayout);
       friendlyURL=getFriendlyURL(friendlyURL,layoutId);
     }
   }
  else   if (layoutsImportMode.equals(PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_CREATED_FROM_PROTOTYPE)) {
-    existingLayout=LayoutLocalServiceUtil.fetchLayoutByUuidAndGroupId(layout.getUuid(),groupId,privateLayout);
+    existingLayout=_layoutLocalService.fetchLayoutByUuidAndGroupId(layout.getUuid(),groupId,privateLayout);
     if (SitesUtil.isLayoutModifiedSinceLastMerge(existingLayout)) {
       layouts.put(oldLayoutId,existingLayout);
       return;
     }
-    LayoutFriendlyURL layoutFriendlyURL=LayoutFriendlyURLLocalServiceUtil.fetchFirstLayoutFriendlyURL(groupId,privateLayout,friendlyURL);
+    LayoutFriendlyURL layoutFriendlyURL=_layoutFriendlyURLLocalService.fetchFirstLayoutFriendlyURL(groupId,privateLayout,friendlyURL);
     if ((layoutFriendlyURL != null) && (existingLayout == null)) {
-      Layout mergeFailFriendlyURLLayout=LayoutLocalServiceUtil.getLayout(layoutFriendlyURL.getPlid());
+      Layout mergeFailFriendlyURLLayout=_layoutLocalService.getLayout(layoutFriendlyURL.getPlid());
       SitesUtil.addMergeFailFriendlyURLLayout(mergeFailFriendlyURLLayout);
       if (!_log.isWarnEnabled()) {
         return;
@@ -61,12 +61,12 @@
     }
   }
  else {
-    existingLayout=LayoutLocalServiceUtil.fetchLayoutByUuidAndGroupId(layout.getUuid(),groupId,privateLayout);
+    existingLayout=_layoutLocalService.fetchLayoutByUuidAndGroupId(layout.getUuid(),groupId,privateLayout);
     if (existingLayout == null) {
-      existingLayout=LayoutLocalServiceUtil.fetchLayoutByFriendlyURL(groupId,privateLayout,friendlyURL);
+      existingLayout=_layoutLocalService.fetchLayoutByFriendlyURL(groupId,privateLayout,friendlyURL);
     }
     if (existingLayout == null) {
-      layoutId=LayoutLocalServiceUtil.getNextLayoutId(groupId,privateLayout);
+      layoutId=_layoutLocalService.getNextLayoutId(groupId,privateLayout);
       friendlyURL=getFriendlyURL(friendlyURL,layoutId);
     }
   }
@@ -88,11 +88,11 @@
     }
   }
   if (existingLayout == null) {
-    long plid=CounterLocalServiceUtil.increment();
-    importedLayout=LayoutLocalServiceUtil.createLayout(plid);
+    long plid=_counterLocalService.increment();
+    importedLayout=_layoutLocalService.createLayout(plid);
     if (layoutsImportMode.equals(PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_CREATED_FROM_PROTOTYPE)) {
       importedLayout.setSourcePrototypeLayoutUuid(layout.getUuid());
-      layoutId=LayoutLocalServiceUtil.getNextLayoutId(groupId,privateLayout);
+      layoutId=_layoutLocalService.getNextLayoutId(groupId,privateLayout);
       friendlyURL=getFriendlyURL(friendlyURL,layoutId);
     }
  else {
@@ -108,7 +108,7 @@
     importedLayout.setPrivateLayout(privateLayout);
     importedLayout.setLayoutId(layoutId);
     initNewLayoutPermissions(portletDataContext.getCompanyId(),groupId,userId,layout,importedLayout,privateLayout);
-    LayoutSet layoutSet=LayoutSetLocalServiceUtil.getLayoutSet(groupId,privateLayout);
+    LayoutSet layoutSet=_layoutSetLocalService.getLayoutSet(groupId,privateLayout);
     importedLayout.setLayoutSet(layoutSet);
   }
  else {
@@ -159,7 +159,7 @@
     importLayoutIconImage(portletDataContext,importedLayout,layoutElement);
   }
  else   if (importedLayout.getIconImageId() > 0) {
-    ImageLocalServiceUtil.deleteImage(importedLayout.getIconImageId());
+    _imageLocalService.deleteImage(importedLayout.getIconImageId());
   }
   if (existingLayout == null) {
     int priority=_layoutLocalServiceHelper.getNextPriority(groupId,privateLayout,parentLayoutId,null,-1);
@@ -172,8 +172,8 @@
   StagingUtil.updateLastImportSettings(layoutElement,importedLayout,portletDataContext);
   fixImportTypeSettings(importedLayout);
   importTheme(portletDataContext,layout,importedLayout);
-  LayoutLocalServiceUtil.updateLayout(importedLayout);
-  LayoutSetLocalServiceUtil.updatePageCount(groupId,privateLayout);
+  _layoutLocalService.updateLayout(importedLayout);
+  _layoutSetLocalService.updatePageCount(groupId,privateLayout);
   Map<Long,Long> layoutPlids=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(Layout.class);
   layoutPlids.put(layout.getPlid(),importedLayout.getPlid());
   layouts.put(oldLayoutId,importedLayout);
