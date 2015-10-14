@@ -1,0 +1,41 @@
+{
+  final ActionableDynamicQuery actionableDynamicQuery=_ddlRecordLocalService.getActionableDynamicQuery();
+  actionableDynamicQuery.setCompanyId(companyId);
+  actionableDynamicQuery.setAddCriteriaMethod(new ActionableDynamicQuery.AddCriteriaMethod(){
+    @Override public void addCriteria(    DynamicQuery dynamicQuery){
+      Property recordIdProperty=PropertyFactoryUtil.forName("recordId");
+      DynamicQuery recordVersionDynamicQuery=_ddlRecordVersionLocalService.dynamicQuery();
+      recordVersionDynamicQuery.setProjection(ProjectionFactoryUtil.property("recordId"));
+      Property statusProperty=PropertyFactoryUtil.forName("status");
+      recordVersionDynamicQuery.add(statusProperty.eq(WorkflowConstants.STATUS_APPROVED));
+      dynamicQuery.add(recordIdProperty.in(recordVersionDynamicQuery));
+      Property recordSetProperty=PropertyFactoryUtil.forName("recordSetId");
+      DynamicQuery recordSetDynamicQuery=_ddlRecordSetLocalService.dynamicQuery();
+      recordSetDynamicQuery.setProjection(ProjectionFactoryUtil.property("recordSetId"));
+      Property scopeProperty=PropertyFactoryUtil.forName("scope");
+      recordSetDynamicQuery.add(scopeProperty.in(_REINDEX_SCOPES));
+      dynamicQuery.add(recordSetProperty.in(recordSetDynamicQuery));
+    }
+  }
+);
+  actionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod(){
+    @Override public void performAction(    Object object) throws PortalException {
+      DDLRecord record=(DDLRecord)object;
+      try {
+        Document document=getDocument(record);
+        if (document != null) {
+          actionableDynamicQuery.addDocument(document);
+        }
+      }
+ catch (      PortalException pe) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Unable to index dynamic data lists record " + record.getRecordId(),pe);
+        }
+      }
+    }
+  }
+);
+  actionableDynamicQuery.setSearchEngineId(getSearchEngineId());
+  actionableDynamicQuery.setCommitImmediately(isCommitImmediately());
+  actionableDynamicQuery.performActions();
+}
