@@ -1,13 +1,22 @@
 {
-  LDAPConfiguration ldapConfiguration=_ldapConfigurationSettingsUtil.getLDAPConfiguration(companyId);
+  SystemLDAPConfiguration systemLDAPConfiguration=_systemLDAPConfigurationProvider.getConfiguration(companyId);
   Properties environmentProperties=new Properties();
-  environmentProperties.put(Context.INITIAL_CONTEXT_FACTORY,ldapConfiguration.factoryInitial());
+  environmentProperties.put(Context.INITIAL_CONTEXT_FACTORY,systemLDAPConfiguration.factoryInitial());
   environmentProperties.put(Context.PROVIDER_URL,providerURL);
   environmentProperties.put(Context.SECURITY_PRINCIPAL,principal);
   environmentProperties.put(Context.SECURITY_CREDENTIALS,credentials);
-  environmentProperties.put(Context.REFERRAL,ldapConfiguration.referral());
-  Properties ldapConnectionProperties=PropsUtil.getProperties(PropsKeys.LDAP_CONNECTION_PROPERTY_PREFIX,true);
-  PropertiesUtil.merge(environmentProperties,ldapConnectionProperties);
+  environmentProperties.put(Context.REFERRAL,systemLDAPConfiguration.referral());
+  String[] connectionProperties=systemLDAPConfiguration.connectionProperties();
+  for (  String connectionProperty : connectionProperties) {
+    String[] connectionPropertySplit=StringUtil.split(connectionProperty,CharPool.EQUAL);
+    if (connectionPropertySplit.length != 2) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Invalid LDAP connection property: " + connectionProperty);
+        continue;
+      }
+    }
+    environmentProperties.put(connectionPropertySplit[0],connectionPropertySplit[1]);
+  }
   LogUtil.debug(_log,environmentProperties);
   LdapContext ldapContext=null;
   try {

@@ -1,12 +1,12 @@
 {
-  String postfix=LDAPSettingsUtil.getPropertyPostfix(ldapServerId);
   LdapContext ldapContext=PortalLDAPUtil.getContext(ldapServerId,companyId);
   if (ldapContext == null) {
     return FAILURE;
   }
   NamingEnumeration<SearchResult> enu=null;
   try {
-    String baseDN=PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_BASE_DN + postfix);
+    LDAPServerConfiguration ldapServerConfiguration=_ldapServerConfigurationProvider.getConfiguration(companyId,ldapServerId);
+    String baseDN=ldapServerConfiguration.baseDN();
     String filter=LDAPSettingsUtil.getAuthSearchFilter(ldapServerId,companyId,emailAddress,screenName,String.valueOf(userId));
     Properties userMappings=LDAPSettingsUtil.getUserMappings(ldapServerId,companyId);
     String userMappingsScreenName=GetterUtil.getString(userMappings.getProperty("screenName"));
@@ -24,11 +24,12 @@
       LDAPAuthResult ldapAuthResult=authenticate(ldapContext,companyId,attributes,fullUserDN,password);
       String errorMessage=ldapAuthResult.getErrorMessage();
       if (errorMessage != null) {
-        int pos=errorMessage.indexOf(PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_ERROR_USER_LOCKOUT));
+        SystemLDAPConfiguration systemLDAPConfiguration=_systemLDAPConfigurationProvider.getConfiguration(companyId);
+        int pos=errorMessage.indexOf(systemLDAPConfiguration.errorUserLockout());
         if (pos != -1) {
           throw new UserLockoutException.LDAPLockout(fullUserDN,errorMessage);
         }
-        pos=errorMessage.indexOf(PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_ERROR_PASSWORD_EXPIRED));
+        pos=errorMessage.indexOf(systemLDAPConfiguration.errorPasswordExpired());
         if (pos != -1) {
           throw new PasswordExpiredException();
         }

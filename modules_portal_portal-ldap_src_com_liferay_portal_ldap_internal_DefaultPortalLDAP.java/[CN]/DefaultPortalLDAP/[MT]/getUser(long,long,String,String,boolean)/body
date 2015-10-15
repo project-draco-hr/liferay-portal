@@ -1,16 +1,16 @@
 {
-  String postfix=_ldapSettings.getPropertyPostfix(ldapServerId);
   LdapContext ldapContext=getContext(ldapServerId,companyId);
   NamingEnumeration<SearchResult> enu=null;
   try {
     if (ldapContext == null) {
       return null;
     }
-    String baseDN=PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_BASE_DN + postfix);
-    String userFilter=PrefsPropsUtil.getString(companyId,PropsKeys.LDAP_IMPORT_USER_SEARCH_FILTER + postfix);
-    LDAPUtil.validateFilter(userFilter,PropsKeys.LDAP_IMPORT_USER_SEARCH_FILTER + postfix);
-    StringBundler sb=new StringBundler(Validator.isNotNull(userFilter) ? 9 : 5);
-    if (Validator.isNotNull(userFilter)) {
+    LDAPServerConfiguration ldapServerConfiguration=_ldapServerConfigurationProvider.getConfiguration(companyId,ldapServerId);
+    String baseDN=ldapServerConfiguration.baseDN();
+    String userSearchFilter=ldapServerConfiguration.userSearchFilter();
+    LDAPUtil.validateFilter(userSearchFilter,"LDAPServerConfiguration.userSearchFilter");
+    StringBundler sb=new StringBundler(Validator.isNotNull(userSearchFilter) ? 9 : 5);
+    if (Validator.isNotNull(userSearchFilter)) {
       sb.append(StringPool.OPEN_PARENTHESIS);
       sb.append(StringPool.AMPERSAND);
     }
@@ -18,7 +18,7 @@
     String loginMapping=null;
     String login=null;
     Properties userMappings=_ldapSettings.getUserMappings(ldapServerId,companyId);
-    String authType=PrefsPropsUtil.getString(companyId,PropsKeys.COMPANY_SECURITY_AUTH_TYPE,PropsValues.COMPANY_SECURITY_AUTH_TYPE);
+    String authType=PrefsPropsUtil.getString(companyId,PropsKeys.COMPANY_SECURITY_AUTH_TYPE,_companySecurityAuthType);
     if (authType.equals(CompanyConstants.AUTH_TYPE_SN) && !PrefsPropsUtil.getBoolean(companyId,PropsKeys.USERS_SCREEN_NAME_ALWAYS_AUTOGENERATE)) {
       loginMapping=userMappings.getProperty("screenName");
       login=screenName;
@@ -31,8 +31,8 @@
     sb.append(StringPool.EQUAL);
     sb.append(login);
     sb.append(StringPool.CLOSE_PARENTHESIS);
-    if (Validator.isNotNull(userFilter)) {
-      sb.append(userFilter);
+    if (Validator.isNotNull(userSearchFilter)) {
+      sb.append(userSearchFilter);
       sb.append(StringPool.CLOSE_PARENTHESIS);
     }
     SearchControls searchControls=new SearchControls(SearchControls.SUBTREE_SCOPE,1,0,null,false,false);
