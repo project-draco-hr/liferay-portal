@@ -1,10 +1,27 @@
 {
-  Object object=message.getObject();
-  if (object == null) {
+  byte[] rawBuffer=message.getRawBuffer();
+  if (rawBuffer == null) {
     if (_log.isWarnEnabled()) {
       _log.warn("Message content is null");
     }
     return;
   }
-  _clusterReceiver.receive(object,new AddressImpl(message.getSrc()));
+  ByteBuffer byteBuffer=ByteBuffer.wrap(rawBuffer,message.getOffset(),message.getLength());
+  Deserializer deserializer=new Deserializer(byteBuffer.slice());
+  Thread currentThread=Thread.currentThread();
+  ClassLoader contextClassLoader=currentThread.getContextClassLoader();
+  ClassLoader aggregatedClassLoader=AggregateClassLoader.getAggregateClassLoader(contextClassLoader,JGroupsReceiver.class.getClassLoader());
+  currentThread.setContextClassLoader(aggregatedClassLoader);
+  try {
+    Object object=deserializer.readObject();
+    _clusterReceiver.receive(object,new AddressImpl(message.getSrc()));
+  }
+ catch (  ClassNotFoundException cnfe) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Unable to deserialize message paload",cnfe);
+    }
+  }
+ finally {
+    currentThread.setContextClassLoader(contextClassLoader);
+  }
 }
