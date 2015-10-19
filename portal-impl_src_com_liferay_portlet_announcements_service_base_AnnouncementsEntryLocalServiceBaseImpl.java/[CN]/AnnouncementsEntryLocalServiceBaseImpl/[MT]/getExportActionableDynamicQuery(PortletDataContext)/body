@@ -1,0 +1,39 @@
+{
+  final ExportActionableDynamicQuery exportActionableDynamicQuery=new ExportActionableDynamicQuery(){
+    @Override public long performCount() throws PortalException {
+      ManifestSummary manifestSummary=portletDataContext.getManifestSummary();
+      StagedModelType stagedModelType=getStagedModelType();
+      long modelAdditionCount=super.performCount();
+      manifestSummary.addModelAdditionCount(stagedModelType,modelAdditionCount);
+      long modelDeletionCount=ExportImportHelperUtil.getModelDeletionCount(portletDataContext,stagedModelType);
+      manifestSummary.addModelDeletionCount(stagedModelType,modelDeletionCount);
+      return modelAdditionCount;
+    }
+  }
+;
+  initActionableDynamicQuery(exportActionableDynamicQuery);
+  exportActionableDynamicQuery.setAddCriteriaMethod(new ActionableDynamicQuery.AddCriteriaMethod(){
+    @Override public void addCriteria(    DynamicQuery dynamicQuery){
+      portletDataContext.addDateRangeCriteria(dynamicQuery,"modifiedDate");
+      StagedModelType stagedModelType=exportActionableDynamicQuery.getStagedModelType();
+      long referrerClassNameId=stagedModelType.getReferrerClassNameId();
+      Property classNameIdProperty=PropertyFactoryUtil.forName("classNameId");
+      if ((referrerClassNameId != StagedModelType.REFERRER_CLASS_NAME_ID_ALL) && (referrerClassNameId != StagedModelType.REFERRER_CLASS_NAME_ID_ANY)) {
+        dynamicQuery.add(classNameIdProperty.eq(stagedModelType.getReferrerClassNameId()));
+      }
+ else       if (referrerClassNameId == StagedModelType.REFERRER_CLASS_NAME_ID_ANY) {
+        dynamicQuery.add(classNameIdProperty.isNotNull());
+      }
+    }
+  }
+);
+  exportActionableDynamicQuery.setCompanyId(portletDataContext.getCompanyId());
+  exportActionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod<AnnouncementsEntry>(){
+    @Override public void performAction(    AnnouncementsEntry announcementsEntry) throws PortalException {
+      StagedModelDataHandlerUtil.exportStagedModel(portletDataContext,announcementsEntry);
+    }
+  }
+);
+  exportActionableDynamicQuery.setStagedModelType(new StagedModelType(PortalUtil.getClassNameId(AnnouncementsEntry.class.getName()),StagedModelType.REFERRER_CLASS_NAME_ID_ALL));
+  return exportActionableDynamicQuery;
+}
