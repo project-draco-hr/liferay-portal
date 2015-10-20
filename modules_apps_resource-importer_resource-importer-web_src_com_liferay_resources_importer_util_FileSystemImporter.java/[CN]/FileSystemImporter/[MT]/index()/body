@@ -1,0 +1,47 @@
+{
+  for (  Map.Entry<String,Set<Long>> primaryKeysEntry : _primaryKeys.entrySet()) {
+    String className=primaryKeysEntry.getKey();
+    Set<Long> primaryKeys=primaryKeysEntry.getValue();
+    Indexer indexer=IndexerRegistryUtil.getIndexer(className);
+    if (indexer == null) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("No indexer within the IndexerRegistry for: " + className);
+      }
+      continue;
+    }
+    if (_log.isDebugEnabled()) {
+      _log.debug("Indexing: " + className);
+    }
+    for (    long primaryKey : primaryKeys) {
+      try {
+        indexer.reindex(className,primaryKey);
+      }
+ catch (      SearchException e) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Cannot index entry: className=" + className + ", primaryKey="+ primaryKey,e);
+        }
+      }
+    }
+  }
+  if (_ddmStructures.isEmpty()) {
+    return;
+  }
+  Set<Long> primaryKeys=_primaryKeys.get(JournalArticle.class.getName());
+  Indexer indexer=IndexerRegistryUtil.getIndexer(JournalArticle.class.getName());
+  for (  String ddmStructureKey : _ddmStructures) {
+    List<JournalArticle> journalArticles=JournalArticleServiceUtil.getArticlesByStructureId(getGroupId(),ddmStructureKey,QueryUtil.ALL_POS,QueryUtil.ALL_POS,null);
+    for (    JournalArticle journalArticle : journalArticles) {
+      if ((primaryKeys != null) && primaryKeys.contains(journalArticle.getPrimaryKey())) {
+        continue;
+      }
+      try {
+        indexer.reindex(JournalArticle.class.getName(),journalArticle.getPrimaryKey());
+      }
+ catch (      SearchException e) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Cannot index entry: className=" + JournalArticle.class.getName() + ", primaryKey="+ journalArticle.getPrimaryKey(),e);
+        }
+      }
+    }
+  }
+}

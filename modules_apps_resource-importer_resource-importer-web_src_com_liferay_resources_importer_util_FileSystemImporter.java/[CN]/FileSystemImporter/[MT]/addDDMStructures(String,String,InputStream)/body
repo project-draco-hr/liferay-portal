@@ -1,0 +1,45 @@
+{
+  fileName=FileUtil.stripExtension(fileName);
+  String name=getName(fileName);
+  DDMStructure ddmStructure=DDMStructureLocalServiceUtil.fetchStructure(groupId,PortalUtil.getClassNameId(JournalArticle.class),getKey(fileName));
+  if (ddmStructure != null) {
+    if (!developerModeEnabled) {
+      if (_log.isInfoEnabled()) {
+        _log.info("DDM structure with name " + name + " and version "+ version+ " already exists");
+      }
+      return;
+    }
+    if (!updateModeEnabled) {
+      DDMStructureLocalServiceUtil.deleteDDMStructure(ddmStructure);
+    }
+  }
+  String xsd=StringUtil.read(inputStream);
+  if (isJournalStructureXSD(xsd)) {
+    xsd=JournalConverterUtil.getDDMXSD(xsd);
+  }
+  setServiceContext(fileName);
+  try {
+    if (!updateModeEnabled || (ddmStructure == null)) {
+      ddmStructure=DDMStructureLocalServiceUtil.addStructure(userId,groupId,parentDDMStructureKey,PortalUtil.getClassNameId(JournalArticle.class),getKey(fileName),getMap(name),null,xsd,JournalServiceConfigurationValues.JOURNAL_ARTICLE_STORAGE_TYPE,DDMStructureConstants.TYPE_DEFAULT,serviceContext);
+    }
+ else {
+      DDMStructure parentStructure=DDMStructureLocalServiceUtil.fetchStructure(groupId,PortalUtil.getClassNameId(JournalArticle.class),parentDDMStructureKey);
+      long parentDDMStructureId=DDMStructureConstants.DEFAULT_PARENT_STRUCTURE_ID;
+      if (parentStructure != null) {
+        parentDDMStructureId=parentStructure.getStructureId();
+      }
+      ddmStructure=DDMStructureLocalServiceUtil.updateStructure(ddmStructure.getStructureId(),parentDDMStructureId,getMap(name),null,xsd,serviceContext);
+    }
+  }
+ catch (  PortalException e) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Unable to import DDM structure " + fileName,e);
+    }
+    throw e;
+  }
+  _ddmStructures.add(ddmStructure.getStructureKey());
+  addDDMTemplates(ddmStructure.getStructureKey(),_JOURNAL_DDM_TEMPLATES_DIR_NAME + fileName);
+  if (Validator.isNull(parentDDMStructureKey)) {
+    addDDMStructures(ddmStructure.getStructureKey(),_JOURNAL_DDM_STRUCTURES_DIR_NAME + fileName);
+  }
+}

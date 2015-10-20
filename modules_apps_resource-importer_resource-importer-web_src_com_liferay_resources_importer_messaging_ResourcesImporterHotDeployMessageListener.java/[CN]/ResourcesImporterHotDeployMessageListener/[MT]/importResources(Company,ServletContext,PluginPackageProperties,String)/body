@@ -1,0 +1,47 @@
+{
+  long companyId=CompanyThreadLocal.getCompanyId();
+  try {
+    CompanyThreadLocal.setCompanyId(company.getCompanyId());
+    ImporterFactory importerFactory=ImporterFactory.getInstance();
+    Importer importer=importerFactory.createImporter(company.getCompanyId(),servletContext,pluginPackageProperties);
+    if (!importer.isDeveloperModeEnabled() && importer.isExisting() && !importer.isCompanyGroup()) {
+      if (_log.isInfoEnabled()) {
+        _log.info("Group or layout set prototype already exists " + "for company " + company.getWebId());
+      }
+      return;
+    }
+    long startTime=0;
+    if (_log.isInfoEnabled()) {
+      startTime=System.currentTimeMillis();
+    }
+    importer.importResources();
+    if (_log.isInfoEnabled()) {
+      long endTime=System.currentTimeMillis() - startTime;
+      _log.info("Importing resources from " + servletContext.getServletContextName() + " to group "+ importer.getGroupId()+ " takes "+ endTime+ " ms");
+    }
+    Message message=new Message();
+    message.put("companyId",company.getCompanyId());
+    message.put("servletContextName",servletContext.getServletContextName());
+    message.put("targetClassName",importer.getTargetClassName());
+    message.put("targetClassPK",importer.getTargetClassPK());
+    if (Validator.isNotNull(messageResponseId)) {
+      Map<String,Object> responseMap=new HashMap<>();
+      responseMap.put("groupId",importer.getTargetClassPK());
+      message.setPayload(responseMap);
+      message.setResponseId(messageResponseId);
+    }
+    MessageBusUtil.sendMessage("liferay/resources_importer",message);
+  }
+ catch (  ImporterException ie) {
+    Message message=new Message();
+    message.put("companyId",company.getCompanyId());
+    message.put("error",ie.getMessage());
+    message.put("servletContextName",servletContext.getServletContextName());
+    message.put("targetClassName",pluginPackageProperties.getTargetClassName());
+    message.put("targetClassPK",0);
+    MessageBusUtil.sendMessage("liferay/resources_importer",message);
+  }
+ finally {
+    CompanyThreadLocal.setCompanyId(companyId);
+  }
+}

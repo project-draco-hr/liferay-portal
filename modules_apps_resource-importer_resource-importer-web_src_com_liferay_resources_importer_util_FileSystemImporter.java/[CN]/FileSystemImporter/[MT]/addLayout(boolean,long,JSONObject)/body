@@ -1,0 +1,60 @@
+{
+  if (targetClassName.equals(LayoutSetPrototype.class.getName())) {
+    privateLayout=true;
+  }
+  Map<Locale,String> nameMap=getMap(layoutJSONObject,"name");
+  Map<Locale,String> titleMap=getMap(layoutJSONObject,"title");
+  String type=layoutJSONObject.getString("type");
+  if (Validator.isNull(type)) {
+    type=LayoutConstants.TYPE_PORTLET;
+  }
+  String typeSettings=layoutJSONObject.getString("typeSettings");
+  boolean hidden=layoutJSONObject.getBoolean("hidden");
+  Map<Locale,String> friendlyURLMap=new HashMap<>();
+  String friendlyURL=layoutJSONObject.getString("friendlyURL");
+  if (Validator.isNotNull(friendlyURL) && !friendlyURL.startsWith(StringPool.SLASH)) {
+    friendlyURL=StringPool.SLASH + friendlyURL;
+  }
+  friendlyURLMap.put(LocaleUtil.getDefault(),friendlyURL);
+  ServiceContext serviceContext=new ServiceContext();
+  serviceContext.setCompanyId(companyId);
+  serviceContext.setScopeGroupId(groupId);
+  serviceContext.setUserId(userId);
+  ServiceContextThreadLocal.pushServiceContext(serviceContext);
+  try {
+    String layoutPrototypeName=layoutJSONObject.getString("layoutPrototypeName");
+    String layoutPrototypeUuid=null;
+    if (Validator.isNotNull(layoutPrototypeName)) {
+      LayoutPrototype layoutPrototype=getLayoutPrototype(companyId,layoutPrototypeName);
+      layoutPrototypeUuid=layoutPrototype.getUuid();
+    }
+ else {
+      layoutPrototypeUuid=layoutJSONObject.getString("layoutPrototypeUuid");
+    }
+    if (Validator.isNotNull(layoutPrototypeUuid)) {
+      boolean layoutPrototypeLinkEnabled=GetterUtil.getBoolean(layoutJSONObject.getString("layoutPrototypeLinkEnabled"),false);
+      serviceContext.setAttribute("layoutPrototypeLinkEnabled",layoutPrototypeLinkEnabled);
+      serviceContext.setAttribute("layoutPrototypeUuid",layoutPrototypeUuid);
+    }
+    Layout layout=LayoutLocalServiceUtil.addLayout(userId,groupId,privateLayout,parentLayoutId,nameMap,titleMap,null,null,null,type,typeSettings,hidden,friendlyURLMap,serviceContext);
+    LayoutTypePortlet layoutTypePortlet=(LayoutTypePortlet)layout.getLayoutType();
+    String layoutTemplateId=layoutJSONObject.getString("layoutTemplateId",_defaultLayoutTemplateId);
+    if (Validator.isNotNull(layoutTemplateId)) {
+      layoutTypePortlet.setLayoutTemplateId(userId,layoutTemplateId,false);
+    }
+    JSONArray columnsJSONArray=layoutJSONObject.getJSONArray("columns");
+    addLayoutColumns(layout,LayoutTypePortletConstants.COLUMN_PREFIX,columnsJSONArray);
+    LayoutLocalServiceUtil.updateLayout(groupId,layout.isPrivateLayout(),layout.getLayoutId(),layout.getTypeSettings());
+    JSONArray layoutsJSONArray=layoutJSONObject.getJSONArray("layouts");
+    addLayouts(privateLayout,layout.getLayoutId(),layoutsJSONArray);
+  }
+ catch (  Exception e) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Unable to import layout " + layoutJSONObject,e);
+    }
+    throw e;
+  }
+ finally {
+    ServiceContextThreadLocal.popServiceContext();
+  }
+}

@@ -1,0 +1,45 @@
+{
+  String resourcesDir=pluginPackageProperties.getResourcesDir();
+  Set<String> resourcePaths=servletContext.getResourcePaths(RESOURCES_DIR);
+  Set<String> templatePaths=servletContext.getResourcePaths(TEMPLATES_DIR);
+  URL privateLARURL=null;
+  URL publicLARURL=servletContext.getResource(RESOURCES_DIR.concat("archive.lar"));
+  if (publicLARURL == null) {
+    privateLARURL=servletContext.getResource(RESOURCES_DIR.concat("private.lar"));
+    publicLARURL=servletContext.getResource(RESOURCES_DIR.concat("public.lar"));
+  }
+  Importer importer=null;
+  if ((privateLARURL != null) || (publicLARURL != null)) {
+    LARImporter larImporter=getLARImporter();
+    URLConnection privateLARURLConnection=null;
+    if (privateLARURL != null) {
+      privateLARURLConnection=privateLARURL.openConnection();
+      larImporter.setPrivateLARInputStream(privateLARURLConnection.getInputStream());
+    }
+    URLConnection publicLARURLConnection=null;
+    if (publicLARURL != null) {
+      publicLARURLConnection=publicLARURL.openConnection();
+      larImporter.setPublicLARInputStream(publicLARURLConnection.getInputStream());
+    }
+    importer=larImporter;
+  }
+ else   if ((resourcePaths != null) && !resourcePaths.isEmpty()) {
+    importer=getResourceImporter();
+    importer.setResourcesDir(RESOURCES_DIR);
+  }
+ else   if ((templatePaths != null) && !templatePaths.isEmpty()) {
+    importer=getResourceImporter();
+    Group group=GroupLocalServiceUtil.getCompanyGroup(companyId);
+    importer.setGroupId(group.getGroupId());
+    importer.setResourcesDir(TEMPLATES_DIR);
+  }
+ else   if (Validator.isNotNull(resourcesDir)) {
+    importer=getFileSystemImporter();
+    importer.setResourcesDir(resourcesDir);
+  }
+  if (importer == null) {
+    throw new ImporterException("No valid importer found");
+  }
+  configureImporter(companyId,importer,servletContext,pluginPackageProperties);
+  return importer;
+}

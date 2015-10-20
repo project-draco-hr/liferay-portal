@@ -1,0 +1,48 @@
+{
+  String content=StringUtil.read(inputStream);
+  if (Validator.isNull(content)) {
+    return;
+  }
+  JSONObject jsonObject=JSONFactoryUtil.createJSONObject(content);
+  JSONObject layoutTemplateJSONObject=jsonObject.getJSONObject("layoutTemplate");
+  Map<Locale,String> nameMap=getMap(layoutTemplateJSONObject.getString("name"));
+  String name=nameMap.get(Locale.getDefault());
+  Map<Locale,String> descriptionMap=getMap(layoutTemplateJSONObject,"description");
+  String uuid=layoutTemplateJSONObject.getString("uuid");
+  LayoutPrototype layoutPrototype=getLayoutPrototype(companyId,name);
+  if (layoutPrototype != null) {
+    if (!developerModeEnabled) {
+      if (_log.isInfoEnabled()) {
+        _log.info("Layout prototype with name " + name + " already exists for company "+ companyId);
+      }
+      return;
+    }
+    if (!updateModeEnabled) {
+      LayoutPrototypeLocalServiceUtil.deleteLayoutPrototype(layoutPrototype);
+    }
+  }
+  ServiceContext serviceContext=new ServiceContext();
+  serviceContext.setCompanyId(companyId);
+  serviceContext.setUserId(userId);
+  if (Validator.isNotNull(uuid)) {
+    serviceContext.setUuid(uuid);
+  }
+  try {
+    if (!updateModeEnabled || (layoutPrototype == null)) {
+      layoutPrototype=LayoutPrototypeLocalServiceUtil.addLayoutPrototype(userId,companyId,getMap(name),descriptionMap,true,serviceContext);
+    }
+ else {
+      layoutPrototype=LayoutPrototypeLocalServiceUtil.updateLayoutPrototype(layoutPrototype.getLayoutPrototypeId(),getMap(name),descriptionMap,layoutPrototype.isActive(),serviceContext);
+    }
+  }
+ catch (  Exception e) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Unable to import layout prototype " + name,e);
+    }
+    throw e;
+  }
+  JSONArray columnsJSONArray=layoutTemplateJSONObject.getJSONArray("columns");
+  Layout layout=layoutPrototype.getLayout();
+  addLayoutColumns(layout,LayoutTypePortletConstants.COLUMN_PREFIX,columnsJSONArray);
+  LayoutLocalServiceUtil.updateLayout(layout.getGroupId(),layout.isPrivateLayout(),layout.getLayoutId(),layout.getTypeSettings());
+}
