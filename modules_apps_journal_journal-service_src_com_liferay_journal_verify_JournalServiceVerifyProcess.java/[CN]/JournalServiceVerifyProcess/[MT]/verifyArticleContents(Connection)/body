@@ -1,0 +1,27 @@
+{
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    ps=con.prepareStatement("select id_ from JournalArticle where (content like " + "'%document_library%' or content like '%link_to_layout%')" + " and DDMStructureKey != ''");
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      long id=rs.getLong("id_");
+      JournalArticle article=_journalArticleLocalService.getArticle(id);
+      try {
+        Document document=SAXReaderUtil.read(article.getContent());
+        Element rootElement=document.getRootElement();
+        for (        Element element : rootElement.elements()) {
+          updateElement(article.getGroupId(),element);
+        }
+        article.setContent(document.asXML());
+        _journalArticleLocalService.updateJournalArticle(article);
+      }
+ catch (      Exception e) {
+        _log.error("Unable to update content for article " + article.getId(),e);
+      }
+    }
+  }
+  finally {
+    DataAccess.cleanUp(null,ps,rs);
+  }
+}
