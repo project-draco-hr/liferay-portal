@@ -1,0 +1,44 @@
+{
+  _calledUpdateTable=true;
+  generateTempFile(sourceConnection);
+  String tempFileName=getTempFileName();
+  try {
+    DB db=DBFactoryUtil.getDB();
+    if (Validator.isNotNull(tempFileName)) {
+      String deleteSQL=getDeleteSQL();
+      db.runSQL(sourceConnection,deleteSQL);
+    }
+    String createSQL=getCreateSQL();
+    if (Validator.isNotNull(createSQL)) {
+      db.runSQL(sourceConnection,"drop table " + getTableName());
+      db.runSQL(targetConnection,createSQL);
+    }
+    populateTable(targetConnection);
+    String[] indexesSQL=getIndexesSQL();
+    boolean dropIndexes=false;
+    for (    String indexSQL : indexesSQL) {
+      if (!isAllowUniqueIndexes()) {
+        if (indexSQL.contains("create unique index")) {
+          indexSQL=StringUtil.replace(indexSQL,"create unique index ","create index ");
+          dropIndexes=true;
+        }
+      }
+      try {
+        db.runSQL(targetConnection,indexSQL);
+      }
+ catch (      Exception e) {
+        if (_log.isWarnEnabled()) {
+          _log.warn(e.getMessage() + ": " + indexSQL);
+        }
+      }
+    }
+    if (dropIndexes) {
+      StartupHelperUtil.setDropIndexes(true);
+    }
+  }
+  finally {
+    if (Validator.isNotNull(tempFileName) && _deleteTempFile) {
+      FileUtil.delete(tempFileName);
+    }
+  }
+}
