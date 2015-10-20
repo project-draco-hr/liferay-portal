@@ -1,22 +1,25 @@
 {
   ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
   Map<String,Serializable> taskContextMap=new HashMap<>();
-  String className=ParamUtil.getString(actionRequest,"className");
+  final String className=ParamUtil.getString(actionRequest,"className");
   taskContextMap.put("className",className);
   long[] companyIds=PortalInstances.getCompanyIds();
   taskContextMap.put("companyIds",companyIds);
-  String taskExecutorClassName=_CLASS_NAME_REINDEX_PORTAL_BACKGROUND_TASK_EXECUTOR;
+  String taskExecutorClassName=_REINDEX_PORTAL_BACKGROUND_TASK_EXECUTOR;
   if (Validator.isNotNull(className)) {
-    taskExecutorClassName=_CLASS_NAME_REINDEX_SINGLE_INDEXER_BACKGROUND_TASK_EXECUTOR;
+    taskExecutorClassName=_REINDEX_SINGLE_INDEXER_BACKGROUND_TASK_EXECUTOR;
   }
-  final BackgroundTask backgroundTask=BackgroundTaskManagerUtil.addBackgroundTask(themeDisplay.getUserId(),CompanyConstants.SYSTEM,"reindex",taskExecutorClassName,taskContextMap,new ServiceContext());
   boolean blocking=ParamUtil.getBoolean(actionRequest,"blocking",false);
   if (blocking) {
     final CountDownLatch countDownLatch=new CountDownLatch(1);
     MessageListener messageListener=new MessageListener(){
       @Override public void receive(      Message message) throws MessageListenerException {
-        long backgroundTaskId=message.getLong("backgroundTaskId");
-        if (backgroundTask.getBackgroundTaskId() == backgroundTaskId) {
+        String taskExecutorClassName=message.getString("taskExecutorClassName");
+        String expectedExecutorName=_REINDEX_PORTAL_BACKGROUND_TASK_EXECUTOR;
+        if (Validator.isNotNull(className)) {
+          expectedExecutorName=_REINDEX_SINGLE_INDEXER_BACKGROUND_TASK_EXECUTOR;
+        }
+        if (taskExecutorClassName.equals(expectedExecutorName)) {
           int status=message.getInteger("status");
           if ((status == BackgroundTaskConstants.STATUS_CANCELLED) || (status == BackgroundTaskConstants.STATUS_FAILED) || (status == BackgroundTaskConstants.STATUS_SUCCESSFUL))           countDownLatch.countDown();
         }
@@ -26,10 +29,14 @@
     MessageBusUtil.registerMessageListener(DestinationNames.BACKGROUND_TASK_STATUS,messageListener);
     long timeout=ParamUtil.getLong(actionRequest,"timeout",Time.HOUR);
     try {
+      BackgroundTaskManagerUtil.addBackgroundTask(themeDisplay.getUserId(),CompanyConstants.SYSTEM,"reindex",taskExecutorClassName,taskContextMap,new ServiceContext());
       countDownLatch.await(timeout,TimeUnit.MILLISECONDS);
     }
   finally {
       MessageBusUtil.unregisterMessageListener(DestinationNames.BACKGROUND_TASK_STATUS,messageListener);
     }
+  }
+ else {
+    BackgroundTaskManagerUtil.addBackgroundTask(themeDisplay.getUserId(),CompanyConstants.SYSTEM,"reindex",taskExecutorClassName,taskContextMap,new ServiceContext());
   }
 }
