@@ -9,5 +9,27 @@
   if (Validator.isNotNull(className)) {
     taskExecutorClassName=_CLASS_NAME_REINDEX_SINGLE_INDEXER_BACKGROUND_TASK_EXECUTOR;
   }
-  BackgroundTaskManagerUtil.addBackgroundTask(themeDisplay.getUserId(),CompanyConstants.SYSTEM,"reindex",taskExecutorClassName,taskContextMap,new ServiceContext());
+  final BackgroundTask backgroundTask=BackgroundTaskManagerUtil.addBackgroundTask(themeDisplay.getUserId(),CompanyConstants.SYSTEM,"reindex",taskExecutorClassName,taskContextMap,new ServiceContext());
+  boolean blocking=ParamUtil.getBoolean(actionRequest,"blocking",false);
+  if (blocking) {
+    final CountDownLatch countDownLatch=new CountDownLatch(1);
+    MessageListener messageListener=new MessageListener(){
+      @Override public void receive(      Message message) throws MessageListenerException {
+        long backgroundTaskId=message.getLong("backgroundTaskId");
+        if (backgroundTask.getBackgroundTaskId() == backgroundTaskId) {
+          int status=message.getInteger("status");
+          if ((status == BackgroundTaskConstants.STATUS_CANCELLED) || (status == BackgroundTaskConstants.STATUS_FAILED) || (status == BackgroundTaskConstants.STATUS_SUCCESSFUL))           countDownLatch.countDown();
+        }
+      }
+    }
+;
+    MessageBusUtil.registerMessageListener(DestinationNames.BACKGROUND_TASK_STATUS,messageListener);
+    long timeout=ParamUtil.getLong(actionRequest,"timeout",Time.HOUR);
+    try {
+      countDownLatch.await(timeout,TimeUnit.MILLISECONDS);
+    }
+  finally {
+      MessageBusUtil.unregisterMessageListener(DestinationNames.BACKGROUND_TASK_STATUS,messageListener);
+    }
+  }
 }
