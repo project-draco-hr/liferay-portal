@@ -1,15 +1,29 @@
 {
-  PrintStream printStream=null;
+  SwappedOutputStream swappedOutputStream=null;
 synchronized (RunnableUtil.class) {
-    printStream=System.out;
-    System.setOut(new PrintStream(new SwappedOutputStream(outputStream,printStream,Thread.currentThread())));
+    swappedOutputStream=new SwappedOutputStream(outputStream,System.out,Thread.currentThread());
+    _swappedPrintStreams.push(swappedOutputStream);
+    System.setOut(new PrintStream(swappedOutputStream));
   }
   try {
     runnable.run();
   }
   finally {
 synchronized (RunnableUtil.class) {
-      System.setOut(printStream);
+      swappedOutputStream._enabled=false;
+      if (_swappedPrintStreams.peek() == swappedOutputStream) {
+        _swappedPrintStreams.pop();
+        System.setOut(swappedOutputStream._fallbackOutputStream);
+        Iterator<SwappedOutputStream> iterator=_swappedPrintStreams.iterator();
+        while (iterator.hasNext()) {
+          swappedOutputStream=iterator.next();
+          if (swappedOutputStream._enabled) {
+            break;
+          }
+          iterator.remove();
+          System.setOut(swappedOutputStream._fallbackOutputStream);
+        }
+      }
     }
   }
 }
