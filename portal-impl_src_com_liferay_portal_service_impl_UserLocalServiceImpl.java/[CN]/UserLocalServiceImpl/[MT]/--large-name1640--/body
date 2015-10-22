@@ -1,0 +1,132 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  Company company=companyPersistence.findByPrimaryKey(user.getCompanyId());
+  String password=oldPassword;
+  screenName=getLogin(screenName);
+  emailAddress=StringUtil.toLowerCase(emailAddress.trim());
+  openId=openId.trim();
+  String oldFullName=user.getFullName();
+  facebookSn=StringUtil.toLowerCase(facebookSn.trim());
+  jabberSn=StringUtil.toLowerCase(jabberSn.trim());
+  skypeSn=StringUtil.toLowerCase(skypeSn.trim());
+  twitterSn=StringUtil.toLowerCase(twitterSn.trim());
+  EmailAddressGenerator emailAddressGenerator=EmailAddressGeneratorFactory.getInstance();
+  if (emailAddressGenerator.isGenerated(emailAddress)) {
+    emailAddress=StringPool.BLANK;
+  }
+  if (!PropsValues.USERS_EMAIL_ADDRESS_REQUIRED && Validator.isNull(emailAddress)) {
+    emailAddress=emailAddressGenerator.generate(user.getCompanyId(),userId);
+  }
+  Locale locale=LocaleUtil.fromLanguageId(languageId);
+  validate(userId,screenName,emailAddress,openId,firstName,middleName,lastName,smsSn,locale);
+  if (Validator.isNotNull(newPassword1) || Validator.isNotNull(newPassword2)) {
+    user=updatePassword(userId,newPassword1,newPassword2,passwordReset);
+    password=newPassword1;
+    user.setDigest(StringPool.BLANK);
+  }
+  if (user.getContactId() <= 0) {
+    user.setContactId(counterLocalService.increment());
+  }
+  user.setPasswordReset(passwordReset);
+  if (Validator.isNotNull(reminderQueryQuestion) && Validator.isNotNull(reminderQueryAnswer)) {
+    user.setReminderQueryQuestion(reminderQueryQuestion);
+    user.setReminderQueryAnswer(reminderQueryAnswer);
+  }
+  if (!StringUtil.equalsIgnoreCase(user.getScreenName(),screenName)) {
+    user.setScreenName(screenName);
+    user.setDigest(StringPool.BLANK);
+  }
+  boolean sendEmailAddressVerification=false;
+  if (company.isStrangersVerify() && !StringUtil.equalsIgnoreCase(emailAddress,user.getEmailAddress())) {
+    sendEmailAddressVerification=true;
+  }
+ else {
+    setEmailAddress(user,password,firstName,middleName,lastName,emailAddress);
+  }
+  if (serviceContext != null) {
+    String uuid=serviceContext.getUuid();
+    if (Validator.isNotNull(uuid)) {
+      user.setUuid(uuid);
+    }
+  }
+  user.setFacebookId(facebookId);
+  Long ldapServerId=null;
+  if (serviceContext != null) {
+    ldapServerId=(Long)serviceContext.getAttribute("ldapServerId");
+  }
+  if (ldapServerId != null) {
+    user.setLdapServerId(ldapServerId);
+  }
+  user.setOpenId(openId);
+  PortalUtil.updateImageId(user,portrait,portraitBytes,"portraitId",PrefsPropsUtil.getLong(PropsKeys.USERS_IMAGE_MAX_SIZE),PropsValues.USERS_IMAGE_MAX_HEIGHT,PropsValues.USERS_IMAGE_MAX_WIDTH);
+  user.setLanguageId(languageId);
+  user.setTimeZoneId(timeZoneId);
+  user.setGreeting(greeting);
+  user.setComments(comments);
+  user.setFirstName(firstName);
+  user.setMiddleName(middleName);
+  user.setLastName(lastName);
+  user.setJobTitle(jobTitle);
+  user.setExpandoBridgeAttributes(serviceContext);
+  userPersistence.update(user,serviceContext);
+  Date birthday=getBirthday(birthdayMonth,birthdayDay,birthdayYear);
+  long contactId=user.getContactId();
+  Contact contact=contactPersistence.fetchByPrimaryKey(contactId);
+  if (contact == null) {
+    contact=contactPersistence.create(contactId);
+    contact.setCompanyId(user.getCompanyId());
+    contact.setUserName(StringPool.BLANK);
+    contact.setClassName(User.class.getName());
+    contact.setClassPK(user.getUserId());
+    contact.setAccountId(company.getAccountId());
+    contact.setParentContactId(ContactConstants.DEFAULT_PARENT_CONTACT_ID);
+  }
+  contact.setEmailAddress(user.getEmailAddress());
+  contact.setFirstName(firstName);
+  contact.setMiddleName(middleName);
+  contact.setLastName(lastName);
+  contact.setPrefixId(prefixId);
+  contact.setSuffixId(suffixId);
+  contact.setMale(male);
+  contact.setBirthday(birthday);
+  contact.setSmsSn(smsSn);
+  contact.setFacebookSn(facebookSn);
+  contact.setJabberSn(jabberSn);
+  contact.setSkypeSn(skypeSn);
+  contact.setTwitterSn(twitterSn);
+  contact.setJobTitle(jobTitle);
+  contactPersistence.update(contact,serviceContext);
+  Group group=groupLocalService.getUserGroup(user.getCompanyId(),userId);
+  group.setFriendlyURL(StringPool.SLASH + screenName);
+  groupPersistence.update(group);
+  List<UserGroupRole> previousUserGroupRoles=userGroupRolePersistence.findByUserId(userId);
+  updateGroups(userId,groupIds,serviceContext,false);
+  updateOrganizations(userId,organizationIds,false);
+  if (roleIds != null) {
+    roleIds=UsersAdminUtil.addRequiredRoles(user,roleIds);
+    userPersistence.setRoles(userId,roleIds);
+  }
+  updateUserGroupRoles(user,groupIds,organizationIds,userGroupRoles,previousUserGroupRoles);
+  if (userGroupIds != null) {
+    if (PropsValues.USER_GROUPS_COPY_LAYOUTS_TO_USER_PERSONAL_SITE) {
+      userGroupLocalService.copyUserGroupLayouts(userGroupIds,userId);
+    }
+    userPersistence.setUserGroups(userId,userGroupIds);
+  }
+  announcementsDeliveryLocalService.getUserDeliveries(user.getUserId());
+  if (serviceContext != null) {
+    updateAsset(userId,user,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames());
+  }
+  if (GetterUtil.getBoolean(PropsKeys.USERS_UPDATE_USER_NAME + MBMessage.class.getName()) && !oldFullName.equals(user.getFullName())) {
+    mbMessageLocalService.updateUserName(userId,user.getFullName());
+  }
+  if ((serviceContext == null) || serviceContext.isIndexingEnabled()) {
+    Indexer<User> indexer=IndexerRegistryUtil.nullSafeGetIndexer(User.class);
+    indexer.reindex(user);
+  }
+  if ((serviceContext != null) && sendEmailAddressVerification) {
+    sendEmailAddressVerification(user,emailAddress,serviceContext);
+  }
+  PermissionCacheUtil.clearCache(userId);
+  return user;
+}
