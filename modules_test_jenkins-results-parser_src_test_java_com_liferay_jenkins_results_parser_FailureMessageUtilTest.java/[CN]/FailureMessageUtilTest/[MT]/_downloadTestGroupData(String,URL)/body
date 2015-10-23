@@ -11,28 +11,30 @@
     groupReportRootDir.mkdir();
     File jenkinsReportFile=new File(groupReportRootDir.getPath() + "/jenkins-report.html");
     _write(jenkinsReportFile,document);
-    List<Node> caseList=_selectNodes(document);
+    List<Node> nodes=_selectNodes(document);
     Project project=failureMessageUtilTest._project;
     int i=0;
-    for (    Node node : caseList) {
+    for (    Node node : nodes) {
       DefaultElement defaultElement=(DefaultElement)node;
-      Element parent=defaultElement.getParent();
-      if (parent.getText().endsWith("FAILURE")) {
-        String url=defaultElement.attribute("href").getValue();
-        try {
-          String caseRootPath=_downloadTestCaseData(testGroupName,url);
-          failureMessageUtilTest.createExpectedResultsFile(project,new File(caseRootPath));
-          i++;
-        }
- catch (        FileNotFoundException e) {
-          System.err.println("Data was not found on server for " + url + " skipped.");
-        }
+      Element parentElement=defaultElement.getParent();
+      String text=parentElement.getText();
+      if (!text.endsWith("FAILURE")) {
+        continue;
+      }
+      Attribute attribute=defaultElement.attribute("href");
+      String urlString=attribute.getValue();
+      try {
+        String caseRootPath=_downloadTestCaseData(testGroupName,urlString);
+        failureMessageUtilTest.createExpectedResultsFile(project,new File(caseRootPath));
+        i++;
+      }
+ catch (      FileNotFoundException fnfe) {
+        System.err.println("Data was not found on server for " + urlString + " skipped.");
       }
     }
     System.out.println("Test data creation is complete. " + i + " test groups were created.");
   }
  catch (  Exception e) {
-    System.err.println("Exception occurred while creating Jenkins Report test data. " + "Aborting." + e.getMessage());
     if ((groupReportRootDir != null) && groupReportRootDir.exists()) {
       _deleteFile(groupReportRootDir);
     }
