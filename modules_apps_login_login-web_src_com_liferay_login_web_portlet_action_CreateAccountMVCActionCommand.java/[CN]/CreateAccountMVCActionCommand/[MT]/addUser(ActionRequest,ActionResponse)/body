@@ -1,0 +1,68 @@
+{
+  HttpServletRequest request=PortalUtil.getHttpServletRequest(actionRequest);
+  HttpSession session=request.getSession();
+  ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  Company company=themeDisplay.getCompany();
+  boolean autoPassword=true;
+  String password1=null;
+  String password2=null;
+  boolean autoScreenName=isAutoScreenName();
+  String screenName=ParamUtil.getString(actionRequest,"screenName");
+  String emailAddress=ParamUtil.getString(actionRequest,"emailAddress");
+  long facebookId=ParamUtil.getLong(actionRequest,"facebookId");
+  String openId=ParamUtil.getString(actionRequest,"openId");
+  String languageId=ParamUtil.getString(actionRequest,"languageId");
+  String firstName=ParamUtil.getString(actionRequest,"firstName");
+  String middleName=ParamUtil.getString(actionRequest,"middleName");
+  String lastName=ParamUtil.getString(actionRequest,"lastName");
+  long prefixId=ParamUtil.getInteger(actionRequest,"prefixId");
+  long suffixId=ParamUtil.getInteger(actionRequest,"suffixId");
+  boolean male=ParamUtil.getBoolean(actionRequest,"male",true);
+  int birthdayMonth=ParamUtil.getInteger(actionRequest,"birthdayMonth");
+  int birthdayDay=ParamUtil.getInteger(actionRequest,"birthdayDay");
+  int birthdayYear=ParamUtil.getInteger(actionRequest,"birthdayYear");
+  String jobTitle=ParamUtil.getString(actionRequest,"jobTitle");
+  long[] groupIds=null;
+  long[] organizationIds=null;
+  long[] roleIds=null;
+  long[] userGroupIds=null;
+  boolean sendEmail=true;
+  ServiceContext serviceContext=ServiceContextFactory.getInstance(User.class.getName(),actionRequest);
+  if (PropsValues.LOGIN_CREATE_ACCOUNT_ALLOW_CUSTOM_PASSWORD) {
+    autoPassword=false;
+    password1=ParamUtil.getString(actionRequest,"password1");
+    password2=ParamUtil.getString(actionRequest,"password2");
+  }
+  boolean openIdPending=false;
+  Boolean openIdLoginPending=(Boolean)session.getAttribute(WebKeys.OPEN_ID_LOGIN_PENDING);
+  if ((openIdLoginPending != null) && openIdLoginPending.booleanValue() && Validator.isNotNull(openId)) {
+    sendEmail=false;
+    openIdPending=true;
+  }
+  User user=UserServiceUtil.addUserWithWorkflow(company.getCompanyId(),autoPassword,password1,password2,autoScreenName,screenName,emailAddress,facebookId,openId,LocaleUtil.fromLanguageId(languageId),firstName,middleName,lastName,prefixId,suffixId,male,birthdayMonth,birthdayDay,birthdayYear,jobTitle,groupIds,organizationIds,roleIds,userGroupIds,sendEmail,serviceContext);
+  if (openIdPending) {
+    session.setAttribute(WebKeys.OPEN_ID_LOGIN,Long.valueOf(user.getUserId()));
+    session.removeAttribute(WebKeys.OPEN_ID_LOGIN_PENDING);
+  }
+ else {
+    if (user.getStatus() == WorkflowConstants.STATUS_APPROVED) {
+      SessionMessages.add(request,"userAdded",user.getEmailAddress());
+      SessionMessages.add(request,"userAddedPassword",user.getPasswordUnencrypted());
+    }
+ else {
+      SessionMessages.add(request,"userPending",user.getEmailAddress());
+    }
+  }
+  String login=null;
+  String authType=company.getAuthType();
+  if (authType.equals(CompanyConstants.AUTH_TYPE_ID)) {
+    login=String.valueOf(user.getUserId());
+  }
+ else   if (authType.equals(CompanyConstants.AUTH_TYPE_SN)) {
+    login=user.getScreenName();
+  }
+ else {
+    login=user.getEmailAddress();
+  }
+  sendRedirect(actionRequest,actionResponse,themeDisplay,login,user.getPasswordUnencrypted());
+}
