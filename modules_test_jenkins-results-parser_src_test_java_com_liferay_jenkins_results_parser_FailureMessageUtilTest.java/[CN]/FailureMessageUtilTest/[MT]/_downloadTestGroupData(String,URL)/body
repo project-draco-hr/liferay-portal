@@ -1,0 +1,41 @@
+{
+  FailureMessageUtilTest failureMessageUtilTest=new FailureMessageUtilTest();
+  SAXReader saxReader=new SAXReader();
+  File groupReportRootFile=null;
+  try {
+    Document document=saxReader.read(jenkinsReportURL);
+    groupReportRootFile=new File(_TEST_DATA_ROOT.getPath() + "/" + testGroupName);
+    if (groupReportRootFile.exists()) {
+      return;
+    }
+    groupReportRootFile.mkdir();
+    File jenkinsReportFile=new File(groupReportRootFile.getPath() + "/jenkins-report.html");
+    _writeXMLDocumentFile(jenkinsReportFile,document);
+    List<Node> caseList=_getCaseList(document);
+    Project project=failureMessageUtilTest.getProject();
+    int i=0;
+    for (    Node node : caseList) {
+      DefaultElement defaultElement=(DefaultElement)node;
+      Element parent=defaultElement.getParent();
+      if (parent.getText().endsWith("FAILURE")) {
+        String url=defaultElement.attribute("href").getValue();
+        try {
+          String caseRootPath=_downloadTestCaseData(testGroupName,url);
+          failureMessageUtilTest.createExpectedResultsFile(project,new File(caseRootPath));
+          i++;
+        }
+ catch (        FileNotFoundException e) {
+          System.err.println("Data was not found on server for " + url + " skipped.");
+        }
+      }
+    }
+    System.out.println("Test data creation is complete. " + i + " test groups were created.");
+  }
+ catch (  Exception e) {
+    System.err.println("Exception occurred while creating Jenkins Report test data. " + "Aborting." + e.getMessage());
+    if (groupReportRootFile != null && groupReportRootFile.exists()) {
+      _deleteFile(groupReportRootFile);
+    }
+    throw e;
+  }
+}
