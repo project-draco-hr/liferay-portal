@@ -1,7 +1,7 @@
 {
   ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
   Map<String,Serializable> taskContextMap=new HashMap<>();
-  final String className=ParamUtil.getString(actionRequest,"className");
+  String className=ParamUtil.getString(actionRequest,"className");
   taskContextMap.put("className",className);
   long[] companyIds=PortalInstances.getCompanyIds();
   taskContextMap.put("companyIds",companyIds);
@@ -11,17 +11,24 @@
   }
   boolean blocking=ParamUtil.getBoolean(actionRequest,"blocking",false);
   if (blocking) {
+    final String uuid=PortalUUIDUtil.generate();
+    taskContextMap.put("uuid",uuid);
     final CountDownLatch countDownLatch=new CountDownLatch(1);
     MessageListener messageListener=new MessageListener(){
       @Override public void receive(      Message message) throws MessageListenerException {
-        String taskExecutorClassName=message.getString("taskExecutorClassName");
-        String expectedExecutorName=_REINDEX_PORTAL_BACKGROUND_TASK_EXECUTOR;
-        if (Validator.isNotNull(className)) {
-          expectedExecutorName=_REINDEX_SINGLE_INDEXER_BACKGROUND_TASK_EXECUTOR;
+        try {
+          BackgroundTask backgroundTask=BackgroundTaskManagerUtil.getBackgroundTask(message.getLong("backgroundTaskId"));
+          Map<String,Serializable> taskContextMap=backgroundTask.getTaskContextMap();
+          if (!uuid.equals(taskContextMap.get("uuid"))) {
+            return;
+          }
         }
-        if (taskExecutorClassName.equals(expectedExecutorName)) {
-          int status=message.getInteger("status");
-          if ((status == BackgroundTaskConstants.STATUS_CANCELLED) || (status == BackgroundTaskConstants.STATUS_FAILED) || (status == BackgroundTaskConstants.STATUS_SUCCESSFUL))           countDownLatch.countDown();
+ catch (        PortalException pe) {
+          throw new MessageListenerException(pe);
+        }
+        int status=message.getInteger("status");
+        if ((status == BackgroundTaskConstants.STATUS_CANCELLED) || (status == BackgroundTaskConstants.STATUS_FAILED) || (status == BackgroundTaskConstants.STATUS_SUCCESSFUL)) {
+          countDownLatch.countDown();
         }
       }
     }
