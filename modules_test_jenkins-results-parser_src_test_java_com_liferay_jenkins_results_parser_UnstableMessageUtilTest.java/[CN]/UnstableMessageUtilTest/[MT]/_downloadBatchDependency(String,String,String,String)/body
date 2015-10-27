@@ -1,0 +1,37 @@
+{
+  String batchDependencyIdentifier=description + "_" + jobName+ "_"+ hostName+ "_"+ buildNumber;
+  File batchDir=new File(_testDependenciesDir.getPath() + "/" + batchDependencyIdentifier+ "/");
+  if (batchDir.exists()) {
+    return;
+  }
+  batchDir.mkdir();
+  _downloadBatchTestReportDependency(batchDir,hostName,jobName,buildNumber);
+  File batchJSONDir=new File(batchDir.getPath() + "/api");
+  batchJSONDir.mkdirs();
+  File batchJSONFile=new File(batchJSONDir.getPath() + "/json");
+  String batchURLString="https://${hostName}/job/${jobName}/${buildNumber}/api/json";
+  batchURLString=_replaceToken(batchURLString,"buildNumber",buildNumber);
+  batchURLString=_replaceToken(batchURLString,"hostName",hostName);
+  batchURLString=_replaceToken(batchURLString,"jobName",jobName);
+  URL url=_createURL(batchURLString);
+  URI uri=url.toURI();
+  JSONObject batchJSONObject=JenkinsResultsParserUtil.toJSONObject(JenkinsResultsParserUtil.getLocalURL(uri.toASCIIString()));
+  JSONArray runsJSONArray=batchJSONObject.getJSONArray("runs");
+  if (runsJSONArray != null) {
+    for (int i=0; i < runsJSONArray.length(); i++) {
+      JSONObject runJSONObject=runsJSONArray.getJSONObject(i);
+      if (runJSONObject != null) {
+        String runUrlString=URLDecoder.decode(runJSONObject.getString("url"),"UTF8");
+        String localRunUrlString=_downloadSlaveDependency(batchDir,runUrlString);
+        runJSONObject.put("url",localRunUrlString);
+      }
+    }
+  }
+  _write(batchJSONFile,batchJSONObject);
+  URI batchDirUri=batchDir.toURI();
+  String expectedResultsString=UnstableMessageUtil.getUnstableMessage(batchDirUri.toASCIIString());
+  File expectedResultsDir=new File(batchDir.getPath() + "/expected-results");
+  expectedResultsDir.mkdir();
+  File expectedResultsFile=new File(expectedResultsDir.getPath() + "/UnstableMessageUtilTest.html");
+  _write(expectedResultsFile,expectedResultsString);
+}
