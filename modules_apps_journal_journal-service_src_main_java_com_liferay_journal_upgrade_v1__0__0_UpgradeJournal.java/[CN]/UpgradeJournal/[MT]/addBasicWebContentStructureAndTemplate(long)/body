@@ -1,31 +1,34 @@
 {
-  long groupId=getCompanyGroupId(companyId);
+  Group group=_groupLocalService.getCompanyGroup(companyId);
+  long groupId=group.getGroupId();
   String defaultLanguageId=UpgradeProcessUtil.getDefaultLanguageId(companyId);
   Locale defaultLocale=LocaleUtil.fromLanguageId(defaultLanguageId);
   List<Element> structureElements=getDDMStructures(defaultLocale);
   Element structureElement=structureElements.get(0);
   String name=structureElement.elementText("name");
   String description=structureElement.elementText("description");
-  String localizedName=localize(groupId,name,defaultLanguageId);
-  String localizedDescription=localize(groupId,description,defaultLanguageId);
+  Map<Locale,String> nameMap=localize(groupId,name);
+  Map<Locale,String> descriptionMap=localize(groupId,description);
   Element structureElementDefinitionElement=structureElement.element("definition");
   String definition=structureElementDefinitionElement.getTextTrim();
-  Element structureElementLayoutElement=structureElement.element("layout");
-  String layout=structureElementLayoutElement.getTextTrim();
-  if (hasDDMStructure(groupId,name) > 0) {
+  DDMStructure ddmStructure=_ddmStructureLocalService.fetchStructure(groupId,PortalUtil.getClassNameId(JournalArticle.class.getName()),name);
+  if (ddmStructure != null) {
     return name;
   }
-  String ddmStructureUUID=PortalUUIDUtil.generate();
-  long ddmStructureId=addDDMStructure(ddmStructureUUID,increment(),groupId,companyId,name,localizedName,localizedDescription,definition,layout,StorageEngineManager.STORAGE_TYPE_DEFAULT);
-  String ddmTemplateUUID=PortalUUIDUtil.generate();
-  Element templateElement=structureElement.element("template");
-  String fileName=templateElement.elementText("file-name");
-  boolean cacheable=GetterUtil.getBoolean(templateElement.elementText("cacheable"));
-  addDDMTemplate(ddmTemplateUUID,increment(),groupId,companyId,ddmStructureId,name,localizedName,localizedDescription,getContent(fileName),cacheable);
-  long stagingGroupId=getStagingGroupId(groupId);
-  if (stagingGroupId > 0) {
-    ddmStructureId=addDDMStructure(ddmStructureUUID,increment(),stagingGroupId,companyId,name,localizedName,localizedDescription,definition,layout,StorageEngineManager.STORAGE_TYPE_DEFAULT);
-    addDDMTemplate(ddmTemplateUUID,increment(),stagingGroupId,companyId,ddmStructureId,name,localizedName,localizedDescription,getContent(fileName),cacheable);
+  try {
+    long ddmStructureId=addDDMStructure(groupId,companyId,name,nameMap,descriptionMap,definition);
+    Element templateElement=structureElement.element("template");
+    String fileName=templateElement.elementText("file-name");
+    boolean cacheable=GetterUtil.getBoolean(templateElement.elementText("cacheable"));
+    addDDMTemplate(groupId,companyId,ddmStructureId,name,nameMap,descriptionMap,getContent(fileName),cacheable);
+    if (group.hasStagingGroup()) {
+      Group stagingGroup=group.getStagingGroup();
+      ddmStructureId=addDDMStructure(stagingGroup.getGroupId(),companyId,name,nameMap,descriptionMap,definition);
+      addDDMTemplate(stagingGroup.getGroupId(),companyId,ddmStructureId,name,nameMap,descriptionMap,getContent(fileName),cacheable);
+    }
+  }
+ catch (  Exception e) {
+    _log.error("Unable to create the basic web content structure and " + "template");
   }
   return name;
 }
