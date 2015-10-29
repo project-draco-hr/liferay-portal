@@ -2,22 +2,33 @@
   if (Validator.isNull(key) || key.equals(_RANDOM_KEY)) {
     return;
   }
+  final String encodedKey=_encodeKey(namespace,key);
   try {
+    if (values == null) {
+      reset(encodedKey);
+      return;
+    }
+    if (values.length == 1) {
+      setValue(namespace,key,values[0]);
+      return;
+    }
+    String[] oldValues=super.getValues(encodedKey,null);
+    if (oldValues != null) {
+      Set<String> valuesSet=SetUtil.fromArray(values);
+      Set<String> oldValuesSet=SetUtil.fromArray(oldValues);
+      if (valuesSet.equals(oldValuesSet)) {
+        return;
+      }
+    }
     Callable<Void> callable=new Callable<Void>(){
       @Override public Void call() throws ReadOnlyException {
-        String encodedKey=_encodeKey(namespace,key);
-        if (values != null) {
-          PortalPreferencesImpl.super.setValues(encodedKey,values);
-        }
- else {
-          reset(encodedKey);
-        }
+        PortalPreferencesImpl.super.setValues(encodedKey,values);
         return null;
       }
     }
 ;
     if (_signedIn) {
-      retryableStore(callable,_encodeKey(namespace,key));
+      retryableStore(callable,encodedKey);
     }
  else {
       callable.call();
