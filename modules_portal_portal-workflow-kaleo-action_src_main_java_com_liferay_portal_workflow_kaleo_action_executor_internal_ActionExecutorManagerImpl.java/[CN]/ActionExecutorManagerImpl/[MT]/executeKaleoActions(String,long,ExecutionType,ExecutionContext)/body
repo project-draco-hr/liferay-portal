@@ -1,0 +1,31 @@
+{
+  List<KaleoAction> kaleoActions=_kaleoActionLocalService.getKaleoActions(kaleoClassName,kaleoClassPK,executionType.getValue());
+  for (  KaleoAction kaleoAction : kaleoActions) {
+    long startTime=System.currentTimeMillis();
+    String comment=_COMMENT_ACTION_SUCCESS;
+    try {
+      String[] scriptRequiredContexts=StringUtil.split(kaleoAction.getScriptRequiredContexts());
+      ClassLoader[] classLoaders=ClassLoaderUtil.getClassLoaders(scriptRequiredContexts);
+      ActionExecutor actionExecutor=null;
+      String scriptLanguage=kaleoAction.getScriptLanguage();
+      if (scriptLanguage.equals(_LANGUAGE_JAVA)) {
+        actionExecutor=_actionExecutorFactory.getActionExecutor(kaleoAction.getScriptLanguage(),kaleoAction.getScript());
+      }
+ else {
+        actionExecutor=_actionExecutorFactory.getActionExecutor(kaleoAction.getScriptLanguage());
+      }
+      actionExecutor.execute(kaleoAction,executionContext,classLoaders);
+      KaleoInstanceToken kaleoInstanceToken=executionContext.getKaleoInstanceToken();
+      _kaleoInstanceLocalService.updateKaleoInstance(kaleoInstanceToken.getKaleoInstanceId(),executionContext.getWorkflowContext(),executionContext.getServiceContext());
+    }
+ catch (    Exception e) {
+      if (_log.isDebugEnabled()) {
+        _log.debug(e,e);
+      }
+      comment=e.getMessage();
+    }
+ finally {
+      _kaleoLogLocalService.addActionExecutionKaleoLog(executionContext.getKaleoInstanceToken(),kaleoAction,startTime,System.currentTimeMillis(),comment,executionContext.getServiceContext());
+    }
+  }
+}
