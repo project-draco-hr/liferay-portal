@@ -1,19 +1,26 @@
 {
-  StringBundler sb=new StringBundler(11);
-  sb.append("select sysobjects.name as table_name, syscolumns.name AS ");
-  sb.append("column_name, systypes.name as data_type, ");
-  sb.append("syscolumns.length, syscolumns.isnullable as is_nullable ");
-  sb.append("FROM sysobjects inner join syscolumns on sysobjects.id = ");
-  sb.append("syscolumns.id inner join systypes on syscolumns.xtype = ");
-  sb.append("systypes.xtype where (sysobjects.xtype = 'U') and ");
-  sb.append("(sysobjects.category != 2) and ");
-  sb.append(_FILTER_NONUNICODE_DATA_TYPES);
-  sb.append(" and ");
-  sb.append(_FILTER_EXCLUDED_TABLES);
-  sb.append(" order by sysobjects.name, syscolumns.colid");
-  String sql=sb.toString();
-  try (Connection con=DataAccess.getUpgradeOptimizedConnection();PreparedStatement ps=con.prepareStatement(sql);ResultSet rs=ps.executeQuery()){
-    dropNonunicodeTableIndexes(con);
+  dropNonunicodeTableIndexes();
+  Connection con=null;
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    con=DataAccess.getUpgradeOptimizedConnection();
+    StringBundler sb=new StringBundler(12);
+    sb.append("select sysobjects.name as table_name, syscolumns.name ");
+    sb.append("AS column_name, systypes.name as data_type, ");
+    sb.append("syscolumns.length, syscolumns.isnullable as ");
+    sb.append("is_nullable FROM sysobjects inner join syscolumns on ");
+    sb.append("sysobjects.id = syscolumns.id inner join systypes on ");
+    sb.append("syscolumns.xtype = systypes.xtype where ");
+    sb.append("(sysobjects.xtype = 'U') and (sysobjects.category != ");
+    sb.append("2) and ");
+    sb.append(_FILTER_NONUNICODE_DATA_TYPES);
+    sb.append(" and ");
+    sb.append(_FILTER_EXCLUDED_TABLES);
+    sb.append(" order by sysobjects.name, syscolumns.colid");
+    String sql=sb.toString();
+    ps=con.prepareStatement(sql);
+    rs=ps.executeQuery();
     while (rs.next()) {
       String tableName=rs.getString("table_name");
       if (!isPortalTableName(tableName)) {
@@ -24,17 +31,20 @@
       int length=rs.getInt("length");
       boolean nullable=rs.getBoolean("is_nullable");
       if (dataType.equals("varchar")) {
-        convertVarcharColumn(con,tableName,columnName,length,nullable);
+        convertVarcharColumn(tableName,columnName,length,nullable);
       }
  else       if (dataType.equals("ntext") || dataType.equals("text")) {
-        convertTextColumn(con,tableName,columnName,nullable);
+        convertTextColumn(tableName,columnName,nullable);
       }
     }
     for (    String addPrimaryKeySQL : _addPrimaryKeySQLs) {
-      runSQL(con,addPrimaryKeySQL);
+      runSQL(addPrimaryKeySQL);
     }
   }
  catch (  Exception e) {
     _log.error(e,e);
+  }
+ finally {
+    DataAccess.cleanUp(con,ps,rs);
   }
 }
