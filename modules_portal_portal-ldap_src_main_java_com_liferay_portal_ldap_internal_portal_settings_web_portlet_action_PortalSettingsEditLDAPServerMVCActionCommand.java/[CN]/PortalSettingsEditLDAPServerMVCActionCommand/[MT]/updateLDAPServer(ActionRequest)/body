@@ -1,11 +1,26 @@
 {
   ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
-  long ldapServerId=ParamUtil.getLong(actionRequest,"ldapServerId");
-  UnicodeProperties properties=PropertiesParamUtil.getProperties(actionRequest,"settings--");
+  long ldapServerId=ParamUtil.getLong(actionRequest,LDAPConstants.LDAP_SERVER_ID);
+  UnicodeProperties properties=PropertiesParamUtil.getProperties(actionRequest,"ldap--");
   validateLDAPServerName(ldapServerId,themeDisplay.getCompanyId(),properties);
   validateSearchFilters(actionRequest);
+  Dictionary<String,Object> dictionary=null;
   if (ldapServerId <= 0) {
-    properties=addLDAPServer(themeDisplay.getCompanyId(),properties);
+    ldapServerId=_counterLocalService.increment();
+    dictionary=new HashMapDictionary<>();
   }
-  _companyService.updatePreferences(themeDisplay.getCompanyId(),properties);
+ else {
+    dictionary=_ldapServerConfigurationProvider.getConfigurationProperties(themeDisplay.getCompanyId(),ldapServerId,false);
+  }
+  for (  Map.Entry<String,String> entry : properties.entrySet()) {
+    dictionary.put(entry.getKey(),entry.getValue());
+  }
+  splitStringArrays(dictionary,LDAPConstants.CONTACT_CUSTOM_MAPPINGS);
+  splitStringArrays(dictionary,LDAPConstants.CONTACT_MAPPINGS);
+  splitStringArrays(dictionary,LDAPConstants.GROUP_DEFAULT_OBJECT_CLASSES);
+  splitStringArrays(dictionary,LDAPConstants.GROUP_MAPPINGS);
+  splitStringArrays(dictionary,LDAPConstants.USER_CUSTOM_MAPPINGS);
+  splitStringArrays(dictionary,LDAPConstants.USER_DEFAULT_OBJECT_CLASSES);
+  splitStringArrays(dictionary,LDAPConstants.USER_MAPPINGS);
+  _ldapServerConfigurationProvider.updateProperties(themeDisplay.getCompanyId(),ldapServerId,dictionary);
 }
