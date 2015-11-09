@@ -1,8 +1,11 @@
 {
+  String moduleServicePackagePath=null;
   Matcher matcher=_serviceUtilImportPattern.matcher(content);
   while (matcher.find()) {
     String serviceUtilClassName=matcher.group(2);
-    String moduleServicePackagePath=getModuleServicePackagePath(fileName);
+    if (moduleServicePackagePath == null) {
+      moduleServicePackagePath=getModuleServicePackagePath(fileName);
+    }
     if (Validator.isNotNull(moduleServicePackagePath)) {
       String serviceUtilClassPackagePath=matcher.group(1);
       if (serviceUtilClassPackagePath.startsWith(moduleServicePackagePath)) {
@@ -11,5 +14,26 @@
       }
     }
     processErrorMessage(fileName,"LPS-59076: Use @Reference instead of calling " + serviceUtilClassName + " directly: "+ fileName);
+  }
+  matcher=_setReferenceMethodPattern.matcher(content);
+  while (matcher.find()) {
+    if (moduleServicePackagePath == null) {
+      moduleServicePackagePath=getModuleServicePackagePath(fileName);
+    }
+    if (Validator.isNotNull(moduleServicePackagePath)) {
+      String typeName=matcher.group(3);
+      StringBundler sb=new StringBundler(5);
+      sb.append("\nimport ");
+      sb.append(moduleServicePackagePath);
+      sb.append(".*\\.");
+      sb.append(typeName);
+      sb.append(StringPool.SEMICOLON);
+      Pattern pattern=Pattern.compile(sb.toString());
+      matcher=pattern.matcher(content);
+      if (matcher.find()) {
+        processErrorMessage(fileName,"LPS-59076: Convert OSGi Component to Spring bean: " + fileName);
+        break;
+      }
+    }
   }
 }
