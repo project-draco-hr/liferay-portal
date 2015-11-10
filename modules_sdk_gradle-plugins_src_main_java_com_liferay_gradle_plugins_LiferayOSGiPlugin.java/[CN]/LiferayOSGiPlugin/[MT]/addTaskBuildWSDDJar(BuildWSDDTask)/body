@@ -1,13 +1,16 @@
 {
-  Task task=project.task(BUILD_WSDD_JAR_TASK_NAME);
-  TaskOutputs taskOutputs=task.getOutputs();
-  taskOutputs.file(new Callable<File>(){
-    @Override public File call() throws Exception {
-      return getWSDDJarFile(project);
-    }
+  Project project=buildWSDDTask.getProject();
+  final Jar jar=GradleUtil.addTask(project,buildWSDDTask.getName() + "Jar",Jar.class);
+  jar.dependsOn(buildWSDDTask);
+  String taskName=buildWSDDTask.getName();
+  if (taskName.equals(WSDDBuilderPlugin.BUILD_WSDD_TASK_NAME)) {
+    jar.setAppendix("wsdd");
   }
-);
-  task.doLast(new Action<Task>(){
+ else {
+    jar.setAppendix("wsdd-" + taskName);
+  }
+  jar.deleteAllActions();
+  jar.doLast(new Action<Task>(){
     @Override public void execute(    Task task){
       Project project=task.getProject();
       BundleExtension bundleExtension=GradleUtil.getExtension(project,BundleExtension.class);
@@ -22,7 +25,13 @@
       properties.put(Constants.BUNDLE_SYMBOLICNAME,bundleSymbolicName + ".wsdd");
       properties.put(Constants.FRAGMENT_HOST,bundleSymbolicName);
       properties.put(Constants.IMPORT_PACKAGE,"javax.servlet,javax.servlet.http");
-      properties.put(Constants.INCLUDE_RESOURCE,"WEB-INF/=server-config.wsdd,classes;filter:=*.wsdd");
+      StringBuilder sb=new StringBuilder();
+      sb.append("WEB-INF/=");
+      sb.append(_getRelativePath(project,buildWSDDTask.getServerConfigFile()));
+      sb.append(',');
+      sb.append(_getRelativePath(project,buildWSDDTask.getOutputDir()));
+      sb.append(";filter:=*.wsdd");
+      properties.put(Constants.INCLUDE_RESOURCE,sb.toString());
       jarBuilder.withProperties(properties);
       jarBuilder.withSourcepath(BundleUtils.getSources(project));
       jarBuilder.withTrace(bundleExtension.isTrace());
@@ -33,7 +42,22 @@
     }
   }
 );
-  BuildWSDDTask buildWSDDTask=(BuildWSDDTask)GradleUtil.getTask(project,WSDDBuilderPlugin.BUILD_WSDD_TASK_NAME);
-  buildWSDDTask.finalizedBy(task);
-  return task;
+  buildWSDDTask.finalizedBy(jar);
+  addCleanDeployedFile(project,new Callable<String>(){
+    @Override public String call() throws Exception {
+      return jar.getArchiveName();
+    }
+  }
+);
+  Task task=GradleUtil.getTask(project,DEPLOY_TASK_NAME);
+  if (task instanceof Copy) {
+    Copy copy=(Copy)task;
+    copy.from(new Callable<File>(){
+      @Override public File call() throws Exception {
+        return jar.getArchivePath();
+      }
+    }
+);
+  }
+  return jar;
 }
