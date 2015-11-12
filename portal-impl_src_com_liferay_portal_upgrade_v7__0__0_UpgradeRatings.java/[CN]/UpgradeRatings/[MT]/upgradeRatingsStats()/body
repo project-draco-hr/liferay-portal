@@ -2,33 +2,16 @@
   String selectSQL="select classNameId, classPK, count(1) as totalEntries, " + "sum(RatingsEntry.score) as totalScore, " + "sum(RatingsEntry.score) / count(1) as averageScore "+ "from RatingsEntry group by classNameId, classPK";
   String updateSQL="update RatingsStats set totalEntries = ?, totalScore = ?, " + "averageScore = ? where classNameId = ? and classPK = ?";
   try (Connection con=DataAccess.getUpgradeOptimizedConnection();PreparedStatement ps=con.prepareStatement(selectSQL);ResultSet rs=ps.executeQuery()){
-    DatabaseMetaData databaseMetaData=con.getMetaData();
-    boolean supportsBatchUpdates=databaseMetaData.supportsBatchUpdates();
-    try (PreparedStatement ps2=con.prepareStatement(updateSQL)){
-      int count=0;
+    try (PreparedStatement ps2=AutoBatchPreparedStatementUtil.autoBath(con.prepareStatement(updateSQL))){
       while (rs.next()) {
         ps2.setInt(1,rs.getInt("totalEntries"));
         ps2.setDouble(2,rs.getDouble("totalScore"));
         ps2.setDouble(3,rs.getDouble("averageScore"));
         ps2.setLong(4,rs.getLong("classNameId"));
         ps2.setLong(5,rs.getLong("classPK"));
-        if (supportsBatchUpdates) {
-          ps2.addBatch();
-          if (count == PropsValues.HIBERNATE_JDBC_BATCH_SIZE) {
-            ps2.executeBatch();
-            count=0;
-          }
- else {
-            count++;
-          }
-        }
- else {
-          ps2.executeUpdate();
-        }
+        ps2.addBatch();
       }
-      if (supportsBatchUpdates && (count > 0)) {
-        ps2.executeBatch();
-      }
+      ps2.executeBatch();
     }
    }
  }
