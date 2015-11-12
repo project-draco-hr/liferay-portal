@@ -1,0 +1,60 @@
+{
+  if (primaryKeys.isEmpty()) {
+    return Collections.emptyMap();
+  }
+  Map<Serializable,DDMDataProviderInstance> map=new HashMap<Serializable,DDMDataProviderInstance>();
+  if (primaryKeys.size() == 1) {
+    Iterator<Serializable> iterator=primaryKeys.iterator();
+    Serializable primaryKey=iterator.next();
+    DDMDataProviderInstance ddmDataProviderInstance=fetchByPrimaryKey(primaryKey);
+    if (ddmDataProviderInstance != null) {
+      map.put(primaryKey,ddmDataProviderInstance);
+    }
+    return map;
+  }
+  Set<Serializable> uncachedPrimaryKeys=null;
+  for (  Serializable primaryKey : primaryKeys) {
+    DDMDataProviderInstance ddmDataProviderInstance=(DDMDataProviderInstance)entityCache.getResult(DDMDataProviderInstanceModelImpl.ENTITY_CACHE_ENABLED,DDMDataProviderInstanceImpl.class,primaryKey);
+    if (ddmDataProviderInstance == null) {
+      if (uncachedPrimaryKeys == null) {
+        uncachedPrimaryKeys=new HashSet<Serializable>();
+      }
+      uncachedPrimaryKeys.add(primaryKey);
+    }
+ else {
+      map.put(primaryKey,ddmDataProviderInstance);
+    }
+  }
+  if (uncachedPrimaryKeys == null) {
+    return map;
+  }
+  StringBundler query=new StringBundler((uncachedPrimaryKeys.size() * 2) + 1);
+  query.append(_SQL_SELECT_DDMDATAPROVIDERINSTANCE_WHERE_PKS_IN);
+  for (  Serializable primaryKey : uncachedPrimaryKeys) {
+    query.append(String.valueOf(primaryKey));
+    query.append(StringPool.COMMA);
+  }
+  query.setIndex(query.index() - 1);
+  query.append(StringPool.CLOSE_PARENTHESIS);
+  String sql=query.toString();
+  Session session=null;
+  try {
+    session=openSession();
+    Query q=session.createQuery(sql);
+    for (    DDMDataProviderInstance ddmDataProviderInstance : (List<DDMDataProviderInstance>)q.list()) {
+      map.put(ddmDataProviderInstance.getPrimaryKeyObj(),ddmDataProviderInstance);
+      cacheResult(ddmDataProviderInstance);
+      uncachedPrimaryKeys.remove(ddmDataProviderInstance.getPrimaryKeyObj());
+    }
+    for (    Serializable primaryKey : uncachedPrimaryKeys) {
+      entityCache.putResult(DDMDataProviderInstanceModelImpl.ENTITY_CACHE_ENABLED,DDMDataProviderInstanceImpl.class,primaryKey,_nullDDMDataProviderInstance);
+    }
+  }
+ catch (  Exception e) {
+    throw processException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+  return map;
+}
