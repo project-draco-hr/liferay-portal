@@ -2,14 +2,7 @@
   if (_tempFileName == null) {
     return;
   }
-  try (PreparedStatement ps=con.prepareStatement(getInsertSQL());UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new FileReader(_tempFileName))){
-    DatabaseMetaData databaseMetaData=con.getMetaData();
-    if (!databaseMetaData.supportsBatchUpdates()) {
-      if (_log.isDebugEnabled()) {
-        _log.debug("Database does not support batch updates");
-      }
-    }
-    int count=0;
+  try (PreparedStatement ps=AutoBatchPreparedStatementUtil.autoBath(con.prepareStatement(getInsertSQL()));UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new FileReader(_tempFileName))){
     String line=null;
     while ((line=unsyncBufferedReader.readLine()) != null) {
       String[] values=StringUtil.split(line);
@@ -22,23 +15,9 @@
         int pos=order[i];
         setColumn(ps,i,(Integer)columns[pos][1],values[pos]);
       }
-      if (databaseMetaData.supportsBatchUpdates()) {
-        ps.addBatch();
-        if (count == _BATCH_SIZE) {
-          ps.executeBatch();
-          count=0;
-        }
- else {
-          count++;
-        }
-      }
- else {
-        ps.executeUpdate();
-      }
+      ps.addBatch();
     }
-    if (count != 0) {
-      ps.executeBatch();
-    }
+    ps.executeBatch();
   }
    if (_log.isDebugEnabled()) {
     _log.debug(getTableName() + " table populated with data");
