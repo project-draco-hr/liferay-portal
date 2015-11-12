@@ -2,10 +2,7 @@
   String selectSQL="select resourcePermissionId, primKey, primKeyId, actionIds, " + "viewActionId from ResourcePermission";
   String updateSQL="update ResourcePermission set primKeyId = ?, viewActionId = ? " + "where resourcePermissionId = ?";
   try (Connection con=DataAccess.getUpgradeOptimizedConnection()){
-    DatabaseMetaData databaseMetaData=con.getMetaData();
-    boolean supportsBatchUpdates=databaseMetaData.supportsBatchUpdates();
-    try (PreparedStatement ps=con.prepareStatement(selectSQL);ResultSet rs=ps.executeQuery();PreparedStatement ps2=con.prepareStatement(updateSQL)){
-      int count=0;
+    try (PreparedStatement ps=con.prepareStatement(selectSQL);ResultSet rs=ps.executeQuery();PreparedStatement ps2=AutoBatchPreparedStatementUtil.autoBath(con.prepareStatement(updateSQL))){
       while (rs.next()) {
         long resourcePermissionId=rs.getLong("resourcePermissionId");
         long primKeyId=rs.getLong("primKeyId");
@@ -24,23 +21,9 @@
           ps2.setBoolean(2,false);
         }
         ps2.setLong(3,resourcePermissionId);
-        if (supportsBatchUpdates) {
-          ps2.addBatch();
-          if (count == PropsValues.HIBERNATE_JDBC_BATCH_SIZE) {
-            ps2.executeBatch();
-            count=0;
-          }
- else {
-            count++;
-          }
-        }
- else {
-          ps2.executeUpdate();
-        }
+        ps2.addBatch();
       }
-      if (supportsBatchUpdates && (count > 0)) {
-        ps2.executeBatch();
-      }
+      ps2.executeBatch();
     }
    }
  }
