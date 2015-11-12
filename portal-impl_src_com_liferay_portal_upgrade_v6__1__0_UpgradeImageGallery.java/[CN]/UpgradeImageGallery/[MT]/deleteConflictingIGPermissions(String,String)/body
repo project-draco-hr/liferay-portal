@@ -2,34 +2,17 @@
   String selectSQL="select companyId, scope, primKey, roleId from " + "ResourcePermission where name = ?";
   String deleteSQL="delete from ResourcePermission where name = ? and companyId = ? " + "and scope = ? and primKey = ? and roleId = ?";
   try (Connection con=DataAccess.getUpgradeOptimizedConnection();PreparedStatement ps=con.prepareStatement(selectSQL);ResultSet rs=ps.executeQuery()){
-    DatabaseMetaData databaseMetaData=con.getMetaData();
-    boolean supportsBatchUpdates=databaseMetaData.supportsBatchUpdates();
     ps.setString(1,igResourceName);
-    try (PreparedStatement ps2=con.prepareStatement(deleteSQL)){
-      int count=0;
+    try (PreparedStatement ps2=AutoBatchPreparedStatementUtil.autoBath(con.prepareStatement(deleteSQL))){
       while (rs.next()) {
         ps2.setString(1,dlResourceName);
         ps2.setLong(2,rs.getLong("companyId"));
         ps2.setInt(3,rs.getInt("scope"));
         ps2.setString(4,rs.getString("primKey"));
         ps2.setLong(5,rs.getLong("roleId"));
-        if (supportsBatchUpdates) {
-          ps2.addBatch();
-          if (count == PropsValues.HIBERNATE_JDBC_BATCH_SIZE) {
-            ps2.executeBatch();
-            count=0;
-          }
- else {
-            count++;
-          }
-        }
- else {
-          ps2.executeUpdate();
-        }
+        ps2.addBatch();
       }
-      if (supportsBatchUpdates && (count > 0)) {
-        ps2.executeBatch();
-      }
+      ps2.executeBatch();
     }
    }
  }
