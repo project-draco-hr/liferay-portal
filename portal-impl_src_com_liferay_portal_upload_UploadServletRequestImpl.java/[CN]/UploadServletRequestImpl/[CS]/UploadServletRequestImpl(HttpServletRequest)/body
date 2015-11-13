@@ -7,12 +7,30 @@
     HttpSession session=request.getSession();
     session.removeAttribute(ProgressTracker.PERCENT);
     ServletFileUpload servletFileUpload=new ServletFileUpload(new LiferayFileItemFactory(getTempDir()));
-    servletFileUpload.setSizeMax(PrefsPropsUtil.getLong(PropsKeys.UPLOAD_SERVLET_REQUEST_IMPL_MAX_SIZE));
     liferayServletRequest=new LiferayServletRequest(request);
     List<org.apache.commons.fileupload.FileItem> fileItems=servletFileUpload.parseRequest(liferayServletRequest);
     liferayServletRequest.setFinishedReadingOriginalStream(true);
+    long uploadServletRequestImplMaxSize=PrefsPropsUtil.getLong(PropsKeys.UPLOAD_SERVLET_REQUEST_IMPL_MAX_SIZE);
+    long uploadServletRequestImplSize=0;
+    int contentLength=request.getContentLength();
+    if ((contentLength == -1) || (contentLength > uploadServletRequestImplMaxSize)) {
+      fileItems=sortBySize(fileItems);
+    }
     for (    org.apache.commons.fileupload.FileItem fileItem : fileItems) {
       LiferayFileItem liferayFileItem=(LiferayFileItem)fileItem;
+      long itemSize=liferayFileItem.getItemSize();
+      if ((uploadServletRequestImplSize + itemSize) > uploadServletRequestImplMaxSize) {
+        StringBundler sb=new StringBundler(3);
+        sb.append("Request reached the maximum permitted size of ");
+        sb.append(uploadServletRequestImplMaxSize);
+        sb.append(" bytes");
+        UploadException uploadException=new UploadException(sb.toString());
+        uploadException.setExceededLiferayFileItemSizeLimit(false);
+        uploadException.setExceededSizeLimit(true);
+        request.setAttribute(WebKeys.UPLOAD_EXCEPTION,uploadException);
+        continue;
+      }
+      uploadServletRequestImplSize+=itemSize;
       if (liferayFileItem.isFormField()) {
         liferayFileItem.setString(request.getCharacterEncoding());
         String fieldName=liferayFileItem.getFieldName();
