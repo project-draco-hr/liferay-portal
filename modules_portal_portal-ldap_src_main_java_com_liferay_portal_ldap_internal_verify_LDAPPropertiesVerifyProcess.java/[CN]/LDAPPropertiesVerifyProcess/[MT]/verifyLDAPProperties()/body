@@ -1,0 +1,30 @@
+{
+  List<Company> companies=_companyLocalService.getCompanies(false);
+  for (  Company company : companies) {
+    long companyId=company.getCompanyId();
+    verifyLDAPAuthProperties(companyId);
+    verifyLDAPExportProperties(companyId);
+    verifyLDAPImportProperties(companyId);
+    verifySystemLDAPConfiguration(companyId);
+    long[] ldapServerIds=StringUtil.split(_prefsProps.getString(companyId,"ldap.server.ids"),0L);
+    Set<String> propertyKeys=new HashSet<>();
+    propertyKeys.addAll(Arrays.asList(LegacyLDAPPropsKeys.NON_POSTFIXED_LDAP_KEYS));
+    for (    long ldapServerId : ldapServerIds) {
+      String postfix=_ldapSettings.getPropertyPostfix(ldapServerId);
+      verifyLDAPServerConfiguration(companyId,ldapServerId,postfix);
+      for (int i=0; i < LegacyLDAPPropsKeys.SERVER_ID_POSTFIXED_KEYS.length; i++) {
+        propertyKeys.add(LegacyLDAPPropsKeys.SERVER_ID_POSTFIXED_KEYS[i] + postfix);
+      }
+    }
+    if (_log.isInfoEnabled()) {
+      _log.info("Removing preference for company: " + companyId + " keys: "+ propertyKeys);
+    }
+    _companyLocalService.removePreferences(companyId,propertyKeys.toArray(new String[propertyKeys.size()]));
+    UnicodeProperties properties=new UnicodeProperties();
+    properties.put("ldap.server.ids",StringPool.BLANK);
+    if (_log.isInfoEnabled()) {
+      _log.info("Removing ldap server ids for company: " + companyId + " id: "+ ListUtil.toList(ldapServerIds));
+    }
+    _companyLocalService.updatePreferences(companyId,properties);
+  }
+}
