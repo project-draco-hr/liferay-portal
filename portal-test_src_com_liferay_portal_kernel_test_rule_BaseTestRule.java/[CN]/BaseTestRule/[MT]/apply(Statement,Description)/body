@@ -1,26 +1,56 @@
 {
+  String methodName=description.getMethodName();
+  if (methodName != null) {
+    return new StatementWrapper(statement){
+      @Override public void evaluate() throws Throwable {
+        Object target=inspectTarget(statement);
+        M m=_testCallback.beforeMethod(description,target);
+        try {
+          statement.evaluate();
+        }
+  finally {
+          _testCallback.afterMethod(description,m,target);
+        }
+      }
+    }
+;
+  }
+  boolean arquillianTest=_isArquillianTest(description);
+  if (!arquillianTest) {
+    return new StatementWrapper(statement){
+      @Override public void evaluate() throws Throwable {
+        C c=_testCallback.beforeClass(description);
+        try {
+          statement.evaluate();
+        }
+  finally {
+          _testCallback.afterClass(description,c);
+        }
+      }
+    }
+;
+  }
   return new StatementWrapper(statement){
     @Override public void evaluate() throws Throwable {
-      String methodName=description.getMethodName();
-      C c=null;
-      M m=null;
-      Object target=null;
-      if (methodName == null) {
-        c=_testCallback.beforeClass(description);
-      }
- else {
-        target=inspectTarget(statement);
-        m=_testCallback.beforeMethod(description,target);
+      Class<?> clazz=description.getTestClass();
+      if (_handleBeforeClassThreadLocal.get()) {
+        Deque<Object> deque=_classCarryOnMap.get(clazz);
+        if (deque == null) {
+          deque=new LinkedList<>();
+          _classCarryOnMap.put(clazz,deque);
+        }
+        deque.addLast(_testCallback.beforeClass(description));
       }
       try {
         statement.evaluate();
       }
   finally {
-        if (methodName == null) {
-          _testCallback.afterClass(description,c);
-        }
- else {
-          _testCallback.afterMethod(description,m,target);
+        if (_handleAfterClassThreadLocal.get()) {
+          Deque<Object> deque=_classCarryOnMap.get(clazz);
+          _testCallback.afterClass(description,(C)deque.removeLast());
+          if (deque.isEmpty()) {
+            _classCarryOnMap.remove(clazz);
+          }
         }
       }
     }
