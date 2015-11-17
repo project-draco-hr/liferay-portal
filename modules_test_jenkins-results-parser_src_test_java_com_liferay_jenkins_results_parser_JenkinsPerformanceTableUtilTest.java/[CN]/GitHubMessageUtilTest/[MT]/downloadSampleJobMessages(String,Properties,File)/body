@@ -1,0 +1,30 @@
+{
+  gitHubJobMessageUtilTest.dependenciesDir=sampleDir;
+  int jobCount=0;
+  int passCount=0;
+  StringBuilder reportFilesSB=new StringBuilder();
+  String content=JenkinsResultsParserUtil.toString(JenkinsResultsParserUtil.getLocalURL(progressiveTextURL));
+  Matcher progressiveTextMatcher=_progressiveTextPattern.matcher(content);
+  while (progressiveTextMatcher.find()) {
+    String urlString=progressiveTextMatcher.group("url");
+    Matcher jobNameMatcher=_jobNamePattern.matcher(urlString);
+    jobNameMatcher.find();
+    JSONObject jsonObject=JenkinsResultsParserUtil.toJSONObject(JenkinsResultsParserUtil.getLocalURL(urlString + "/api/json"));
+    Project project=getProject(null,urlString,sampleDir.getPath());
+    GitHubJobMessageUtil.getGitHubJobMessage(project);
+    File reportFile=new File(sampleDir,jobCount + "-report.html");
+    write(reportFile,"<h5 job-result=\\\"" + jsonObject.getString("result") + "\\\"><a href=\""+ urlString+ "\">"+ jobNameMatcher.group("jobName")+ "</a></h5>"+ project.getProperty("report.html.content"));
+    if (reportFilesSB.length() > 0) {
+      reportFilesSB.append(" ");
+    }
+    reportFilesSB.append(reportFile.getPath());
+    String result=jsonObject.getString("result");
+    if (result.equals("SUCCESS")) {
+      passCount++;
+    }
+    jobCount++;
+  }
+  properties.setProperty("top.level.fail.count",String.valueOf(jobCount - passCount));
+  properties.setProperty("top.level.pass.count",String.valueOf(passCount));
+  properties.setProperty("top.level.report.files",reportFilesSB.toString());
+}
