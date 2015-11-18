@@ -1,0 +1,46 @@
+{
+  String scope=dep.getScope();
+  if ((scope != null) && (scope.length() > 0) && !MAVEN2_CONF_MAPPING.containsKey(scope)) {
+    scope="compile";
+  }
+  String version=determineVersion(dep);
+  String mappedVersion=convertVersionFromMavenSyntax(version);
+  ModuleRevisionId moduleRevId=IvyUtil.createModuleRevisionId(dep.getGroupId(),dep.getArtifactId(),mappedVersion);
+  ModuleRevisionId mRevId=ivyModuleDescriptor.getModuleRevisionId();
+  if ((mRevId != null) && mRevId.getModuleId().equals(moduleRevId.getModuleId())) {
+    return;
+  }
+  DefaultDependencyDescriptor dd=new DefaultDependencyDescriptor(ivyModuleDescriptor,moduleRevId,true,false,true);
+  scope=(scope == null || scope.length() == 0) ? getDefaultScope(dep) : scope;
+  ConfMapper mapping=MAVEN2_CONF_MAPPING.get(scope);
+  mapping.addMappingConfs(dd,dep.isOptional());
+  Map<String,String> extraAtt=new HashMap<String,String>();
+  boolean hasClassifier=dep.getClassifier() != null && dep.getClassifier().length() > 0;
+  boolean hasNonJarType=dep.getType() != null && !"jar".equals(dep.getType());
+  if (hasClassifier || hasNonJarType) {
+    String type="jar";
+    if (dep.getType() != null) {
+      type=dep.getType();
+    }
+    String ext=determineExtension(type);
+    handleSpecialTypes(type,extraAtt);
+    if (dep.getClassifier() != null) {
+      extraAtt.put(EXTRA_ATTRIBUTE_CLASSIFIER,dep.getClassifier());
+    }
+    DefaultDependencyArtifactDescriptor depArtifact=new DefaultDependencyArtifactDescriptor(dd,dd.getDependencyId().getName(),type,ext,null,extraAtt);
+    String optionalizedScope=dep.isOptional() ? "optional" : scope;
+    dd.addDependencyArtifact(optionalizedScope,depArtifact);
+  }
+  List excluded=dep.getExcludedModules();
+  if (excluded.isEmpty()) {
+    excluded=getDependencyMgtExclusions(dep);
+  }
+  for (  Object anExcluded : excluded) {
+    ModuleId excludedModule=(ModuleId)anExcluded;
+    String[] confs=dd.getModuleConfigurations();
+    for (    String conf : confs) {
+      dd.addExcludeRule(conf,new DefaultExcludeRule(new ArtifactId(excludedModule,PatternMatcher.ANY_EXPRESSION,PatternMatcher.ANY_EXPRESSION,PatternMatcher.ANY_EXPRESSION),ExactPatternMatcher.INSTANCE,null));
+    }
+  }
+  ivyModuleDescriptor.addDependency(dd);
+}
