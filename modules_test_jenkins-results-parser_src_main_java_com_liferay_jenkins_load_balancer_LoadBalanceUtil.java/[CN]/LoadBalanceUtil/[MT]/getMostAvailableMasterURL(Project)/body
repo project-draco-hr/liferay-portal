@@ -1,33 +1,20 @@
 {
   String baseInvocationUrl=project.getProperty("base.invocation.url");
-  String hostNamePrefix=null;
-  Matcher matcher=_urlPattern.matcher(baseInvocationUrl);
-  if (!matcher.find()) {
+  String hostNamePrefix=getHostNamePrefix(baseInvocationUrl);
+  if (hostNamePrefix.equals(baseInvocationUrl)) {
     return baseInvocationUrl;
-  }
- else {
-    hostNamePrefix=matcher.group("hostNamePrefix");
   }
   int maxHostNames=calculateMaxHostNames(project,hostNamePrefix);
   File file=new File(project.getProperty("jenkins.shared.dir") + "/" + hostNamePrefix+ ".semaphore");
   waitForTurn(file,maxHostNames);
   JenkinsResultsParserUtil.write(file,_HOSTNAME);
   try {
-    ExecutorService executor=Executors.newFixedThreadPool(20);
     List<String> hostNameList=new ArrayList<>(maxHostNames);
     List<FutureTask<Integer>> taskList=new ArrayList<>(maxHostNames);
-    for (int i=1; i <= maxHostNames; i++) {
-      String hostName=hostNamePrefix + "-" + i;
-      hostNameList.add(hostName);
-      IdleSlaveCounterCallable callable=new IdleSlaveCounterCallable(project.getProperty("jenkins.local.url[" + hostName + "]") + "/computer/api/json");
-      FutureTask<Integer> futureTask=new FutureTask<>(callable);
-      executor.execute(futureTask);
-      taskList.add(futureTask);
-    }
-    executor.shutdown();
+    startParallelTasks(hostNameList,hostNamePrefix,maxHostNames,project,taskList);
     List<Integer> badIndicies=new ArrayList<>(taskList.size());
     List<Integer> maxIndicies=new ArrayList<>(taskList.size());
-    int max=0;
+    int maxResult=0;
     for (int i=0; i < taskList.size(); i++) {
       FutureTask<Integer> task=taskList.get(i);
       Integer result=task.get();
@@ -35,30 +22,31 @@
         badIndicies.add(i);
         continue;
       }
-      if (result > max) {
-        max=result;
+      if (result > maxResult) {
+        maxResult=result;
         maxIndicies.clear();
       }
-      if (result >= max) {
+      if (result >= maxResult) {
         maxIndicies.add(i);
       }
     }
     if (badIndicies.size() == maxHostNames) {
       throw new IllegalStateException("SEVERE: All hosts failed to respond.");
     }
-    while (true) {
-      int x=-1;
-      if (maxIndicies.size() > 0) {
-        x=maxIndicies.get(getRandomValue(0,maxIndicies.size() - 1));
-      }
- else {
-        x=getRandomValue(0,maxHostNames - 1);
-      }
-      if (badIndicies.contains(x)) {
-        continue;
-      }
-      return hostNameList.get(x);
+    int x=-1;
+    if (maxIndicies.size() > 0) {
+      x=maxIndicies.get(getRandomValue(0,maxIndicies.size() - 1));
     }
+ else {
+      while (true) {
+        x=getRandomValue(0,maxHostNames - 1);
+        if (badIndicies.contains(x)) {
+          continue;
+        }
+        break;
+      }
+    }
+    return hostNameList.get(x);
   }
   finally {
     JenkinsResultsParserUtil.write(file,"");
