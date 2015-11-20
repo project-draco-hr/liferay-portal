@@ -1,0 +1,41 @@
+{
+  String phase=message.getString(ReindexBackgroundTaskConstants.PHASE);
+  if (Validator.isNotNull(phase)) {
+    setPhaseAttributes(backgroundTaskStatus,message);
+    return;
+  }
+  phase=GetterUtil.getString(backgroundTaskStatus.getAttribute(ReindexBackgroundTaskConstants.PHASE));
+  long companyId=GetterUtil.getLong(backgroundTaskStatus.getAttribute(ReindexBackgroundTaskConstants.COMPANY_ID));
+  long[] companyIds=GetterUtil.getLongValues(backgroundTaskStatus.getAttribute(ReindexBackgroundTaskConstants.COMPANY_IDS));
+  String className=message.getString(ReindexBackgroundTaskConstants.CLASS_NAME);
+  long progress=message.getLong(ReindexBackgroundTaskConstants.PROGRESS);
+  long count=message.getLong(ReindexBackgroundTaskConstants.COUNT);
+  backgroundTaskStatus.setAttribute(ReindexBackgroundTaskConstants.CLASS_NAME,className);
+  backgroundTaskStatus.setAttribute(ReindexBackgroundTaskConstants.PROGRESS,progress);
+  backgroundTaskStatus.setAttribute(ReindexBackgroundTaskConstants.COUNT,count);
+  long completedCompanies=0;
+  for (  long completedCompanyId : companyIds) {
+    if (completedCompanyId == companyId) {
+      break;
+    }
+    completedCompanies++;
+  }
+  int percentage=100;
+  if (phase.equals(ReindexBackgroundTaskConstants.PORTAL_START)) {
+    String lastIndexer=GetterUtil.getString(backgroundTaskStatus.getAttribute("lastIndexer"));
+    long completedIndexers=GetterUtil.getLong(backgroundTaskStatus.getAttribute("completedIndexers"));
+    if (Validator.isNull(lastIndexer)) {
+      backgroundTaskStatus.setAttribute("lastIndexer",className);
+    }
+ else     if (!lastIndexer.equals(className)) {
+      backgroundTaskStatus.setAttribute("completedIndexers",++completedIndexers);
+      backgroundTaskStatus.setAttribute("lastIndexer",className);
+    }
+    Set<Indexer<?>> indexers=IndexerRegistryUtil.getIndexers();
+    percentage=getPercentage(completedCompanies,companyIds.length,completedIndexers,indexers.size(),progress,count);
+  }
+ else   if (phase.equals(ReindexBackgroundTaskConstants.SINGLE_START)) {
+    percentage=getPercentage(completedCompanies,companyIds.length,0,1,progress,count);
+  }
+  backgroundTaskStatus.setAttribute("percentage",percentage);
+}
