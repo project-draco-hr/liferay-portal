@@ -26,12 +26,17 @@
       taskList.add(futureTask);
     }
     executor.shutdown();
+    List<Integer> badIndicies=new ArrayList<>(taskList.size());
     List<Integer> maxIndicies=new ArrayList<>(taskList.size());
     int max=0;
     for (int i=0; i < taskList.size(); i++) {
       FutureTask<Integer> task=taskList.get(i);
       try {
         Integer result=task.get();
+        if (result == -1) {
+          badIndicies.add(i);
+          continue;
+        }
         if (result > max) {
           max=result;
           maxIndicies.clear();
@@ -47,14 +52,22 @@ catch (      InterruptedException ie) {
         throw new RuntimeException(ie);
       }
     }
-    int x=-1;
-    if (maxIndicies.size() > 0) {
-      x=maxIndicies.get(getRandomValue(0,maxIndicies.size() - 1));
+    if (badIndicies.size() == maxHostNames) {
+      throw new IllegalStateException("SEVERE: All hosts failed to respond.");
     }
+    while (true) {
+      int x=-1;
+      if (maxIndicies.size() > 0) {
+        x=maxIndicies.get(getRandomValue(0,maxIndicies.size() - 1));
+      }
  else {
-      x=getRandomValue(0,maxHostNames);
+        x=getRandomValue(0,maxHostNames - 1);
+      }
+      if (badIndicies.contains(x)) {
+        continue;
+      }
+      return hostNameList.get(x);
     }
-    return hostNameList.get(x);
   }
   finally {
     JenkinsResultsParserUtil.write(file,"");
