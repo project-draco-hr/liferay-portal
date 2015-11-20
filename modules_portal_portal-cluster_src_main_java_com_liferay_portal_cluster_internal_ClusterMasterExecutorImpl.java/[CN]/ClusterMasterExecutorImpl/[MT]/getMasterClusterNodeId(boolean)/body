@@ -1,38 +1,34 @@
 {
-  String owner=null;
+  String masterClusterNodeId=null;
+  boolean master=false;
   while (true) {
-    try {
-      Lock lock=null;
-      if (owner == null) {
-        lock=_lockManager.lock(_LOCK_CLASS_NAME,_LOCK_CLASS_NAME,_localClusterNodeId);
-      }
+    ClusterChannel clusterChannel=_clusterExecutorImpl.getClusterChannel();
+    Address localAddress=clusterChannel.getLocalAddress();
+    ClusterReceiver clusterReceiver=clusterChannel.getClusterReceiver();
+    Address coordinator=clusterReceiver.getCoordinator();
+    master=localAddress.equals(coordinator);
+    if (master) {
+      masterClusterNodeId=_localClusterNodeId;
+    }
  else {
-        lock=_lockManager.lock(_LOCK_CLASS_NAME,_LOCK_CLASS_NAME,owner,_localClusterNodeId);
-      }
-      owner=lock.getOwner();
-      if (_clusterExecutor.isClusterNodeAlive(owner)) {
-        break;
+      ClusterNode clusterNode=_clusterExecutorImpl.getClusterNode(coordinator);
+      if (clusterNode != null) {
+        masterClusterNodeId=clusterNode.getClusterNodeId();
       }
     }
- catch (    Exception e) {
-      if (_log.isWarnEnabled()) {
-        _log.warn("Unable to acquire the cluster master lock",e);
-      }
+    if (Validator.isNotNull(masterClusterNodeId)) {
+      break;
     }
     if (_log.isInfoEnabled()) {
-      if (Validator.isNotNull(owner)) {
-        _log.info("Lock currently held by " + owner);
-      }
-      _log.info("Reattempting to acquire the cluster master lock");
+      _log.info("Unable to get cluster node information for coordinator " + coordinator + ", reattempting to acquire");
     }
   }
-  boolean master=_localClusterNodeId.equals(owner);
   if (master == _master) {
-    return owner;
+    return masterClusterNodeId;
   }
   _master=master;
   if (_enabled && notify) {
     notifyMasterTokenTransitionListeners(master);
   }
-  return owner;
+  return masterClusterNodeId;
 }
