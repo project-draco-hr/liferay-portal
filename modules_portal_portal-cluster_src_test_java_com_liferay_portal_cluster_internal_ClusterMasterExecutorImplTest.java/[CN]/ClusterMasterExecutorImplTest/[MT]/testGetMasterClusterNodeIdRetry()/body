@@ -1,0 +1,46 @@
+{
+  final ClusterMasterExecutorImpl clusterMasterExecutorImpl=new ClusterMasterExecutorImpl();
+  MockClusterExecutor mockClusterExecutor=new MockClusterExecutor(true);
+  clusterMasterExecutorImpl.setClusterExecutorImpl(mockClusterExecutor);
+  clusterMasterExecutorImpl.activate();
+  mockClusterExecutor.setCoordinator(_TEST_ADDRESS);
+  ClusterExecutorAdvice.block();
+  Thread thread=new Thread(){
+    @Override public void run(){
+      try (CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(ClusterMasterExecutorImpl.class.getName(),Level.INFO)){
+        Assert.assertEquals(_TEST_CLUSTER_NODE_ID,clusterMasterExecutorImpl.getMasterClusterNodeId(false));
+        List<LogRecord> logRecords=captureHandler.getLogRecords();
+        Assert.assertEquals(1,logRecords.size());
+        LogRecord logRecord=logRecords.get(0);
+        Assert.assertEquals("Unable to get cluster node information for " + "coordinator " + _TEST_ADDRESS + ", reattempting to acquire",logRecord.getMessage());
+      }
+     }
+  }
+;
+  thread.start();
+  ClusterExecutorAdvice.waitUntilBlock(1);
+  ClusterExecutorAdvice.unblock(1);
+  ClusterExecutorAdvice.waitUntilBlock(1);
+  mockClusterExecutor.addClusterNode(_TEST_ADDRESS,new ClusterNode(_TEST_CLUSTER_NODE_ID,InetAddress.getLocalHost()));
+  ClusterExecutorAdvice.unblock(1);
+  thread.join();
+  mockClusterExecutor.removeClusterNode(_TEST_ADDRESS);
+  ClusterExecutorAdvice.block();
+  thread=new Thread(){
+    @Override public void run(){
+      try (CaptureHandler captureHandler=JDKLoggerTestUtil.configureJDKLogger(ClusterMasterExecutorImpl.class.getName(),Level.OFF)){
+        Assert.assertEquals(_TEST_CLUSTER_NODE_ID,clusterMasterExecutorImpl.getMasterClusterNodeId(false));
+        List<LogRecord> logRecords=captureHandler.getLogRecords();
+        Assert.assertTrue(logRecords.isEmpty());
+      }
+     }
+  }
+;
+  thread.start();
+  ClusterExecutorAdvice.waitUntilBlock(1);
+  ClusterExecutorAdvice.unblock(1);
+  ClusterExecutorAdvice.waitUntilBlock(1);
+  mockClusterExecutor.addClusterNode(_TEST_ADDRESS,new ClusterNode(_TEST_CLUSTER_NODE_ID,InetAddress.getLocalHost()));
+  ClusterExecutorAdvice.unblock(1);
+  thread.join();
+}

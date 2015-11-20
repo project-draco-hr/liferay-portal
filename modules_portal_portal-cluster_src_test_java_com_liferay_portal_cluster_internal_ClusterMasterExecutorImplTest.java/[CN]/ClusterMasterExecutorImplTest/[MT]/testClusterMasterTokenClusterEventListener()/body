@@ -1,15 +1,21 @@
 {
-  ClusterMasterExecutorImpl clusterMasterExecutorImpl=createMasterExecutorImpl(true);
+  ClusterMasterExecutorImpl clusterMasterExecutorImpl=new ClusterMasterExecutorImpl();
   MockClusterExecutor mockClusterExecutor=new MockClusterExecutor(true);
-  String otherClusterNodeId=mockClusterExecutor.addClusterNode();
-  clusterMasterExecutorImpl.setClusterExecutor(mockClusterExecutor);
+  clusterMasterExecutorImpl.setClusterExecutorImpl(mockClusterExecutor);
   clusterMasterExecutorImpl.activate();
+  mockClusterExecutor.addClusterNode(_TEST_ADDRESS,new ClusterNode(_TEST_CLUSTER_NODE_ID,InetAddress.getLocalHost()));
+  Assert.assertTrue(clusterMasterExecutorImpl.isMaster());
   List<ClusterEventListener> clusterEventListeners=mockClusterExecutor.getClusterEventListeners();
   ClusterEventListener clusterEventListener=clusterEventListeners.get(0);
+  clusterEventListener.processClusterEvent(new ClusterEvent(ClusterEventType.COORDINATOR_UPDATE));
   Assert.assertTrue(clusterMasterExecutorImpl.isMaster());
-  clusterEventListener.processClusterEvent(null);
+  mockClusterExecutor.setCoordinator(_TEST_ADDRESS);
+  clusterEventListener.processClusterEvent(new ClusterEvent(ClusterEventType.JOIN));
   Assert.assertTrue(clusterMasterExecutorImpl.isMaster());
-  _mockLockManager.setLock(otherClusterNodeId);
-  clusterEventListener.processClusterEvent(null);
+  mockClusterExecutor.setCoordinator(_TEST_ADDRESS);
+  clusterEventListener.processClusterEvent(new ClusterEvent(ClusterEventType.DEPART));
+  Assert.assertTrue(clusterMasterExecutorImpl.isMaster());
+  mockClusterExecutor.setCoordinator(_TEST_ADDRESS);
+  clusterEventListener.processClusterEvent(new ClusterEvent(ClusterEventType.COORDINATOR_UPDATE));
   Assert.assertFalse(clusterMasterExecutorImpl.isMaster());
 }
