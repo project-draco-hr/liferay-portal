@@ -1,0 +1,62 @@
+{
+  String baseInvocationUrl=project.getProperty("base.invocation.url");
+  String hostNamePrefix=null;
+  Matcher matcher=_urlPattern.matcher(baseInvocationUrl);
+  if (!matcher.find()) {
+    return baseInvocationUrl;
+  }
+ else {
+    hostNamePrefix=matcher.group("hostNamePrefix");
+  }
+  System.out.println("hostNamePrefix: " + hostNamePrefix);
+  int maxHostNames=calculateMaxHostNames(project,hostNamePrefix);
+  File file=new File(project.getProperty("jenkins.shared.dir") + "/" + hostNamePrefix+ ".semaphore");
+  waitForTurn(file,maxHostNames);
+  JenkinsResultsParserUtil.write(file,HOSTNAME);
+  try {
+    ExecutorService executor=Executors.newFixedThreadPool(20);
+    List<String> hostNameList=new ArrayList<>(maxHostNames);
+    List<FutureTask<Integer>> taskList=new ArrayList<>(maxHostNames);
+    for (int i=1; i <= maxHostNames; i++) {
+      String hostName=hostNamePrefix + "-" + i;
+      hostNameList.add(hostName);
+      IdleSlaveCounterCallable callable=new IdleSlaveCounterCallable(project.getProperty("jenkins.local.url[" + hostName + "]") + "/computer/api/json");
+      FutureTask<Integer> futureTask=new FutureTask<>(callable);
+      executor.execute(futureTask);
+      taskList.add(futureTask);
+    }
+    executor.shutdown();
+    List<Integer> maxIndexes=new ArrayList<>(taskList.size());
+    int max=0;
+    for (int i=0; i < taskList.size(); i++) {
+      FutureTask<Integer> task=taskList.get(i);
+      try {
+        Integer result=task.get();
+        if (result > max) {
+          max=result;
+          maxIndexes.clear();
+        }
+        if (result >= max) {
+          maxIndexes.add(i);
+        }
+      }
+ catch (      ExecutionException ee) {
+        throw new RuntimeException(ee);
+      }
+catch (      InterruptedException ie) {
+        throw new RuntimeException(ie);
+      }
+    }
+    int x=-1;
+    if (maxIndexes.size() > 0) {
+      x=maxIndexes.get(getRandomValue(0,maxIndexes.size() - 1));
+    }
+ else {
+      x=getRandomValue(0,maxHostNames);
+    }
+    return hostNameList.get(x);
+  }
+  finally {
+    JenkinsResultsParserUtil.write(file,"");
+  }
+}
