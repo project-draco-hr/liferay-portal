@@ -1,0 +1,73 @@
+{
+  if (_groupSearch != null) {
+    return _groupSearch;
+  }
+  ThemeDisplay themeDisplay=(ThemeDisplay)_request.getAttribute(WebKeys.THEME_DISPLAY);
+  Company company=themeDisplay.getCompany();
+  LiferayPortletRequest portletRequest=_getLiferayPortletRequest();
+  GroupSearch groupSearch=new GroupSearch(portletRequest,PortletURLUtil.clone(getPortletURL(),_getLiferayPortletResponse()));
+  GroupSearchTerms groupSearchTerms=(GroupSearchTerms)groupSearch.getSearchTerms();
+  List<Group> results=new ArrayList<>();
+  int additionalSites=0;
+  int total=0;
+  boolean includeCompany=ParamUtil.getBoolean(_request,"includeCompany");
+  boolean includeUserPersonalSite=ParamUtil.getBoolean(_request,"includeUserPersonalSite");
+  String type=getType();
+  if (includeCompany) {
+    if (groupSearch.getStart() == 0) {
+      results.add(company.getGroup());
+    }
+    additionalSites++;
+  }
+  if (includeUserPersonalSite) {
+    if (groupSearch.getStart() == 0) {
+      Group userPersonalSite=GroupLocalServiceUtil.getGroup(company.getCompanyId(),GroupConstants.USER_PERSONAL_SITE);
+      results.add(userPersonalSite);
+    }
+    additionalSites++;
+  }
+  if (type.equals("layoutScopes")) {
+    total=GroupLocalServiceUtil.getGroupsCount(themeDisplay.getCompanyId(),Layout.class.getName(),getGroupId());
+  }
+ else   if (type.equals("parent-sites")) {
+  }
+ else   if (groupSearchTerms.isAdvancedSearch()) {
+    total=GroupLocalServiceUtil.searchCount(themeDisplay.getCompanyId(),null,groupSearchTerms.getName(),groupSearchTerms.getDescription(),getGroupParams(),groupSearchTerms.isAndOperator());
+  }
+ else {
+    total=GroupLocalServiceUtil.searchCount(themeDisplay.getCompanyId(),null,groupSearchTerms.getKeywords(),getGroupParams(),groupSearchTerms.isAndOperator());
+  }
+  total+=additionalSites;
+  groupSearch.setTotal(total);
+  int start=groupSearch.getStart();
+  if (groupSearch.getStart() > additionalSites) {
+    start=groupSearch.getStart() - additionalSites;
+  }
+  int end=groupSearch.getEnd() - additionalSites;
+  List<Group> groups=null;
+  if (type.equals("layoutScopes")) {
+    groups=GroupLocalServiceUtil.getGroups(company.getCompanyId(),Layout.class.getName(),getGroupId(),start,end);
+    groups=_filterLayoutGroups(groups,isPrivateLayout());
+  }
+ else   if (type.equals("parent-sites")) {
+    Group group=GroupLocalServiceUtil.getGroup(getGroupId());
+    groups=group.getAncestors();
+    String filter=getFilter();
+    if (Validator.isNotNull(filter)) {
+      groups=_filterGroups(groups,filter);
+    }
+    total=groups.size();
+    total+=additionalSites;
+    groupSearch.setTotal(total);
+  }
+ else   if (groupSearchTerms.isAdvancedSearch()) {
+    groups=GroupLocalServiceUtil.search(company.getCompanyId(),null,groupSearchTerms.getName(),groupSearchTerms.getDescription(),getGroupParams(),groupSearchTerms.isAndOperator(),start,end,groupSearch.getOrderByComparator());
+  }
+ else {
+    groups=GroupLocalServiceUtil.search(company.getCompanyId(),null,groupSearchTerms.getKeywords(),getGroupParams(),start,end,groupSearch.getOrderByComparator());
+  }
+  results.addAll(groups);
+  groupSearch.setResults(results);
+  _groupSearch=groupSearch;
+  return _groupSearch;
+}

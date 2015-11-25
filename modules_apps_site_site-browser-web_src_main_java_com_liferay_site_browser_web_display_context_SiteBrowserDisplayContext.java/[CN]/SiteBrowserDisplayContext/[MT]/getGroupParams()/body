@@ -1,0 +1,42 @@
+{
+  if (_groupParams != null) {
+    return _groupParams;
+  }
+  long groupId=ParamUtil.getLong(_request,"groupId");
+  boolean includeCurrentGroup=ParamUtil.getBoolean(_request,"includeCurrentGroup",true);
+  String type=getType();
+  ThemeDisplay themeDisplay=(ThemeDisplay)_request.getAttribute(WebKeys.THEME_DISPLAY);
+  PermissionChecker permissionChecker=themeDisplay.getPermissionChecker();
+  User user=themeDisplay.getUser();
+  boolean filterManageableGroups=true;
+  if (permissionChecker.isCompanyAdmin()) {
+    filterManageableGroups=false;
+  }
+  LinkedHashMap<String,Object> groupParams=new LinkedHashMap<>();
+  if (isManualMembership()) {
+    groupParams.put("manualMembership",Boolean.TRUE);
+  }
+  if (type.equals("child-sites")) {
+    Group parentGroup=GroupLocalServiceUtil.getGroup(groupId);
+    List<Group> parentGroups=new ArrayList<>();
+    parentGroups.add(parentGroup);
+    groupParams.put("groupsTree",parentGroups);
+  }
+ else   if (filterManageableGroups) {
+    groupParams.put("usersGroups",user.getUserId());
+  }
+  groupParams.put("site",Boolean.TRUE);
+  if (!includeCurrentGroup && (groupId > 0)) {
+    List<Long> excludedGroupIds=new ArrayList<>();
+    Group group=GroupLocalServiceUtil.getGroup(groupId);
+    if (group.isStagingGroup()) {
+      excludedGroupIds.add(group.getLiveGroupId());
+    }
+ else {
+      excludedGroupIds.add(groupId);
+    }
+    groupParams.put("excludedGroupIds",excludedGroupIds);
+  }
+  _groupParams=groupParams;
+  return _groupParams;
+}
