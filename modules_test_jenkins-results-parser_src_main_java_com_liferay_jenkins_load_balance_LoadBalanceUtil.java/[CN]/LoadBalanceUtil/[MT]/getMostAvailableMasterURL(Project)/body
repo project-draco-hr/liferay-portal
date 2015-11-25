@@ -9,23 +9,30 @@
   File semaphoreFile=new File(baseDir,hostNamePrefix + ".semaphore");
   waitForTurn(semaphoreFile,hostNameCount);
   JenkinsResultsParserUtil.write(semaphoreFile,myHostName);
-  List<String> coolDownList=getCoolDownList(new File(baseDir,"timeout"));
+  Map<String,Integer> recentJobsMap=getRecentJobsMap(new File(baseDir,"recentJobs"));
   List<String> hostNameList=new ArrayList<>(hostNameCount);
   int maxResult=Integer.MIN_VALUE;
   int x=-1;
   try {
     List<FutureTask<Integer>> taskList=new ArrayList<>(hostNameCount);
-    startParallelTasks(hostNameList,hostNamePrefix,hostNameCount,project,taskList,coolDownList);
+    startParallelTasks(recentJobsMap,hostNameList,hostNamePrefix,hostNameCount,project,taskList);
     List<Integer> badIndicies=new ArrayList<>(taskList.size());
     List<Integer> maxIndicies=new ArrayList<>(taskList.size());
+    StringBuilder message=new StringBuilder();
     for (int i=0; i < taskList.size(); i++) {
       FutureTask<Integer> task=taskList.get(i);
       Integer result=task.get();
-      System.out.println(hostNameList.get(i) + " : " + result);
       if (result == null) {
         badIndicies.add(i);
         continue;
       }
+      if (recentJobsMap.containsKey(hostNameList.get(i))) {
+        result-=recentJobsMap.get(hostNameList.get(i));
+      }
+      message.append(hostNameList.get(i));
+      message.append(" : ");
+      message.append(result);
+      message.append("\n");
       if (result > maxResult) {
         maxResult=result;
         maxIndicies.clear();
@@ -46,11 +53,31 @@
         break;
       }
     }
-    JenkinsResultsParserUtil.write(new File(baseDir,"timeout/" + hostNameList.get(x)),Long.toString(System.currentTimeMillis()));
-    System.out.println("Most available master: " + hostNameList.get(x) + " with "+ maxResult+ " available slaves.");
+    message.append("\nMost available master: ");
+    message.append(hostNameList.get(x));
+    message.append(" with ");
+    message.append(Integer.toString(maxResult));
+    message.append(" available slaves.");
+    System.out.println(message);
+    return hostNameList.get(x);
   }
   finally {
     JenkinsResultsParserUtil.write(semaphoreFile,"");
+    if (recentJobsPeriod > 0) {
+      File recentJobsFile=new File(baseDir,"recentJobs/" + hostNameList.get(x));
+      String existingContent="";
+      if (recentJobsFile.exists()) {
+        existingContent=JenkinsResultsParserUtil.read(recentJobsFile);
+        if (existingContent.length() > 0) {
+          existingContent+="|";
+        }
+      }
+      int batchSizeInt=1;
+      String batchSizeString=project.getProperty("invoked.job.batch.size");
+      if ((batchSizeString != null) && (batchSizeString.length() > 0)) {
+        batchSizeInt=Integer.parseInt(batchSizeString);
+      }
+      JenkinsResultsParserUtil.write(recentJobsFile,existingContent + batchSizeInt + "-"+ System.currentTimeMillis());
+    }
   }
-  return hostNameList.get(x);
 }
