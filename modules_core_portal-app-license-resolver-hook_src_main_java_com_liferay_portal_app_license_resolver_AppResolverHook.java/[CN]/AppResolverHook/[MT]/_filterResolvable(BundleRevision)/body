@@ -4,31 +4,31 @@
   }
   Bundle bundle=bundleRevision.getBundle();
   Dictionary<String,String> headers=bundle.getHeaders();
-  String marketplaceProperties=headers.get("X-Liferay-Marketplace");
-  if (marketplaceProperties == null) {
+  String xLiferayMarketplace=headers.get("X-Liferay-Marketplace");
+  if (xLiferayMarketplace == null) {
     return;
   }
-  Attrs parameters=OSGiHeader.parseProperties(marketplaceProperties);
-  String productId=parameters.get("productId");
-  String productType=parameters.get("productType");
-  String productVersion=parameters.get("productVersion");
-  String licenseVersion=parameters.get("licenseVersion");
+  Attrs attrs=OSGiHeader.parseProperties(xLiferayMarketplace);
+  String productId=attrs.get("productId");
   if (productId == null) {
     return;
   }
-  SortedMap<ServiceReference<AppLicenseVerifier>,AppLicenseVerifier> verifiers=_serviceTracker.getTracked();
   boolean verified=false;
+  String licenseVersion=attrs.get("licenseVersion");
   Filter filter=FrameworkUtil.createFilter("(version=" + licenseVersion + ")");
-  for (  ServiceReference<AppLicenseVerifier> serviceReference : verifiers.keySet()) {
+  SortedMap<ServiceReference<AppLicenseVerifier>,AppLicenseVerifier> serviceReferences=_serviceTracker.getTracked();
+  for (  ServiceReference<AppLicenseVerifier> serviceReference : serviceReferences.keySet()) {
     if (!filter.match(serviceReference)) {
       continue;
     }
-    AppLicenseVerifier appLicenseVerifier=verifiers.get(serviceReference);
+    AppLicenseVerifier appLicenseVerifier=serviceReferences.get(serviceReference);
+    String productType=attrs.get("productType");
+    String productVersion=attrs.get("productVersion");
     appLicenseVerifier.verify(bundle,productId,productType,productVersion);
     verified=true;
     break;
   }
   if (!verified) {
-    throw new Exception(AppLicenseVerifier.class.getName() + " could not be resolved.");
+    throw new Exception("Unable to resolve " + AppLicenseVerifier.class.getName());
   }
 }
