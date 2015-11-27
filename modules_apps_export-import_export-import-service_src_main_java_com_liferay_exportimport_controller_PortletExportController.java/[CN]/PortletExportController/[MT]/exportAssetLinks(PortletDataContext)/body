@@ -1,24 +1,19 @@
 {
   Document document=SAXReaderUtil.createDocument();
   Element rootElement=document.addElement("links");
-  Map<String,List<AssetLink>> assetLinksMap=portletDataContext.getAssetLinksMap();
-  for (  Entry<String,List<AssetLink>> entry : assetLinksMap.entrySet()) {
-    String[] assetLinkNameParts=StringUtil.split(entry.getKey(),CharPool.POUND);
-    List<AssetLink> assetLinks=entry.getValue();
-    String sourceAssetEntryUuid=assetLinkNameParts[0];
-    Element assetElement=rootElement.addElement("asset-link-group");
-    assetElement.addAttribute("source-uuid",sourceAssetEntryUuid);
-    for (    AssetLink assetLink : assetLinks) {
-      String path=getAssetLinkPath(portletDataContext,assetLink.getLinkId());
-      if (portletDataContext.hasPrimaryKey(String.class,path)) {
-        return;
-      }
-      Element assetLinkElement=assetElement.addElement("asset-link");
-      assetLinkElement.addAttribute("path",path);
-      AssetEntry targetAssetEntry=_assetEntryLocalService.fetchAssetEntry(assetLink.getEntryId2());
-      assetLinkElement.addAttribute("target-uuid",targetAssetEntry.getClassUuid());
-      portletDataContext.addZipEntry(path,assetLink);
+  Element exportDataRootElement=portletDataContext.getExportDataRootElement();
+  try {
+    portletDataContext.setExportDataRootElement(rootElement);
+    ActionableDynamicQuery linkActionableDynamicQuery=_assetLinkLocalService.getExportActionbleDynamicQuery(portletDataContext);
+    linkActionableDynamicQuery.performActions();
+    for (    long linkId : portletDataContext.getAssetLinkIds()) {
+      AssetLink assetLink=_assetLinkLocalService.getAssetLink(linkId);
+      StagedAssetLink stagedAssetLink=ModelAdapterUtil.adapt(assetLink,AssetLink.class,StagedAssetLink.class);
+      portletDataContext.addClassedModel(portletDataContext.getExportDataElement(stagedAssetLink),ExportImportPathUtil.getModelPath(stagedAssetLink),stagedAssetLink);
     }
+  }
+  finally {
+    portletDataContext.setExportDataRootElement(exportDataRootElement);
   }
   portletDataContext.addZipEntry(ExportImportPathUtil.getRootPath(portletDataContext) + "/links.xml",document.formattedString());
 }

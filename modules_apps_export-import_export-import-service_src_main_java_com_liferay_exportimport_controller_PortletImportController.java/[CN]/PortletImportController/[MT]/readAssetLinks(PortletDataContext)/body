@@ -3,41 +3,18 @@
   if (xml == null) {
     return;
   }
-  Document document=SAXReaderUtil.read(xml);
-  Element rootElement=document.getRootElement();
-  List<Element> assetLinkGroupElements=rootElement.elements("asset-link-group");
-  for (  Element assetLinkGroupElement : assetLinkGroupElements) {
-    String sourceUuid=assetLinkGroupElement.attributeValue("source-uuid");
-    AssetEntry sourceAssetEntry=_assetEntryLocalService.fetchEntry(portletDataContext.getScopeGroupId(),sourceUuid);
-    if (sourceAssetEntry == null) {
-      sourceAssetEntry=_assetEntryLocalService.fetchEntry(portletDataContext.getCompanyGroupId(),sourceUuid);
+  Element importDataRootElement=portletDataContext.getImportDataRootElement();
+  try {
+    Document document=SAXReaderUtil.read(xml);
+    Element rootElement=document.getRootElement();
+    portletDataContext.setImportDataRootElement(rootElement);
+    Element linksElement=portletDataContext.getImportDataGroupElement(StagedAssetLink.class);
+    List<Element> linkElements=linksElement.elements();
+    for (    Element linkElement : linkElements) {
+      StagedModelDataHandlerUtil.importStagedModel(portletDataContext,linkElement);
     }
-    if (sourceAssetEntry == null) {
-      if (_log.isWarnEnabled()) {
-        _log.warn("Unable to find asset entry with uuid " + sourceUuid);
-      }
-      continue;
-    }
-    List<Element> assetLinksElements=assetLinkGroupElement.elements("asset-link");
-    for (    Element assetLinkElement : assetLinksElements) {
-      String path=assetLinkElement.attributeValue("path");
-      if (!portletDataContext.isPathNotProcessed(path)) {
-        continue;
-      }
-      String targetUuid=assetLinkElement.attributeValue("target-uuid");
-      AssetEntry targetAssetEntry=_assetEntryLocalService.fetchEntry(portletDataContext.getScopeGroupId(),targetUuid);
-      if (targetAssetEntry == null) {
-        targetAssetEntry=_assetEntryLocalService.fetchEntry(portletDataContext.getCompanyGroupId(),targetUuid);
-      }
-      if (targetAssetEntry == null) {
-        if (_log.isWarnEnabled()) {
-          _log.warn("Unable to find asset entry with uuid " + targetUuid);
-        }
-        continue;
-      }
-      AssetLink assetLink=(AssetLink)portletDataContext.getZipEntryAsObject(path);
-      long userId=portletDataContext.getUserId(assetLink.getUserUuid());
-      _assetLinkLocalService.updateLink(userId,sourceAssetEntry.getEntryId(),targetAssetEntry.getEntryId(),assetLink.getType(),assetLink.getWeight());
-    }
+  }
+  finally {
+    portletDataContext.setImportDataRootElement(importDataRootElement);
   }
 }
