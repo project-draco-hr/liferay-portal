@@ -1,0 +1,61 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)_request.getAttribute(WebKeys.THEME_DISPLAY);
+  ArticleSearch articleSearchContainer=new ArticleSearch(_liferayPortletRequest,getPortletURL());
+  OrderByComparator<JournalArticle> orderByComparator=JournalPortletUtil.getArticleOrderByComparator(getOrderByCol(),getOrderByType());
+  articleSearchContainer.setOrderByCol(getOrderByCol());
+  articleSearchContainer.setOrderByComparator(orderByComparator);
+  articleSearchContainer.setOrderByType(getOrderByType());
+  EntriesChecker entriesChecker=new EntriesChecker(_liferayPortletRequest,_liferayPortletResponse);
+  entriesChecker.setCssClass("entry-selector");
+  articleSearchContainer.setRowChecker(entriesChecker);
+  EntriesMover entriesMover=new EntriesMover(themeDisplay.getScopeGroupId());
+  articleSearchContainer.setRowMover(entriesMover);
+  if (isNavigationMine() || isNavigationRecent()) {
+    boolean includeOwner=true;
+    if (isNavigationMine()) {
+      includeOwner=false;
+    }
+    if (isNavigationRecent()) {
+      articleSearchContainer.setOrderByCol("create-date");
+      articleSearchContainer.setOrderByType(getOrderByType());
+    }
+    int total=JournalArticleServiceUtil.getGroupArticlesCount(themeDisplay.getScopeGroupId(),themeDisplay.getUserId(),getFolderId(),getStatus(),includeOwner);
+    articleSearchContainer.setTotal(total);
+    List results=JournalArticleServiceUtil.getGroupArticles(themeDisplay.getScopeGroupId(),themeDisplay.getUserId(),getFolderId(),getStatus(),includeOwner,articleSearchContainer.getStart(),articleSearchContainer.getEnd(),articleSearchContainer.getOrderByComparator());
+    articleSearchContainer.setResults(results);
+  }
+ else   if (Validator.isNotNull(getDDMStructureKey())) {
+    int total=JournalArticleServiceUtil.getArticlesCountByStructureId(themeDisplay.getScopeGroupId(),getDDMStructureKey());
+    articleSearchContainer.setTotal(total);
+    List results=JournalArticleServiceUtil.getArticlesByStructureId(themeDisplay.getScopeGroupId(),getDDMStructureKey(),articleSearchContainer.getStart(),articleSearchContainer.getEnd(),articleSearchContainer.getOrderByComparator());
+    articleSearchContainer.setResults(results);
+  }
+ else   if (Validator.isNotNull(getDDMTemplateKey())) {
+    List<Long> folderIds=new ArrayList<>(1);
+    if (getFolderId() != JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+      folderIds.add(getFolderId());
+    }
+    int total=JournalArticleServiceUtil.searchCount(themeDisplay.getCompanyId(),themeDisplay.getScopeGroupId(),folderIds,JournalArticleConstants.CLASSNAME_ID_DEFAULT,getKeywords(),-1.0,getDDMStructureKey(),getDDMTemplateKey(),null,null,getStatus(),null);
+    articleSearchContainer.setTotal(total);
+    List results=JournalArticleServiceUtil.search(themeDisplay.getCompanyId(),themeDisplay.getScopeGroupId(),folderIds,JournalArticleConstants.CLASSNAME_ID_DEFAULT,getKeywords(),-1.0,getDDMStructureKey(),getDDMTemplateKey(),null,null,getStatus(),null,articleSearchContainer.getStart(),articleSearchContainer.getEnd(),articleSearchContainer.getOrderByComparator());
+    articleSearchContainer.setResults(results);
+  }
+ else {
+    int total=JournalFolderServiceUtil.getFoldersAndArticlesCount(themeDisplay.getScopeGroupId(),themeDisplay.getUserId(),getFolderId(),getStatus());
+    articleSearchContainer.setTotal(total);
+    OrderByComparator<Object> folderOrderByComparator=null;
+    boolean orderByAsc=false;
+    if (getOrderByType().equals("asc")) {
+      orderByAsc=true;
+    }
+    if (getOrderByCol().equals("display-date")) {
+      folderOrderByComparator=new FolderArticleDisplayDateComparator(orderByAsc);
+    }
+ else     if (getOrderByCol().equals("modified-date")) {
+      folderOrderByComparator=new FolderArticleModifiedDateComparator(orderByAsc);
+    }
+    List results=JournalFolderServiceUtil.getFoldersAndArticles(themeDisplay.getScopeGroupId(),themeDisplay.getUserId(),getFolderId(),getStatus(),articleSearchContainer.getStart(),articleSearchContainer.getEnd(),folderOrderByComparator);
+    articleSearchContainer.setResults(results);
+  }
+  return articleSearchContainer;
+}
