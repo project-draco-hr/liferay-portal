@@ -5,23 +5,34 @@
     SessionErrors.add(actionRequest,RequiredNodeException.class);
     return;
   }
+  List<TrashedModel> trashedModels=new ArrayList<>();
+  long[] deleteNodeIds=null;
   long nodeId=ParamUtil.getLong(actionRequest,"nodeId");
-  WikiNode wikiNode=_wikiNodeService.getNode(nodeId);
-  String oldName=wikiNode.getName();
-  WikiCacheThreadLocal.setClearCache(false);
-  WikiNode trashWikiNode=null;
-  if (moveToTrash) {
-    trashWikiNode=_wikiNodeService.moveNodeToTrash(nodeId);
+  if (nodeId > 0) {
+    deleteNodeIds=new long[]{nodeId};
   }
  else {
-    _wikiNodeService.deleteNode(nodeId);
+    deleteNodeIds=ParamUtil.getLongValues(actionRequest,"rowIdsWikiNode");
   }
-  WikiCacheUtil.clearCache(nodeId);
-  WikiCacheThreadLocal.setClearCache(true);
   WikiPortletInstanceOverriddenConfiguration wikiPortletInstanceOverriddenConfiguration=getWikiPortletInstanceOverriddenConfiguration(actionRequest);
-  updateSettings(wikiPortletInstanceOverriddenConfiguration,oldName,StringPool.BLANK);
-  if (moveToTrash && (trashWikiNode != null)) {
-    TrashUtil.addTrashSessionMessages(actionRequest,trashWikiNode);
+  for (  long deleteNodeId : deleteNodeIds) {
+    WikiNode wikiNode=_wikiNodeService.getNode(deleteNodeId);
+    String oldName=wikiNode.getName();
+    WikiCacheThreadLocal.setClearCache(false);
+    WikiNode trashWikiNode=null;
+    if (moveToTrash) {
+      trashWikiNode=_wikiNodeService.moveNodeToTrash(deleteNodeId);
+      trashedModels.add(trashWikiNode);
+    }
+ else {
+      _wikiNodeService.deleteNode(deleteNodeId);
+    }
+    WikiCacheUtil.clearCache(deleteNodeId);
+    updateSettings(wikiPortletInstanceOverriddenConfiguration,oldName,StringPool.BLANK);
+  }
+  WikiCacheThreadLocal.setClearCache(true);
+  if (moveToTrash && !trashedModels.isEmpty()) {
+    TrashUtil.addTrashSessionMessages(actionRequest,trashedModels);
     hideDefaultSuccessMessage(actionRequest);
   }
 }
