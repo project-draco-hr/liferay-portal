@@ -1,0 +1,69 @@
+{
+  final File managerDir=new File(getDir(),"webapps/manager");
+  if (!managerDir.exists()) {
+    final Project project=getProject();
+    final File zipFile=FileUtil.get(project,getZipUrl());
+    Closure<Void> closure=new Closure<Void>(null){
+      @SuppressWarnings("unused") public void doCall(      CopySpec copySpec){
+        copySpec.eachFile(new StripPathSegmentsAction(2));
+        copySpec.from(project.zipTree(zipFile));
+        copySpec.include("apache-tomcat-*/webapps/manager/**/*");
+        copySpec.into(managerDir.getParentFile());
+        copySpec.setIncludeEmptyDirs(false);
+      }
+    }
+;
+    project.copy(closure);
+  }
+  Document document=null;
+  final File tomcatUsersXmlFile=new File(getDir(),"conf/tomcat-users.xml");
+  try (InputStreamReader inputStreamReader=new InputStreamReader(new FileInputStream(tomcatUsersXmlFile))){
+    document=DOMBuilder.parse(inputStreamReader);
+  }
+   Element tomcatUsersElement=document.getDocumentElement();
+  Set<String> existentRoleNames=new HashSet<>();
+  boolean tomcatManagerUserExists=false;
+  NodeList nodeList=tomcatUsersElement.getChildNodes();
+  for (int i=0; i < nodeList.getLength(); i++) {
+    Node node=nodeList.item(i);
+    if (node.getNodeType() != Node.ELEMENT_NODE) {
+      continue;
+    }
+    Element element=(Element)node;
+    String elementName=element.getNodeName();
+    if (elementName.equals("role")) {
+      String roleName=element.getAttribute("rolename");
+      existentRoleNames.add(roleName);
+    }
+ else     if (elementName.equals("user")) {
+      String userName=element.getAttribute("username");
+      if (userName.equals(getManagerUserName())) {
+        tomcatManagerUserExists=true;
+      }
+    }
+  }
+  boolean tomcatUsersXmlFileModified=false;
+  for (  String roleName : _TOMCAT_USERS_ROLE_NAMES) {
+    if (!existentRoleNames.contains(roleName)) {
+      Element element=document.createElement("role");
+      element.setAttribute("rolename",roleName);
+      tomcatUsersElement.appendChild(element);
+      tomcatUsersXmlFileModified=true;
+    }
+  }
+  if (!tomcatManagerUserExists) {
+    Element element=document.createElement("user");
+    element.setAttribute("password",getManagerPassword());
+    element.setAttribute("roles","tomcat,manager-gui,manager-script,manager-jmx,manager-status");
+    element.setAttribute("username",getManagerUserName());
+    tomcatUsersElement.appendChild(element);
+    tomcatUsersXmlFileModified=true;
+  }
+  if (tomcatUsersXmlFileModified) {
+    Path timestampTomcatUserXmlFilePath=Paths.get(tomcatUsersXmlFile.toString() + "." + _timestampDateFormat.format(new Date()));
+    Files.copy(tomcatUsersXmlFile.toPath(),timestampTomcatUserXmlFilePath);
+    try (FileOutputStream fileOutputStream=new FileOutputStream(tomcatUsersXmlFile)){
+      XmlUtil.serialize(tomcatUsersElement,fileOutputStream);
+    }
+   }
+}

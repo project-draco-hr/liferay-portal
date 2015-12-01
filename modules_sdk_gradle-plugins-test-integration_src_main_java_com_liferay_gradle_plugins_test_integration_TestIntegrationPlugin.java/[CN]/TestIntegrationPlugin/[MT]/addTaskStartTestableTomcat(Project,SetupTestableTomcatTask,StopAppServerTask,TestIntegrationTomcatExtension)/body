@@ -1,0 +1,59 @@
+{
+  StartTestableTomcatTask startTestableTomcatTask=GradleUtil.addTask(project,START_TESTABLE_TOMCAT_TASK_NAME,StartTestableTomcatTask.class);
+  startTestableTomcatTask.dependsOn(setupTestableTomcatTask);
+  Action<Task> action=new Action<Task>(){
+    @Override public void execute(    Task task){
+      StartTestableTomcatTask startTestableTomcatTask=(StartTestableTomcatTask)task;
+      File binDir=startTestableTomcatTask.getBinDir();
+      boolean started=false;
+      _startedAppServersReentrantLock.lock();
+      try {
+        if (_startedAppServerBinDirs.contains(binDir)) {
+          started=true;
+        }
+ else {
+          _startedAppServerBinDirs.add(binDir);
+        }
+      }
+  finally {
+        _startedAppServersReentrantLock.unlock();
+      }
+      if (started) {
+        if (_logger.isDebugEnabled()) {
+          _logger.debug("Application server " + binDir + " is already started");
+        }
+        Project project=startTestableTomcatTask.getProject();
+        Gradle gradle=project.getGradle();
+        StartParameter startParameter=gradle.getStartParameter();
+        if (startParameter.isParallelProjectExecutionEnabled()) {
+          if (_logger.isDebugEnabled()) {
+            _logger.debug("Waiting for application server " + binDir + " to be reachable");
+          }
+          startTestableTomcatTask.waitForAppServer();
+        }
+        throw new StopExecutionException();
+      }
+    }
+  }
+;
+  startTestableTomcatTask.doFirst(action);
+  startTestableTomcatTask.finalizedBy(stopTestableTomcatTask);
+  startTestableTomcatTask.onlyIf(new Spec<Task>(){
+    @Override public boolean isSatisfiedBy(    Task task){
+      StartTestableTomcatTask startTestableTomcatTask=(StartTestableTomcatTask)task;
+      if (startTestableTomcatTask.isReachable()) {
+        return false;
+      }
+      return true;
+    }
+  }
+);
+  startTestableTomcatTask.setLiferayHome(new Callable<File>(){
+    @Override public File call() throws Exception {
+      return testIntegrationTomcatExtension.getLiferayHome();
+    }
+  }
+);
+  configureBaseAppServerTask(startTestableTomcatTask,testIntegrationTomcatExtension);
+  return startTestableTomcatTask;
+}
