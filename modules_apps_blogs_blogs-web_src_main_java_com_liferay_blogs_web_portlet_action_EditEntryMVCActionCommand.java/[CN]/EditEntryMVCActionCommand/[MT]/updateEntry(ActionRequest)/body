@@ -28,10 +28,49 @@
   String coverImageURL=ParamUtil.getString(actionRequest,"coverImageURL");
   String coverImageFileEntryCropRegion=ParamUtil.getString(actionRequest,"coverImageFileEntryCropRegion");
   String coverImageCaption=ParamUtil.getString(actionRequest,"coverImageCaption");
-  ImageSelector coverImageImageSelector=new ImageSelector(coverImageFileEntryId,coverImageURL,coverImageFileEntryCropRegion);
+  long oldCoverImageId=0;
+  String oldCoverImageURL=StringPool.BLANK;
+  long oldSmallImageId=0;
+  String oldSmallImageURL=StringPool.BLANK;
+  if (entryId != 0) {
+    BlogsEntry entry=_blogsEntryLocalService.getBlogsEntry(entryId);
+    oldCoverImageId=entry.getCoverImageFileEntryId();
+    oldCoverImageURL=entry.getCoverImageURL();
+    oldSmallImageId=entry.getSmallImageId();
+    oldSmallImageURL=entry.getSmallImageURL();
+  }
+  ImageSelector coverImageImageSelector=null;
+  boolean coverImageTempFile=false;
+  if (coverImageFileEntryId != oldCoverImageId) {
+    if (coverImageFileEntryId != 0) {
+      FileEntry coverImageFileEntry=PortletFileRepositoryUtil.getPortletFileEntry(coverImageFileEntryId);
+      coverImageTempFile=coverImageFileEntry.isRepositoryCapabilityProvided(TemporaryFileEntriesCapability.class);
+      coverImageImageSelector=new ImageSelector(FileUtil.getBytes(coverImageFileEntry.getContentStream()),coverImageFileEntry.getTitle(),coverImageFileEntry.getMimeType(),coverImageFileEntryCropRegion);
+    }
+ else {
+      coverImageImageSelector=new ImageSelector();
+    }
+  }
+ else   if (!coverImageURL.equals(oldCoverImageURL)) {
+    coverImageImageSelector=new ImageSelector(coverImageURL);
+  }
   long smallImageFileEntryId=ParamUtil.getLong(actionRequest,"smallImageFileEntryId");
   String smallImageURL=ParamUtil.getString(actionRequest,"smallImageURL");
-  ImageSelector smallImageImageSelector=new ImageSelector(smallImageFileEntryId,smallImageURL,null);
+  ImageSelector smallImageImageSelector=null;
+  boolean smallImageTempFile=false;
+  if (smallImageFileEntryId != oldSmallImageId) {
+    if (smallImageFileEntryId != 0) {
+      FileEntry smallImageFileEntry=PortletFileRepositoryUtil.getPortletFileEntry(smallImageFileEntryId);
+      smallImageTempFile=smallImageFileEntry.isRepositoryCapabilityProvided(TemporaryFileEntriesCapability.class);
+      smallImageImageSelector=new ImageSelector(FileUtil.getBytes(smallImageFileEntry.getContentStream()),smallImageFileEntry.getTitle(),smallImageFileEntry.getMimeType(),StringPool.BLANK);
+    }
+ else {
+      smallImageImageSelector=new ImageSelector();
+    }
+  }
+ else   if (!smallImageURL.equals(oldSmallImageURL)) {
+    smallImageImageSelector=new ImageSelector(smallImageURL);
+  }
   ServiceContext serviceContext=ServiceContextFactory.getInstance(BlogsEntry.class.getName(),actionRequest);
   BlogsEntry entry=null;
   String oldUrlTitle=StringPool.BLANK;
@@ -72,6 +111,14 @@
     if (!tempOldUrlTitle.equals(entry.getUrlTitle())) {
       oldUrlTitle=tempOldUrlTitle;
     }
+  }
+  if (coverImageTempFile) {
+    _blogsEntryLocalService.addOriginalImageFileEntry(themeDisplay.getUserId(),entry.getGroupId(),entry.getEntryId(),coverImageImageSelector);
+    PortletFileRepositoryUtil.deletePortletFileEntry(coverImageFileEntryId);
+  }
+  if (smallImageTempFile) {
+    _blogsEntryLocalService.addOriginalImageFileEntry(themeDisplay.getUserId(),entry.getGroupId(),entry.getEntryId(),smallImageImageSelector);
+    PortletFileRepositoryUtil.deletePortletFileEntry(smallImageFileEntryId);
   }
   return new Object[]{entry,oldUrlTitle,blogsEntryAttachmentFileEntryReferences};
 }
