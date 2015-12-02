@@ -1,20 +1,27 @@
 {
-  FileEntry fileEntry=PortletFileRepositoryUtil.getPortletFileEntry(imageSelector.getImageId());
-  addOriginalImageFileEntry(userId,groupId,entryId,fileEntry);
-  File file=null;
+  byte[] imageBytes=imageSelector.getImageBytes();
+  if (imageBytes == null) {
+    return 0;
+  }
   try {
-    byte[] bytes=imageSelector.getCroppedImageBytes();
-    if (bytes == null) {
+    JSONObject jsonObject=JSONFactoryUtil.createJSONObject(imageSelector.getImageCropRegion());
+    int height=jsonObject.getInt("height");
+    int width=jsonObject.getInt("width");
+    int x=jsonObject.getInt("x");
+    int y=jsonObject.getInt("y");
+    if ((x > 0) || (y > 0) || (width > 0)|| (height > 0)) {
+      ImageBag imageBag=ImageToolUtil.read(imageBytes);
+      RenderedImage renderedImage=imageBag.getRenderedImage();
+      renderedImage=ImageToolUtil.crop(renderedImage,height,width,x,y);
+      imageBytes=ImageToolUtil.getBytes(renderedImage,imageBag.getType());
+    }
+    if (imageBytes == null) {
       throw new EntryCoverImageCropException();
     }
-    file=FileUtil.createTempFile(bytes);
     Folder folder=addCoverImageFolder(userId,groupId);
-    return addProcessedImageFileEntry(userId,groupId,entryId,folder.getFolderId(),imageSelector,file);
+    return addProcessedImageFileEntry(userId,groupId,entryId,folder.getFolderId(),imageSelector.getImageTitle(),imageSelector.getImageMimeType(),imageBytes);
   }
  catch (  IOException ioe) {
     throw new EntryCoverImageCropException();
-  }
- finally {
-    FileUtil.delete(file);
   }
 }
