@@ -5,10 +5,43 @@
     return portletPreferences;
   }
   List<Element> referenceElements=referencesElement.elements();
+  long oldScopeGroupId=portletDataContext.getScopeGroupId();
   for (  Element referenceElement : referenceElements) {
-    String className=referenceElement.attributeValue("class-name");
-    long classPK=GetterUtil.getLong(referenceElement.attributeValue("class-pk"));
-    StagedModelDataHandlerUtil.importReferenceStagedModel(portletDataContext,className,classPK);
+    try {
+      String className=referenceElement.attributeValue("class-name");
+      long classPK=GetterUtil.getLong(referenceElement.attributeValue("class-pk"));
+      String scopeLayoutUuid=GetterUtil.getString(referenceElement.attributeValue("scope-layout-uuid"));
+      if (Validator.isNotNull(scopeLayoutUuid)) {
+        try {
+          Layout scopeLayout=_layoutLocalService.getLayoutByUuidAndGroupId(scopeLayoutUuid,portletDataContext.getGroupId(),portletDataContext.isPrivateLayout());
+          Group scopeGroup=_layoutLocalService.checkScopeGroup(scopeLayout,portletDataContext.getUserId(null));
+          portletDataContext.setScopeGroupId(scopeGroup.getGroupId());
+        }
+ catch (        NoSuchLayoutException nsle) {
+          if (_log.isInfoEnabled()) {
+            StringBundler sb=new StringBundler(9);
+            sb.append("Unable to find layout in group ");
+            sb.append(portletDataContext.getGroupId());
+            sb.append(" with UUID ");
+            sb.append(scopeLayoutUuid);
+            sb.append(" therefore the layout scoped element with " + "className ");
+            sb.append(className);
+            sb.append(" and classPK ");
+            sb.append(classPK);
+            sb.append(" cannot be imported");
+            _log.info(sb.toString());
+          }
+          continue;
+        }
+catch (        PortalException pe) {
+          throw new PortletDataException(pe);
+        }
+      }
+      StagedModelDataHandlerUtil.importReferenceStagedModel(portletDataContext,className,classPK);
+    }
+  finally {
+      portletDataContext.setScopeGroupId(oldScopeGroupId);
+    }
   }
   return portletPreferences;
 }
