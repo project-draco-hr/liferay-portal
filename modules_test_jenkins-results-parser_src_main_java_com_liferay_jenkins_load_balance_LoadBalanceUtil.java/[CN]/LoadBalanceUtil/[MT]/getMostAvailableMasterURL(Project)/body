@@ -1,89 +1,88 @@
 {
   int retries=0;
   while (true) {
-    String baseInvocationUrl=project.getProperty("base.invocation.url");
-    String hostNamePrefix=getHostNamePrefix(baseInvocationUrl);
-    if (hostNamePrefix.equals(baseInvocationUrl)) {
-      return baseInvocationUrl;
+    String baseInvocationURL=project.getProperty("base.invocation.url");
+    String hostNamePrefix=getHostNamePrefix(baseInvocationURL);
+    if (hostNamePrefix.equals(baseInvocationURL)) {
+      return baseInvocationURL;
     }
     int hostNameCount=getHostNameCount(project,hostNamePrefix);
     File baseDir=new File(project.getProperty("jenkins.shared.dir") + "/" + hostNamePrefix);
     File semaphoreFile=new File(baseDir,hostNamePrefix + ".semaphore");
     waitForTurn(semaphoreFile,hostNameCount);
-    JenkinsResultsParserUtil.write(semaphoreFile,myHostName);
+    JenkinsResultsParserUtil.write(semaphoreFile,_MY_HOST_NAME);
     Map<String,Integer> recentJobsMap=getRecentJobsMap(new File(baseDir,"recentJobs"));
-    List<String> hostNameList=new ArrayList<>(hostNameCount);
+    List<String> hostNames=new ArrayList<>(hostNameCount);
     int maxResult=Integer.MIN_VALUE;
     int x=-1;
     try {
-      List<FutureTask<Integer>> taskList=new ArrayList<>(hostNameCount);
-      startParallelTasks(recentJobsMap,hostNameList,hostNamePrefix,hostNameCount,project,taskList);
-      List<Integer> badIndicies=new ArrayList<>(taskList.size());
-      List<Integer> maxIndicies=new ArrayList<>(taskList.size());
-      StringBuilder message=new StringBuilder();
-      for (int i=0; i < taskList.size(); i++) {
-        FutureTask<Integer> task=taskList.get(i);
-        Integer result=task.get();
+      List<FutureTask<Integer>> futureTasks=new ArrayList<>(hostNameCount);
+      startParallelTasks(recentJobsMap,hostNames,hostNamePrefix,hostNameCount,project,futureTasks);
+      List<Integer> badIndices=new ArrayList<>(futureTasks.size());
+      List<Integer> maxIndices=new ArrayList<>(futureTasks.size());
+      StringBuilder sb=new StringBuilder();
+      for (int i=0; i < futureTasks.size(); i++) {
+        FutureTask<Integer> futureTask=futureTasks.get(i);
+        Integer result=futureTask.get();
         if (result == null) {
-          badIndicies.add(i);
+          badIndices.add(i);
           continue;
         }
-        message.append(hostNameList.get(i));
-        message.append(" : ");
-        message.append(result);
-        message.append("\n");
+        sb.append(hostNames.get(i));
+        sb.append(" : ");
+        sb.append(result);
+        sb.append("\n");
         if (result > maxResult) {
           maxResult=result;
-          maxIndicies.clear();
+          maxIndices.clear();
         }
         if (result >= maxResult) {
-          maxIndicies.add(i);
+          maxIndices.add(i);
         }
       }
       if (maxResult == Integer.MIN_VALUE) {
         if (retries == 3) {
-          throw new RuntimeException("Retry limit exceeded. Could not communicate " + " with masters.");
+          throw new RuntimeException("Retry limit exceeded. Unable to communicate " + " with masters.");
         }
         retries++;
         continue;
       }
-      if (maxIndicies.size() > 0) {
-        x=maxIndicies.get(getRandomValue(0,maxIndicies.size() - 1));
+      if (maxIndices.size() > 0) {
+        x=maxIndices.get(getRandomValue(0,maxIndices.size() - 1));
       }
  else {
         while (true) {
           x=getRandomValue(0,hostNameCount - 1);
-          if (badIndicies.contains(x)) {
+          if (badIndices.contains(x)) {
             continue;
           }
           break;
         }
       }
-      message.append("\nMost available master: ");
-      message.append(hostNameList.get(x));
-      message.append(" with ");
-      message.append(Integer.toString(maxResult));
-      message.append(" available slaves.");
-      System.out.println(message);
-      return hostNameList.get(x);
+      sb.append("\nMost available master ");
+      sb.append(hostNames.get(x));
+      sb.append(" has ");
+      sb.append(maxResult);
+      sb.append(" available slaves.");
+      System.out.println(sb);
+      return hostNames.get(x);
     }
   finally {
       JenkinsResultsParserUtil.write(semaphoreFile,"");
-      if (recentJobsPeriod > 0) {
-        File recentJobsFile=new File(baseDir,"recentJobs/" + hostNameList.get(x));
+      if (rejectJobsPeriod > 0) {
         String existingContent="";
+        File recentJobsFile=new File(baseDir,"recentJobs/" + hostNames.get(x));
         if (recentJobsFile.exists()) {
           existingContent=JenkinsResultsParserUtil.read(recentJobsFile);
           if (existingContent.length() > 0) {
             existingContent+="|";
           }
         }
-        int batchSizeInt=1;
-        String batchSizeString=project.getProperty("invoked.job.batch.size");
-        if ((batchSizeString != null) && (batchSizeString.length() > 0)) {
-          batchSizeInt=Integer.parseInt(batchSizeString);
+        String invokedJobBatchSize=project.getProperty("invoked.job.batch.size");
+        if ((invokedJobBatchSize == null) || (invokedJobBatchSize.length() == 0)) {
+          invokedJobBatchSize="1";
         }
-        JenkinsResultsParserUtil.write(recentJobsFile,existingContent + batchSizeInt + "-"+ System.currentTimeMillis());
+        JenkinsResultsParserUtil.write(recentJobsFile,existingContent + invokedJobBatchSize + "-"+ System.currentTimeMillis());
       }
     }
   }
