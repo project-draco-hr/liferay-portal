@@ -1,0 +1,36 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)resourceRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  boolean fullView=ParamUtil.getBoolean(resourceRequest,"fullView");
+  boolean actionable=ParamUtil.getBoolean(resourceRequest,"actionable");
+  int start=ParamUtil.getInteger(resourceRequest,"start");
+  int end=ParamUtil.getInteger(resourceRequest,"end");
+  List<UserNotificationEvent> userNotificationEvents=null;
+  int total=0;
+  if (fullView) {
+    userNotificationEvents=UserNotificationEventLocalServiceUtil.getDeliveredUserNotificationEvents(themeDisplay.getUserId(),UserNotificationDeliveryConstants.TYPE_WEBSITE,true,actionable,start,end);
+    total=UserNotificationEventLocalServiceUtil.getArchivedUserNotificationEventsCount(themeDisplay.getUserId(),UserNotificationDeliveryConstants.TYPE_WEBSITE,actionable,false);
+  }
+ else {
+    userNotificationEvents=UserNotificationEventLocalServiceUtil.getArchivedUserNotificationEvents(themeDisplay.getUserId(),UserNotificationDeliveryConstants.TYPE_WEBSITE,actionable,false,start,end);
+    total=UserNotificationEventLocalServiceUtil.getArchivedUserNotificationEventsCount(themeDisplay.getUserId(),UserNotificationDeliveryConstants.TYPE_WEBSITE,actionable,false);
+  }
+  JSONArray jsonArray=JSONFactoryUtil.createJSONArray();
+  List<Long> newUserNotificationEventIds=new ArrayList<>();
+  for (  UserNotificationEvent userNotificationEvent : userNotificationEvents) {
+    String entry=renderEntry(resourceRequest,resourceResponse,userNotificationEvent);
+    if (Validator.isNotNull(entry)) {
+      jsonArray.put(entry);
+      if (!userNotificationEvent.isArchived()) {
+        newUserNotificationEventIds.add(userNotificationEvent.getUserNotificationEventId());
+      }
+    }
+  }
+  JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+  jsonObject.put("entries",jsonArray);
+  int newTotalUuserNotificationEventsCount=total;
+  jsonObject.put("newTotalUuserNotificationEventsCount",newTotalUuserNotificationEventsCount);
+  jsonObject.put("newUserNotificationEventIds",StringUtil.merge(newUserNotificationEventIds));
+  jsonObject.put("newUserNotificationEventsCount",newUserNotificationEventIds.size());
+  jsonObject.put("total",total);
+  writeJSON(resourceRequest,resourceResponse,jsonObject);
+}
