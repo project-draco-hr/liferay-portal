@@ -1,5 +1,5 @@
 {
-  int retries=0;
+  int retryCount=0;
   while (true) {
     String baseInvocationURL=project.getProperty("base.invocation.url");
     String hostNamePrefix=getHostNamePrefix(baseInvocationURL);
@@ -11,40 +11,40 @@
     File semaphoreFile=new File(baseDir,hostNamePrefix + ".semaphore");
     waitForTurn(semaphoreFile,hostNameCount);
     JenkinsResultsParserUtil.write(semaphoreFile,_MY_HOST_NAME);
-    Map<String,Integer> recentJobsMap=getRecentJobCountsMap(new File(baseDir,"recentJobs"));
+    Map<String,Integer> recentJobMap=getRecentJobCountMap(new File(baseDir,"recentJob"));
     List<String> hostNames=new ArrayList<>(hostNameCount);
-    int maxAvailableCount=Integer.MIN_VALUE;
+    int maxAvailableSlaveCount=Integer.MIN_VALUE;
     int x=-1;
     try {
       List<FutureTask<Integer>> futureTasks=new ArrayList<>(hostNameCount);
-      startParallelTasks(recentJobsMap,hostNames,hostNamePrefix,hostNameCount,project,futureTasks);
+      startParallelTasks(recentJobMap,hostNames,hostNamePrefix,hostNameCount,project,futureTasks);
       List<Integer> badIndices=new ArrayList<>(futureTasks.size());
       List<Integer> maxIndices=new ArrayList<>(futureTasks.size());
       StringBuilder sb=new StringBuilder();
       for (int i=0; i < futureTasks.size(); i++) {
         FutureTask<Integer> futureTask=futureTasks.get(i);
-        Integer availableCount=futureTask.get();
-        if (availableCount == null) {
+        Integer availableSlaveCount=futureTask.get();
+        if (availableSlaveCount == null) {
           badIndices.add(i);
           continue;
         }
         sb.append(hostNames.get(i));
         sb.append(" : ");
-        sb.append(availableCount);
+        sb.append(availableSlaveCount);
         sb.append("\n");
-        if (availableCount > maxAvailableCount) {
-          maxAvailableCount=availableCount;
+        if (availableSlaveCount > maxAvailableSlaveCount) {
+          maxAvailableSlaveCount=availableSlaveCount;
           maxIndices.clear();
         }
-        if (availableCount >= maxAvailableCount) {
+        if (availableSlaveCount >= maxAvailableSlaveCount) {
           maxIndices.add(i);
         }
       }
-      if (maxAvailableCount == Integer.MIN_VALUE) {
-        if (retries == 3) {
+      if (maxAvailableSlaveCount == Integer.MIN_VALUE) {
+        if (retryCount == 3) {
           throw new RuntimeException("Retry limit exceeded. Unable to communicate " + " with masters.");
         }
-        retries++;
+        retryCount++;
         continue;
       }
       if (maxIndices.size() > 0) {
@@ -59,21 +59,21 @@
           break;
         }
       }
-      sb.append("\nMost available master ");
+      sb.append("\nMaster with the most available slaves ");
       sb.append(hostNames.get(x));
       sb.append(" has ");
-      sb.append(maxAvailableCount);
+      sb.append(maxAvailableSlaveCount);
       sb.append(" available slaves.");
       System.out.println(sb);
       return hostNames.get(x);
     }
   finally {
       JenkinsResultsParserUtil.write(semaphoreFile,"");
-      if (recentJobsPeriod > 0) {
+      if (recentJobPeriod > 0) {
         StringBuilder sb=new StringBuilder();
-        File recentJobsFile=new File(baseDir,"recentJobs/" + hostNames.get(x));
-        if (recentJobsFile.exists()) {
-          sb.append(JenkinsResultsParserUtil.read(recentJobsFile));
+        File recentJobFile=new File(baseDir,"recentJob/" + hostNames.get(x));
+        if (recentJobFile.exists()) {
+          sb.append(JenkinsResultsParserUtil.read(recentJobFile));
           if (sb.length() > 0) {
             sb.append("|");
           }
@@ -85,7 +85,7 @@
         sb.append(invokedJobBatchSize);
         sb.append("-");
         sb.append(System.currentTimeMillis());
-        JenkinsResultsParserUtil.write(recentJobsFile,sb.toString());
+        JenkinsResultsParserUtil.write(recentJobFile,sb.toString());
       }
     }
   }
