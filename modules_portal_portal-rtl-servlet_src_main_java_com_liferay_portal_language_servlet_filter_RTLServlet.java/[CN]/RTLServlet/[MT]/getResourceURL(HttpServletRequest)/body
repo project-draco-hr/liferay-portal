@@ -1,0 +1,47 @@
+{
+  String languageId=request.getParameter("languageId");
+  String pathInfo=URLDecoder.decode(RequestDispatcherUtil.getEffectivePath(request),StringPool.UTF8);
+  URL url=_servletContextHelper.getResource(pathInfo);
+  if (url == null) {
+    return null;
+  }
+  if ((languageId == null) || !PortalUtil.isRightToLeft(request)) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Nothing to do; languageId=" + languageId + ", PortalUtil.isRightToLeft(request)="+ PortalUtil.isRightToLeft(request));
+    }
+    return url;
+  }
+  String pathWithRTL=FileUtil.append(pathInfo,"_rtl");
+  URL urlRTL=_servletContextHelper.getResource(pathWithRTL);
+  if (urlRTL != null) {
+    return urlRTL;
+  }
+  File dataFile=_bundle.getDataFile(pathWithRTL);
+  if (dataFile.exists() && (dataFile.lastModified() > url.openConnection().getLastModified())) {
+    URI uri=dataFile.toURI();
+    return uri.toURL();
+  }
+  RTLCSSConverter rtlcssConverter=new RTLCSSConverter(false);
+  String rtl=rtlcssConverter.process(StringUtil.read(url.openStream()));
+  ByteArrayInputStream inputStream=new ByteArrayInputStream(rtl.getBytes(StringPool.UTF8));
+  OutputStream outputStream=null;
+  try {
+    dataFile.getParentFile().mkdirs();
+    dataFile.createNewFile();
+    outputStream=new FileOutputStream(dataFile);
+    StreamUtil.transfer(inputStream,outputStream,false);
+  }
+ catch (  IOException ioe) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Could not cache RTL'ed CSS",ioe);
+    }
+  }
+ finally {
+    if (outputStream != null) {
+      outputStream.close();
+    }
+  }
+  inputStream.reset();
+  URI uri=dataFile.toURI();
+  return uri.toURL();
+}
