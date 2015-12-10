@@ -25,14 +25,16 @@
     private final CountDownLatch _shutdownCountDownLatch=new CountDownLatch(1);
   }
 ;
-  Path hsqlHomePath=Paths.get(_HSQL_HOME);
-  Files.createDirectories(hsqlHomePath);
-  Path hsqlHomeTempPath=Paths.get(_HSQL_TEMP);
-  deleteFolder(hsqlHomeTempPath);
-  copyFile(_databaseName.concat(".log"),hsqlHomePath,hsqlHomeTempPath);
-  copyFile(_databaseName.concat(".properties"),hsqlHomePath,hsqlHomeTempPath);
-  copyFile(_databaseName.concat(".script"),hsqlHomePath,hsqlHomeTempPath);
-  server.setErrWriter(new UnsyncPrintWriter(new File(_HSQL_TEMP,_databaseName + ".err.log")));
+  try (Connection connection=DriverManager.getConnection(PropsValues.JDBC_DEFAULT_URL,"sa","");Statement statement=connection.createStatement()){
+    StringBundler sb=new StringBundler(3);
+    sb.append("BACKUP DATABASE TO ");
+    sb.append(StringPool.APOSTROPHE);
+    sb.append(_HSQL_TEMP);
+    sb.append(StringPool.APOSTROPHE);
+    sb.append(" BLOCKING AS FILES");
+    statement.execute(sb.toString());
+  }
+   server.setErrWriter(new UnsyncPrintWriter(new File(_HSQL_TEMP,_databaseName + ".err.log")));
   server.setLogWriter(new UnsyncPrintWriter(new File(_HSQL_TEMP,_databaseName + ".std.log")));
   server.setDatabaseName(0,_databaseName);
   server.setDatabasePath(0,_HSQL_TEMP + _databaseName);
