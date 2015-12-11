@@ -1,0 +1,30 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+  String cmd=ParamUtil.getString(request,Constants.CMD);
+  if (cmd.equals("login")) {
+    GoogleAuthorizationCodeFlow googleAuthorizationCodeFlow=getGoogleAuthorizationCodeFlow(themeDisplay.getCompanyId());
+    GoogleAuthorizationCodeRequestUrl googleAuthorizationCodeRequestUrl=googleAuthorizationCodeFlow.newAuthorizationUrl();
+    googleAuthorizationCodeRequestUrl.setRedirectUri(getRedirectURI(request));
+    response.sendRedirect(googleAuthorizationCodeRequestUrl.build());
+  }
+ else   if (cmd.equals("token")) {
+    HttpSession session=request.getSession();
+    String code=ParamUtil.getString(request,"code");
+    if (Validator.isNotNull(code)) {
+      Credential credential=getCredential(themeDisplay.getCompanyId(),code,getRedirectURI(request));
+      User user=setCredential(session,themeDisplay.getCompanyId(),credential);
+      if ((user != null) && (user.getStatus() == WorkflowConstants.STATUS_INCOMPLETE)) {
+        sendUpdateAccountRedirect(request,response,user);
+        return null;
+      }
+      sendLoginRedirect(request,response);
+      return null;
+    }
+    String error=ParamUtil.getString(request,"error");
+    if (error.equals("access_denied")) {
+      sendLoginRedirect(request,response);
+      return null;
+    }
+  }
+  return null;
+}
