@@ -1,27 +1,26 @@
 {
-  gitHubJobMessageUtilTest.dependenciesDir=sampleDir;
   int jobCount=0;
-  int passCount=0;
-  StringBuilder reportFilesSB=new StringBuilder();
   String content=JenkinsResultsParserUtil.toString(JenkinsResultsParserUtil.getLocalURL(progressiveTextURL));
   Matcher progressiveTextMatcher=_progressiveTextPattern.matcher(content);
+  StringBuilder sb=new StringBuilder();
   while (progressiveTextMatcher.find()) {
-    String urlString=progressiveTextMatcher.group("url");
-    Matcher jobNameMatcher=_jobNamePattern.matcher(urlString);
-    jobNameMatcher.find();
-    JSONObject jsonObject=JenkinsResultsParserUtil.toJSONObject(JenkinsResultsParserUtil.getLocalURL(urlString + "/api/json"));
-    Project project=getProject(null,urlString,sampleDir.getPath());
-    GitHubJobMessageUtil.getGitHubJobMessage(project);
-    File reportFile=new File(sampleDir,jobCount + "-report.html");
-    write(reportFile,"<h5 job-result=\\\"" + jsonObject.getString("result") + "\\\"><a href=\""+ urlString+ "\">"+ jobNameMatcher.group("jobName")+ "</a></h5>"+ project.getProperty("report.html.content"));
-    if (reportFilesSB.length() > 0) {
-      reportFilesSB.append(" ");
+    String fileSuffix=null;
+    String url=progressiveTextMatcher.group("url");
+    String urlSuffix=null;
+    if (url.contains("-source")) {
+      fileSuffix="source-" + jobCount;
+      urlSuffix="/api/json";
     }
-    reportFilesSB.append(reportFile.getPath());
-    String result=jsonObject.getString("result");
-    if (result.equals("SUCCESS")) {
-      passCount++;
+ else {
+      fileSuffix=Integer.toString(jobCount);
+      urlSuffix="/testReport/api/json";
     }
+    JenkinsResultsParserUtil.write(new File(sampleDir,"job-" + fileSuffix + urlSuffix),JenkinsResultsParserUtil.toString(JenkinsResultsParserUtil.getLocalURL(url + urlSuffix + "?pretty")));
+    if (sb.length() > 0) {
+      sb.append("|");
+    }
+    sb.append(toURLString(new File(sampleDir,"job-" + fileSuffix)));
     jobCount++;
   }
+  JenkinsResultsParserUtil.write(new File(sampleDir,"urls.txt"),sb.toString());
 }
