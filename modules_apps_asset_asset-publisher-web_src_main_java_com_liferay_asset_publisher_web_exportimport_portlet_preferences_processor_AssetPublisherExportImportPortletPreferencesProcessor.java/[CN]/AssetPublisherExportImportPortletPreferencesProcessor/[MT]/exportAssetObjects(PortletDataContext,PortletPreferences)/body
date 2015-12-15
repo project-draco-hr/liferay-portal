@@ -1,7 +1,29 @@
 {
+  List<AssetEntry> assetEntries=null;
   Layout layout=_layoutLocalService.getLayout(portletDataContext.getPlid());
   long[] groupIds=AssetPublisherUtil.getGroupIds(portletPreferences,portletDataContext.getScopeGroupId(),layout);
-  List<AssetEntry> assetEntries=AssetPublisherUtil.getAssetEntries(null,portletPreferences,PermissionThreadLocal.getPermissionChecker(),groupIds,false,false);
+  String selectionStyle=portletPreferences.getValue("selectionStyle","dynamic");
+  if (selectionStyle.equals("dynamic")) {
+    if (!AssetPublisherWebConfigurationValues.DYNAMIC_EXPORT_ENABLED) {
+      return;
+    }
+    AssetEntryQuery assetEntryQuery=getAssetEntryQuery(layout,portletDataContext.getCompanyGroupId(),groupIds,portletPreferences);
+    long assetVocabularyId=GetterUtil.getLong(portletPreferences.getValue("assetVocabularyId",null));
+    if (assetVocabularyId > 0) {
+      mergeAnyCategoryIds(assetEntryQuery,assetVocabularyId);
+      if (ArrayUtil.isEmpty(assetEntryQuery.getAnyCategoryIds())) {
+        return;
+      }
+    }
+    BaseModelSearchResult<AssetEntry> baseModelSearchResult=AssetPublisherUtil.getAssetEntries(assetEntryQuery,layout,portletPreferences,AssetPublisherPortletKeys.ASSET_PUBLISHER,LocaleUtil.getDefault(),TimeZoneUtil.getDefault(),portletDataContext.getCompanyId(),portletDataContext.getScopeGroupId(),UserConstants.USER_ID_DEFAULT,new HashMap<String,Serializable>(),assetEntryQuery.getStart(),assetEntryQuery.getEnd());
+    assetEntries=baseModelSearchResult.getBaseModels();
+  }
+ else {
+    if (!AssetPublisherWebConfigurationValues.DYNAMIC_EXPORT_ENABLED) {
+      return;
+    }
+    assetEntries=AssetPublisherUtil.getAssetEntries(null,portletPreferences,PermissionThreadLocal.getPermissionChecker(),groupIds,false,false);
+  }
   for (  AssetEntry assetEntry : assetEntries) {
     AssetRenderer<?> assetRenderer=assetEntry.getAssetRenderer();
     if ((assetRenderer == null) || !(assetRenderer.getAssetObject() instanceof StagedModel)) {
