@@ -1,0 +1,62 @@
+{
+  Session session=null;
+  try {
+    session=openSession();
+    StringBundler sb=new StringBundler(5);
+    sb.append(StringPool.OPEN_PARENTHESIS);
+    String sql=null;
+    if (queryDefinition.getStatus() == WorkflowConstants.STATUS_ANY) {
+      sql=CustomSQLUtil.get(COUNT_T_BY_G_C);
+    }
+ else {
+      sql=CustomSQLUtil.get(COUNT_T_BY_G_C_S);
+      sql=replaceExcludeStatus(sql,queryDefinition);
+    }
+    if (inlineSQLHelper) {
+      sql=InlineSQLHelperUtil.replacePermissionCheck(sql,MBMessage.class.getName(),"MBThread.rootMessageId",groupId);
+    }
+    sb.append(sql);
+    sb.append(") UNION ALL (");
+    if (queryDefinition.getStatus() == WorkflowConstants.STATUS_ANY) {
+      sql=CustomSQLUtil.get(COUNT_C_BY_G_P);
+    }
+ else {
+      sql=CustomSQLUtil.get(COUNT_C_BY_G_P_S);
+      sql=replaceExcludeStatus(sql,queryDefinition);
+    }
+    if (inlineSQLHelper) {
+      sql=InlineSQLHelperUtil.replacePermissionCheck(sql,MBCategory.class.getName(),"MBCategory.categoryId",groupId);
+    }
+    sb.append(sql);
+    sb.append(StringPool.CLOSE_PARENTHESIS);
+    sql=sb.toString();
+    SQLQuery q=session.createSynchronizedSQLQuery(sql);
+    q.addScalar(COUNT_COLUMN_NAME,Type.LONG);
+    QueryPos qPos=QueryPos.getInstance(q);
+    qPos.add(groupId);
+    qPos.add(categoryId);
+    if (queryDefinition.getStatus() != WorkflowConstants.STATUS_ANY) {
+      qPos.add(queryDefinition.getStatus());
+    }
+    qPos.add(groupId);
+    qPos.add(categoryId);
+    if (queryDefinition.getStatus() != WorkflowConstants.STATUS_ANY) {
+      qPos.add(queryDefinition.getStatus());
+    }
+    int count=0;
+    Iterator<Long> itr=q.iterate();
+    while (itr.hasNext()) {
+      Long l=itr.next();
+      if (l != null) {
+        count+=l.intValue();
+      }
+    }
+    return count;
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+}
