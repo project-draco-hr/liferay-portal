@@ -1,0 +1,31 @@
+{
+  Indexer indexer=_indexerRegistry.nullSafeGetIndexer(ConfigurationModel.class);
+  SearchContext searchContext=new SearchContext();
+  searchContext.setAndSearch(false);
+  searchContext.setCompanyId(CompanyConstants.SYSTEM);
+  String keywords=actionRequest.getParameter("keywords");
+  if (Validator.isNotNull(keywords)) {
+    searchContext.setKeywords(keywords);
+  }
+  QueryConfig queryConfig=searchContext.getQueryConfig();
+  queryConfig.setHighlightEnabled(true);
+  queryConfig.setScoreEnabled(true);
+  try {
+    Hits hits=indexer.search(searchContext);
+    Document[] documents=hits.getDocs();
+    Map<String,ConfigurationModel> configurationModels=_configurationModelRetriever.getConfigurationModels();
+    List<ConfigurationModel> searchResults=new ArrayList<>(documents.length);
+    for (    Document document : documents) {
+      String configurationModelId=document.get(FieldNames.CONFIGURATION_MODEL_ID);
+      ConfigurationModel configurationModel=configurationModels.get(configurationModelId);
+      if (configurationModel != null) {
+        searchResults.add(configurationModel);
+      }
+    }
+    ConfigurationModelIterator configurationModelIterator=new ConfigurationModelIterator(searchResults);
+    actionRequest.setAttribute(ConfigurationAdminWebKeys.CONFIGURATION_MODEL_ITERATOR,configurationModelIterator);
+  }
+ catch (  Exception e) {
+    throw new PortletException(e);
+  }
+}
