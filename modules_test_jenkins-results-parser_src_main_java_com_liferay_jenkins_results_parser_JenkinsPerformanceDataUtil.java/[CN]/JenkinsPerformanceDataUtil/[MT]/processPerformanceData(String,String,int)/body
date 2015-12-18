@@ -1,12 +1,31 @@
 {
   JSONObject jsonObject=null;
   if (url.contains("-source")) {
-    jsonObject=JenkinsResultsParserUtil.toJSONObject(JenkinsResultsParserUtil.getLocalURL(url + "/api/json"));
+    jsonObject=JenkinsResultsParserUtil.toJSONObject(JenkinsResultsParserUtil.getLocalURL(url + "/api/json"),false);
     _results.add(new Result(jobName,jsonObject));
   }
  else {
-    jsonObject=JenkinsResultsParserUtil.toJSONObject(JenkinsResultsParserUtil.getLocalURL(url + "/testReport/api/json"));
-    _results.addAll(_getSlowestResults(jobName,jsonObject,size));
+    int retryCount=0;
+    while (true) {
+      jsonObject=JenkinsResultsParserUtil.toJSONObject(JenkinsResultsParserUtil.getLocalURL(url + "/testReport/api/json"),false);
+      try {
+        _results.addAll(_getSlowestResults(jobName,jsonObject,size));
+        break;
+      }
+ catch (      IllegalArgumentException iae) {
+        String message=iae.getMessage();
+        if (!message.contains("Result not yet available")) {
+          throw iae;
+        }
+        retryCount++;
+        if (retryCount > 5) {
+          System.out.println("Exceeded max retries to get child report " + "results.");
+          throw iae;
+        }
+        System.out.println(message + "\n Retry in 30 seconds.");
+        Thread.sleep(30 * 1000);
+      }
+    }
   }
   Collections.sort(_results);
   _truncate(_results,size);
