@@ -5,34 +5,19 @@
     UploadException uploadException=(UploadException)actionRequest.getAttribute(WebKeys.UPLOAD_EXCEPTION);
     if (uploadException != null) {
       Throwable cause=uploadException.getCause();
-      if (cmd.equals(Constants.ADD_TEMP)) {
-        if (cause instanceof FileUploadBase.IOFileUploadException) {
-          if (_log.isInfoEnabled()) {
-            _log.info("Temporary upload was cancelled");
-          }
-        }
+      if (uploadException.isExceededFileSizeLimit()) {
+        throw new FileSizeException(cause);
       }
- else {
-        if (uploadException.isExceededFileSizeLimit()) {
-          throw new FileSizeException(cause);
-        }
-        if (uploadException.isExceededLiferayFileItemSizeLimit()) {
-          throw new LiferayFileItemException(cause);
-        }
-        if (uploadException.isExceededUploadRequestSizeLimit()) {
-          throw new UploadRequestSizeException(cause);
-        }
-        throw new PortalException(cause);
+      if (uploadException.isExceededLiferayFileItemSizeLimit()) {
+        throw new LiferayFileItemException(cause);
       }
+      if (uploadException.isExceededUploadRequestSizeLimit()) {
+        throw new UploadRequestSizeException(cause);
+      }
+      throw new PortalException(cause);
     }
  else     if (cmd.equals(Constants.ADD)) {
       addAttachment(actionRequest);
-    }
- else     if (cmd.equals(Constants.ADD_MULTIPLE)) {
-      addMultipleFileEntries(portletConfig,actionRequest,actionResponse);
-    }
- else     if (cmd.equals(Constants.ADD_TEMP)) {
-      addTempAttachment(actionRequest,actionResponse);
     }
  else     if (cmd.equals(Constants.CHECK)) {
       JSONObject jsonObject=RestoreEntryUtil.checkEntry(actionRequest);
@@ -41,9 +26,6 @@
     }
  else     if (cmd.equals(Constants.DELETE)) {
       deleteAttachment(actionRequest,false);
-    }
- else     if (cmd.equals(Constants.DELETE_TEMP)) {
-      deleteTempAttachment(actionRequest,actionResponse);
     }
  else     if (cmd.equals(Constants.EMPTY_TRASH)) {
       emptyTrash(actionRequest);
@@ -56,12 +38,13 @@
     }
  else     if (cmd.equals(Constants.RESTORE)) {
       restoreEntries(actionRequest);
+      String redirect=ParamUtil.getString(actionRequest,"redirect");
+      if (Validator.isNotNull(redirect)) {
+        actionResponse.sendRedirect(redirect);
+      }
     }
  else     if (cmd.equals(Constants.OVERRIDE)) {
       restoreOverride(actionRequest);
-    }
-    if (cmd.equals(Constants.ADD_TEMP) || cmd.equals(Constants.DELETE_TEMP)) {
-      actionResponse.setRenderParameter("mvcPath","/null.jsp");
     }
   }
  catch (  NoSuchNodeException|NoSuchPageException|PrincipalException e) {
