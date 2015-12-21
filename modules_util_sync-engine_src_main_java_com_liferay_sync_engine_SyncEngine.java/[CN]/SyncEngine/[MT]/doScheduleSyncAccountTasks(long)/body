@@ -38,12 +38,10 @@
       SyncSiteService.deactivateSyncSite(syncSite.getSyncSiteId());
     }
   }
-  SyncWatchEventService.deleteSyncWatchEvents(syncAccountId);
   if (!ConnectionRetryUtil.retryInProgress(syncAccountId)) {
     ServerEventUtil.synchronizeSyncSites(syncAccountId);
   }
-  SyncWatchEventProcessor syncWatchEventProcessor=new SyncWatchEventProcessor(syncAccountId);
-  ScheduledFuture<?> scheduledFuture=_localEventsScheduledExecutorService.scheduleWithFixedDelay(syncWatchEventProcessor,0,3,TimeUnit.SECONDS);
+  SyncWatchEventService.deleteSyncWatchEvents(syncAccountId);
   WatchEventListener watchEventListener=new SyncSiteWatchEventListener(syncAccountId);
   Watcher watcher=null;
   if (OSDetector.isApple()) {
@@ -52,9 +50,11 @@
  else {
     watcher=new JPathWatcher(syncAccountFilePath,watchEventListener);
   }
-  _executorService.execute(watcher);
+  watcher.walkFileTree(syncAccountFilePath);
+  SyncWatchEventProcessor syncWatchEventProcessor=new SyncWatchEventProcessor(syncAccountId);
+  syncWatchEventProcessor.run();
   if (!ConnectionRetryUtil.retryInProgress(syncAccountId)) {
     synchronizeSyncFiles(syncAccountId);
   }
-  scheduleGetSyncDLObjectUpdateEvent(syncAccount,syncWatchEventProcessor,scheduledFuture,watcher);
+  scheduleEvents(syncAccount,syncWatchEventProcessor,watcher);
 }
