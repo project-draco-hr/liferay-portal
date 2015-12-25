@@ -1,0 +1,54 @@
+{
+  Session session=null;
+  try {
+    session=openSession();
+    StringBundler sb=new StringBundler(5);
+    sb.append(StringPool.OPEN_PARENTHESIS);
+    String sql=CustomSQLUtil.get(FIND_C_BY_G_C);
+    if (inlineSQLHelper) {
+      sql=InlineSQLHelperUtil.replacePermissionCheck(sql,ShoppingCategory.class.getName(),"ShoppingCategory.categoryId",groupId);
+    }
+    sb.append(sql);
+    sb.append(") UNION ALL (");
+    sql=CustomSQLUtil.get(FIND_I_BY_G_C);
+    if (inlineSQLHelper) {
+      sql=InlineSQLHelperUtil.replacePermissionCheck(sql,ShoppingItem.class.getName(),"ShoppingItem.itemId",groupId);
+    }
+    sb.append(sql);
+    sb.append(StringPool.CLOSE_PARENTHESIS);
+    sql=sb.toString();
+    sql=CustomSQLUtil.replaceOrderBy(sql,queryDefinition.getOrderByComparator());
+    SQLQuery q=session.createSynchronizedSQLQuery(sql);
+    q.addScalar("modelCategoryId",Type.LONG);
+    q.addScalar("modelCategory",Type.LONG);
+    q.addScalar("modelItemId",Type.LONG);
+    QueryPos qPos=QueryPos.getInstance(q);
+    qPos.add(groupId);
+    qPos.add(categoryId);
+    qPos.add(groupId);
+    qPos.add(categoryId);
+    List<Object> models=new ArrayList<>();
+    Iterator<Object[]> itr=(Iterator<Object[]>)QueryUtil.iterate(q,getDialect(),queryDefinition.getStart(),queryDefinition.getEnd());
+    while (itr.hasNext()) {
+      Object[] array=itr.next();
+      long modelCategoryId=(Long)array[0];
+      long modelCategory=(Long)array[1];
+      Object obj=null;
+      if (modelCategory == 1) {
+        obj=ShoppingCategoryLocalServiceUtil.fetchShoppingCategory(modelCategoryId);
+      }
+ else {
+        long itemId=(Long)array[2];
+        obj=ShoppingItemLocalServiceUtil.fetchShoppingItem(itemId);
+      }
+      models.add(obj);
+    }
+    return models;
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+}
