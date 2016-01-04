@@ -2,6 +2,8 @@
   try (UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new UnsyncStringReader(data))){
     StringBundler sb=new StringBundler();
     String line=null;
+    String table=null;
+    StringBundler createRulesSqlSB=new StringBundler();
     while ((line=unsyncBufferedReader.readLine()) != null) {
       if (line.startsWith(ALTER_COLUMN_NAME)) {
         String[] template=buildColumnNameTokens(line);
@@ -15,6 +17,10 @@
         String[] template=buildTableNameTokens(line);
         line=StringUtil.replace("alter table @old-table@ rename to @new-table@;",RENAME_TABLE_TEMPLATE,template);
       }
+ else       if (line.startsWith(CREATE_TABLE)) {
+        String[] tokens=StringUtil.split(line,' ');
+        table=tokens[2];
+      }
  else       if (line.contains(DROP_INDEX)) {
         String[] tokens=StringUtil.split(line,' ');
         line=StringUtil.replace("drop index @index@;","@index@",tokens[2]);
@@ -23,12 +29,18 @@
         String[] tokens=StringUtil.split(line,' ');
         line=StringUtil.replace("alter table @table@ drop constraint @table@_pkey;","@table@",tokens[2]);
       }
+ else       if (line.contains(getTemplateBlob())) {
+        String[] tokens=StringUtil.split(line,' ');
+        createRulesSqlSB.append(StringPool.NEW_LINE);
+        createRulesSqlSB.append(getCreateRulesSql(table,tokens[0]));
+      }
  else       if (line.contains("\\\'")) {
         line=StringUtil.replace(line,"\\\'","\'\'");
       }
       sb.append(line);
       sb.append("\n");
     }
+    sb.append(createRulesSqlSB.toString());
     return sb.toString();
   }
  }
