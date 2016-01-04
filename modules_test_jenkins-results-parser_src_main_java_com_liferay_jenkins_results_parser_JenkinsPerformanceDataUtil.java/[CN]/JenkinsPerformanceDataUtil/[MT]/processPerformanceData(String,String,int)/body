@@ -1,40 +1,46 @@
 {
-  JSONObject jsonObject=null;
-  if (url.contains("-source")) {
-    jsonObject=JenkinsResultsParserUtil.toJSONObject(JenkinsResultsParserUtil.getLocalURL(url + "/api/json"),false);
-    _results.add(new Result(jobName,jsonObject));
-    Collections.sort(_results);
-    _truncate(_results,size);
+  if (_broken) {
     return;
   }
-  int retryCount=0;
-  while (true) {
-    try {
-      jsonObject=JenkinsResultsParserUtil.toJSONObject(JenkinsResultsParserUtil.getLocalURL(url + "/testReport/api/json"),false);
-    }
- catch (    FileNotFoundException fnfe) {
+  try {
+    JSONObject jsonObject=null;
+    if (url.contains("-source")) {
       jsonObject=JenkinsResultsParserUtil.toJSONObject(JenkinsResultsParserUtil.getLocalURL(url + "/api/json"),false);
       _results.add(new Result(jobName,jsonObject));
-      break;
+      Collections.sort(_results);
+      _truncate(_results,size);
+      return;
     }
-    try {
-      _results.addAll(_getSlowestResults(jobName,jsonObject,size));
-      break;
-    }
- catch (    IllegalArgumentException iae) {
-      String message=iae.getMessage();
-      if (!message.contains("Result is not available for ")) {
-        throw iae;
+    int retryCount=0;
+    while (true) {
+      try {
+        jsonObject=JenkinsResultsParserUtil.toJSONObject(JenkinsResultsParserUtil.getLocalURL(url + "/testReport/api/json"),false);
       }
-      retryCount++;
-      if (retryCount > 5) {
-        System.out.println("Exceeded max retries");
-        throw iae;
+ catch (      FileNotFoundException fnfe) {
+        jsonObject=JenkinsResultsParserUtil.toJSONObject(JenkinsResultsParserUtil.getLocalURL(url + "/api/json"),false);
+        _results.add(new Result(jobName,jsonObject));
+        break;
       }
-      System.out.println("Retry in 60 seconds: " + message);
-      Thread.sleep(60 * 1000);
+      try {
+        _results.addAll(_getSlowestResults(jobName,jsonObject,size));
+        break;
+      }
+ catch (      IllegalArgumentException iae) {
+        retryCount++;
+        if (retryCount > 5) {
+          System.out.println("Exceeded max retries");
+          throw iae;
+        }
+        System.out.println("Retry in 60 seconds: " + iae.getMessage());
+        Thread.sleep(60 * 1000);
+      }
     }
+    Collections.sort(_results);
+    _truncate(_results,size);
   }
-  Collections.sort(_results);
-  _truncate(_results,size);
+ catch (  Exception e) {
+    System.out.println("WARNING: Exception occurred while parsing" + " performance data.");
+    e.printStackTrace();
+    _broken=true;
+  }
 }
