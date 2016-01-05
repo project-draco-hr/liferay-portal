@@ -19,12 +19,16 @@
     friendlyURL=friendlyURL.substring(0,pos);
   }
   String i18nLanguageId=null;
+  String i18nLanguageIdLowerCase=null;
   Set<String> languageIds=I18nServlet.getLanguageIds();
   for (  String languageId : languageIds) {
     if (StringUtil.startsWith(friendlyURL,languageId)) {
       pos=friendlyURL.indexOf(CharPool.SLASH,1);
       if (((pos != -1) && (pos != languageId.length())) || ((pos == -1) && !StringUtil.equalsIgnoreCase(friendlyURL,languageId))) {
         continue;
+      }
+      if (!friendlyURL.startsWith(languageId)) {
+        i18nLanguageIdLowerCase=StringUtil.toLowerCase(languageId);
       }
       if (pos == -1) {
         i18nLanguageId=languageId;
@@ -43,8 +47,16 @@
   }
   if (!friendlyURL.equals(StringPool.SLASH) && !isValidFriendlyURL(friendlyURL)) {
     _log.debug("Friendly URL is not valid");
-    processFilter(VirtualHostFilter.class.getName(),request,response,filterChain);
-    return;
+    if (Validator.isNotNull(i18nLanguageIdLowerCase)) {
+      String forwardURL=StringUtil.replace(originalFriendlyURL,i18nLanguageIdLowerCase,i18nLanguageId);
+      RequestDispatcher requestDispatcher=_servletContext.getRequestDispatcher(forwardURL);
+      requestDispatcher.forward(request,response);
+      return;
+    }
+ else {
+      processFilter(VirtualHostFilter.class.getName(),request,response,filterChain);
+      return;
+    }
   }
   LayoutSet layoutSet=(LayoutSet)request.getAttribute(WebKeys.VIRTUAL_HOST_LAYOUT_SET);
   if (_log.isDebugEnabled()) {
