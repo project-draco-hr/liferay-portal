@@ -1,0 +1,46 @@
+{
+  Project project=getProject();
+  File changeLogFile=getChangeLogFile();
+  Path changeLogPath=changeLogFile.toPath();
+  String changeLogContent=null;
+  if (changeLogFile.exists()) {
+    changeLogContent=new String(Files.readAllBytes(changeLogPath),StandardCharsets.UTF_8);
+  }
+  String range;
+  Set<String> ticketIds;
+  try (Repository repository=GitUtil.openRepository(project)){
+    String rangeEnd=GitUtil.getHashHead(repository);
+    String rangeStart=getRangeStart(changeLogContent,repository);
+    range=rangeStart + ".." + rangeEnd;
+    ticketIds=getTicketIds(rangeStart,rangeEnd,repository);
+  }
+   if (ticketIds.isEmpty()) {
+    throw new StopExecutionException(project + " does not have changes for range " + range);
+  }
+  File changeLogDir=changeLogFile.getParentFile();
+  changeLogDir.mkdirs();
+  try (BufferedWriter bufferedWriter=Files.newBufferedWriter(changeLogPath,StandardCharsets.UTF_8,StandardOpenOption.APPEND,StandardOpenOption.CREATE)){
+    if (Validator.isNotNull(changeLogContent)) {
+      bufferedWriter.newLine();
+      bufferedWriter.newLine();
+    }
+    bufferedWriter.append('#');
+    bufferedWriter.newLine();
+    bufferedWriter.append(getChangeLogHeader());
+    bufferedWriter.newLine();
+    bufferedWriter.append('#');
+    bufferedWriter.newLine();
+    bufferedWriter.append(range);
+    bufferedWriter.append('=');
+    boolean firstTicket=true;
+    for (    String ticketId : ticketIds) {
+      if (firstTicket) {
+        firstTicket=false;
+      }
+ else {
+        bufferedWriter.append(' ');
+      }
+      bufferedWriter.append(ticketId);
+    }
+  }
+ }
