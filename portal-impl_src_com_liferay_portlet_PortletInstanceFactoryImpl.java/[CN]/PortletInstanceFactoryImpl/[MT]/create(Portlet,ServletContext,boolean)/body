@@ -1,0 +1,64 @@
+{
+  if (destroyPrevious) {
+    destroyRelated(portlet);
+  }
+  boolean instanceable=false;
+  boolean deployed=!portlet.isUndeployedPortlet();
+  if (portlet.isInstanceable() && deployed && PortletConstants.hasInstanceId(portlet.getPortletId())) {
+    instanceable=true;
+  }
+  String rootPortletId=portlet.getRootPortletId();
+  InvokerPortlet rootInvokerPortletInstance=null;
+  Map<String,InvokerPortlet> portletInstances=null;
+  if (deployed) {
+    portletInstances=_pool.get(rootPortletId);
+    if (portletInstances == null) {
+      portletInstances=new ConcurrentHashMap<>();
+      _pool.put(rootPortletId,portletInstances);
+    }
+ else {
+      if (instanceable) {
+        InvokerPortlet instanceInvokerPortletInstance=portletInstances.get(portlet.getPortletId());
+        if (instanceInvokerPortletInstance != null) {
+          return instanceInvokerPortletInstance;
+        }
+      }
+      rootInvokerPortletInstance=portletInstances.get(rootPortletId);
+    }
+  }
+  if (rootInvokerPortletInstance == null) {
+    PortletBag portletBag=PortletBagPool.get(rootPortletId);
+    if (portletBag == null) {
+      PortletBagFactory portletBagFactory=new PortletBagFactory();
+      portletBagFactory.setClassLoader(ClassLoaderUtil.getPortalClassLoader());
+      portletBagFactory.setServletContext(servletContext);
+      portletBagFactory.setWARFile(false);
+      try {
+        portletBag=portletBagFactory.create(portlet);
+      }
+ catch (      Exception e) {
+        throw new PortletException(e);
+      }
+    }
+    PortletConfig portletConfig=PortletConfigFactoryUtil.create(portlet,servletContext);
+    rootInvokerPortletInstance=init(portlet,portletConfig,portletBag.getPortletInstance());
+    if (deployed) {
+      portletInstances.put(rootPortletId,rootInvokerPortletInstance);
+    }
+  }
+  if (!instanceable) {
+    return rootInvokerPortletInstance;
+  }
+  javax.portlet.Portlet portletInstance=rootInvokerPortletInstance.getPortletInstance();
+  PortletConfig portletConfig=PortletConfigFactoryUtil.create(portlet,servletContext);
+  PortletContext portletContext=portletConfig.getPortletContext();
+  boolean checkAuthToken=rootInvokerPortletInstance.isCheckAuthToken();
+  boolean facesPortlet=rootInvokerPortletInstance.isFacesPortlet();
+  boolean strutsPortlet=rootInvokerPortletInstance.isStrutsPortlet();
+  boolean strutsBridgePortlet=rootInvokerPortletInstance.isStrutsBridgePortlet();
+  InvokerPortlet instanceInvokerPortletInstance=_invokerPortletFactory.create(portlet,portletInstance,portletConfig,portletContext,(InvokerFilterContainer)rootInvokerPortletInstance,checkAuthToken,facesPortlet,strutsPortlet,strutsBridgePortlet);
+  if (deployed) {
+    portletInstances.put(portlet.getPortletId(),instanceInvokerPortletInstance);
+  }
+  return instanceInvokerPortletInstance;
+}
