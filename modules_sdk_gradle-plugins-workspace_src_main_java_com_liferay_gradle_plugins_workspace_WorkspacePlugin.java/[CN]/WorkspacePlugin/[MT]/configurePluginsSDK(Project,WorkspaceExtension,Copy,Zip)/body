@@ -1,0 +1,41 @@
+{
+  File pluginsSDKDir=workspaceExtension.getPluginsSDKDir();
+  if (!pluginsSDKDir.exists()) {
+    return;
+  }
+  final Project pluginsSDKProject=GradleUtil.getProject(project,workspaceExtension.getPluginsSDKDir());
+  AntBuilder antBuilder=pluginsSDKProject.getAnt();
+  antBuilder.importBuild("build.xml");
+  Task build=GradleUtil.addTask(pluginsSDKProject,"build",Task.class);
+  final Task war=GradleUtil.getTask(pluginsSDKProject,"war");
+  build.dependsOn(war);
+  File homeDir=workspaceExtension.getHomeDir();
+  if (!homeDir.exists()) {
+    war.dependsOn(initBundle);
+  }
+  distBundle.into("deploy",new Closure<Void>(null){
+    @SuppressWarnings("unused") public void doCall(    CopySpec copySpec){
+      ConfigurableFileTree fileTree=pluginsSDKProject.fileTree("dist");
+      fileTree.builtBy(war);
+      fileTree.include("*.war");
+      copySpec.from(fileTree);
+    }
+  }
+);
+  Task updateSDKProperties=GradleUtil.addTask(pluginsSDKProject,"updateSDKProperties",Task.class);
+  updateSDKProperties.doLast(new Action<Task>(){
+    @Override public void execute(    Task task){
+      try {
+        String hostName=InetAddress.getLocalHost().getHostName();
+        File buildPropertiesFile=new File("build." + hostName + ".properties");
+        Properties buildProperties=FileUtil.readProperties(buildPropertiesFile);
+        buildProperties.setProperty("app.server.parent.dir",FileUtil.getAbsolutePath(workspaceExtension.getHomeDir()));
+        buildProperties.store(new FileOutputStream(buildPropertiesFile),"");
+      }
+ catch (      Exception e) {
+      }
+    }
+  }
+);
+  build.dependsOn(updateSDKProperties);
+}
