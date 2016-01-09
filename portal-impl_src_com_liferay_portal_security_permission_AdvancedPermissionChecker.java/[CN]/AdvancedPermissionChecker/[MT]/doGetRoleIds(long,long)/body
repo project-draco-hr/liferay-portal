@@ -16,36 +16,41 @@
       }
     }
     UserBag userBag=getUserBag();
-    Set<Role> roles=new HashSet<>();
-    roles.addAll(userBag.getRoles());
+    Set<Long> roleIdsSet=new HashSet<>(ListUtil.toList(userBag.getRoleIds()));
     List<Role> userGroupRoles=RoleLocalServiceUtil.getUserGroupRoles(userId,groupId);
-    roles.addAll(userGroupRoles);
+    for (    Role userGroupRole : userGroupRoles) {
+      roleIdsSet.add(userGroupRole.getRoleId());
+    }
     if (parentGroupId > 0) {
       userGroupRoles=RoleLocalServiceUtil.getUserGroupRoles(userId,parentGroupId);
-      roles.addAll(userGroupRoles);
+      for (      Role userGroupRole : userGroupRoles) {
+        roleIdsSet.add(userGroupRole.getRoleId());
+      }
     }
     List<Role> userGroupGroupRoles=RoleLocalServiceUtil.getUserGroupGroupRoles(userId,groupId);
-    roles.addAll(userGroupGroupRoles);
+    for (    Role userGroupGroupRole : userGroupGroupRoles) {
+      roleIdsSet.add(userGroupGroupRole.getRoleId());
+    }
     if (parentGroupId > 0) {
       userGroupGroupRoles=RoleLocalServiceUtil.getUserGroupGroupRoles(userId,parentGroupId);
-      roles.addAll(userGroupGroupRoles);
+      for (      Role userGroupGroupRole : userGroupGroupRoles) {
+        roleIdsSet.add(userGroupGroupRole.getRoleId());
+      }
     }
     if (group != null) {
-      Collection<Group> userOrgGroups=userBag.getUserOrgGroups();
-      if (group.isOrganization() && userOrgGroups.contains(group)) {
+      if (group.isOrganization() && userBag.hasUserOrgGroup(group)) {
         Role organizationUserRole=RoleLocalServiceUtil.getRole(group.getCompanyId(),RoleConstants.ORGANIZATION_USER);
-        roles.add(organizationUserRole);
+        roleIdsSet.add(organizationUserRole.getRoleId());
       }
-      Collection<Group> userGroups=userBag.getUserGroups();
-      if ((group.isSite() && (userGroups.contains(group) || userOrgGroups.contains(group))) || group.isUserPersonalSite()) {
+      if ((group.isSite() && (userBag.hasUserGroup(group) || userBag.hasUserOrgGroup(group))) || group.isUserPersonalSite()) {
         Role siteMemberRole=RoleLocalServiceUtil.getRole(group.getCompanyId(),RoleConstants.SITE_MEMBER);
-        roles.add(siteMemberRole);
+        roleIdsSet.add(siteMemberRole.getRoleId());
       }
-      if ((group.isOrganization() && userOrgGroups.contains(group)) || (group.isSite() && userGroups.contains(group))) {
-        addTeamRoles(userId,group,roles);
+      if ((group.isOrganization() && userBag.hasUserOrgGroup(group)) || (group.isSite() && userBag.hasUserGroup(group))) {
+        addTeamRoles(userId,group,roleIdsSet);
       }
     }
-    roleIds=ListUtil.toLongArray(new ArrayList<>(roles),Role.ROLE_ID_ACCESSOR);
+    roleIds=ArrayUtil.toLongArray(roleIdsSet);
     Arrays.sort(roleIds);
     PermissionCacheUtil.putUserGroupRoleIds(userId,groupId,roleIds);
     return roleIds;
