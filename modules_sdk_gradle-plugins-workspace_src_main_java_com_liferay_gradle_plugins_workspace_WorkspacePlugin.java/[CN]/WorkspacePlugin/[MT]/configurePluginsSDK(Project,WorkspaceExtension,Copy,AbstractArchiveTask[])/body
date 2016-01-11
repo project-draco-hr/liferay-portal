@@ -1,43 +1,43 @@
 {
-  File pluginsSDKDir=workspaceExtension.getPluginsSDKDir();
-  if (!pluginsSDKDir.exists()) {
+  final Project pluginsSDKProject=GradleUtil.getProject(project,workspaceExtension.getPluginsSDKDir());
+  if (pluginsSDKProject == null) {
     return;
   }
-  final Project pluginsSDKProject=GradleUtil.getProject(project,workspaceExtension.getPluginsSDKDir());
   AntBuilder antBuilder=pluginsSDKProject.getAnt();
   antBuilder.importBuild("build.xml");
-  Task build=GradleUtil.addTask(pluginsSDKProject,"build",Task.class);
-  final Task war=GradleUtil.getTask(pluginsSDKProject,"war");
-  build.dependsOn(war);
+  Task buildTask=pluginsSDKProject.task(LifecycleBasePlugin.BUILD_TASK_NAME);
+  final Task warTask=GradleUtil.getTask(pluginsSDKProject,WarPlugin.WAR_TASK_NAME);
+  buildTask.dependsOn(warTask);
   File homeDir=workspaceExtension.getHomeDir();
   if (!homeDir.exists()) {
-    war.dependsOn(initBundle);
+    warTask.dependsOn(initBundleTask);
   }
   for (  AbstractArchiveTask abstractArchiveTask : distBundleTasks) {
     abstractArchiveTask.into("deploy",new Closure<Void>(null){
       @SuppressWarnings("unused") public void doCall(      CopySpec copySpec){
-        ConfigurableFileTree fileTree=pluginsSDKProject.fileTree("dist");
-        fileTree.builtBy(war);
-        fileTree.include("*.war");
-        copySpec.from(fileTree);
+        ConfigurableFileTree configurableFileTree=pluginsSDKProject.fileTree("dist");
+        configurableFileTree.builtBy(warTask);
+        configurableFileTree.include("*.war");
+        copySpec.from(configurableFileTree);
       }
     }
 );
   }
-  Task updateSDKProperties=GradleUtil.addTask(pluginsSDKProject,"updateSDKProperties",Task.class);
-  updateSDKProperties.doLast(new Action<Task>(){
+  Task updateSDKPropertiesTask=GradleUtil.addTask(pluginsSDKProject,UPDATE_SDK_PROPERTIES_TASK_NAME,Task.class);
+  updateSDKPropertiesTask.doLast(new Action<Task>(){
     @Override public void execute(    Task task){
       try {
         String username=System.getProperty("user.name");
         File buildPropertiesFile=new File(workspaceExtension.getPluginsSDKDir(),"build." + username + ".properties");
         Properties buildProperties=FileUtil.readProperties(buildPropertiesFile);
         buildProperties.setProperty("app.server.parent.dir",FileUtil.getAbsolutePath(workspaceExtension.getHomeDir()));
-        buildProperties.store(new FileOutputStream(buildPropertiesFile),"");
+        buildProperties.store(new FileOutputStream(buildPropertiesFile),null);
       }
  catch (      Exception e) {
+        throw new GradleException(e.getMessage(),e);
       }
     }
   }
 );
-  build.dependsOn(updateSDKProperties);
+  buildTask.dependsOn(updateSDKPropertiesTask);
 }

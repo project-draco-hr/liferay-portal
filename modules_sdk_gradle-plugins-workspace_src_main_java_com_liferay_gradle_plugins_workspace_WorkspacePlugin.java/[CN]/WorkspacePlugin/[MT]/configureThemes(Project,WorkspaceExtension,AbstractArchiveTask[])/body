@@ -1,72 +1,45 @@
 {
-  final Project themesProject=GradleUtil.getProject(project,workspaceExtension.getThemesDir());
-  themesProject.subprojects(new Action<Project>(){
-    @Override public void execute(    final Project subproject){
-      Set<Project> subprojects=subproject.getSubprojects();
-      if ((subprojects != null) && (subprojects.size() > 0)) {
+  Project themesProject=GradleUtil.getProject(project,workspaceExtension.getThemesDir());
+  if (themesProject == null) {
+    return;
+  }
+  Action<Project> action=new Action<Project>(){
+    @Override public void execute(    final Project project){
+      Set<Project> subproject=project.getSubprojects();
+      if (!subproject.isEmpty()) {
         return;
       }
-      GradleUtil.applyPlugin(subproject,BasePlugin.class);
-      GradleUtil.applyPlugin(subproject,GulpPlugin.class);
-      Task createLiferayThemeJson=GradleUtil.addTask(subproject,"createLiferayThemeJson",Task.class);
-      Task deploy=GradleUtil.addTask(subproject,"deploy",Task.class);
-      final Task gulpDeploy=GradleUtil.getTask(subproject,"gulpDeploy");
-      deploy.dependsOn(gulpDeploy);
-      subproject.setBuildDir(new File(subproject.getProjectDir(),"build_gradle"));
-      Task assemble=GradleUtil.getTask(subproject,"assemble");
-      assemble.dependsOn("gulpBuild");
-      Task clean=GradleUtil.getTask(subproject,"clean");
-      clean.dependsOn("cleanNpmInstall");
-      clean.configure(new Closure<Void>(null){
-        @SuppressWarnings("unused") public void doCall(){
-          subproject.delete("build","dist");
-        }
-      }
-);
-      final File liferayThemeJsonFile=new File(subproject.getProjectDir(),"liferay-theme.json");
-      if (!liferayThemeJsonFile.exists()) {
-        createLiferayThemeJson.doLast(new Action<Task>(){
-          @Override public void execute(          Task task){
-            File appServerDir=new File(workspaceExtension.getHomeDir(),"tomcat-7.0.62");
-            File appServerThemeDir=new File(appServerDir,"webapps/" + subproject.getName());
-            File deployDir=new File(workspaceExtension.getHomeDir(),"deploy");
-            JSONObject jsonObject=new JSONObject();
-            Map<String,Object> jsonValues=new HashMap<>();
-            jsonValues.put("appServerPath",appServerDir.getAbsolutePath());
-            jsonValues.put("appServerPathTheme",appServerThemeDir.getAbsolutePath());
-            jsonValues.put("deployed",false);
-            jsonValues.put("deployPath",deployDir.getAbsolutePath());
-            jsonValues.put("themeName",subproject.getName());
-            jsonObject.put("LiferayTheme",jsonValues);
-            try (PrintStream out=new PrintStream(new FileOutputStream(liferayThemeJsonFile))){
-              out.println(jsonObject.toString());
-            }
- catch (            Exception e) {
-            }
-          }
-        }
-);
-      }
+      project.setBuildDir("build_gradle");
+      GradleUtil.applyPlugin(project,BasePlugin.class);
+      GradleUtil.applyPlugin(project,GulpPlugin.class);
+      Task assembleTask=GradleUtil.getTask(project,BasePlugin.ASSEMBLE_TASK_NAME);
+      assembleTask.dependsOn(_GULP_BUILD_TASK_NAME);
+      final Task createLiferayThemeJsonTask=addTaskCreateLiferayThemeJson(project,workspaceExtension);
+      Delete cleanTask=(Delete)GradleUtil.getTask(project,BasePlugin.CLEAN_TASK_NAME);
+      cleanTask.delete("build","dist");
+      cleanTask.dependsOn(BasePlugin.CLEAN_TASK_NAME + StringUtil.capitalize(NodePlugin.NPM_INSTALL_TASK_NAME));
+      Task deployTask=project.task(LiferayJavaPlugin.DEPLOY_TASK_NAME);
+      deployTask.dependsOn(_GULP_DEPLOY_TASK_NAME);
       for (      AbstractArchiveTask abstractArchiveTask : distBundleTasks) {
         abstractArchiveTask.into("deploy",new Closure<Void>(null){
           @SuppressWarnings("unused") public void doCall(          CopySpec copySpec){
-            ConfigurableFileTree fileTree=themesProject.fileTree("dist");
-            fileTree.builtBy(gulpDeploy);
+            ConfigurableFileTree fileTree=project.fileTree("dist");
+            fileTree.builtBy(_GULP_DEPLOY_TASK_NAME);
             fileTree.include("*.war");
             copySpec.from(fileTree);
           }
         }
 );
       }
-      TaskContainer taskContainer=subproject.getTasks();
+      TaskContainer taskContainer=project.getTasks();
       taskContainer.withType(ExecuteGulpTask.class,new Action<ExecuteGulpTask>(){
         @Override public void execute(        ExecuteGulpTask executeGulpTask){
-          executeGulpTask.dependsOn("createLiferayThemeJson");
-          executeGulpTask.dependsOn("npmInstall");
+          executeGulpTask.dependsOn(createLiferayThemeJsonTask,NodePlugin.NPM_INSTALL_TASK_NAME);
         }
       }
 );
     }
   }
-);
+;
+  themesProject.subprojects(action);
 }
