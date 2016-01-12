@@ -5,13 +5,14 @@
   }
   AntBuilder antBuilder=pluginsSDKProject.getAnt();
   antBuilder.importBuild("build.xml");
-  Task buildTask=pluginsSDKProject.task(LifecycleBasePlugin.BUILD_TASK_NAME);
   final Task warTask=GradleUtil.getTask(pluginsSDKProject,WarPlugin.WAR_TASK_NAME);
-  buildTask.dependsOn(warTask);
   File homeDir=workspaceExtension.getHomeDir();
   if (!homeDir.exists()) {
     warTask.dependsOn(initBundleTask);
   }
+  Task updateSDKPropertiesTask=addTaskUpdateSDKProperties(pluginsSDKProject,workspaceExtension);
+  Task buildTask=pluginsSDKProject.task(LifecycleBasePlugin.BUILD_TASK_NAME);
+  buildTask.dependsOn(updateSDKPropertiesTask,warTask);
   for (  AbstractArchiveTask abstractArchiveTask : distBundleTasks) {
     abstractArchiveTask.into("deploy",new Closure<Void>(null){
       @SuppressWarnings("unused") public void doCall(      CopySpec copySpec){
@@ -23,21 +24,4 @@
     }
 );
   }
-  Task updateSDKPropertiesTask=GradleUtil.addTask(pluginsSDKProject,UPDATE_SDK_PROPERTIES_TASK_NAME,Task.class);
-  updateSDKPropertiesTask.doLast(new Action<Task>(){
-    @Override public void execute(    Task task){
-      try {
-        String username=System.getProperty("user.name");
-        File buildPropertiesFile=new File(workspaceExtension.getPluginsSDKDir(),"build." + username + ".properties");
-        Properties buildProperties=FileUtil.readProperties(buildPropertiesFile);
-        buildProperties.setProperty("app.server.parent.dir",FileUtil.getAbsolutePath(workspaceExtension.getHomeDir()));
-        buildProperties.store(new FileOutputStream(buildPropertiesFile),null);
-      }
- catch (      Exception e) {
-        throw new GradleException(e.getMessage(),e);
-      }
-    }
-  }
-);
-  buildTask.dependsOn(updateSDKPropertiesTask);
 }
