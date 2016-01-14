@@ -2,7 +2,7 @@
   LdapContext ldapContext=_portalLDAP.getContext(ldapServerId,companyId);
   if (ldapContext == null) {
     if (_log.isDebugEnabled()) {
-      _log.debug("No LDAP server configuration available with " + "ldapServerId: " + ldapServerId + ", companyId: "+ companyId);
+      _log.debug("No LDAP server configuration available for " + "LDAP server " + ldapServerId + " and company "+ companyId);
     }
     return FAILURE;
   }
@@ -18,12 +18,12 @@
     enu=ldapContext.search(baseDN,filter,searchControls);
     if (!enu.hasMoreElements()) {
       if (_log.isDebugEnabled()) {
-        _log.debug("No results from search filter:" + filter);
+        _log.debug("No results found with search filter: " + filter);
       }
       return DNE;
     }
     if (_log.isDebugEnabled()) {
-      _log.debug("Results found by Search filter: " + filter);
+      _log.debug("Found results with search filter: " + filter);
     }
     SearchResult result=enu.nextElement();
     String fullUserDN=_portalLDAP.getNameInNamespace(ldapServerId,companyId,result);
@@ -33,8 +33,8 @@
     String errorMessage=ldapAuthResult.getErrorMessage();
     if (errorMessage != null) {
       SystemLDAPConfiguration systemLDAPConfiguration=_systemLDAPConfigurationProvider.getConfiguration(companyId);
-      for (      String errorUserLockout : systemLDAPConfiguration.errorUserLockoutKeywords()) {
-        if (errorMessage.contains(errorUserLockout)) {
+      for (      String errorUserLockoutKeyword : systemLDAPConfiguration.errorUserLockoutKeywords()) {
+        if (errorMessage.contains(errorUserLockoutKeyword)) {
           throw new UserLockoutException.LDAPLockout(fullUserDN,errorMessage);
         }
       }
@@ -46,7 +46,18 @@
     }
     if (!ldapAuthResult.isAuthenticated()) {
       if (_log.isDebugEnabled()) {
-        _log.debug("LDAP authentication failed for :" + fullUserDN + " on LDAP server: "+ ldapServerId+ ", companyId: "+ companyId+ ", ldapContext: "+ ldapContext+ ", reason: "+ errorMessage);
+        StringBundler sb=new StringBundler(10);
+        sb.append("Uanble to authenticate with ");
+        sb.append(fullUserDN);
+        sb.append(" on LDAP server ");
+        sb.append(ldapServerId);
+        sb.append(", company ");
+        sb.append(companyId);
+        sb.append(", and LDAP context ");
+        sb.append(ldapContext);
+        sb.append(": ");
+        sb.append(errorMessage);
+        _log.debug(sb.toString());
       }
       return FAILURE;
     }
