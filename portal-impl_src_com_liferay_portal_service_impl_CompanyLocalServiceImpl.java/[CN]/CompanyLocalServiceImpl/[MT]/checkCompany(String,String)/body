@@ -50,7 +50,7 @@ catch (      PortletException pe) {
   }
   CompanyProvider currentCompanyProvider=_companyProviderWrapper.getCompanyProvider();
   try {
-    long companyId=company.getCompanyId();
+    final long companyId=company.getCompanyId();
     _companyProviderWrapper.setCompanyProvider(new CustomCompanyProvider(companyId));
     checkCompanyKey(companyId);
     User defaultUser=userPersistence.fetchByC_DU(companyId,true);
@@ -117,13 +117,20 @@ catch (      PortletException pe) {
       userLocalService.addDefaultAdminUser(companyId,PropsValues.DEFAULT_ADMIN_SCREEN_NAME,emailAddress,defaultUser.getLocale(),PropsValues.DEFAULT_ADMIN_FIRST_NAME,PropsValues.DEFAULT_ADMIN_MIDDLE_NAME,PropsValues.DEFAULT_ADMIN_LAST_NAME);
     }
     portletLocalService.checkPortlets(companyId);
+    final Company finalCompany=company;
+    TransactionCommitCallbackUtil.registerCallback(new Callable<Void>(){
+      @Override public Void call() throws Exception {
 synchronized (_companyServiceRegistrations) {
-      if (!_companyServiceRegistrations.containsKey(companyId)) {
-        Registry registry=RegistryUtil.getRegistry();
-        ServiceRegistration<Company> serviceRegistration=registry.registerService(Company.class,company);
-        _companyServiceRegistrations.put(company.getCompanyId(),serviceRegistration);
+          if (!_companyServiceRegistrations.containsKey(companyId)) {
+            Registry registry=RegistryUtil.getRegistry();
+            ServiceRegistration<Company> serviceRegistration=registry.registerService(Company.class,finalCompany);
+            _companyServiceRegistrations.put(companyId,serviceRegistration);
+          }
+        }
+        return null;
       }
     }
+);
   }
   finally {
     _companyProviderWrapper.setCompanyProvider(currentCompanyProvider);
