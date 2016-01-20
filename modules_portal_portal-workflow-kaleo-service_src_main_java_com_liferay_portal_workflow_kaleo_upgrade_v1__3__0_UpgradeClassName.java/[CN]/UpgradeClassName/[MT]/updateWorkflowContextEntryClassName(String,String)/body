@@ -1,0 +1,26 @@
+{
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    ps=connection.prepareStatement("select " + primaryKeyName + ", workflowContext from "+ tableName+ " where workflowContext is not null");
+    rs=ps.executeQuery();
+    while (rs.next()) {
+      long primaryKeyValue=rs.getLong(primaryKeyName);
+      String workflowContextJSON=rs.getString("workflowContext");
+      if (Validator.isNull(workflowContextJSON)) {
+        continue;
+      }
+      Map<String,Serializable> workflowContext=WorkflowContextUtil.convert(workflowContextJSON);
+      String oldEntryClassName=(String)workflowContext.get("entryClassName");
+      String newEntryClassName=_classNamesMap.get(oldEntryClassName);
+      if (newEntryClassName == null) {
+        continue;
+      }
+      workflowContext.put("entryClassName",newEntryClassName);
+      updateWorkflowContext(tableName,primaryKeyName,primaryKeyValue,WorkflowContextUtil.convert(workflowContext));
+    }
+  }
+  finally {
+    DataAccess.cleanUp(ps,rs);
+  }
+}
