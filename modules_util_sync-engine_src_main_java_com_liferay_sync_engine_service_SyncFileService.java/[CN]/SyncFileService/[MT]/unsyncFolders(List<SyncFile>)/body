@@ -1,0 +1,38 @@
+{
+  Set<Long> unsyncedSyncFileIds=new HashSet<>();
+  syncFiles.sort(_syncFileFilePathNameComparator);
+  for (  SyncFile syncFile : syncFiles) {
+    if (syncFile.getState() == SyncFile.STATE_UNSYNCED) {
+      continue;
+    }
+    syncFile.setModifiedTime(0);
+    syncFile.setState(SyncFile.STATE_UNSYNCED);
+    syncFile.setUiEvent(SyncFile.UI_EVENT_NONE);
+    SyncFileService.update(syncFile);
+    if (isAncestorInList(syncFile,unsyncedSyncFileIds) || !Files.exists(Paths.get(syncFile.getFilePathName()))) {
+      continue;
+    }
+    final Watcher watcher=WatcherManager.getWatcher(syncFile.getSyncAccountId());
+    Files.walkFileTree(Paths.get(syncFile.getFilePathName()),new SimpleFileVisitor<Path>(){
+      @Override public FileVisitResult postVisitDirectory(      Path filePath,      IOException ioe) throws IOException {
+        if (ioe != null) {
+          return super.postVisitDirectory(filePath,ioe);
+        }
+        watcher.addDeletedFilePathName(filePath.toString());
+        FileUtil.deleteFile(filePath);
+        return FileVisitResult.CONTINUE;
+      }
+      @Override public FileVisitResult visitFile(      Path filePath,      BasicFileAttributes basicFileAttributes) throws IOException {
+        watcher.addDeletedFilePathName(filePath.toString());
+        FileUtil.deleteFile(filePath);
+        SyncFile childSyncFile=fetchSyncFile(filePath.toString());
+        if (childSyncFile != null) {
+          deleteSyncFile(childSyncFile,true);
+        }
+        return FileVisitResult.CONTINUE;
+      }
+    }
+);
+    unsyncedSyncFileIds.add(syncFile.getSyncFileId());
+  }
+}
