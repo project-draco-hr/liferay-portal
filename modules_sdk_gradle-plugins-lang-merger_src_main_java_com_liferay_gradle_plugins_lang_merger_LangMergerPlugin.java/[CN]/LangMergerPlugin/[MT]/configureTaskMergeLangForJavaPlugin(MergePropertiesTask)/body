@@ -1,0 +1,35 @@
+{
+  mergePropertiesTask.mustRunAfter(JavaPlugin.PROCESS_RESOURCES_TASK_NAME);
+  final Project project=mergePropertiesTask.getProject();
+  final SourceSet sourceSet=GradleUtil.getSourceSet(project,SourceSet.MAIN_SOURCE_SET_NAME);
+  mergePropertiesTask.setDestinationDir(new Callable<File>(){
+    @Override public File call() throws Exception {
+      SourceSetOutput sourceSetOutput=sourceSet.getOutput();
+      return new File(sourceSetOutput.getResourcesDir(),"content");
+    }
+  }
+);
+  final Project langProject=getLangProject(project);
+  if (langProject != null) {
+    if (_logger.isInfoEnabled()) {
+      _logger.info("Using " + langProject + " as merge source");
+    }
+    mergePropertiesTask.setSourceDirs(new Callable<File>(){
+      @Override public File call() throws Exception {
+        File contentDir=getContentDir(sourceSet);
+        return langProject.file(project.relativePath(contentDir));
+      }
+    }
+,new Callable<File>(){
+      @Override public File call() throws Exception {
+        return getContentDir(sourceSet);
+      }
+    }
+);
+  }
+ else   if (_logger.isInfoEnabled()) {
+    _logger.info("Unable to find a language project to use as merge source");
+  }
+  Task classesTask=GradleUtil.getTask(project,JavaPlugin.CLASSES_TASK_NAME);
+  classesTask.dependsOn(mergePropertiesTask);
+}
