@@ -1,0 +1,42 @@
+{
+  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(PortletItem.class);
+  Property property=PropertyFactoryUtil.forName("name");
+  dynamicQuery.add(property.eq(portletItemName));
+  dynamicQuery.setLimit(0,1);
+  List<PortletItem> portletItems=portletItemLocalService.dynamicQuery(dynamicQuery);
+  if (portletItems.isEmpty()) {
+    throw new PortalException("No portlet items associated with portlet item name " + portletItemName);
+  }
+  PortletItem portletItem=portletItems.get(0);
+  PortletPreferences portletPreferences=portletPreferencesLocalService.getPreferences(portletItem.getCompanyId(),portletItem.getPortletItemId(),PortletKeys.PREFS_OWNER_TYPE_ARCHIVED,0,portletItem.getPortletId());
+  String selectionStyle=GetterUtil.getString(portletPreferences.getValue("selectionStyle",null),"dynamic");
+  if (selectionStyle.equals("dynamic")) {
+    if (max > 500) {
+      max=500;
+    }
+    Layout layout=LayoutUtil.fetchByCompanyId_First(companyId,null);
+    if (layout != null) {
+      List<AssetEntry> assetEntries=AssetPublisherUtil.getAssetEntries(portletPreferences,layout,groupId,max,false);
+      return toJSONArray(assetEntries,locale);
+    }
+ else {
+      return JSONFactoryUtil.createJSONArray();
+    }
+  }
+ else {
+    try {
+      PermissionChecker permissionChecker=PermissionCheckerFactoryUtil.create(getUser());
+      List<AssetEntry> assetEntries=AssetPublisherUtil.getAssetEntries(null,portletPreferences,permissionChecker,new long[]{groupId},portletPreferences.getValues("assetEntryXml",new String[0]),false,false);
+      return toJSONArray(assetEntries,locale);
+    }
+ catch (    PortalException pe) {
+      throw pe;
+    }
+catch (    SystemException se) {
+      throw se;
+    }
+catch (    Exception e) {
+      throw new PortalException(e);
+    }
+  }
+}
