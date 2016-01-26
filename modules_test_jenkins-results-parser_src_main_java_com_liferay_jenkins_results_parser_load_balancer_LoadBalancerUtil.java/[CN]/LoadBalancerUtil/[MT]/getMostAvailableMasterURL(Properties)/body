@@ -1,4 +1,5 @@
 {
+  boolean readOnly=false;
   int retryCount=0;
   while (true) {
     String baseInvocationURL=properties.getProperty("base.invocation.url");
@@ -10,11 +11,19 @@
     if (hostNames.size() == 1) {
       return "http://" + hostNamePrefix + "-1";
     }
-    File baseDir=new File(properties.getProperty("jenkins.shared.dir") + "/" + hostNamePrefix);
-    File semaphoreFile=new File(baseDir,hostNamePrefix + ".semaphore");
-    waitForTurn(semaphoreFile,hostNames.size());
-    JenkinsResultsParserUtil.write(semaphoreFile,_MY_HOST_NAME);
-    Map<String,Integer> recentJobMap=getRecentJobCountMap(new File(baseDir,"recentJob"));
+    File sharedDir=new File(properties.getProperty("jenkins.shared.dir","NULL"));
+    if (!sharedDir.exists() || !sharedDir.isDirectory()) {
+      readOnly=true;
+      System.out.println("Shared Dir: " + sharedDir.getPath() + " not found.\n"+ "Load Balancer will run in read-only mode.");
+    }
+    Map<String,Integer> recentJobMap=new HashMap<>();
+    if (!readOnly) {
+      File baseDir=new File(sharedDir,hostNamePrefix);
+      File semaphoreFile=new File(baseDir,hostNamePrefix + ".semaphore");
+      waitForTurn(semaphoreFile,hostNames.size());
+      JenkinsResultsParserUtil.write(semaphoreFile,_MY_HOST_NAME);
+      recentJobMap=getRecentJobCountMap(new File(baseDir,"recentJob"));
+    }
     int maxAvailableSlaveCount=Integer.MIN_VALUE;
     int x=-1;
     try {
@@ -77,25 +86,29 @@
       return "http://" + hostNames.get(x);
     }
   finally {
-      if (recentJobPeriod > 0) {
-        StringBuilder sb=new StringBuilder();
-        File recentJobFile=new File(baseDir,"recentJob/" + hostNames.get(x));
-        if (recentJobFile.exists()) {
-          sb.append(JenkinsResultsParserUtil.read(recentJobFile));
-          if (sb.length() > 0) {
-            sb.append("|");
+      if (!readOnly) {
+        File baseDir=new File(sharedDir,hostNamePrefix);
+        File semaphoreFile=new File(baseDir,hostNamePrefix + ".semaphore");
+        if (recentJobPeriod > 0) {
+          StringBuilder sb=new StringBuilder();
+          File recentJobFile=new File(baseDir,"recentJob/" + hostNames.get(x));
+          if (recentJobFile.exists()) {
+            sb.append(JenkinsResultsParserUtil.read(recentJobFile));
+            if (sb.length() > 0) {
+              sb.append("|");
+            }
           }
+          String invokedJobBatchSize=properties.getProperty("invoked.job.batch.size");
+          if ((invokedJobBatchSize == null) || (invokedJobBatchSize.length() == 0)) {
+            invokedJobBatchSize="1";
+          }
+          sb.append(invokedJobBatchSize);
+          sb.append("-");
+          sb.append(System.currentTimeMillis());
+          JenkinsResultsParserUtil.write(recentJobFile,sb.toString());
         }
-        String invokedJobBatchSize=properties.getProperty("invoked.job.batch.size");
-        if ((invokedJobBatchSize == null) || (invokedJobBatchSize.length() == 0)) {
-          invokedJobBatchSize="1";
-        }
-        sb.append(invokedJobBatchSize);
-        sb.append("-");
-        sb.append(System.currentTimeMillis());
-        JenkinsResultsParserUtil.write(recentJobFile,sb.toString());
+        JenkinsResultsParserUtil.write(semaphoreFile,"");
       }
-      JenkinsResultsParserUtil.write(semaphoreFile,"");
     }
   }
 }
