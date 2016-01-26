@@ -1,0 +1,35 @@
+{
+  PreparedStatement ps=null;
+  ResultSet rs=null;
+  try {
+    StringBundler sb=new StringBundler(5);
+    sb.append("select DDMStructure.*, DDMStorageLink.* from ");
+    sb.append("DDMStorageLink inner join DDMStructure on ");
+    sb.append("DDMStorageLink.structureId = DDMStructure.structureId ");
+    sb.append("where DDMStructure.storageType = 'expando'");
+    ps=connection.prepareStatement(sb.toString());
+    rs=ps.executeQuery();
+    Set<Long> expandoRowIds=new HashSet<>();
+    while (rs.next()) {
+      long groupId=rs.getLong("groupId");
+      long companyId=rs.getLong("companyId");
+      long userId=rs.getLong("userId");
+      String userName=rs.getString("userName");
+      Timestamp createDate=rs.getTimestamp("createDate");
+      long expandoRowId=rs.getLong("classPK");
+      Map<String,String> expandoValuesMap=getExpandoValuesMap(expandoRowId);
+      String xml=toXML(expandoValuesMap);
+      addDDMContent(PortalUUIDUtil.generate(),expandoRowId,groupId,companyId,userId,userName,createDate,createDate,DDMStorageLink.class.getName(),null,xml);
+      updateDDMStorageLink(_expandoStorageAdapterClassNameId,expandoRowId,_ddmContentClassNameId);
+      expandoRowIds.add(expandoRowId);
+    }
+    if (expandoRowIds.isEmpty()) {
+      return;
+    }
+    updateDDMStructureStorageType();
+    deleteExpandoData(expandoRowIds);
+  }
+  finally {
+    DataAccess.cleanUp(ps,rs);
+  }
+}
