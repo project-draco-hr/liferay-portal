@@ -1,0 +1,134 @@
+{
+  HttpServletRequest request=PortalUtil.getHttpServletRequest(actionRequest);
+  request=PortalUtil.getOriginalServletRequest(request);
+  HttpSession session=request.getSession();
+  ParameterList parameterList=new ParameterList(request.getParameterMap());
+  DiscoveryInformation discoveryInformation=(DiscoveryInformation)session.getAttribute(OpenIdWebKeys.OPEN_ID_DISCO);
+  if (discoveryInformation == null) {
+    return null;
+  }
+  String receivingURL=ParamUtil.getString(request,"openid.return_to");
+  AuthSuccess authSuccess=null;
+  String firstName=null;
+  String lastName=null;
+  String emailAddress=null;
+  try {
+    VerificationResult verificationResult=_consumerManager.verify(receivingURL,parameterList,discoveryInformation);
+    Identifier identifier=verificationResult.getVerifiedId();
+    if (identifier == null) {
+      return null;
+    }
+    authSuccess=(AuthSuccess)verificationResult.getAuthResponse();
+    firstName=null;
+    lastName=null;
+    emailAddress=null;
+    if (authSuccess.hasExtension(SRegMessage.OPENID_NS_SREG)) {
+      MessageExtension messageExtension=authSuccess.getExtension(SRegMessage.OPENID_NS_SREG);
+      if (messageExtension instanceof SRegResponse) {
+        SRegResponse sregResp=(SRegResponse)messageExtension;
+        String fullName=GetterUtil.getString(sregResp.getAttributeValue(_OPEN_ID_SREG_ATTR_FULLNAME));
+        String[] names=splitFullName(fullName);
+        if (names != null) {
+          firstName=names[0];
+          lastName=names[1];
+        }
+        emailAddress=sregResp.getAttributeValue(_OPEN_ID_SREG_ATTR_EMAIL);
+      }
+    }
+    if (authSuccess.hasExtension(AxMessage.OPENID_NS_AX)) {
+      MessageExtension messageExtension=authSuccess.getExtension(AxMessage.OPENID_NS_AX);
+      if (messageExtension instanceof FetchResponse) {
+        FetchResponse fetchResponse=(FetchResponse)messageExtension;
+        OpenIdProvider openIdProvider=_openIdProviderRegistry.getOpenIdProvider(discoveryInformation.getOPEndpoint());
+        String[] openIdAXTypes=openIdProvider.getAxSchema();
+        for (        String openIdAXType : openIdAXTypes) {
+          if (openIdAXType.equals(_OPEN_ID_AX_ATTR_EMAIL)) {
+            if (Validator.isNull(emailAddress)) {
+              emailAddress=getFirstValue(fetchResponse.getAttributeValues(_OPEN_ID_AX_ATTR_EMAIL));
+            }
+          }
+ else           if (openIdAXType.equals(_OPEN_ID_AX_ATTR_FIRST_NAME)) {
+            if (Validator.isNull(firstName)) {
+              firstName=getFirstValue(fetchResponse.getAttributeValues(_OPEN_ID_AX_ATTR_FIRST_NAME));
+            }
+          }
+ else           if (openIdAXType.equals(_OPEN_ID_AX_ATTR_FULL_NAME)) {
+            String fullName=fetchResponse.getAttributeValue(_OPEN_ID_AX_ATTR_FULL_NAME);
+            String[] names=splitFullName(fullName);
+            if (names != null) {
+              if (Validator.isNull(firstName)) {
+                firstName=names[0];
+              }
+              if (Validator.isNull(lastName)) {
+                lastName=names[1];
+              }
+            }
+          }
+ else           if (openIdAXType.equals(_OPEN_ID_AX_ATTR_LAST_NAME)) {
+            if (Validator.isNull(lastName)) {
+              lastName=getFirstValue(fetchResponse.getAttributeValues(_OPEN_ID_AX_ATTR_LAST_NAME));
+            }
+          }
+        }
+      }
+    }
+  }
+ catch (  AssociationException ae) {
+    throw new OpenIdServiceException.AssociationException(ae.getMessage(),ae);
+  }
+catch (  DiscoveryException de) {
+    throw new OpenIdServiceException.DiscoveryException(de.getMessage(),de);
+  }
+catch (  MessageException me) {
+    throw new OpenIdServiceException.MessageException(me.getMessage(),me);
+  }
+  String openId=normalize(authSuccess.getIdentity());
+  User user=_userLocalService.fetchUserByOpenId(themeDisplay.getCompanyId(),openId);
+  if (user != null) {
+    session.setAttribute(WebKeys.OPEN_ID_LOGIN,user.getUserId());
+    return null;
+  }
+  try {
+    if (Validator.isNull(firstName) || Validator.isNull(lastName) || Validator.isNull(emailAddress)) {
+      SessionMessages.add(request,"openIdUserInformationMissing");
+      if (_log.isInfoEnabled()) {
+        _log.info("The OpenID provider did not send the required " + "attributes to create an account");
+      }
+      String createAccountURL=PortalUtil.getCreateAccountURL(request,themeDisplay);
+      String portletId=HttpUtil.getParameter(createAccountURL,"p_p_id",false);
+      String portletNamespace=PortalUtil.getPortletNamespace(portletId);
+      createAccountURL=HttpUtil.setParameter(createAccountURL,portletNamespace + "openId",openId);
+      session.setAttribute(WebKeys.OPEN_ID_LOGIN_PENDING,Boolean.TRUE);
+      return createAccountURL;
+    }
+  }
+ catch (  Exception e) {
+    throw new PortalException(e);
+  }
+  long creatorUserId=0;
+  long companyId=themeDisplay.getCompanyId();
+  boolean autoPassword=false;
+  String password1=PwdGenerator.getPassword();
+  String password2=password1;
+  boolean autoScreenName=true;
+  String screenName=StringPool.BLANK;
+  long facebookId=0;
+  Locale locale=themeDisplay.getLocale();
+  String middleName=StringPool.BLANK;
+  long prefixId=0;
+  long suffixId=0;
+  boolean male=true;
+  int birthdayMonth=Calendar.JANUARY;
+  int birthdayDay=1;
+  int birthdayYear=1970;
+  String jobTitle=StringPool.BLANK;
+  long[] groupIds=null;
+  long[] organizationIds=null;
+  long[] roleIds=null;
+  long[] userGroupIds=null;
+  boolean sendEmail=false;
+  ServiceContext serviceContext=new ServiceContext();
+  user=_userLocalService.addUser(creatorUserId,companyId,autoPassword,password1,password2,autoScreenName,screenName,emailAddress,facebookId,openId,locale,firstName,middleName,lastName,prefixId,suffixId,male,birthdayMonth,birthdayDay,birthdayYear,jobTitle,groupIds,organizationIds,roleIds,userGroupIds,sendEmail,serviceContext);
+  session.setAttribute(WebKeys.OPEN_ID_LOGIN,user.getUserId());
+  return null;
+}
