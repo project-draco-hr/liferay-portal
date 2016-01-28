@@ -1,3 +1,21 @@
 {
-  doWrite(companyId,tableName,outputStream);
+  String sql="SELECT * FROM " + tableName;
+  if (companyId > 0) {
+    sql+=" WHERE companyId = ?";
+  }
+  DataSource dataSource=getDataSource();
+  try (Connection con=dataSource.getConnection();PreparedStatement ps=_buildPreparedStatement(con,sql,companyId);ResultSet rs=ps.executeQuery()){
+    ResultSetMetaData metaData=rs.getMetaData();
+    int columnCount=metaData.getColumnCount();
+    while (rs.next()) {
+      String[] fields=new String[columnCount];
+      for (int i=0; i < columnCount; i++) {
+        fields[i]=serializeTableField(rs.getObject(i + 1));
+      }
+      generateInsert(outputStream,tableName,fields);
+    }
+  }
+ catch (  IOException|SQLException e) {
+    _logger.error("Error exporting the rows for table " + tableName,e);
+  }
 }
