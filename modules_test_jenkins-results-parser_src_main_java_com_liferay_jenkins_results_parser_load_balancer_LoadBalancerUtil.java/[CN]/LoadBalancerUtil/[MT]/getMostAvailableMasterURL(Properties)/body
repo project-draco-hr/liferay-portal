@@ -1,4 +1,6 @@
 {
+  System.out.println("getMostAvailableMasterURL called.");
+  long start=System.currentTimeMillis();
   boolean readOnly=false;
   int retryCount=0;
   while (true) {
@@ -89,26 +91,35 @@
       if (!readOnly) {
         File baseDir=new File(sharedDir,hostNamePrefix);
         File semaphoreFile=new File(baseDir,hostNamePrefix + ".semaphore");
-        if (recentJobPeriod > 0) {
-          StringBuilder sb=new StringBuilder();
-          File recentJobFile=new File(baseDir,"recentJob/" + hostNames.get(x));
-          if (recentJobFile.exists()) {
-            sb.append(JenkinsResultsParserUtil.read(recentJobFile));
-            if (sb.length() > 0) {
-              sb.append("|");
+        long age=System.currentTimeMillis() - semaphoreFile.lastModified();
+        System.out.println("Semaphore file age: " + (age / 1000F) + "seconds.");
+        String content=JenkinsResultsParserUtil.read(semaphoreFile);
+        if (content.equals(_MY_HOST_NAME)) {
+          if (recentJobPeriod > 0) {
+            StringBuilder sb=new StringBuilder();
+            File recentJobFile=new File(baseDir,"recentJob/" + hostNames.get(x));
+            if (recentJobFile.exists()) {
+              sb.append(JenkinsResultsParserUtil.read(recentJobFile));
+              if (sb.length() > 0) {
+                sb.append("|");
+              }
             }
+            String invokedJobBatchSize=properties.getProperty("invoked.job.batch.size");
+            if ((invokedJobBatchSize == null) || (invokedJobBatchSize.length() == 0)) {
+              invokedJobBatchSize="1";
+            }
+            sb.append(invokedJobBatchSize);
+            sb.append("-");
+            sb.append(System.currentTimeMillis());
+            JenkinsResultsParserUtil.write(recentJobFile,sb.toString());
           }
-          String invokedJobBatchSize=properties.getProperty("invoked.job.batch.size");
-          if ((invokedJobBatchSize == null) || (invokedJobBatchSize.length() == 0)) {
-            invokedJobBatchSize="1";
-          }
-          sb.append(invokedJobBatchSize);
-          sb.append("-");
-          sb.append(System.currentTimeMillis());
-          JenkinsResultsParserUtil.write(recentJobFile,sb.toString());
+          JenkinsResultsParserUtil.write(semaphoreFile,"");
         }
-        JenkinsResultsParserUtil.write(semaphoreFile,"");
+ else {
+          System.out.println("The sempahore file timed out and was " + "overwritten by: " + content + ". The recent job data could not be "+ "written.");
+        }
       }
+      System.out.println("getMostAvailableMasterURL total run " + "time: " + ((System.currentTimeMillis() - start) / 1000F) + " seconds.");
     }
   }
 }
