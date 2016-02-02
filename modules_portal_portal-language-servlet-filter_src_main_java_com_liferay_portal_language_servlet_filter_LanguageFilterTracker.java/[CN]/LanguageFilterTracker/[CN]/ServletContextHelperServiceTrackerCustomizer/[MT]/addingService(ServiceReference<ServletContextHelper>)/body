@@ -1,0 +1,28 @@
+{
+  Bundle bundle=serviceReference.getBundle();
+  try {
+    String bundleSymbolicName=bundle.getSymbolicName();
+    List<ServiceRegistration<?>> serviceRegistrations=new ArrayList<>();
+    Hashtable<String,Object> properties=new Hashtable<>();
+    properties.put("bundle.symbolic.name",bundleSymbolicName);
+    properties.put("service.ranking",Integer.MIN_VALUE);
+    BundleWiring bundleWiring=bundle.adapt(BundleWiring.class);
+    ClassLoader classLoader=bundleWiring.getClassLoader();
+    ResourceBundleLoader resourceBundleLoader=new AggregateResourceBundleLoader(ResourceBundleUtil.getResourceBundleLoader("content.Language",classLoader),LanguageResources.RESOURCE_BUNDLE_LOADER);
+    serviceRegistrations.add(_bundleContext.registerService(ResourceBundleLoader.class,resourceBundleLoader,properties));
+    String filterString="(&(objectClass=" + ResourceBundleLoader.class.getName() + ")"+ "(bundle.symbolic.name="+ bundleSymbolicName+ "))";
+    final ServiceTracker<ResourceBundleLoader,ResourceBundleLoader> serviceTracker=ServiceTrackerFactory.open(_bundleContext,filterString);
+    Filter filter=new LanguageFilter(new ServiceTrackerResourceBundleLoader(serviceTracker));
+    properties=new Hashtable<>();
+    Object contextName=serviceReference.getProperty(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_NAME);
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_SELECT,contextName);
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_FILTER_DISPATCHER,new String[]{DispatcherType.ASYNC.toString(),DispatcherType.FORWARD.toString(),DispatcherType.INCLUDE.toString(),DispatcherType.REQUEST.toString()});
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_FILTER_NAME,"Language Filter");
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_FILTER_PATTERN,new String[]{"*.css","*.js"});
+    serviceRegistrations.add(_bundleContext.registerService(Filter.class,filter,properties));
+    return new ServiceRegistrations(serviceTracker,serviceRegistrations);
+  }
+ catch (  InvalidSyntaxException ise) {
+    throw new RuntimeException(ise);
+  }
+}
