@@ -2,13 +2,28 @@
   List<String> importedExceptionClassNames=null;
   JavaDocBuilder javaDocBuilder=null;
   Matcher matcher=_catchExceptionPattern.matcher(content);
+  int skipVariableNameCheckEndPos=-1;
   while (matcher.find()) {
     String exceptionClassName=matcher.group(2);
     String exceptionVariableName=matcher.group(3);
     String tabs=matcher.group(1);
+    String expectedExceptionVariableName="e";
+    if (!exceptionClassName.contains(" |")) {
+      Matcher lowerCaseNumberOrPeriodMatcher=_lowerCaseNumberOrPeriodPattern.matcher(exceptionClassName);
+      expectedExceptionVariableName=StringUtil.toLowerCase(lowerCaseNumberOrPeriodMatcher.replaceAll(StringPool.BLANK));
+    }
+    Pattern exceptionVariablePattern=Pattern.compile("(\\W)" + exceptionVariableName + "(\\W)");
     int pos=content.indexOf("\n" + tabs + StringPool.CLOSE_CURLY_BRACE,matcher.end() - 1);
     String insideCatchCode=content.substring(matcher.end(),pos + 1);
-    Pattern exceptionVariablePattern=Pattern.compile("\\W" + exceptionVariableName + "\\W");
+    if (insideCatchCode.contains("catch (" + exceptionClassName)) {
+      skipVariableNameCheckEndPos=pos;
+    }
+    if ((skipVariableNameCheckEndPos < matcher.start()) && !expectedExceptionVariableName.equals(exceptionVariableName)) {
+      String catchExceptionCodeBlock=content.substring(matcher.start(),pos + 1);
+      Matcher exceptionVariableMatcher=exceptionVariablePattern.matcher(catchExceptionCodeBlock);
+      String catchExceptionReplacement=exceptionVariableMatcher.replaceAll("$1" + expectedExceptionVariableName + "$2");
+      return StringUtil.replaceFirst(content,catchExceptionCodeBlock,catchExceptionReplacement,matcher.start() - 1);
+    }
     Matcher exceptionVariableMatcher=exceptionVariablePattern.matcher(insideCatchCode);
     if (exceptionVariableMatcher.find()) {
       continue;
@@ -51,4 +66,5 @@
       exceptionClass=exceptionSuperClass;
     }
   }
+  return content;
 }
