@@ -1,0 +1,70 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  LayoutRevision oldLayoutRevision=layoutRevisionPersistence.findByPrimaryKey(layoutRevisionId);
+  Date now=new Date();
+  LayoutRevision layoutRevision=null;
+  int workflowAction=serviceContext.getWorkflowAction();
+  boolean revisionInProgress=ParamUtil.getBoolean(serviceContext,"revisionInProgress");
+  if (!MergeLayoutPrototypesThreadLocal.isInProgress() && (workflowAction != WorkflowConstants.ACTION_PUBLISH) && (_layoutRevisionId.get() <= 0)&& !revisionInProgress) {
+    long newLayoutRevisionId=counterLocalService.increment();
+    layoutRevision=layoutRevisionPersistence.create(newLayoutRevisionId);
+    layoutRevision.setGroupId(oldLayoutRevision.getGroupId());
+    layoutRevision.setCompanyId(oldLayoutRevision.getCompanyId());
+    layoutRevision.setUserId(user.getUserId());
+    layoutRevision.setUserName(user.getFullName());
+    layoutRevision.setLayoutSetBranchId(oldLayoutRevision.getLayoutSetBranchId());
+    layoutRevision.setParentLayoutRevisionId(oldLayoutRevision.getLayoutRevisionId());
+    layoutRevision.setHead(false);
+    layoutRevision.setLayoutBranchId(layoutBranchId);
+    layoutRevision.setPlid(oldLayoutRevision.getPlid());
+    layoutRevision.setPrivateLayout(oldLayoutRevision.isPrivateLayout());
+    layoutRevision.setName(name);
+    layoutRevision.setTitle(title);
+    layoutRevision.setDescription(description);
+    layoutRevision.setKeywords(keywords);
+    layoutRevision.setRobots(robots);
+    layoutRevision.setTypeSettings(typeSettings);
+    layoutRevision.setIconImageId(iconImageId);
+    layoutRevision.setThemeId(themeId);
+    layoutRevision.setColorSchemeId(colorSchemeId);
+    layoutRevision.setCss(css);
+    layoutRevision.setStatus(WorkflowConstants.STATUS_DRAFT);
+    layoutRevision.setStatusDate(serviceContext.getModifiedDate(now));
+    layoutRevisionPersistence.update(layoutRevision);
+    _layoutRevisionId.set(layoutRevision.getLayoutRevisionId());
+    copyPortletPreferences(layoutRevision,layoutRevision.getParentLayoutRevisionId());
+    StagingUtil.setRecentLayoutBranchId(user,layoutRevision.getLayoutSetBranchId(),layoutRevision.getPlid(),layoutRevision.getLayoutBranchId());
+    StagingUtil.setRecentLayoutRevisionId(user,layoutRevision.getLayoutSetBranchId(),layoutRevision.getPlid(),layoutRevision.getLayoutRevisionId());
+  }
+ else {
+    if (_layoutRevisionId.get() > 0) {
+      layoutRevision=layoutRevisionPersistence.findByPrimaryKey(_layoutRevisionId.get());
+    }
+ else {
+      layoutRevision=oldLayoutRevision;
+    }
+    layoutRevision.setName(name);
+    layoutRevision.setTitle(title);
+    layoutRevision.setDescription(description);
+    layoutRevision.setKeywords(keywords);
+    layoutRevision.setRobots(robots);
+    layoutRevision.setTypeSettings(typeSettings);
+    layoutRevision.setIconImageId(iconImageId);
+    layoutRevision.setThemeId(themeId);
+    layoutRevision.setColorSchemeId(colorSchemeId);
+    layoutRevision.setCss(css);
+    layoutRevisionPersistence.update(layoutRevision);
+    _layoutRevisionId.set(layoutRevision.getLayoutRevisionId());
+  }
+  boolean major=ParamUtil.getBoolean(serviceContext,"major");
+  if (major || !isWorkflowEnabled(layoutRevision.getPlid())) {
+    updateMajor(layoutRevision);
+  }
+  if (isWorkflowEnabled(layoutRevision.getPlid())) {
+    WorkflowHandlerRegistryUtil.startWorkflowInstance(layoutRevision.getCompanyId(),layoutRevision.getGroupId(),userId,LayoutRevision.class.getName(),layoutRevision.getLayoutRevisionId(),layoutRevision,serviceContext);
+  }
+ else {
+    updateStatus(userId,layoutRevision.getLayoutRevisionId(),WorkflowConstants.STATUS_APPROVED,serviceContext);
+  }
+  return layoutRevision;
+}
