@@ -2,13 +2,13 @@
   FlagsRequest flagsRequest=(FlagsRequest)message.getPayload();
   ServiceContext serviceContext=flagsRequest.getServiceContext();
   long companyId=serviceContext.getCompanyId();
-  Company company=CompanyLocalServiceUtil.getCompany(serviceContext.getCompanyId());
-  Layout layout=LayoutLocalServiceUtil.getLayout(serviceContext.getPlid());
+  Company company=_companyLocalService.getCompany(serviceContext.getCompanyId());
+  Layout layout=_layoutLocalService.getLayout(serviceContext.getPlid());
   Group group=layout.getGroup();
   String groupName=group.getDescriptiveName();
   String reporterUserName=null;
   String reporterEmailAddress=null;
-  User reporterUser=UserLocalServiceUtil.getUserById(serviceContext.getUserId());
+  User reporterUser=_userLocalService.getUserById(serviceContext.getUserId());
   Locale locale=LocaleUtil.getDefault();
   if (reporterUser.isDefaultUser()) {
     reporterUserName=LanguageUtil.get(locale,"anonymous");
@@ -20,7 +20,7 @@
   String reportedUserName=StringPool.BLANK;
   String reportedEmailAddress=StringPool.BLANK;
   String reportedURL=StringPool.BLANK;
-  User reportedUser=UserLocalServiceUtil.getUserById(flagsRequest.getReportedUserId());
+  User reportedUser=_userLocalService.getUserById(flagsRequest.getReportedUserId());
   if (reportedUser.isDefaultUser()) {
     reportedUserName=group.getDescriptiveName();
   }
@@ -31,14 +31,15 @@
   }
   String contentType=ResourceActionsUtil.getModelResource(locale,flagsRequest.getClassName());
   String reason=LanguageUtil.get(locale,flagsRequest.getReason());
-  String fromName=PrefsPropsUtil.getStringFromNames(companyId,PropsKeys.FLAGS_EMAIL_FROM_NAME,PropsKeys.ADMIN_EMAIL_FROM_NAME);
-  String fromAddress=PrefsPropsUtil.getStringFromNames(companyId,PropsKeys.FLAGS_EMAIL_FROM_ADDRESS,PropsKeys.ADMIN_EMAIL_FROM_ADDRESS);
-  String subject=PrefsPropsUtil.getContent(companyId,PropsKeys.FLAGS_EMAIL_SUBJECT);
-  String body=PrefsPropsUtil.getContent(companyId,PropsKeys.FLAGS_EMAIL_BODY);
+  FlagsGroupServiceConfiguration flagsGroupServiceConfiguration=ConfigurationProviderUtil.getConfiguration(FlagsGroupServiceConfiguration.class,new CompanyServiceSettingsLocator(companyId,"com.liferay.flags.configuration.FlagsConfiguration"));
+  String fromName=flagsGroupServiceConfiguration.emailFromName();
+  String fromAddress=flagsGroupServiceConfiguration.emailFromAddress();
+  String emailSubject=ContentUtil.get(FlagsRequestMessageListener.class.getClassLoader(),flagsGroupServiceConfiguration.emailSubject());
+  String emailBody=ContentUtil.get(FlagsRequestMessageListener.class.getClassLoader(),flagsGroupServiceConfiguration.emailBody());
   Set<User> recipients=getRecipients(companyId,serviceContext.getScopeGroupId());
   for (  User recipient : recipients) {
     try {
-      notify(reporterUser.getUserId(),company,groupName,reporterEmailAddress,reporterUserName,reportedEmailAddress,reportedUserName,reportedURL,flagsRequest.getClassPK(),flagsRequest.getContentTitle(),contentType,flagsRequest.getContentURL(),reason,fromName,fromAddress,recipient.getFullName(),recipient.getEmailAddress(),subject,body,serviceContext);
+      notify(reporterUser.getUserId(),company,groupName,reporterEmailAddress,reporterUserName,reportedEmailAddress,reportedUserName,reportedURL,flagsRequest.getClassPK(),flagsRequest.getContentTitle(),contentType,flagsRequest.getContentURL(),reason,fromName,fromAddress,recipient.getFullName(),recipient.getEmailAddress(),emailSubject,emailBody,serviceContext);
     }
  catch (    IOException ioe) {
       if (_log.isWarnEnabled()) {
