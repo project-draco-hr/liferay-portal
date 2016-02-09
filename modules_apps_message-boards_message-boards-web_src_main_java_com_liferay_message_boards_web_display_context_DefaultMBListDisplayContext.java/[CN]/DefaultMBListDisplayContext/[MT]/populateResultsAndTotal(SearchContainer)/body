@@ -2,7 +2,7 @@
   ThemeDisplay themeDisplay=(ThemeDisplay)_request.getAttribute(WebKeys.THEME_DISPLAY);
   String entriesNavigation=ParamUtil.getString(_request,"entriesNavigation","all");
   String keywords=ParamUtil.getString(_request,"keywords");
-  if (Validator.isNotNull(keywords)) {
+  if (isShowSearch()) {
     long searchCategoryId=ParamUtil.getLong(_request,"searchCategoryId");
     long[] categoryIdsArray=null;
     List categoryIds=new ArrayList();
@@ -22,16 +22,7 @@
     searchContainer.setResults(SearchResultUtil.getSearchResults(hits,_request.getLocale()));
     searchContainer.setSearch(true);
   }
- else   if (entriesNavigation.equals("all")) {
-    int status=WorkflowConstants.STATUS_APPROVED;
-    PermissionChecker permissionChecker=themeDisplay.getPermissionChecker();
-    if (permissionChecker.isContentReviewer(themeDisplay.getCompanyId(),themeDisplay.getScopeGroupId())) {
-      status=WorkflowConstants.STATUS_ANY;
-    }
-    searchContainer.setTotal(MBCategoryLocalServiceUtil.getCategoriesAndThreadsCount(themeDisplay.getScopeGroupId(),_categoryId,status));
-    searchContainer.setResults(MBCategoryServiceUtil.getCategoriesAndThreads(themeDisplay.getScopeGroupId(),_categoryId,status,searchContainer.getStart(),searchContainer.getEnd()));
-  }
- else   if (entriesNavigation.equals("recent")) {
+ else   if (isShowRecentPosts()) {
     long groupThreadsUserId=ParamUtil.getLong(_request,"groupThreadsUserId");
     Calendar calendar=Calendar.getInstance();
     MBGroupServiceSettings mbGroupServiceSettings=MBGroupServiceSettings.getInstance(themeDisplay.getSiteGroupId());
@@ -39,5 +30,23 @@
     calendar.add(Calendar.DATE,-offset);
     searchContainer.setTotal(MBThreadServiceUtil.getGroupThreadsCount(themeDisplay.getScopeGroupId(),groupThreadsUserId,calendar.getTime(),WorkflowConstants.STATUS_APPROVED));
     searchContainer.setResults(MBThreadServiceUtil.getGroupThreads(themeDisplay.getScopeGroupId(),groupThreadsUserId,calendar.getTime(),WorkflowConstants.STATUS_APPROVED,searchContainer.getStart(),searchContainer.getEnd()));
+  }
+ else   if (isShowMyPosts()) {
+    long groupThreadsUserId=ParamUtil.getLong(_request,"groupThreadsUserId");
+    if (themeDisplay.isSignedIn()) {
+      groupThreadsUserId=themeDisplay.getUserId();
+    }
+    int status=WorkflowConstants.STATUS_ANY;
+    searchContainer.setTotal(MBThreadServiceUtil.getGroupThreadsCount(themeDisplay.getScopeGroupId(),groupThreadsUserId,status));
+    searchContainer.setResults(MBThreadServiceUtil.getGroupThreads(themeDisplay.getScopeGroupId(),groupThreadsUserId,status,searchContainer.getStart(),searchContainer.getEnd()));
+  }
+ else {
+    int status=WorkflowConstants.STATUS_APPROVED;
+    PermissionChecker permissionChecker=themeDisplay.getPermissionChecker();
+    if (permissionChecker.isContentReviewer(themeDisplay.getCompanyId(),themeDisplay.getScopeGroupId())) {
+      status=WorkflowConstants.STATUS_ANY;
+    }
+    searchContainer.setTotal(MBCategoryLocalServiceUtil.getCategoriesAndThreadsCount(themeDisplay.getScopeGroupId(),_categoryId,status));
+    searchContainer.setResults(MBCategoryServiceUtil.getCategoriesAndThreads(themeDisplay.getScopeGroupId(),_categoryId,status,searchContainer.getStart(),searchContainer.getEnd()));
   }
 }
