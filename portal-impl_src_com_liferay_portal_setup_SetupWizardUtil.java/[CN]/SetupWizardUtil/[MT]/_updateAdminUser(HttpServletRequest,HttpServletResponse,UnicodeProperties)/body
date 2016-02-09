@@ -1,0 +1,49 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+  Company company=CompanyLocalServiceUtil.getCompanyById(themeDisplay.getCompanyId());
+  String emailAddress=ParamUtil.getString(request,"adminEmailAddress",PropsValues.DEFAULT_ADMIN_EMAIL_ADDRESS_PREFIX + StringPool.AT + company.getMx());
+  PropsValues.ADMIN_EMAIL_FROM_ADDRESS=emailAddress;
+  unicodeProperties.put(PropsKeys.ADMIN_EMAIL_FROM_ADDRESS,emailAddress);
+  ScreenNameGenerator screenNameGenerator=ScreenNameGeneratorFactory.getInstance();
+  String screenName=GetterUtil.getString(PropsValues.DEFAULT_ADMIN_EMAIL_ADDRESS_PREFIX,"test");
+  try {
+    screenName=screenNameGenerator.generate(0,0,emailAddress);
+  }
+ catch (  Exception e) {
+  }
+  String firstName=ParamUtil.getString(request,"adminFirstName",PropsValues.DEFAULT_ADMIN_FIRST_NAME);
+  String lastName=ParamUtil.getString(request,"adminLastName",PropsValues.DEFAULT_ADMIN_LAST_NAME);
+  FullNameGenerator fullNameGenerator=FullNameGeneratorFactory.getInstance();
+  String fullName=fullNameGenerator.getFullName(firstName,null,lastName);
+  PropsValues.ADMIN_EMAIL_FROM_NAME=fullName;
+  unicodeProperties.put(PropsKeys.ADMIN_EMAIL_FROM_NAME,fullName);
+  User user=UserLocalServiceUtil.fetchUserByEmailAddress(themeDisplay.getCompanyId(),emailAddress);
+  if (user != null) {
+    String greeting=LanguageUtil.format(themeDisplay.getLocale(),"welcome-x",fullName,false);
+    Contact contact=user.getContact();
+    Calendar birthdayCal=CalendarFactoryUtil.getCalendar();
+    birthdayCal.setTime(contact.getBirthday());
+    int birthdayMonth=birthdayCal.get(Calendar.MONTH);
+    int birthdayDay=birthdayCal.get(Calendar.DAY_OF_MONTH);
+    int birthdayYear=birthdayCal.get(Calendar.YEAR);
+    user=UserLocalServiceUtil.updateUser(user.getUserId(),StringPool.BLANK,StringPool.BLANK,StringPool.BLANK,false,user.getReminderQueryQuestion(),user.getReminderQueryAnswer(),screenName,emailAddress,user.getFacebookId(),user.getOpenId(),false,null,themeDisplay.getLanguageId(),user.getTimeZoneId(),greeting,user.getComments(),firstName,user.getMiddleName(),lastName,contact.getPrefixId(),contact.getSuffixId(),contact.isMale(),birthdayMonth,birthdayDay,birthdayYear,contact.getSmsSn(),contact.getFacebookSn(),contact.getJabberSn(),contact.getSkypeSn(),contact.getTwitterSn(),contact.getJobTitle(),null,null,null,null,null,new ServiceContext());
+  }
+ else {
+    UserLocalServiceUtil.addDefaultAdminUser(themeDisplay.getCompanyId(),screenName,emailAddress,themeDisplay.getLocale(),firstName,StringPool.BLANK,lastName);
+    user=UserLocalServiceUtil.getUserByEmailAddress(themeDisplay.getCompanyId(),emailAddress);
+    String defaultAdminEmailAddress=PropsValues.DEFAULT_ADMIN_EMAIL_ADDRESS_PREFIX + "@" + PropsValues.COMPANY_DEFAULT_WEB_ID;
+    if (!emailAddress.equals(defaultAdminEmailAddress)) {
+      User testUser=UserLocalServiceUtil.fetchUserByEmailAddress(themeDisplay.getCompanyId(),defaultAdminEmailAddress);
+      if (testUser != null) {
+        UserLocalServiceUtil.updateStatus(testUser.getUserId(),WorkflowConstants.STATUS_INACTIVE,new ServiceContext());
+      }
+    }
+  }
+  user=UserLocalServiceUtil.updatePasswordReset(user.getUserId(),true);
+  HttpSession session=request.getSession();
+  session.setAttribute(WebKeys.EMAIL_ADDRESS,emailAddress);
+  session.setAttribute(WebKeys.SETUP_WIZARD_PASSWORD_UPDATED,true);
+  session.setAttribute(WebKeys.USER,user);
+  session.setAttribute(WebKeys.USER_ID,user.getUserId());
+  EventsProcessorUtil.process(PropsKeys.LOGIN_EVENTS_POST,PropsValues.LOGIN_EVENTS_POST,request,response);
+}
