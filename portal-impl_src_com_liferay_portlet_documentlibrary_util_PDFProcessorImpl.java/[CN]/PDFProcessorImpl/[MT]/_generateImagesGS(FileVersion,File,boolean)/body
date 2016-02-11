@@ -23,8 +23,29 @@
   arguments.add(file.getPath());
   Future<?> future=GhostscriptUtil.execute(arguments);
   String processIdentity=String.valueOf(fileVersion.getFileVersionId());
-  futures.put(processIdentity,future);
-  future.get();
+  long waiting=PropsValues.DL_FILE_ENTRY_PREVIEW_GENERATION_TIMEOUT;
+  if (_log.isDebugEnabled()) {
+    if (thumbnail) {
+      _log.debug("Waiting for " + waiting + " seconds to obtain "+ file.getPath()+ " thumbnail generation");
+    }
+ else {
+      _log.debug("Waiting for " + waiting + " seconds to obtain "+ file.getPath()+ " previews generation");
+    }
+  }
+  try {
+    future.get(waiting,TimeUnit.SECONDS);
+    futures.put(processIdentity,future);
+  }
+ catch (  TimeoutException te) {
+    _log.error(file.getPath() + " generation timeout!");
+    boolean cancel=future.cancel(true);
+    _log.error("Generation cancelled?: " + cancel);
+    throw te;
+  }
+catch (  Exception e) {
+    _log.error("Unexpected error: ",e);
+    throw e;
+  }
   if (thumbnail) {
     File thumbnailTempFile=getThumbnailTempFile(tempFileId);
     try {
