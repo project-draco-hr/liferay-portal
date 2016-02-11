@@ -1,0 +1,48 @@
+{
+  Session session=null;
+  if (unlimitedConnections) {
+    session=_sessions.get(syncAccountId + "#MAX");
+  }
+ else {
+    session=_sessions.get(String.valueOf(syncAccountId));
+  }
+  if (session != null) {
+    if (ServerInfo.supportsDeviceRegistration(syncAccountId)) {
+      SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(syncAccountId);
+      session.addHeader("Sync-UUID",syncAccount.getUuid());
+    }
+    return session;
+  }
+  try {
+    SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(syncAccountId);
+    URL url=new URL(syncAccount.getUrl());
+    int maxConnections=0;
+    if (unlimitedConnections) {
+      maxConnections=Integer.MAX_VALUE;
+    }
+ else {
+      maxConnections=syncAccount.getMaxConnections();
+    }
+    if (syncAccount.isOAuthEnabled()) {
+      session=new Session(url,syncAccount.getOAuthConsumerKey(),syncAccount.getOAuthConsumerSecret(),syncAccount.getOAuthToken(),Encryptor.decrypt(syncAccount.getOAuthTokenSecret()),syncAccount.isTrustSelfSigned(),maxConnections);
+    }
+ else {
+      session=new Session(url,syncAccount.getLogin(),Encryptor.decrypt(syncAccount.getPassword()),syncAccount.isTrustSelfSigned(),maxConnections);
+    }
+    if (ServerInfo.supportsDeviceRegistration(syncAccountId)) {
+      session.addHeader("Sync-UUID",syncAccount.getUuid());
+    }
+    if (unlimitedConnections) {
+      _sessions.put(syncAccountId + "#MAX",session);
+    }
+ else {
+      session.startTrackTransferRate();
+      _sessions.put(String.valueOf(syncAccountId),session);
+    }
+    return session;
+  }
+ catch (  Exception e) {
+    _logger.error(e.getMessage(),e);
+    return null;
+  }
+}
