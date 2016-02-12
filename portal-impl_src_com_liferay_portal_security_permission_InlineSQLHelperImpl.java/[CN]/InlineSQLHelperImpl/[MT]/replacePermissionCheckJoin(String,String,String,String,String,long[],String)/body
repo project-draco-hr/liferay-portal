@@ -3,12 +3,29 @@
     throw new IllegalArgumentException("classPKField is null");
   }
   PermissionChecker permissionChecker=PermissionThreadLocal.getPermissionChecker();
-  long checkGroupId=0;
   if (groupIds.length == 1) {
-    checkGroupId=groupIds[0];
-  }
-  if (permissionChecker.hasPermission(checkGroupId,className,0,ActionKeys.VIEW)) {
-    return sql;
+    long groupId=groupIds[0];
+    Group group=GroupLocalServiceUtil.fetchGroup(groupId);
+    if (group != null) {
+      long companyId=group.getCompanyId();
+      long[] roleIds=getRoleIds(groupId);
+      try {
+        if (ResourcePermissionLocalServiceUtil.hasResourcePermission(companyId,className,ResourceConstants.SCOPE_GROUP,String.valueOf(groupId),roleIds,ActionKeys.VIEW)) {
+          return sql;
+        }
+        if (ResourcePermissionLocalServiceUtil.hasResourcePermission(companyId,className,ResourceConstants.SCOPE_GROUP_TEMPLATE,String.valueOf(GroupConstants.DEFAULT_PARENT_GROUP_ID),roleIds,ActionKeys.VIEW)) {
+          return sql;
+        }
+        if (ResourcePermissionLocalServiceUtil.hasResourcePermission(companyId,className,ResourceConstants.SCOPE_COMPANY,String.valueOf(companyId),roleIds,ActionKeys.VIEW)) {
+          return sql;
+        }
+      }
+ catch (      PortalException pe) {
+        if (_log.isDebugEnabled()) {
+          _log.debug("Unable to retrieve resource permissions for " + className + " inside Group "+ groupId,pe);
+        }
+      }
+    }
   }
   String permissionJoin=StringPool.BLANK;
   if (Validator.isNotNull(bridgeJoin)) {
