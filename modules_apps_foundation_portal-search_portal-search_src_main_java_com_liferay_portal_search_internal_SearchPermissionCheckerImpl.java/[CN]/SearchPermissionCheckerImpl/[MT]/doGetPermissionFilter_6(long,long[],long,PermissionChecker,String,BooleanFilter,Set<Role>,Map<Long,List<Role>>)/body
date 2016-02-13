@@ -1,0 +1,63 @@
+{
+  BooleanFilter permissionBooleanFilter=new BooleanFilter();
+  if (userId > 0) {
+    permissionBooleanFilter.addTerm(Field.USER_ID,userId);
+  }
+  TermsFilter groupsTermsFilter=new TermsFilter(Field.GROUP_ID);
+  TermsFilter groupRolesTermsFilter=new TermsFilter(Field.GROUP_ROLE_ID);
+  TermsFilter rolesTermsFilter=new TermsFilter(Field.ROLE_ID);
+  List<Long> roleIds=new ArrayList<>(roles.size());
+  List<Long> regularRoleIds=new ArrayList<>();
+  for (  Role role : roles) {
+    roleIds.add(role.getRoleId());
+    if (role.getType() == RoleConstants.TYPE_REGULAR) {
+      regularRoleIds.add(role.getRoleId());
+    }
+    rolesTermsFilter.addValue(String.valueOf(role.getRoleId()));
+  }
+  long[] roleIdsArray=ArrayUtil.toLongArray(roleIds);
+  if (_resourcePermissionLocalService.hasResourcePermission(companyId,className,ResourceConstants.SCOPE_COMPANY,String.valueOf(companyId),roleIdsArray,ActionKeys.VIEW)) {
+    return booleanFilter;
+  }
+  if (_resourcePermissionLocalService.hasResourcePermission(companyId,className,ResourceConstants.SCOPE_GROUP_TEMPLATE,String.valueOf(GroupConstants.DEFAULT_PARENT_GROUP_ID),ArrayUtil.toLongArray(regularRoleIds),ActionKeys.VIEW)) {
+    return booleanFilter;
+  }
+  for (  Map.Entry<Long,List<Role>> entry : groupIdsToRoles.entrySet()) {
+    long groupId=entry.getKey();
+    List<Role> groupRoles=entry.getValue();
+    if (permissionChecker.isGroupAdmin(groupId) || _resourcePermissionLocalService.hasResourcePermission(companyId,className,ResourceConstants.SCOPE_GROUP,String.valueOf(groupId),roleIdsArray,ActionKeys.VIEW)) {
+      groupsTermsFilter.addValue(String.valueOf(groupId));
+    }
+    if (_resourcePermissionLocalService.hasResourcePermission(companyId,className,ResourceConstants.SCOPE_GROUP_TEMPLATE,String.valueOf(GroupConstants.DEFAULT_PARENT_GROUP_ID),ListUtil.toLongArray(groupRoles,Role.ROLE_ID_ACCESSOR),ActionKeys.VIEW)) {
+      groupsTermsFilter.addValue(String.valueOf(groupId));
+    }
+    for (    Role groupRole : groupRoles) {
+      groupRolesTermsFilter.addValue(groupId + StringPool.DASH + groupRole.getRoleId());
+    }
+  }
+  if (ArrayUtil.isNotEmpty(groupIds)) {
+    for (    long groupId : groupIds) {
+      if (_resourcePermissionLocalService.hasResourcePermission(companyId,className,ResourceConstants.SCOPE_GROUP,String.valueOf(groupId),roleIdsArray,ActionKeys.VIEW)) {
+        groupsTermsFilter.addValue(String.valueOf(groupId));
+      }
+    }
+  }
+  if (!groupsTermsFilter.isEmpty()) {
+    permissionBooleanFilter.add(groupsTermsFilter);
+  }
+  if (!groupRolesTermsFilter.isEmpty()) {
+    permissionBooleanFilter.add(groupRolesTermsFilter);
+  }
+  if (!rolesTermsFilter.isEmpty()) {
+    permissionBooleanFilter.add(rolesTermsFilter);
+  }
+  if (!permissionBooleanFilter.hasClauses()) {
+    return booleanFilter;
+  }
+  BooleanFilter fullBooleanFilter=new BooleanFilter();
+  if ((booleanFilter != null) && booleanFilter.hasClauses()) {
+    fullBooleanFilter.add(booleanFilter,BooleanClauseOccur.MUST);
+  }
+  fullBooleanFilter.add(permissionBooleanFilter,BooleanClauseOccur.MUST);
+  return fullBooleanFilter;
+}
