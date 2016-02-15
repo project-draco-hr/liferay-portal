@@ -1,0 +1,34 @@
+{
+  User user=userLocalService.getUserById(userId);
+  try {
+    User receiverUser=userLocalService.getUserByEmailAddress(serviceContext.getCompanyId(),receiverEmailAddress);
+    receiverUserId=receiverUser.getUserId();
+  }
+ catch (  NoSuchUserException nsue) {
+  }
+  Date now=new Date();
+  long memberRequestId=counterLocalService.increment();
+  MemberRequest memberRequest=memberRequestPersistence.create(memberRequestId);
+  memberRequest.setGroupId(groupId);
+  memberRequest.setCompanyId(user.getCompanyId());
+  memberRequest.setUserId(userId);
+  memberRequest.setUserName(user.getFullName());
+  memberRequest.setCreateDate(now);
+  memberRequest.setModifiedDate(now);
+  memberRequest.setKey(PortalUUIDUtil.generate());
+  memberRequest.setReceiverUserId(receiverUserId);
+  memberRequest.setInvitedRoleId(invitedRoleId);
+  memberRequest.setInvitedTeamId(invitedTeamId);
+  memberRequest.setStatus(InviteMembersConstants.STATUS_PENDING);
+  memberRequestPersistence.update(memberRequest);
+  try {
+    sendEmail(receiverEmailAddress,memberRequest,serviceContext);
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+  if (receiverUserId > 0) {
+    sendNotificationEvent(memberRequest);
+  }
+  return memberRequest;
+}
