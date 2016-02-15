@@ -1,0 +1,34 @@
+{
+  _bundles.put(bundle.getSymbolicName(),bundle.getBundleId());
+  Dictionary<String,String> headers=bundle.getHeaders();
+  boolean isClusterMasterOnly=GetterUtil.getBoolean(headers.get(ScriptingExecutorConstants.LIFERAY_SCRIPTING_EXECUTOR_CLUSTER_MASTER_ONLY),false);
+  if (isClusterMasterOnly && !_clusterMasterExecutor.isMaster()) {
+    return null;
+  }
+  String scriptingLanguage=headers.get(ScriptingExecutorConstants.LIFERAY_SCRIPTING_EXECUTOR_SCRIPTING_LANGUAGE);
+  if (scriptingLanguage == null) {
+    scriptingLanguage=ScriptingExecutorMessagingConstants.DEFAULT_SCRIPTING_LANGUAGE;
+  }
+  if (!_scriptingLanguages.contains(scriptingLanguage)) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("No " + scriptingLanguage + " executors available "+ "to process scripts from : "+ bundle.getSymbolicName());
+    }
+    return null;
+  }
+  Enumeration<URL> scriptsEnum=bundle.findEntries(_SCRIPTS_DIR,"*",true);
+  if ((scriptsEnum == null) || !scriptsEnum.hasMoreElements()) {
+    if (_log.isDebugEnabled()) {
+      _log.debug("No scripts in bundle: " + bundle.getSymbolicName());
+    }
+    return null;
+  }
+  Message message=new Message();
+  message.put(ScriptingExecutorMessagingConstants.SCRIPTING_LANGUAGE_MESSAGE_ATTRIBUTE,scriptingLanguage);
+  List<URL> scriptURLs=new ArrayList<>();
+  while (scriptsEnum.hasMoreElements()) {
+    scriptURLs.add(scriptsEnum.nextElement());
+  }
+  message.put(ScriptingExecutorMessagingConstants.URLS_MESSAGE_ATTRIBUTE,scriptURLs);
+  _singleDestinationMessageSender.send(message);
+  return null;
+}
