@@ -1,0 +1,31 @@
+{
+  JSONObject jsonObject=JSONFactoryUtil.createJSONObject(userNotificationEvent.getPayload());
+  long memberRequestId=jsonObject.getLong("classPK");
+  MemberRequest memberRequest=MemberRequestLocalServiceUtil.fetchMemberRequest(memberRequestId);
+  Group group=null;
+  if (memberRequest != null) {
+    group=GroupLocalServiceUtil.fetchGroup(memberRequest.getGroupId());
+  }
+  if ((group == null) || (memberRequest == null)) {
+    UserNotificationEventLocalServiceUtil.deleteUserNotificationEvent(userNotificationEvent.getUserNotificationEventId());
+    return null;
+  }
+  String title=StringPool.BLANK;
+  if (memberRequest.getStatus() == MembershipRequestConstants.STATUS_PENDING) {
+    title=serviceContext.translate("x-invited-you-to-join-x",new Object[]{getUserNameLink(memberRequest.getUserId(),serviceContext),getSiteDescriptiveName(memberRequest.getGroupId(),serviceContext)});
+  }
+  LiferayPortletResponse liferayPortletResponse=serviceContext.getLiferayPortletResponse();
+  PortletURL confirmURL=liferayPortletResponse.createActionURL(PortletKeys.SO_INVITE_MEMBERS);
+  confirmURL.setParameter(ActionRequest.ACTION_NAME,"updateMemberRequest");
+  confirmURL.setParameter("memberRequestId",String.valueOf(memberRequestId));
+  confirmURL.setParameter("status",String.valueOf(MembershipRequestConstants.STATUS_APPROVED));
+  confirmURL.setParameter("userNotificationEventId",String.valueOf(userNotificationEvent.getUserNotificationEventId()));
+  confirmURL.setWindowState(WindowState.NORMAL);
+  PortletURL ignoreURL=liferayPortletResponse.createActionURL(PortletKeys.SO_INVITE_MEMBERS);
+  ignoreURL.setParameter(ActionRequest.ACTION_NAME,"updateMemberRequest");
+  ignoreURL.setParameter("memberRequestId",String.valueOf(memberRequestId));
+  ignoreURL.setParameter("status",String.valueOf(MembershipRequestConstants.STATUS_DENIED));
+  ignoreURL.setParameter("userNotificationEventId",String.valueOf(userNotificationEvent.getUserNotificationEventId()));
+  ignoreURL.setWindowState(WindowState.NORMAL);
+  return StringUtil.replace(getBodyTemplate(),new String[]{"[$CONFIRM$]","[$CONFIRM_URL$]","[$IGNORE$]","[$IGNORE_URL$]","[$TITLE$]"},new String[]{serviceContext.translate("confirm"),confirmURL.toString(),serviceContext.translate("ignore"),ignoreURL.toString(),title});
+}
