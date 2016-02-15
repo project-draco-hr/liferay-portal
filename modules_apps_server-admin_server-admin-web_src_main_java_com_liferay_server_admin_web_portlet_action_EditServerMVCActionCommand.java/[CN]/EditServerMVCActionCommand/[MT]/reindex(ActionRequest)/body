@@ -3,16 +3,16 @@
   Map<String,Serializable> taskContextMap=new HashMap<>();
   String className=ParamUtil.getString(actionRequest,"className");
   if (!ParamUtil.getBoolean(actionRequest,"blocking")) {
-    IndexWriterHelperUtil.reindex(themeDisplay.getUserId(),"reindex",PortalInstances.getCompanyIds(),className,taskContextMap);
+    _indexWriterHelper.reindex(themeDisplay.getUserId(),"reindex",PortalInstances.getCompanyIds(),className,taskContextMap);
     return;
   }
-  final String uuid=PortalUUIDUtil.generate();
+  final String uuid=_portalUUID.generate();
   taskContextMap.put("uuid",uuid);
   final CountDownLatch countDownLatch=new CountDownLatch(1);
   MessageListener messageListener=new MessageListener(){
     @Override public void receive(    Message message) throws MessageListenerException {
       try {
-        BackgroundTask backgroundTask=BackgroundTaskManagerUtil.getBackgroundTask(message.getLong(BackgroundTaskConstants.BACKGROUND_TASK_ID));
+        BackgroundTask backgroundTask=_backgroundTaskManager.getBackgroundTask(message.getLong(BackgroundTaskConstants.BACKGROUND_TASK_ID));
         Map<String,Serializable> taskContextMap=backgroundTask.getTaskContextMap();
         if (!uuid.equals(taskContextMap.get("uuid"))) {
           return;
@@ -33,12 +33,12 @@
     }
   }
 ;
-  MessageBusUtil.registerMessageListener(DestinationNames.BACKGROUND_TASK_STATUS,messageListener);
+  _messageBus.registerMessageListener(DestinationNames.BACKGROUND_TASK_STATUS,messageListener);
   try {
-    IndexWriterHelperUtil.reindex(themeDisplay.getUserId(),"reindex",PortalInstances.getCompanyIds(),className,taskContextMap);
+    _indexWriterHelper.reindex(themeDisplay.getUserId(),"reindex",PortalInstances.getCompanyIds(),className,taskContextMap);
     countDownLatch.await(ParamUtil.getLong(actionRequest,"timeout",Time.HOUR),TimeUnit.MILLISECONDS);
   }
   finally {
-    MessageBusUtil.unregisterMessageListener(DestinationNames.BACKGROUND_TASK_STATUS,messageListener);
+    _messageBus.unregisterMessageListener(DestinationNames.BACKGROUND_TASK_STATUS,messageListener);
   }
 }
