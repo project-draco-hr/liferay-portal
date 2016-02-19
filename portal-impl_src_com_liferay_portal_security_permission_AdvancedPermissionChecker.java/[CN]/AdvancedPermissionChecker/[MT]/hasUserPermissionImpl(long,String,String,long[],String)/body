@@ -16,7 +16,7 @@
   if (Validator.isNotNull(name) && Validator.isNotNull(primKey) && primKey.contains(PortletConstants.LAYOUT_SEPARATOR)) {
     hasLayoutManagerPermission=PortletPermissionUtil.hasLayoutManagerPermission(name,actionId);
   }
-  if (isCompanyAdminImpl(companyId)) {
+  if (isOmniadmin()) {
     return true;
   }
   if (name.equals(Organization.class.getName())) {
@@ -24,8 +24,20 @@
       return true;
     }
   }
- else   if (isGroupAdminImpl(groupId) && hasLayoutManagerPermission) {
+  try {
+    boolean hasPermission=doCheckPermission(companyId,groupId,name,primKey,roleIds,actionId,stopWatch);
+    if (hasPermission) {
+      return true;
+    }
+  }
+ catch (  MissingIndividualScopeResourcePermissionException misrpe) {
+    throw new IllegalArgumentException("Somebody is trying to circumvent permission framework " + "or there is a bug in permission framework caller: " + misrpe.getMessage(),misrpe);
+  }
+  if (isCompanyAdminImpl(companyId)) {
     return true;
   }
-  return doCheckPermission(companyId,groupId,name,primKey,roleIds,actionId,stopWatch);
+  if (isGroupAdminImpl(groupId) && hasLayoutManagerPermission) {
+    return true;
+  }
+  return false;
 }
