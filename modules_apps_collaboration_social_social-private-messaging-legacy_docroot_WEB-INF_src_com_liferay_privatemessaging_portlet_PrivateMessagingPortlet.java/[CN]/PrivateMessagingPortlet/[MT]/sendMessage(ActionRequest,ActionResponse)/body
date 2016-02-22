@@ -1,0 +1,41 @@
+{
+  UploadPortletRequest uploadPortletRequest=PortalUtil.getUploadPortletRequest(actionRequest);
+  ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  long userId=ParamUtil.getLong(uploadPortletRequest,"userId");
+  long mbThreadId=ParamUtil.getLong(uploadPortletRequest,"mbThreadId");
+  String to=ParamUtil.getString(uploadPortletRequest,"to");
+  String subject=ParamUtil.getString(uploadPortletRequest,"subject");
+  String body=ParamUtil.getString(uploadPortletRequest,"body");
+  List<ObjectValuePair<String,InputStream>> inputStreamOVPs=new ArrayList<>();
+  JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+  try {
+    for (int i=1; i <= 3; i++) {
+      String fileName=uploadPortletRequest.getFileName("msgFile" + i);
+      InputStream inputStream=uploadPortletRequest.getFileAsStream("msgFile" + i);
+      if (inputStream == null) {
+        continue;
+      }
+      validateAttachment(fileName,inputStream);
+      try {
+        ObjectValuePair<String,InputStream> inputStreamOVP=new ObjectValuePair<>(fileName,inputStream);
+        inputStreamOVPs.add(inputStreamOVP);
+      }
+ catch (      Exception e) {
+        _log.error(translate(actionRequest,"unable to attach file ") + fileName,e);
+      }
+    }
+    UserThreadLocalServiceUtil.addPrivateMessage(userId,mbThreadId,to,subject,body,inputStreamOVPs,themeDisplay);
+    jsonObject.put("success",Boolean.TRUE);
+  }
+ catch (  Exception e) {
+    jsonObject.put("message",getMessage(actionRequest,e));
+    jsonObject.put("success",Boolean.FALSE);
+  }
+ finally {
+    for (    ObjectValuePair<String,InputStream> inputStreamOVP : inputStreamOVPs) {
+      InputStream inputStream=inputStreamOVP.getValue();
+      StreamUtil.cleanUp(inputStream);
+    }
+  }
+  writeJSON(actionRequest,actionResponse,jsonObject);
+}

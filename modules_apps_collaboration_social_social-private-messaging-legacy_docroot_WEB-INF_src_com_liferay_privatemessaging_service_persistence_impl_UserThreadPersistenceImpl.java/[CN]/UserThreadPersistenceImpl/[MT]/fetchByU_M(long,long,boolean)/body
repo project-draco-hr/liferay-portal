@@ -1,0 +1,56 @@
+{
+  Object[] finderArgs=new Object[]{userId,mbThreadId};
+  Object result=null;
+  if (retrieveFromCache) {
+    result=finderCache.getResult(FINDER_PATH_FETCH_BY_U_M,finderArgs,this);
+  }
+  if (result instanceof UserThread) {
+    UserThread userThread=(UserThread)result;
+    if ((userId != userThread.getUserId()) || (mbThreadId != userThread.getMbThreadId())) {
+      result=null;
+    }
+  }
+  if (result == null) {
+    StringBundler query=new StringBundler(4);
+    query.append(_SQL_SELECT_USERTHREAD_WHERE);
+    query.append(_FINDER_COLUMN_U_M_USERID_2);
+    query.append(_FINDER_COLUMN_U_M_MBTHREADID_2);
+    String sql=query.toString();
+    Session session=null;
+    try {
+      session=openSession();
+      Query q=session.createQuery(sql);
+      QueryPos qPos=QueryPos.getInstance(q);
+      qPos.add(userId);
+      qPos.add(mbThreadId);
+      List<UserThread> list=q.list();
+      if (list.isEmpty()) {
+        finderCache.putResult(FINDER_PATH_FETCH_BY_U_M,finderArgs,list);
+      }
+ else {
+        if ((list.size() > 1) && _log.isWarnEnabled()) {
+          _log.warn("UserThreadPersistenceImpl.fetchByU_M(long, long, boolean) with parameters (" + StringUtil.merge(finderArgs) + ") yields a result set with more than 1 result. This violates the logical unique restriction. There is no order guarantee on which result is returned by this finder.");
+        }
+        UserThread userThread=list.get(0);
+        result=userThread;
+        cacheResult(userThread);
+        if ((userThread.getUserId() != userId) || (userThread.getMbThreadId() != mbThreadId)) {
+          finderCache.putResult(FINDER_PATH_FETCH_BY_U_M,finderArgs,userThread);
+        }
+      }
+    }
+ catch (    Exception e) {
+      finderCache.removeResult(FINDER_PATH_FETCH_BY_U_M,finderArgs);
+      throw processException(e);
+    }
+ finally {
+      closeSession(session);
+    }
+  }
+  if (result instanceof List<?>) {
+    return null;
+  }
+ else {
+    return (UserThread)result;
+  }
+}

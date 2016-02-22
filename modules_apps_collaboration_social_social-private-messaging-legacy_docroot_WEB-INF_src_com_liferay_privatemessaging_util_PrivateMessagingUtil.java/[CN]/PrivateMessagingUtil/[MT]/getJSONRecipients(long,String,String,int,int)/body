@@ -1,0 +1,53 @@
+{
+  JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+  User user=UserLocalServiceUtil.getUser(userId);
+  LinkedHashMap<String,Object> params=new LinkedHashMap<>();
+  if (type.equals("site")) {
+    params.put("inherit",Boolean.TRUE);
+    LinkedHashMap<String,Object> groupParams=new LinkedHashMap<>();
+    groupParams.put("inherit",Boolean.FALSE);
+    groupParams.put("site",Boolean.TRUE);
+    groupParams.put("usersGroups",userId);
+    List<Group> groups=GroupLocalServiceUtil.search(user.getCompanyId(),groupParams,QueryUtil.ALL_POS,QueryUtil.ALL_POS);
+    params.put("usersGroups",SitesUtil.filterGroups(groups,PortletPropsValues.AUTOCOMPLETE_RECIPIENT_SITE_EXCLUDES));
+  }
+ else   if (!type.equals("all")) {
+    params.put("socialRelationType",new Long[]{userId,Long.valueOf(SocialRelationConstants.TYPE_BI_CONNECTION)});
+  }
+  try {
+    Role role=RoleLocalServiceUtil.getRole(user.getCompanyId(),RoleConstants.SOCIAL_OFFICE_USER);
+    if (role != null) {
+      params.put("inherit",Boolean.TRUE);
+      params.put("usersRoles",Long.valueOf(role.getRoleId()));
+    }
+  }
+ catch (  NoSuchRoleException nsre) {
+  }
+  List<User> users=new ArrayList<>();
+  Indexer<?> indexer=IndexerRegistryUtil.nullSafeGetIndexer(User.class);
+  if (indexer.isIndexerEnabled() && _USERS_SEARCH_WITH_INDEX) {
+    Sort sort=SortFactoryUtil.getSort(User.class,"firstName","asc");
+    BaseModelSearchResult<User> baseModelSearchResult=UserLocalServiceUtil.searchUsers(user.getCompanyId(),keywords,keywords,keywords,keywords,keywords,WorkflowConstants.STATUS_APPROVED,params,false,start,end,sort);
+    jsonObject.put("total",baseModelSearchResult.getLength());
+    users=baseModelSearchResult.getBaseModels();
+  }
+ else {
+    int total=UserLocalServiceUtil.searchCount(user.getCompanyId(),keywords,WorkflowConstants.STATUS_APPROVED,params);
+    jsonObject.put("total",total);
+    users=UserLocalServiceUtil.search(user.getCompanyId(),keywords,WorkflowConstants.STATUS_APPROVED,params,start,end,new UserFirstNameComparator(true));
+  }
+  JSONArray jsonArray=JSONFactoryUtil.createJSONArray();
+  for (  User curUser : users) {
+    JSONObject userJSONObject=JSONFactoryUtil.createJSONObject();
+    StringBundler sb=new StringBundler(5);
+    sb.append(curUser.getFullName());
+    sb.append(CharPool.SPACE);
+    sb.append(CharPool.LESS_THAN);
+    sb.append(curUser.getScreenName());
+    sb.append(CharPool.GREATER_THAN);
+    userJSONObject.put("name",sb.toString());
+    jsonArray.put(userJSONObject);
+  }
+  jsonObject.put("users",jsonArray);
+  return jsonObject;
+}

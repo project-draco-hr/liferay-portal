@@ -1,0 +1,47 @@
+{
+  User user=UserLocalServiceUtil.getUser(userId);
+  Group group=GroupLocalServiceUtil.getCompanyGroup(user.getCompanyId());
+  long categoryId=PrivateMessagingConstants.PRIVATE_MESSAGING_CATEGORY_ID;
+  if (Validator.isNull(subject)) {
+    subject=StringUtil.shorten(body,50);
+  }
+  boolean anonymous=false;
+  double priority=0.0;
+  boolean allowPingbacks=false;
+  ServiceContext serviceContext=new ServiceContext();
+  serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
+  MBMessage mbMessage=MBMessageLocalServiceUtil.addMessage(userId,user.getScreenName(),group.getGroupId(),categoryId,mbThreadId,parentMBMessageId,subject,body,MBMessageConstants.DEFAULT_FORMAT,inputStreamOVPs,anonymous,priority,allowPingbacks,serviceContext);
+  if (mbThreadId == 0) {
+    for (    User recipient : recipients) {
+      if (recipient.getUserId() != userId) {
+        addUserThread(recipient.getUserId(),mbMessage.getThreadId(),mbMessage.getMessageId(),false,false);
+      }
+    }
+    addUserThread(userId,mbMessage.getThreadId(),mbMessage.getMessageId(),true,false);
+  }
+ else {
+    List<UserThread> userThreads=userThreadPersistence.findByMBThreadId(mbMessage.getThreadId());
+    for (    UserThread userThread : userThreads) {
+      userThread.setModifiedDate(new Date());
+      if (userThread.getUserId() == userId) {
+        userThread.setRead(true);
+      }
+ else {
+        userThread.setRead(false);
+      }
+      if (userThread.isDeleted()) {
+        userThread.setTopMBMessageId(mbMessage.getMessageId());
+        userThread.setDeleted(false);
+      }
+      userThreadPersistence.update(userThread);
+    }
+  }
+  try {
+    sendEmail(mbMessage.getMessageId(),themeDisplay);
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+  sendNotificationEvent(mbMessage);
+  return mbMessage;
+}
