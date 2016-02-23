@@ -6,13 +6,19 @@
     connection=DataAccess.getUpgradeOptimizedConnection();
     ps=connection.prepareStatement("select resourcePrimKey, structureId from JournalArticle " + "where structureId != ''");
     rs=ps.executeQuery();
-    while (rs.next()) {
-      long resourcePrimKey=rs.getLong("resourcePrimKey");
-      String structureId=rs.getString("structureId");
-      long ddmStructureId=getDDMStructureId(structureId);
-      runSQL("update AssetEntry set classTypeId = " + ddmStructureId + " where classNameId = "+ classNameId+ " and classPK = "+ resourcePrimKey);
+    try (PreparedStatement ps2=AutoBatchPreparedStatementUtil.autoBatch(connection.prepareStatement("update AssetEntry set classTypeId = ? where " + "classNameId = ? and classPK = ?"))){
+      while (rs.next()) {
+        long resourcePrimKey=rs.getLong("resourcePrimKey");
+        String structureId=rs.getString("structureId");
+        long ddmStructureId=getDDMStructureId(structureId);
+        ps2.setLong(1,ddmStructureId);
+        ps2.setLong(2,classNameId);
+        ps2.setLong(3,resourcePrimKey);
+        ps2.addBatch();
+      }
+      ps2.executeBatch();
     }
-  }
+   }
   finally {
     DataAccess.cleanUp(ps,rs);
   }
@@ -30,11 +36,17 @@
     ps=connection.prepareStatement(sb.toString());
     ps.setBoolean(1,false);
     rs=ps.executeQuery();
-    while (rs.next()) {
-      long classPK=rs.getLong("resourcePrimKey");
-      runSQL("update AssetEntry set listable = [$FALSE$] where " + "classNameId = " + classNameId + " and classPK = "+ classPK);
+    try (PreparedStatement ps2=AutoBatchPreparedStatementUtil.autoBatch(connection.prepareStatement("update AssetEntry set listable = ? where " + "classNameId = ? and classPK = ?"))){
+      while (rs.next()) {
+        long classPK=rs.getLong("resourcePrimKey");
+        ps2.setBoolean(1,false);
+        ps2.setLong(2,classNameId);
+        ps2.setLong(3,classPK);
+        ps2.addBatch();
+      }
+      ps2.executeBatch();
     }
-  }
+   }
   finally {
     DataAccess.cleanUp(ps,rs);
   }
