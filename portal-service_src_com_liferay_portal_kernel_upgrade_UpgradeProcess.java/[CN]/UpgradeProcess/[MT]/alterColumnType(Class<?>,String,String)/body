@@ -1,0 +1,47 @@
+{
+  Field tableNameField=tableClass.getField("TABLE_NAME");
+  String tableName=(String)tableNameField.get(null);
+  try {
+    DatabaseMetaData databaseMetaData=connection.getMetaData();
+    ResultSet indexInfo=databaseMetaData.getIndexInfo(null,null,normalizeName(tableName,databaseMetaData),false,false);
+    Map<String,Set<String>> map=new HashMap<>();
+    while (indexInfo.next()) {
+      String indexName=StringUtil.toUpperCase(indexInfo.getString("INDEX_NAME"));
+      Set<String> columnNames=map.get(indexName);
+      if (columnNames == null) {
+        columnNames=new HashSet<>();
+        map.put(indexName,columnNames);
+      }
+      columnNames.add(indexInfo.getString("COLUMN_NAME"));
+    }
+    for (    Map.Entry<String,Set<String>> entry : map.entrySet()) {
+      String indexName=entry.getKey();
+      Set<String> columnNames=entry.getValue();
+      if (columnNames.contains(columnName)) {
+        runSQL("drop index " + indexName + " on "+ tableName);
+      }
+    }
+    StringBundler sb=new StringBundler(6);
+    sb.append("alter_column_type ");
+    sb.append(tableName);
+    sb.append(" ");
+    sb.append(columnName);
+    sb.append(" ");
+    sb.append(columnType);
+    runSQL(sb.toString());
+    for (    String indexSQL : _getIndexesSQL(tableClass,tableName)) {
+      if (indexSQL.contains(columnName)) {
+        runSQL(indexSQL);
+      }
+    }
+  }
+ catch (  SQLException sqle) {
+    Field tableColumnsField=tableClass.getField("TABLE_COLUMNS");
+    Object[][] tableColumns=(Object[][])tableColumnsField.get(null);
+    Field tableSQLCreateField=tableClass.getField("TABLE_SQL_CREATE");
+    String tableSQLCreate=(String)tableSQLCreateField.get(null);
+    Field tableSQLAddIndexesField=tableClass.getField("TABLE_SQL_ADD_INDEXES");
+    String[] tableSQLAddIndexes=(String[])tableSQLAddIndexesField.get(null);
+    upgradeTable(tableName,tableColumns,tableSQLCreate,tableSQLAddIndexes);
+  }
+}

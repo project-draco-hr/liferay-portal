@@ -1,0 +1,38 @@
+{
+  ClassLoader classLoader=tableClass.getClassLoader();
+  if (!PortalClassLoaderUtil.isPortalClassLoader(classLoader)) {
+    List<String> indexes=new ArrayList<>();
+    String onTableName=" on " + tableName;
+    try (InputStream is=classLoader.getResourceAsStream("META-INF/sql/indexes.sql");UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new InputStreamReader(is))){
+      String line=null;
+      while ((line=unsyncBufferedReader.readLine()) != null) {
+        if (line.contains(onTableName)) {
+          indexes.add(line);
+        }
+      }
+    }
+     return indexes;
+  }
+  if (_portalIndexesSQL != null) {
+    return _portalIndexesSQL.get(tableName);
+  }
+  _portalIndexesSQL=new HashMap<>();
+  try (InputStream is=classLoader.getResourceAsStream("com/liferay/portal/tools/sql/dependencies/indexes.sql");UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new InputStreamReader(is))){
+    String line=null;
+    while ((line=unsyncBufferedReader.readLine()) != null) {
+      int x=line.indexOf(" on ");
+      if (x < 0) {
+        continue;
+      }
+      int y=line.indexOf(" ",x);
+      String currentTableName=line.substring(x + 4,y);
+      List<String> indexes=_portalIndexesSQL.get(currentTableName);
+      if (indexes == null) {
+        indexes=new ArrayList<>();
+        _portalIndexesSQL.put(currentTableName,indexes);
+      }
+      indexes.add(line);
+    }
+  }
+   return _portalIndexesSQL.get(tableName);
+}
