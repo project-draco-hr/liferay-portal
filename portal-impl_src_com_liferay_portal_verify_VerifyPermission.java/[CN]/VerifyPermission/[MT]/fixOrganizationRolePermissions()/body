@@ -1,31 +1,33 @@
 {
-  DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(ResourcePermission.class);
-  dynamicQuery.add(RestrictionsFactoryUtil.eq("name",Organization.class.getName()));
-  List<ResourcePermission> resourcePermissions=ResourcePermissionLocalServiceUtil.dynamicQuery(dynamicQuery);
-  for (  ResourcePermission resourcePermission : resourcePermissions) {
-    ResourcePermission groupResourcePermission=null;
-    try {
-      groupResourcePermission=ResourcePermissionLocalServiceUtil.getResourcePermission(resourcePermission.getCompanyId(),Group.class.getName(),resourcePermission.getScope(),resourcePermission.getPrimKey(),resourcePermission.getRoleId());
-    }
- catch (    Exception e) {
-      ResourcePermissionLocalServiceUtil.setResourcePermissions(resourcePermission.getCompanyId(),Group.class.getName(),resourcePermission.getScope(),resourcePermission.getPrimKey(),resourcePermission.getRoleId(),ResourcePermissionLocalServiceImpl.EMPTY_ACTION_IDS);
-      groupResourcePermission=ResourcePermissionLocalServiceUtil.getResourcePermission(resourcePermission.getCompanyId(),Group.class.getName(),resourcePermission.getScope(),resourcePermission.getPrimKey(),resourcePermission.getRoleId());
-    }
-    for (    String actionId : _DEPRECATED_ORGANIZATION_ACTION_IDS) {
-      if (resourcePermission.hasActionId(actionId)) {
-        resourcePermission.removeResourceAction(actionId);
-        groupResourcePermission.addResourceAction(actionId);
+  try (LoggingTimer loggingTimer=new LoggingTimer()){
+    DynamicQuery dynamicQuery=DynamicQueryFactoryUtil.forClass(ResourcePermission.class);
+    dynamicQuery.add(RestrictionsFactoryUtil.eq("name",Organization.class.getName()));
+    List<ResourcePermission> resourcePermissions=ResourcePermissionLocalServiceUtil.dynamicQuery(dynamicQuery);
+    for (    ResourcePermission resourcePermission : resourcePermissions) {
+      ResourcePermission groupResourcePermission=null;
+      try {
+        groupResourcePermission=ResourcePermissionLocalServiceUtil.getResourcePermission(resourcePermission.getCompanyId(),Group.class.getName(),resourcePermission.getScope(),resourcePermission.getPrimKey(),resourcePermission.getRoleId());
+      }
+ catch (      Exception e) {
+        ResourcePermissionLocalServiceUtil.setResourcePermissions(resourcePermission.getCompanyId(),Group.class.getName(),resourcePermission.getScope(),resourcePermission.getPrimKey(),resourcePermission.getRoleId(),ResourcePermissionLocalServiceImpl.EMPTY_ACTION_IDS);
+        groupResourcePermission=ResourcePermissionLocalServiceUtil.getResourcePermission(resourcePermission.getCompanyId(),Group.class.getName(),resourcePermission.getScope(),resourcePermission.getPrimKey(),resourcePermission.getRoleId());
+      }
+      for (      String actionId : _DEPRECATED_ORGANIZATION_ACTION_IDS) {
+        if (resourcePermission.hasActionId(actionId)) {
+          resourcePermission.removeResourceAction(actionId);
+          groupResourcePermission.addResourceAction(actionId);
+        }
+      }
+      try {
+        resourcePermission.resetOriginalValues();
+        ResourcePermissionLocalServiceUtil.updateResourcePermission(resourcePermission);
+        groupResourcePermission.resetOriginalValues();
+        ResourcePermissionLocalServiceUtil.updateResourcePermission(groupResourcePermission);
+      }
+ catch (      Exception e) {
+        _log.error(e,e);
       }
     }
-    try {
-      resourcePermission.resetOriginalValues();
-      ResourcePermissionLocalServiceUtil.updateResourcePermission(resourcePermission);
-      groupResourcePermission.resetOriginalValues();
-      ResourcePermissionLocalServiceUtil.updateResourcePermission(groupResourcePermission);
-    }
- catch (    Exception e) {
-      _log.error(e,e);
-    }
+    PermissionCacheUtil.clearResourceCache();
   }
-  PermissionCacheUtil.clearResourceCache();
-}
+ }
