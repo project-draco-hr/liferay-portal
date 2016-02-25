@@ -1,16 +1,17 @@
 {
   if (!PortalClassLoaderUtil.isPortalClassLoader(classLoader)) {
-    List<String> indexes=new ArrayList<>();
-    String onTableName=" on " + tableName;
+    List<ObjectValuePair<String,IndexMetadata>> objectValuePairs=new ArrayList<>();
     try (InputStream is=classLoader.getResourceAsStream("META-INF/sql/indexes.sql");Reader reader=new InputStreamReader(is);UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(reader)){
       String line=null;
       while ((line=unsyncBufferedReader.readLine()) != null) {
-        if (line.contains(onTableName)) {
-          indexes.add(line);
+        line=line.trim();
+        if (line.isEmpty()) {
+          continue;
         }
+        objectValuePairs.add(new ObjectValuePair<>(line,IndexMetadataFactoryUtil.createIndexMetadata(line)));
       }
     }
-     return indexes;
+     return objectValuePairs;
   }
   if (!_portalIndexesSQL.isEmpty()) {
     return _portalIndexesSQL.get(tableName);
@@ -18,18 +19,17 @@
   try (InputStream is=classLoader.getResourceAsStream("com/liferay/portal/tools/sql/dependencies/indexes.sql");Reader reader=new InputStreamReader(is);UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(reader)){
     String line=null;
     while ((line=unsyncBufferedReader.readLine()) != null) {
-      int x=line.indexOf(" on ");
-      if (x < 0) {
+      line=line.trim();
+      if (line.isEmpty()) {
         continue;
       }
-      int y=line.indexOf(CharPool.SPACE,x);
-      String currentTableName=line.substring(x + 4,y);
-      List<String> indexes=_portalIndexesSQL.get(currentTableName);
-      if (indexes == null) {
-        indexes=new ArrayList<>();
-        _portalIndexesSQL.put(currentTableName,indexes);
+      IndexMetadata indexMetadata=IndexMetadataFactoryUtil.createIndexMetadata(line);
+      List<ObjectValuePair<String,IndexMetadata>> objectValuePairs=_portalIndexesSQL.get(indexMetadata.getTableName());
+      if (objectValuePairs == null) {
+        objectValuePairs=new ArrayList<>();
+        _portalIndexesSQL.put(indexMetadata.getTableName(),objectValuePairs);
       }
-      indexes.add(line);
+      objectValuePairs.add(new ObjectValuePair<>(line,indexMetadata));
     }
   }
    return _portalIndexesSQL.get(tableName);
