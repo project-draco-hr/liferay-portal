@@ -1,0 +1,47 @@
+{
+  Field tableNameField=tableClass.getField("TABLE_NAME");
+  String tableName=(String)tableNameField.get(null);
+  try {
+    DatabaseMetaData databaseMetaData=connection.getMetaData();
+    ResultSet rs=databaseMetaData.getIndexInfo(null,null,normalizeName(tableName,databaseMetaData),false,false);
+    Map<String,Set<String>> map=new HashMap<>();
+    while (rs.next()) {
+      String indexName=StringUtil.toUpperCase(rs.getString("INDEX_NAME"));
+      Set<String> columnNames=map.get(indexName);
+      if (columnNames == null) {
+        columnNames=new HashSet<>();
+        map.put(indexName,columnNames);
+      }
+      columnNames.add(rs.getString("COLUMN_NAME"));
+    }
+    for (    String[] columnInfo : columnInfos) {
+      String columnName=columnInfo[0];
+      for (      Map.Entry<String,Set<String>> entry : map.entrySet()) {
+        Set<String> columnNames=entry.getValue();
+        if (columnNames.contains(columnName)) {
+          runSQL("drop index " + entry.getKey() + " on "+ tableName);
+        }
+      }
+      StringBundler sb=new StringBundler(6);
+      sb.append("alter_column_type ");
+      sb.append(tableName);
+      sb.append(" ");
+      sb.append(columnName);
+      sb.append(" ");
+      sb.append(columnInfo[1]);
+      runSQL(sb.toString());
+      for (      ObjectValuePair<String,IndexMetadata> objectValuePair : getIndexesSQL(tableClass.getClassLoader(),tableName)) {
+        IndexMetadata indexMetadata=objectValuePair.getValue();
+        if (ArrayUtil.contains(indexMetadata.getColumnNames(),columnName)) {
+          runSQL(objectValuePair.getKey());
+        }
+      }
+    }
+  }
+ catch (  SQLException sqle) {
+    Field tableColumnsField=tableClass.getField("TABLE_COLUMNS");
+    Field tableSQLCreateField=tableClass.getField("TABLE_SQL_CREATE");
+    Field tableSQLAddIndexesField=tableClass.getField("TABLE_SQL_ADD_INDEXES");
+    upgradeTable(tableName,(Object[][])tableColumnsField.get(null),(String)tableSQLCreateField.get(null),(String[])tableSQLAddIndexesField.get(null));
+  }
+}
