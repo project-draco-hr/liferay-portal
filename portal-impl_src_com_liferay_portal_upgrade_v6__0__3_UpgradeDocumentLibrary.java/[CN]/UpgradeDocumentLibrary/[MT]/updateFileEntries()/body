@@ -1,31 +1,33 @@
 {
-  List<Long> tableIds=new ArrayList<>();
-  long classNameId=PortalUtil.getClassNameId("com.liferay.portlet.documentlibrary.model.DLFileEntry");
-  try (PreparedStatement ps=connection.prepareStatement("select tableId from ExpandoTable where classNameId = " + classNameId);ResultSet rs=ps.executeQuery()){
-    while (rs.next()) {
-      long tableId=rs.getLong("tableId");
-      tableIds.add(tableId);
-    }
-  }
-   try (PreparedStatement ps=connection.prepareStatement("select uuid_, fileEntryId, groupId, folderId, name, title " + "from DLFileEntry");ResultSet rs=ps.executeQuery()){
-    while (rs.next()) {
-      String uuid_=rs.getString("uuid_");
-      long fileEntryId=rs.getLong("fileEntryId");
-      long groupId=rs.getLong("groupId");
-      long folderId=rs.getLong("folderId");
-      String name=rs.getString("name");
-      String title=rs.getString("title");
-      String extension=FileUtil.getExtension(title);
-      runSQL("update DLFileEntry set extension = '" + extension + "' where uuid_ = '"+ uuid_+ "' and groupId = "+ groupId);
-      long latestFileVersionId=0;
-      List<Long> fileVersionIds=getFileVersionIds(folderId,name);
-      if (!fileVersionIds.isEmpty()) {
-        latestFileVersionId=fileVersionIds.get(0);
-      }
-      for (      long tableId : tableIds) {
-        runSQL("update ExpandoRow set classPK = " + latestFileVersionId + " where tableId = "+ tableId+ " and classPK = "+ fileEntryId);
-        runSQL("update ExpandoValue set classPK = " + latestFileVersionId + " where tableId = "+ tableId+ " and classPK = "+ fileEntryId);
+  try (LoggingTimer loggingTimer=new LoggingTimer()){
+    List<Long> tableIds=new ArrayList<>();
+    long classNameId=PortalUtil.getClassNameId("com.liferay.portlet.documentlibrary.model.DLFileEntry");
+    try (PreparedStatement ps=connection.prepareStatement("select tableId from ExpandoTable where classNameId = " + classNameId);ResultSet rs=ps.executeQuery()){
+      while (rs.next()) {
+        long tableId=rs.getLong("tableId");
+        tableIds.add(tableId);
       }
     }
-  }
+     try (PreparedStatement ps=connection.prepareStatement("select uuid_, fileEntryId, groupId, folderId, name, " + "title from DLFileEntry");ResultSet rs=ps.executeQuery()){
+      while (rs.next()) {
+        String uuid_=rs.getString("uuid_");
+        long fileEntryId=rs.getLong("fileEntryId");
+        long groupId=rs.getLong("groupId");
+        long folderId=rs.getLong("folderId");
+        String name=rs.getString("name");
+        String title=rs.getString("title");
+        String extension=FileUtil.getExtension(title);
+        runSQL("update DLFileEntry set extension = '" + extension + "' where uuid_ = '"+ uuid_+ "' and groupId = "+ groupId);
+        long latestFileVersionId=0;
+        List<Long> fileVersionIds=getFileVersionIds(folderId,name);
+        if (!fileVersionIds.isEmpty()) {
+          latestFileVersionId=fileVersionIds.get(0);
+        }
+        for (        long tableId : tableIds) {
+          runSQL("update ExpandoRow set classPK = " + latestFileVersionId + " where tableId = "+ tableId+ " and classPK = "+ fileEntryId);
+          runSQL("update ExpandoValue set classPK = " + latestFileVersionId + " where tableId = "+ tableId+ " and classPK = "+ fileEntryId);
+        }
+      }
+    }
+   }
  }
