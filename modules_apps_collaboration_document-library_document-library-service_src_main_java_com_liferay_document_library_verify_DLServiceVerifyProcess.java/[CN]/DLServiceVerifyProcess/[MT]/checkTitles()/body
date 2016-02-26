@@ -1,49 +1,51 @@
 {
-  ActionableDynamicQuery actionableDynamicQuery=_dlFileEntryLocalService.getActionableDynamicQuery();
-  actionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod<DLFileEntry>(){
-    @Override public void performAction(    DLFileEntry dlFileEntry){
-      if (dlFileEntry.isInTrash()) {
-        return;
-      }
-      String title=dlFileEntry.getTitle();
-      if (!DLValidatorUtil.isValidName(title)) {
-        try {
-          dlFileEntry=renameTitle(dlFileEntry,DLValidatorUtil.fixName(title));
+  try (LoggingTimer loggingTimer=new LoggingTimer()){
+    ActionableDynamicQuery actionableDynamicQuery=_dlFileEntryLocalService.getActionableDynamicQuery();
+    actionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod<DLFileEntry>(){
+      @Override public void performAction(      DLFileEntry dlFileEntry){
+        if (dlFileEntry.isInTrash()) {
+          return;
         }
- catch (        Exception e) {
-          if (_log.isWarnEnabled()) {
-            _log.warn("Unable to rename invalid title for " + "file entry " + dlFileEntry.getFileEntryId(),e);
+        String title=dlFileEntry.getTitle();
+        if (!DLValidatorUtil.isValidName(title)) {
+          try {
+            dlFileEntry=renameTitle(dlFileEntry,DLValidatorUtil.fixName(title));
+          }
+ catch (          Exception e) {
+            if (_log.isWarnEnabled()) {
+              _log.warn("Unable to rename invalid title for " + "file entry " + dlFileEntry.getFileEntryId(),e);
+            }
           }
         }
-      }
-      if (!DLWebDAVUtil.isRepresentableTitle(dlFileEntry.getTitle())) {
-        try {
-          dlFileEntry=renameWithRepresentableTitle(dlFileEntry);
-        }
- catch (        Exception e) {
-          if (_log.isWarnEnabled()) {
-            _log.warn("Unable to rename file entry " + dlFileEntry.getFileEntryId() + " with a WebDAV title",e);
+        if (!DLWebDAVUtil.isRepresentableTitle(dlFileEntry.getTitle())) {
+          try {
+            dlFileEntry=renameWithRepresentableTitle(dlFileEntry);
+          }
+ catch (          Exception e) {
+            if (_log.isWarnEnabled()) {
+              _log.warn("Unable to rename file entry " + dlFileEntry.getFileEntryId() + " with a WebDAV title",e);
+            }
           }
         }
-      }
-      try {
-        _dlFileEntryLocalService.validateFile(dlFileEntry.getGroupId(),dlFileEntry.getFolderId(),dlFileEntry.getFileEntryId(),dlFileEntry.getFileName(),dlFileEntry.getTitle());
-      }
- catch (      DuplicateFileEntryException|DuplicateFolderNameException pe) {
         try {
-          renameDuplicateTitle(dlFileEntry);
+          _dlFileEntryLocalService.validateFile(dlFileEntry.getGroupId(),dlFileEntry.getFolderId(),dlFileEntry.getFileEntryId(),dlFileEntry.getFileName(),dlFileEntry.getTitle());
         }
- catch (        Exception e) {
-          if (_log.isWarnEnabled()) {
-            _log.warn("Unable to rename duplicate title for " + "file entry " + dlFileEntry.getFileEntryId(),e);
+ catch (        DuplicateFileEntryException|DuplicateFolderNameException pe) {
+          try {
+            renameDuplicateTitle(dlFileEntry);
+          }
+ catch (          Exception e) {
+            if (_log.isWarnEnabled()) {
+              _log.warn("Unable to rename duplicate title for" + " file entry " + dlFileEntry.getFileEntryId(),e);
+            }
           }
         }
-      }
-catch (      PortalException pe) {
-        return;
+catch (        PortalException pe) {
+          return;
+        }
       }
     }
-  }
 );
-  actionableDynamicQuery.performActions();
-}
+    actionableDynamicQuery.performActions();
+  }
+ }
