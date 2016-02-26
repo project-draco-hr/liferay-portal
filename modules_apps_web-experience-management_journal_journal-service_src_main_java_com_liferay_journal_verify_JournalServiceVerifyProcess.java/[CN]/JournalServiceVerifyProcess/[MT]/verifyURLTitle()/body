@@ -1,17 +1,20 @@
 {
-  PreparedStatement ps=null;
-  ResultSet rs=null;
-  try {
-    ps=connection.prepareStatement("select distinct groupId, articleId, urlTitle from " + "JournalArticle");
-    rs=ps.executeQuery();
-    while (rs.next()) {
-      long groupId=rs.getLong("groupId");
-      String articleId=rs.getString("articleId");
-      String urlTitle=GetterUtil.getString(rs.getString("urlTitle"));
-      updateURLTitle(groupId,articleId,urlTitle);
+  try (PreparedStatement ps=connection.prepareStatement("select distinct groupId, articleId, urlTitle from " + "JournalArticle");ResultSet rs=ps.executeQuery()){
+    try (PreparedStatement ps2=AutoBatchPreparedStatementUtil.autoBatch(connection.prepareStatement("update JournalArticle set urlTitle = ? where " + "urlTitle = ?"))){
+      while (rs.next()) {
+        long groupId=rs.getLong("groupId");
+        String articleId=rs.getString("articleId");
+        String urlTitle=GetterUtil.getString(rs.getString("urlTitle"));
+        String normalizedURLTitle=FriendlyURLNormalizerUtil.normalize(urlTitle,_friendlyURLPattern);
+        if (urlTitle.equals(normalizedURLTitle)) {
+          return;
+        }
+        normalizedURLTitle=_journalArticleLocalService.getUniqueUrlTitle(groupId,articleId,normalizedURLTitle);
+        ps2.setString(1,normalizedURLTitle);
+        ps2.setString(2,urlTitle);
+        ps2.addBatch();
+      }
+      ps2.executeBatch();
     }
-  }
-  finally {
-    DataAccess.cleanUp(ps,rs);
-  }
-}
+   }
+ }
