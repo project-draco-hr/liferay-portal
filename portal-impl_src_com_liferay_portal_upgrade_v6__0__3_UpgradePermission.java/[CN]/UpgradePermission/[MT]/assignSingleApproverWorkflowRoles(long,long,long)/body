@@ -1,42 +1,39 @@
 {
-  PreparedStatement ps=null;
-  ResultSet rs=null;
-  try {
-    ps=connection.prepareStatement("select classNameId from Group_ where groupId = ?");
-    ps.setLong(1,groupId);
-    rs=ps.executeQuery();
-    long classNameId=0;
-    if (rs.next()) {
-      classNameId=rs.getLong("classNameId");
-    }
-    String className=PortalUtil.getClassName(classNameId);
-    long communityContentReviewerRoleId=getRoleId(companyId,_ROLE_COMMUNITY_CONTENT_REVIEWER);
-    long organizationContentReviewerRoleId=getRoleId(companyId,_ROLE_ORGANIZATION_CONTENT_REVIEWER);
-    long portalContentReviewerRoleId=getRoleId(companyId,_ROLE_PORTAL_CONTENT_REVIEWER);
-    StringBundler sb=new StringBundler(5);
-    sb.append("(select User_.* from User_, Users_Roles where ");
-    sb.append("User_.userId = Users_Roles.userId and ");
-    sb.append("Users_Roles.roleId = ?) union all (select User_.* ");
-    sb.append("from User_, UserGroupRole where User_.userId = ");
-    sb.append("UserGroupRole.userId and UserGroupRole.roleId = ?)");
-    ps=connection.prepareStatement(sb.toString());
-    ps.setLong(1,roleId);
-    ps.setLong(2,roleId);
-    rs=ps.executeQuery();
-    while (rs.next()) {
-      long userId=rs.getLong("userId");
-      if (className.equals("com.liferay.portal.model.Company")) {
-        addUserRole(userId,portalContentReviewerRoleId);
+  try (PreparedStatement selectClassNameIdStatement=connection.prepareStatement("select classNameId from Group_ where groupId = ?")){
+    selectClassNameIdStatement.setLong(1,groupId);
+    try (ResultSet selectClassNameIdResultSet=selectClassNameIdStatement.executeQuery()){
+      long classNameId=0;
+      if (selectClassNameIdResultSet.next()) {
+        classNameId=selectClassNameIdResultSet.getLong("classNameId");
       }
- else       if (className.equals("com.liferay.portal.model.Group")) {
-        addUserGroupRole(userId,groupId,communityContentReviewerRoleId);
-      }
- else       if (className.equals("com.liferay.portal.model.Organization")) {
-        addUserGroupRole(userId,groupId,organizationContentReviewerRoleId);
-      }
-    }
-  }
-  finally {
-    DataAccess.cleanUp(ps,rs);
-  }
-}
+      String className=PortalUtil.getClassName(classNameId);
+      long communityContentReviewerRoleId=getRoleId(companyId,_ROLE_COMMUNITY_CONTENT_REVIEWER);
+      long organizationContentReviewerRoleId=getRoleId(companyId,_ROLE_ORGANIZATION_CONTENT_REVIEWER);
+      long portalContentReviewerRoleId=getRoleId(companyId,_ROLE_PORTAL_CONTENT_REVIEWER);
+      StringBundler sb=new StringBundler(5);
+      sb.append("(select User_.* from User_, Users_Roles where ");
+      sb.append("User_.userId = Users_Roles.userId and ");
+      sb.append("Users_Roles.roleId = ?) union all (select User_.* ");
+      sb.append("from User_, UserGroupRole where User_.userId = ");
+      sb.append("UserGroupRole.userId and UserGroupRole.roleId = ?)");
+      try (PreparedStatement selectUserStatement=connection.prepareStatement(sb.toString())){
+        selectUserStatement.setLong(1,roleId);
+        selectUserStatement.setLong(2,roleId);
+        try (ResultSet selectUserResultSet=selectUserStatement.executeQuery()){
+          while (selectUserResultSet.next()) {
+            long userId=selectUserResultSet.getLong("userId");
+            if (className.equals("com.liferay.portal.model.Company")) {
+              addUserRole(userId,portalContentReviewerRoleId);
+            }
+ else             if (className.equals("com.liferay.portal.model.Group")) {
+              addUserGroupRole(userId,groupId,communityContentReviewerRoleId);
+            }
+ else             if (className.equals("com.liferay.portal.model." + "Organization")) {
+              addUserGroupRole(userId,groupId,organizationContentReviewerRoleId);
+            }
+          }
+        }
+       }
+     }
+   }
+ }
