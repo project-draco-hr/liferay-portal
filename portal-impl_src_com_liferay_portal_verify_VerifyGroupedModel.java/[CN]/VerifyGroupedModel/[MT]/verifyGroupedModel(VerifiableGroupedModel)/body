@@ -12,25 +12,28 @@
     sb.append(" where groupId is null");
     ps=con.prepareStatement(sb.toString());
     rs=ps.executeQuery();
-    while (rs.next()) {
-      long primKey=rs.getLong(verifiableGroupedModel.getPrimaryKeyColumnName());
-      long relatedPrimKey=rs.getLong(verifiableGroupedModel.getRelatedPrimaryKeyColumnName());
-      long groupId=getGroupId(verifiableGroupedModel.getRelatedTableName(),verifiableGroupedModel.getRelatedPrimaryKeyColumnName(),relatedPrimKey);
-      if (groupId <= 0) {
-        continue;
+    sb=new StringBundler(6);
+    sb.append("update ");
+    sb.append(verifiableGroupedModel.getTableName());
+    sb.append(" set groupId = ?");
+    sb.append(" where ");
+    sb.append(verifiableGroupedModel.getPrimaryKeyColumnName());
+    sb.append(" = ?");
+    try (PreparedStatement ps2=AutoBatchPreparedStatementUtil.autoBatch(con.prepareStatement(sb.toString()))){
+      while (rs.next()) {
+        long primKey=rs.getLong(verifiableGroupedModel.getPrimaryKeyColumnName());
+        long relatedPrimKey=rs.getLong(verifiableGroupedModel.getRelatedPrimaryKeyColumnName());
+        long groupId=getGroupId(con,verifiableGroupedModel.getRelatedTableName(),verifiableGroupedModel.getRelatedPrimaryKeyColumnName(),relatedPrimKey);
+        if (groupId <= 0) {
+          continue;
+        }
+        ps2.setLong(1,groupId);
+        ps2.setLong(2,primKey);
+        ps2.addBatch();
       }
-      sb=new StringBundler(8);
-      sb.append("update ");
-      sb.append(verifiableGroupedModel.getTableName());
-      sb.append(" set groupId = ");
-      sb.append(groupId);
-      sb.append(" where ");
-      sb.append(verifiableGroupedModel.getPrimaryKeyColumnName());
-      sb.append(" = ");
-      sb.append(primKey);
-      runSQL(con,sb.toString());
+      ps2.executeBatch();
     }
-  }
+   }
   finally {
     DataAccess.cleanUp(ps,rs);
   }
