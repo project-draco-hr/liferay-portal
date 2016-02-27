@@ -4,11 +4,23 @@
   try (Connection con=DataAccess.getUpgradeOptimizedConnection()){
     ps=con.prepareStatement("select " + verifiableUUIDModel.getPrimaryKeyColumnName() + " from "+ verifiableUUIDModel.getTableName()+ " where uuid_ is null or uuid_ = ''");
     rs=ps.executeQuery();
-    while (rs.next()) {
-      long pk=rs.getLong(verifiableUUIDModel.getPrimaryKeyColumnName());
-      updateUUID(con,verifiableUUIDModel,pk);
+    StringBundler sb=new StringBundler(6);
+    sb.append("update ");
+    sb.append(verifiableUUIDModel.getTableName());
+    sb.append(" set uuid_ = ?");
+    sb.append(" where ");
+    sb.append(verifiableUUIDModel.getPrimaryKeyColumnName());
+    sb.append(" = ?");
+    try (PreparedStatement ps2=AutoBatchPreparedStatementUtil.autoBatch(con.prepareStatement(sb.toString()))){
+      while (rs.next()) {
+        long pk=rs.getLong(verifiableUUIDModel.getPrimaryKeyColumnName());
+        ps2.setString(1,PortalUUIDUtil.generate());
+        ps2.setLong(2,pk);
+        ps2.addBatch();
+      }
+      ps2.executeBatch();
     }
-  }
+   }
   finally {
     DataAccess.cleanUp(ps,rs);
   }
