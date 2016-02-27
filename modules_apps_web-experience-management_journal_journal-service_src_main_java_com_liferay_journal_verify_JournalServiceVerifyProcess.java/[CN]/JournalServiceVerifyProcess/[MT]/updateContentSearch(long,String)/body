@@ -1,24 +1,19 @@
 {
-  PreparedStatement ps=null;
-  ResultSet rs=null;
-  try {
-    ps=connection.prepareStatement("select preferences from PortletPreferences inner join " + "Layout on PortletPreferences.plid = Layout.plid where " + "groupId = ? and portletId = ?");
+  try (PreparedStatement ps=connection.prepareStatement("select preferences from PortletPreferences inner join " + "Layout on PortletPreferences.plid = Layout.plid where " + "groupId = ? and portletId = ?")){
     ps.setLong(1,groupId);
     ps.setString(2,portletId);
-    rs=ps.executeQuery();
-    while (rs.next()) {
-      String xml=rs.getString("preferences");
-      PortletPreferences portletPreferences=PortletPreferencesFactoryUtil.fromDefaultXML(xml);
-      String articleId=portletPreferences.getValue("articleId",null);
-      List<JournalContentSearch> contentSearches=_journalContentSearchLocalService.getArticleContentSearches(groupId,articleId);
-      if (contentSearches.isEmpty()) {
-        continue;
+    try (ResultSet rs=ps.executeQuery()){
+      while (rs.next()) {
+        String xml=rs.getString("preferences");
+        PortletPreferences portletPreferences=PortletPreferencesFactoryUtil.fromDefaultXML(xml);
+        String articleId=portletPreferences.getValue("articleId",null);
+        List<JournalContentSearch> contentSearches=_journalContentSearchLocalService.getArticleContentSearches(groupId,articleId);
+        if (contentSearches.isEmpty()) {
+          continue;
+        }
+        JournalContentSearch contentSearch=contentSearches.get(0);
+        _journalContentSearchLocalService.updateContentSearch(contentSearch.getGroupId(),contentSearch.isPrivateLayout(),contentSearch.getLayoutId(),contentSearch.getPortletId(),articleId,true);
       }
-      JournalContentSearch contentSearch=contentSearches.get(0);
-      _journalContentSearchLocalService.updateContentSearch(contentSearch.getGroupId(),contentSearch.isPrivateLayout(),contentSearch.getLayoutId(),contentSearch.getPortletId(),articleId,true);
     }
-  }
-  finally {
-    DataAccess.cleanUp(ps,rs);
-  }
-}
+   }
+ }
