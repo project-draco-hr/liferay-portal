@@ -1,0 +1,59 @@
+{
+  entry=toUnwrappedModel(entry);
+  boolean isNew=entry.isNew();
+  EntryModelImpl entryModelImpl=(EntryModelImpl)entry;
+  ServiceContext serviceContext=ServiceContextThreadLocal.getServiceContext();
+  Date now=new Date();
+  if (isNew && (entry.getCreateDate() == null)) {
+    if (serviceContext == null) {
+      entry.setCreateDate(now);
+    }
+ else {
+      entry.setCreateDate(serviceContext.getCreateDate(now));
+    }
+  }
+  if (!entryModelImpl.hasSetModifiedDate()) {
+    if (serviceContext == null) {
+      entry.setModifiedDate(now);
+    }
+ else {
+      entry.setModifiedDate(serviceContext.getModifiedDate(now));
+    }
+  }
+  Session session=null;
+  try {
+    session=openSession();
+    if (entry.isNew()) {
+      session.save(entry);
+      entry.setNew(false);
+    }
+ else {
+      entry=(Entry)session.merge(entry);
+    }
+  }
+ catch (  Exception e) {
+    throw processException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+  finderCache.clearCache(FINDER_CLASS_NAME_LIST_WITH_PAGINATION);
+  if (isNew || !EntryModelImpl.COLUMN_BITMASK_ENABLED) {
+    finderCache.clearCache(FINDER_CLASS_NAME_LIST_WITHOUT_PAGINATION);
+  }
+ else {
+    if ((entryModelImpl.getColumnBitmask() & FINDER_PATH_WITHOUT_PAGINATION_FIND_BY_USERID.getColumnBitmask()) != 0) {
+      Object[] args=new Object[]{entryModelImpl.getOriginalUserId()};
+      finderCache.removeResult(FINDER_PATH_COUNT_BY_USERID,args);
+      finderCache.removeResult(FINDER_PATH_WITHOUT_PAGINATION_FIND_BY_USERID,args);
+      args=new Object[]{entryModelImpl.getUserId()};
+      finderCache.removeResult(FINDER_PATH_COUNT_BY_USERID,args);
+      finderCache.removeResult(FINDER_PATH_WITHOUT_PAGINATION_FIND_BY_USERID,args);
+    }
+  }
+  entityCache.putResult(EntryModelImpl.ENTITY_CACHE_ENABLED,EntryImpl.class,entry.getPrimaryKey(),entry,false);
+  clearUniqueFindersCache(entryModelImpl);
+  cacheUniqueFindersCache(entryModelImpl,isNew);
+  entry.resetOriginalValues();
+  return entry;
+}

@@ -1,0 +1,68 @@
+{
+  Object[] finderArgs=new Object[]{userId,emailAddress};
+  Object result=null;
+  if (retrieveFromCache) {
+    result=finderCache.getResult(FINDER_PATH_FETCH_BY_U_EA,finderArgs,this);
+  }
+  if (result instanceof Entry) {
+    Entry entry=(Entry)result;
+    if ((userId != entry.getUserId()) || !Validator.equals(emailAddress,entry.getEmailAddress())) {
+      result=null;
+    }
+  }
+  if (result == null) {
+    StringBundler query=new StringBundler(4);
+    query.append(_SQL_SELECT_ENTRY_WHERE);
+    query.append(_FINDER_COLUMN_U_EA_USERID_2);
+    boolean bindEmailAddress=false;
+    if (emailAddress == null) {
+      query.append(_FINDER_COLUMN_U_EA_EMAILADDRESS_1);
+    }
+ else     if (emailAddress.equals(StringPool.BLANK)) {
+      query.append(_FINDER_COLUMN_U_EA_EMAILADDRESS_3);
+    }
+ else {
+      bindEmailAddress=true;
+      query.append(_FINDER_COLUMN_U_EA_EMAILADDRESS_2);
+    }
+    String sql=query.toString();
+    Session session=null;
+    try {
+      session=openSession();
+      Query q=session.createQuery(sql);
+      QueryPos qPos=QueryPos.getInstance(q);
+      qPos.add(userId);
+      if (bindEmailAddress) {
+        qPos.add(emailAddress);
+      }
+      List<Entry> list=q.list();
+      if (list.isEmpty()) {
+        finderCache.putResult(FINDER_PATH_FETCH_BY_U_EA,finderArgs,list);
+      }
+ else {
+        if ((list.size() > 1) && _log.isWarnEnabled()) {
+          _log.warn("EntryPersistenceImpl.fetchByU_EA(long, String, boolean) with parameters (" + StringUtil.merge(finderArgs) + ") yields a result set with more than 1 result. This violates the logical unique restriction. There is no order guarantee on which result is returned by this finder.");
+        }
+        Entry entry=list.get(0);
+        result=entry;
+        cacheResult(entry);
+        if ((entry.getUserId() != userId) || (entry.getEmailAddress() == null) || !entry.getEmailAddress().equals(emailAddress)) {
+          finderCache.putResult(FINDER_PATH_FETCH_BY_U_EA,finderArgs,entry);
+        }
+      }
+    }
+ catch (    Exception e) {
+      finderCache.removeResult(FINDER_PATH_FETCH_BY_U_EA,finderArgs);
+      throw processException(e);
+    }
+ finally {
+      closeSession(session);
+    }
+  }
+  if (result instanceof List<?>) {
+    return null;
+  }
+ else {
+    return (Entry)result;
+  }
+}
