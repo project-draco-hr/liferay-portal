@@ -1,33 +1,35 @@
 {
-  ActionableDynamicQuery actionableDynamicQuery=_journalArticleLocalService.getActionableDynamicQuery();
-  if (_log.isDebugEnabled()) {
-    long count=actionableDynamicQuery.performCount();
-    _log.debug("Processing " + count + " articles for invalid structures "+ "and dynamic elements");
-  }
-  actionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod<JournalArticle>(){
-    @Override public void performAction(    JournalArticle article){
-      try {
-        _journalArticleLocalService.checkStructure(article.getGroupId(),article.getArticleId(),article.getVersion());
-      }
- catch (      NoSuchStructureException nsse) {
-        if (_log.isWarnEnabled()) {
-          _log.warn("Removing reference to missing structure for " + "article " + article.getId());
+  try (LoggingTimer loggingTimer=new LoggingTimer()){
+    ActionableDynamicQuery actionableDynamicQuery=_journalArticleLocalService.getActionableDynamicQuery();
+    if (_log.isDebugEnabled()) {
+      long count=actionableDynamicQuery.performCount();
+      _log.debug("Processing " + count + " articles for invalid structures"+ " and dynamic elements");
+    }
+    actionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod<JournalArticle>(){
+      @Override public void performAction(      JournalArticle article){
+        try {
+          _journalArticleLocalService.checkStructure(article.getGroupId(),article.getArticleId(),article.getVersion());
         }
-        article.setDDMStructureKey(StringPool.BLANK);
-        article.setDDMTemplateKey(StringPool.BLANK);
-        _journalArticleLocalService.updateJournalArticle(article);
-      }
-catch (      Exception e) {
-        _log.error("Unable to check the structure for article " + article.getId(),e);
-      }
-      try {
-        updateDynamicElements(article);
-      }
- catch (      Exception e) {
-        _log.error("Unable to update content for article " + article.getId(),e);
+ catch (        NoSuchStructureException nsse) {
+          if (_log.isWarnEnabled()) {
+            _log.warn("Removing reference to missing structure " + "for article " + article.getId());
+          }
+          article.setDDMStructureKey(StringPool.BLANK);
+          article.setDDMTemplateKey(StringPool.BLANK);
+          _journalArticleLocalService.updateJournalArticle(article);
+        }
+catch (        Exception e) {
+          _log.error("Unable to check the structure for article " + article.getId(),e);
+        }
+        try {
+          updateDynamicElements(article);
+        }
+ catch (        Exception e) {
+          _log.error("Unable to update content for article " + article.getId(),e);
+        }
       }
     }
-  }
 );
-  actionableDynamicQuery.performActions();
-}
+    actionableDynamicQuery.performActions();
+  }
+ }

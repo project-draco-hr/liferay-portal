@@ -1,43 +1,45 @@
 {
-  List<JournalArticle> journalArticles=_journalArticleLocalService.getNoAssetArticles();
-  if (_log.isDebugEnabled()) {
-    _log.debug("Processing " + journalArticles.size() + " articles with no asset");
-  }
-  for (  JournalArticle journalArticle : journalArticles) {
-    try {
-      _journalArticleLocalService.updateAsset(journalArticle.getUserId(),journalArticle,null,null,null,null);
+  try (LoggingTimer loggingTimer=new LoggingTimer()){
+    List<JournalArticle> journalArticles=_journalArticleLocalService.getNoAssetArticles();
+    if (_log.isDebugEnabled()) {
+      _log.debug("Processing " + journalArticles.size() + " articles with no asset");
     }
- catch (    Exception e) {
-      if (_log.isWarnEnabled()) {
-        _log.warn("Unable to update asset for article " + journalArticle.getId() + ": "+ e.getMessage());
+    for (    JournalArticle journalArticle : journalArticles) {
+      try {
+        _journalArticleLocalService.updateAsset(journalArticle.getUserId(),journalArticle,null,null,null,null);
+      }
+ catch (      Exception e) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Unable to update asset for article " + journalArticle.getId() + ": "+ e.getMessage());
+        }
       }
     }
-  }
-  ActionableDynamicQuery actionableDynamicQuery=_journalArticleLocalService.getActionableDynamicQuery();
-  actionableDynamicQuery.setAddCriteriaMethod(new ActionableDynamicQuery.AddCriteriaMethod(){
-    @Override public void addCriteria(    DynamicQuery dynamicQuery){
-      Property versionProperty=PropertyFactoryUtil.forName("version");
-      dynamicQuery.add(versionProperty.eq(JournalArticleConstants.VERSION_DEFAULT));
-      Property statusProperty=PropertyFactoryUtil.forName("status");
-      dynamicQuery.add(statusProperty.eq(WorkflowConstants.STATUS_DRAFT));
+    ActionableDynamicQuery actionableDynamicQuery=_journalArticleLocalService.getActionableDynamicQuery();
+    actionableDynamicQuery.setAddCriteriaMethod(new ActionableDynamicQuery.AddCriteriaMethod(){
+      @Override public void addCriteria(      DynamicQuery dynamicQuery){
+        Property versionProperty=PropertyFactoryUtil.forName("version");
+        dynamicQuery.add(versionProperty.eq(JournalArticleConstants.VERSION_DEFAULT));
+        Property statusProperty=PropertyFactoryUtil.forName("status");
+        dynamicQuery.add(statusProperty.eq(WorkflowConstants.STATUS_DRAFT));
+      }
     }
-  }
 );
-  if (_log.isDebugEnabled()) {
-    long count=actionableDynamicQuery.performCount();
-    _log.debug("Processing " + count + " default article versions in draft mode");
-  }
-  actionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod<JournalArticle>(){
-    @Override public void performAction(    JournalArticle article) throws PortalException {
-      AssetEntry assetEntry=_assetEntryLocalService.fetchEntry(JournalArticle.class.getName(),article.getResourcePrimKey());
-      _assetEntryLocalService.updateEntry(assetEntry.getClassName(),assetEntry.getClassPK(),null,assetEntry.isVisible());
+    if (_log.isDebugEnabled()) {
+      long count=actionableDynamicQuery.performCount();
+      _log.debug("Processing " + count + " default article versions in draft mode");
     }
-  }
+    actionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod<JournalArticle>(){
+      @Override public void performAction(      JournalArticle article) throws PortalException {
+        AssetEntry assetEntry=_assetEntryLocalService.fetchEntry(JournalArticle.class.getName(),article.getResourcePrimKey());
+        _assetEntryLocalService.updateEntry(assetEntry.getClassName(),assetEntry.getClassPK(),null,assetEntry.isVisible());
+      }
+    }
 );
-  actionableDynamicQuery.performActions();
-  if (_log.isDebugEnabled()) {
-    _log.debug("Assets verified for articles");
+    actionableDynamicQuery.performActions();
+    if (_log.isDebugEnabled()) {
+      _log.debug("Assets verified for articles");
+    }
+    updateCreateAndModifiedDates();
+    updateResourcePrimKey();
   }
-  updateCreateAndModifiedDates();
-  updateResourcePrimKey();
-}
+ }
