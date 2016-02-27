@@ -1,20 +1,22 @@
 {
-  StringBundler sb=new StringBundler(4);
-  sb.append("select classNameId, classPK, count(1) as totalEntries, ");
-  sb.append("sum(RatingsEntry.score) as totalScore, ");
-  sb.append("sum(RatingsEntry.score) / count(1) as averageScore from ");
-  sb.append("RatingsEntry group by classNameId, classPK");
-  String selectSQL=sb.toString();
-  String updateSQL="update RatingsStats set totalEntries = ?, totalScore = ?, " + "averageScore = ? where classNameId = ? and classPK = ?";
-  try (PreparedStatement ps1=connection.prepareStatement(selectSQL);ResultSet rs=ps1.executeQuery();PreparedStatement ps2=AutoBatchPreparedStatementUtil.autoBatch(connection.prepareStatement(updateSQL))){
-    while (rs.next()) {
-      ps2.setInt(1,rs.getInt("totalEntries"));
-      ps2.setDouble(2,rs.getDouble("totalScore"));
-      ps2.setDouble(3,rs.getDouble("averageScore"));
-      ps2.setLong(4,rs.getLong("classNameId"));
-      ps2.setLong(5,rs.getLong("classPK"));
-      ps2.addBatch();
+  try (LoggingTimer loggingTimer=new LoggingTimer()){
+    StringBundler sb=new StringBundler(4);
+    sb.append("select classNameId, classPK, count(1) as totalEntries,");
+    sb.append(" sum(RatingsEntry.score) as totalScore, ");
+    sb.append("sum(RatingsEntry.score) / count(1) as averageScore ");
+    sb.append("from RatingsEntry group by classNameId, classPK");
+    String selectSQL=sb.toString();
+    String updateSQL="update RatingsStats set totalEntries = ?, totalScore = ?, " + "averageScore = ? where classNameId = ? and classPK = ?";
+    try (PreparedStatement ps1=connection.prepareStatement(selectSQL);ResultSet rs=ps1.executeQuery();PreparedStatement ps2=AutoBatchPreparedStatementUtil.autoBatch(connection.prepareStatement(updateSQL))){
+      while (rs.next()) {
+        ps2.setInt(1,rs.getInt("totalEntries"));
+        ps2.setDouble(2,rs.getDouble("totalScore"));
+        ps2.setDouble(3,rs.getDouble("averageScore"));
+        ps2.setLong(4,rs.getLong("classNameId"));
+        ps2.setLong(5,rs.getLong("classPK"));
+        ps2.addBatch();
+      }
+      ps2.executeBatch();
     }
-    ps2.executeBatch();
-  }
+   }
  }

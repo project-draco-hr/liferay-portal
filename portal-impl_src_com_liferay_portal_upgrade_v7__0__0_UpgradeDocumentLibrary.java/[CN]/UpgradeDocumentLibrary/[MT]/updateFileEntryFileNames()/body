@@ -1,35 +1,37 @@
 {
-  runSQL("alter table DLFileEntry add fileName VARCHAR(255) null");
-  try (PreparedStatement ps=connection.prepareStatement("select fileEntryId, groupId, folderId, extension, title, " + "version from DLFileEntry");ResultSet rs=ps.executeQuery()){
-    while (rs.next()) {
-      long fileEntryId=rs.getLong("fileEntryId");
-      long groupId=rs.getLong("groupId");
-      long folderId=rs.getLong("folderId");
-      String extension=GetterUtil.getString(rs.getString("extension"));
-      String title=GetterUtil.getString(rs.getString("title"));
-      String version=rs.getString("version");
-      String uniqueFileName=DLUtil.getSanitizedFileName(title,extension);
-      String titleExtension=StringPool.BLANK;
-      String titleWithoutExtension=title;
-      if (title.endsWith(StringPool.PERIOD + extension)) {
-        titleExtension=extension;
-        titleWithoutExtension=FileUtil.stripExtension(title);
-      }
-      String uniqueTitle=StringPool.BLANK;
-      for (int i=1; ; i++) {
-        if (!hasFileEntry(groupId,folderId,uniqueFileName)) {
-          break;
+  try (LoggingTimer loggingTimer=new LoggingTimer()){
+    runSQL("alter table DLFileEntry add fileName VARCHAR(255) null");
+    try (PreparedStatement ps=connection.prepareStatement("select fileEntryId, groupId, folderId, extension, title," + " version from DLFileEntry");ResultSet rs=ps.executeQuery()){
+      while (rs.next()) {
+        long fileEntryId=rs.getLong("fileEntryId");
+        long groupId=rs.getLong("groupId");
+        long folderId=rs.getLong("folderId");
+        String extension=GetterUtil.getString(rs.getString("extension"));
+        String title=GetterUtil.getString(rs.getString("title"));
+        String version=rs.getString("version");
+        String uniqueFileName=DLUtil.getSanitizedFileName(title,extension);
+        String titleExtension=StringPool.BLANK;
+        String titleWithoutExtension=title;
+        if (title.endsWith(StringPool.PERIOD + extension)) {
+          titleExtension=extension;
+          titleWithoutExtension=FileUtil.stripExtension(title);
         }
-        uniqueTitle=titleWithoutExtension + StringPool.UNDERLINE + String.valueOf(i);
-        if (Validator.isNotNull(titleExtension)) {
-          uniqueTitle+=StringPool.PERIOD.concat(titleExtension);
+        String uniqueTitle=StringPool.BLANK;
+        for (int i=1; ; i++) {
+          if (!hasFileEntry(groupId,folderId,uniqueFileName)) {
+            break;
+          }
+          uniqueTitle=titleWithoutExtension + StringPool.UNDERLINE + String.valueOf(i);
+          if (Validator.isNotNull(titleExtension)) {
+            uniqueTitle+=StringPool.PERIOD.concat(titleExtension);
+          }
+          uniqueFileName=DLUtil.getSanitizedFileName(uniqueTitle,extension);
         }
-        uniqueFileName=DLUtil.getSanitizedFileName(uniqueTitle,extension);
-      }
-      updateFileEntryFileName(fileEntryId,uniqueFileName);
-      if (Validator.isNotNull(uniqueTitle)) {
-        updateFileEntryTitle(fileEntryId,uniqueTitle,version);
+        updateFileEntryFileName(fileEntryId,uniqueFileName);
+        if (Validator.isNotNull(uniqueTitle)) {
+          updateFileEntryTitle(fileEntryId,uniqueTitle,version);
+        }
       }
     }
-  }
+   }
  }
