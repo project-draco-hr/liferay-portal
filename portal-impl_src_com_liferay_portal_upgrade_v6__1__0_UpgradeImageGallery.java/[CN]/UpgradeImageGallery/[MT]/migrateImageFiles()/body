@@ -1,37 +1,39 @@
 {
-  StringBundler sb=new StringBundler(8);
-  sb.append("select fileEntryId, companyId, groupId, folderId, ");
-  sb.append("name, smallImageId, largeImageId, custom1ImageId, ");
-  sb.append("custom2ImageId from DLFileEntry where ((smallImageId ");
-  sb.append("is not null) and (smallImageId != 0)) or ");
-  sb.append("((largeImageId is not null) and (largeImageId != 0)) ");
-  sb.append("or ((custom1ImageId is not null) and (custom1ImageId ");
-  sb.append("!= 0)) or ((custom2ImageId is not null) and ");
-  sb.append("(custom2ImageId != 0))");
-  try (PreparedStatement ps=connection.prepareStatement(sb.toString());ResultSet rs=ps.executeQuery()){
-    while (rs.next()) {
-      long fileEntryId=rs.getLong("fileEntryId");
-      long companyId=rs.getLong("companyId");
-      long groupId=rs.getLong("groupId");
-      long folderId=rs.getLong("folderId");
-      String name=rs.getString("name");
-      long smallImageId=rs.getLong("smallImageId");
-      long largeImageId=rs.getLong("largeImageId");
-      long custom1ImageId=rs.getLong("custom1ImageId");
-      long custom2ImageId=rs.getLong("custom2ImageId");
-      migrateImage(fileEntryId,companyId,groupId,folderId,name,smallImageId,largeImageId,custom1ImageId,custom2ImageId);
+  try (LoggingTimer loggingTimer=new LoggingTimer()){
+    StringBundler sb=new StringBundler(8);
+    sb.append("select fileEntryId, companyId, groupId, folderId, ");
+    sb.append("name, smallImageId, largeImageId, custom1ImageId, ");
+    sb.append("custom2ImageId from DLFileEntry where ((smallImageId ");
+    sb.append("is not null) and (smallImageId != 0)) or ");
+    sb.append("((largeImageId is not null) and (largeImageId != 0)) ");
+    sb.append("or ((custom1ImageId is not null) and (custom1ImageId ");
+    sb.append("!= 0)) or ((custom2ImageId is not null) and ");
+    sb.append("(custom2ImageId != 0))");
+    try (PreparedStatement ps=connection.prepareStatement(sb.toString());ResultSet rs=ps.executeQuery()){
+      while (rs.next()) {
+        long fileEntryId=rs.getLong("fileEntryId");
+        long companyId=rs.getLong("companyId");
+        long groupId=rs.getLong("groupId");
+        long folderId=rs.getLong("folderId");
+        String name=rs.getString("name");
+        long smallImageId=rs.getLong("smallImageId");
+        long largeImageId=rs.getLong("largeImageId");
+        long custom1ImageId=rs.getLong("custom1ImageId");
+        long custom2ImageId=rs.getLong("custom2ImageId");
+        migrateImage(fileEntryId,companyId,groupId,folderId,name,smallImageId,largeImageId,custom1ImageId,custom2ImageId);
+      }
+    }
+     if (_sourceHookClassName.equals(DLHook.class.getName())) {
+      return;
+    }
+    try (PreparedStatement ps=connection.prepareStatement("select imageId from Image");ResultSet rs=ps.executeQuery()){
+      while (rs.next()) {
+        long imageId=rs.getLong("imageId");
+        migrateImage(imageId);
+      }
+    }
+     if (_sourceHookClassName.equals(DatabaseHook.class.getName())) {
+      runSQL("update Image set text_ = ''");
     }
   }
-   if (_sourceHookClassName.equals(DLHook.class.getName())) {
-    return;
-  }
-  try (PreparedStatement ps=connection.prepareStatement("select imageId from Image");ResultSet rs=ps.executeQuery()){
-    while (rs.next()) {
-      long imageId=rs.getLong("imageId");
-      migrateImage(imageId);
-    }
-  }
-   if (_sourceHookClassName.equals(DatabaseHook.class.getName())) {
-    runSQL("update Image set text_ = ''");
-  }
-}
+ }

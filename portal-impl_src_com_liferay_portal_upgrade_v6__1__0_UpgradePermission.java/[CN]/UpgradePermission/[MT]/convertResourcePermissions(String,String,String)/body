@@ -1,26 +1,28 @@
 {
-  try (PreparedStatement ps=connection.prepareStatement("select " + pkColumnName + ", groupId, companyId from "+ tableName);ResultSet rs=ps.executeQuery()){
-    while (rs.next()) {
-      long primKey=rs.getLong(pkColumnName);
-      long groupId=rs.getLong("groupId");
-      long companyId=rs.getLong("companyId");
-      ResourceBlock resourceBlock=convertResourcePermissions(tableName,pkColumnName,companyId,groupId,name,primKey);
-      if (_log.isInfoEnabled() && ((resourceBlock.getResourceBlockId() % 100) == 0)) {
-        _log.info("Processed 100 resource blocks for " + name);
+  try (LoggingTimer loggingTimer=new LoggingTimer(name)){
+    try (PreparedStatement ps=connection.prepareStatement("select " + pkColumnName + ", groupId, companyId from "+ tableName);ResultSet rs=ps.executeQuery()){
+      while (rs.next()) {
+        long primKey=rs.getLong(pkColumnName);
+        long groupId=rs.getLong("groupId");
+        long companyId=rs.getLong("companyId");
+        ResourceBlock resourceBlock=convertResourcePermissions(tableName,pkColumnName,companyId,groupId,name,primKey);
+        if (_log.isInfoEnabled() && ((resourceBlock.getResourceBlockId() % 100) == 0)) {
+          _log.info("Processed 100 resource blocks for " + name);
+        }
+      }
+    }
+     List<ResourcePermission> resourcePermissions=ResourcePermissionLocalServiceUtil.getScopeResourcePermissions(_SCOPES);
+    for (    ResourcePermission resourcePermission : resourcePermissions) {
+      int scope=resourcePermission.getScope();
+      if (!name.equals(resourcePermission.getName())) {
+        continue;
+      }
+      if ((scope == ResourceConstants.SCOPE_COMPANY) || (scope == ResourceConstants.SCOPE_GROUP_TEMPLATE)) {
+        ResourceBlockLocalServiceUtil.setCompanyScopePermissions(resourcePermission.getCompanyId(),name,resourcePermission.getRoleId(),resourcePermission.getActionIds());
+      }
+ else       if (scope == ResourceConstants.SCOPE_GROUP) {
+        ResourceBlockLocalServiceUtil.setGroupScopePermissions(resourcePermission.getCompanyId(),GetterUtil.getLong(resourcePermission.getPrimKey()),name,resourcePermission.getRoleId(),resourcePermission.getActionIds());
       }
     }
   }
-   List<ResourcePermission> resourcePermissions=ResourcePermissionLocalServiceUtil.getScopeResourcePermissions(_SCOPES);
-  for (  ResourcePermission resourcePermission : resourcePermissions) {
-    int scope=resourcePermission.getScope();
-    if (!name.equals(resourcePermission.getName())) {
-      continue;
-    }
-    if ((scope == ResourceConstants.SCOPE_COMPANY) || (scope == ResourceConstants.SCOPE_GROUP_TEMPLATE)) {
-      ResourceBlockLocalServiceUtil.setCompanyScopePermissions(resourcePermission.getCompanyId(),name,resourcePermission.getRoleId(),resourcePermission.getActionIds());
-    }
- else     if (scope == ResourceConstants.SCOPE_GROUP) {
-      ResourceBlockLocalServiceUtil.setGroupScopePermissions(resourcePermission.getCompanyId(),GetterUtil.getLong(resourcePermission.getPrimKey()),name,resourcePermission.getRoleId(),resourcePermission.getActionIds());
-    }
-  }
-}
+ }

@@ -1,22 +1,24 @@
 {
-  try (PreparedStatement ps=connection.prepareStatement("select groupId, fileVersionId, folderId, name, extension " + "from DLFileVersion");ResultSet rs=ps.executeQuery()){
-    while (rs.next()) {
-      long groupId=rs.getLong("groupId");
-      long fileVersionId=rs.getLong("fileVersionId");
-      long folderId=rs.getLong("folderId");
-      String name=rs.getString("name");
-      String extension=rs.getString("extension");
-      String mimeType=MimeTypesUtil.getExtensionContentType(extension);
-      long fileEntryId=getFileEntryId(groupId,folderId,name);
-      runSQL("update DLFileVersion set fileEntryId = " + fileEntryId + ", mimeType = '"+ mimeType+ "' where fileVersionId = "+ fileVersionId);
+  try (LoggingTimer loggingTimer=new LoggingTimer()){
+    try (PreparedStatement ps=connection.prepareStatement("select groupId, fileVersionId, folderId, name, extension" + " from DLFileVersion");ResultSet rs=ps.executeQuery()){
+      while (rs.next()) {
+        long groupId=rs.getLong("groupId");
+        long fileVersionId=rs.getLong("fileVersionId");
+        long folderId=rs.getLong("folderId");
+        String name=rs.getString("name");
+        String extension=rs.getString("extension");
+        String mimeType=MimeTypesUtil.getExtensionContentType(extension);
+        long fileEntryId=getFileEntryId(groupId,folderId,name);
+        runSQL("update DLFileVersion set fileEntryId = " + fileEntryId + ", mimeType = '"+ mimeType+ "' where fileVersionId = "+ fileVersionId);
+      }
+    }
+     try {
+      runSQL("alter_column_type DLFileVersion extraSettings TEXT null");
+      runSQL("alter_column_type DLFileVersion title VARCHAR(255) null");
+      runSQL("alter table DLFileVersion drop column name");
+    }
+ catch (    SQLException sqle) {
+      upgradeTable(DLFileVersionTable.TABLE_NAME,DLFileVersionTable.TABLE_COLUMNS,DLFileVersionTable.TABLE_SQL_CREATE,DLFileVersionTable.TABLE_SQL_ADD_INDEXES);
     }
   }
-   try {
-    runSQL("alter_column_type DLFileVersion extraSettings TEXT null");
-    runSQL("alter_column_type DLFileVersion title VARCHAR(255) null");
-    runSQL("alter table DLFileVersion drop column name");
-  }
- catch (  SQLException sqle) {
-    upgradeTable(DLFileVersionTable.TABLE_NAME,DLFileVersionTable.TABLE_COLUMNS,DLFileVersionTable.TABLE_SQL_CREATE,DLFileVersionTable.TABLE_SQL_ADD_INDEXES);
-  }
-}
+ }
