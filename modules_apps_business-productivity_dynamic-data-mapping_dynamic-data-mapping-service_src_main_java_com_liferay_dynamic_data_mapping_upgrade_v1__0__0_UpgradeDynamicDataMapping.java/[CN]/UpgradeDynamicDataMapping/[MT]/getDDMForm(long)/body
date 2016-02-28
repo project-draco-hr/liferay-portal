@@ -3,35 +3,30 @@
   if (ddmForm != null) {
     return ddmForm;
   }
-  PreparedStatement ps=null;
-  ResultSet rs=null;
-  try {
-    ps=connection.prepareStatement("select parentStructureId, definition, storageType from " + "DDMStructure where structureId = ?");
+  try (PreparedStatement ps=connection.prepareStatement("select parentStructureId, definition, storageType from " + "DDMStructure where structureId = ?")){
     ps.setLong(1,structureId);
-    rs=ps.executeQuery();
-    if (rs.next()) {
-      long parentStructureId=rs.getLong("parentStructureId");
-      String definition=rs.getString("definition");
-      String storageType=rs.getString("storageType");
-      if (storageType.equals("expando") || storageType.equals("xml")) {
-        ddmForm=_ddmFormXSDDeserializer.deserialize(definition);
-      }
- else {
-        ddmForm=_ddmFormJSONDeserializer.deserialize(definition);
-      }
-      if (parentStructureId > 0) {
-        DDMForm parentDDMForm=getDDMForm(parentStructureId);
-        Set<String> commonDDMFormFieldNames=SetUtil.intersect(getDDMFormFieldsNames(parentDDMForm),getDDMFormFieldsNames(ddmForm));
-        if (!commonDDMFormFieldNames.isEmpty()) {
-          throw new UpgradeException("Duplicate DDM form field names: " + StringUtil.merge(commonDDMFormFieldNames));
+    try (ResultSet rs=ps.executeQuery()){
+      if (rs.next()) {
+        long parentStructureId=rs.getLong("parentStructureId");
+        String definition=rs.getString("definition");
+        String storageType=rs.getString("storageType");
+        if (storageType.equals("expando") || storageType.equals("xml")) {
+          ddmForm=_ddmFormXSDDeserializer.deserialize(definition);
         }
+ else {
+          ddmForm=_ddmFormJSONDeserializer.deserialize(definition);
+        }
+        if (parentStructureId > 0) {
+          DDMForm parentDDMForm=getDDMForm(parentStructureId);
+          Set<String> commonDDMFormFieldNames=SetUtil.intersect(getDDMFormFieldsNames(parentDDMForm),getDDMFormFieldsNames(ddmForm));
+          if (!commonDDMFormFieldNames.isEmpty()) {
+            throw new UpgradeException("Duplicate DDM form field names: " + StringUtil.merge(commonDDMFormFieldNames));
+          }
+        }
+        _ddmForms.put(structureId,ddmForm);
+        return ddmForm;
       }
-      _ddmForms.put(structureId,ddmForm);
-      return ddmForm;
     }
-    throw new UpgradeException("Unable to find dynamic data mapping structure with ID " + structureId);
+     throw new UpgradeException("Unable to find dynamic data mapping structure with ID " + structureId);
   }
-  finally {
-    DataAccess.cleanUp(ps,rs);
-  }
-}
+ }
