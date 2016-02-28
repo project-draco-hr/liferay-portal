@@ -1,0 +1,26 @@
+{
+  final ArrayList<String> expectedList=new ArrayList<>();
+  for (  Map.Entry<Group,Integer> entry : frequencies.entrySet()) {
+    Group group=entry.getKey();
+    expectedList.add(group.getGroupId() + "=" + entry.getValue());
+  }
+  IdempotentRetryAssert.retryAssert(10,TimeUnit.SECONDS,new Callable<Void>(){
+    @Override public Void call() throws Exception {
+      FacetedSearcher facetedSearcher=new FacetedSearcher();
+      facetedSearcher.search(searchContext);
+      Map<String,Facet> facets=searchContext.getFacets();
+      Facet facet=facets.get(Field.GROUP_ID);
+      FacetCollector facetCollector=facet.getFacetCollector();
+      List<TermCollector> termCollectors=facetCollector.getTermCollectors();
+      ArrayList<String> list=new ArrayList<>();
+      for (      TermCollector termCollector : termCollectors) {
+        list.add(termCollector.getTerm() + "=" + termCollector.getFrequency());
+      }
+      Collections.sort(expectedList);
+      Collections.sort(list);
+      Assert.assertEquals(expectedList.toString(),list.toString());
+      return null;
+    }
+  }
+);
+}
