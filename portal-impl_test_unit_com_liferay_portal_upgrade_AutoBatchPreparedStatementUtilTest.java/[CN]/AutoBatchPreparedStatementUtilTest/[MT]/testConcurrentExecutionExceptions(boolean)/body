@@ -1,0 +1,27 @@
+{
+  ConnectionInvocationHandler connectionInvocationHandler=new ConnectionInvocationHandler(supportBatchUpdates);
+  PreparedStatement preparedStatement=AutoBatchPreparedStatementUtil.concurrentAutoBatch((Connection)ProxyUtil.newProxyInstance(ClassLoader.getSystemClassLoader(),new Class<?>[]{Connection.class},connectionInvocationHandler),StringPool.BLANK);
+  PreparedStatementInvocationHandler preparedStatementInvocationHandler=connectionInvocationHandler.getPSInvocationHandler();
+  RuntimeException runtimeException=new RuntimeException();
+  Set<Throwable> throwablesSet=new HashSet<>();
+  throwablesSet.add(runtimeException);
+  preparedStatementInvocationHandler.setException(runtimeException);
+  preparedStatement.addBatch();
+  preparedStatement.executeBatch();
+  preparedStatementInvocationHandler=connectionInvocationHandler.getPSInvocationHandler();
+  RuntimeException suppressedException=new RuntimeException();
+  throwablesSet.add(suppressedException);
+  preparedStatementInvocationHandler.setException(suppressedException);
+  preparedStatement.addBatch();
+  preparedStatement.executeBatch();
+  try {
+    preparedStatement.close();
+    Assert.fail();
+  }
+ catch (  RuntimeException re) {
+    Assert.assertTrue(throwablesSet.contains(re));
+    Throwable[] throwables=re.getSuppressed();
+    Assert.assertEquals(1,throwables.length);
+    Assert.assertTrue(throwablesSet.contains(throwables[0]));
+  }
+}
