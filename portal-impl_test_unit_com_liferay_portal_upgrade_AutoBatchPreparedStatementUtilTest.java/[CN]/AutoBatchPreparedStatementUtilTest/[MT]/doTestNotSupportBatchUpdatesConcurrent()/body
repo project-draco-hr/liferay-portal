@@ -1,20 +1,21 @@
 {
   ConnectionInvocationHandler connectionInvocationHandler=new ConnectionInvocationHandler(false);
-  PreparedStatement preparedStatement=AutoBatchPreparedStatementUtil.concurrentAutoBatch((Connection)ProxyUtil.newProxyInstance(ClassLoader.getSystemClassLoader(),new Class<?>[]{Connection.class},connectionInvocationHandler),StringPool.BLANK);
+  connectionInvocationHandler.getPSInvocationHandler();
   List<Method> methods=connectionInvocationHandler.getMethods();
-  Assert.assertTrue(methods.toString(),methods.isEmpty());
-  preparedStatement.addBatch();
-  Assert.assertEquals(methods.toString(),2,methods.size());
-  Assert.assertEquals(PreparedStatement.class.getMethod("executeUpdate"),methods.remove(0));
-  Assert.assertEquals(PreparedStatement.class.getMethod("close"),methods.remove(0));
-  Assert.assertArrayEquals(new int[0],preparedStatement.executeBatch());
-  Assert.assertTrue(methods.toString(),methods.isEmpty());
-  preparedStatement.close();
-  methods=connectionInvocationHandler.getMethods();
+  try (PreparedStatement preparedStatement=AutoBatchPreparedStatementUtil.concurrentAutoBatch((Connection)ProxyUtil.newProxyInstance(ClassLoader.getSystemClassLoader(),new Class<?>[]{Connection.class},connectionInvocationHandler),StringPool.BLANK)){
+    Assert.assertTrue(methods.toString(),methods.isEmpty());
+    preparedStatement.addBatch();
+    Assert.assertEquals(methods.toString(),2,methods.size());
+    Assert.assertEquals(PreparedStatement.class.getMethod("executeUpdate"),methods.remove(0));
+    Assert.assertEquals(PreparedStatement.class.getMethod("close"),methods.remove(0));
+    Assert.assertArrayEquals(new int[0],preparedStatement.executeBatch());
+    Assert.assertTrue(methods.toString(),methods.isEmpty());
+    preparedStatement.execute();
+    methods=connectionInvocationHandler.getMethods();
+    Assert.assertEquals(methods.toString(),1,methods.size());
+    Assert.assertEquals(PreparedStatement.class.getMethod("execute"),methods.remove(0));
+  }
+   methods=connectionInvocationHandler.getMethods();
   Assert.assertEquals(methods.toString(),1,methods.size());
   Assert.assertEquals(PreparedStatement.class.getMethod("close"),methods.remove(0));
-  preparedStatement.execute();
-  methods=connectionInvocationHandler.getMethods();
-  Assert.assertEquals(methods.toString(),1,methods.size());
-  Assert.assertEquals(PreparedStatement.class.getMethod("execute"),methods.remove(0));
 }

@@ -1,13 +1,12 @@
 {
   PreparedStatementInvocationHandler preparedStatementInvocationHandler=new PreparedStatementInvocationHandler(true);
-  PreparedStatement preparedStatement=AutoBatchPreparedStatementUtil.autoBatch((PreparedStatement)ProxyUtil.newProxyInstance(ClassLoader.getSystemClassLoader(),new Class<?>[]{PreparedStatement.class},preparedStatementInvocationHandler));
-  InvocationHandler invocationHandler=ProxyUtil.getInvocationHandler(preparedStatement);
-  Assert.assertEquals(0,ReflectionTestUtil.getFieldValue(invocationHandler,"_count"));
   List<Method> methods=preparedStatementInvocationHandler.getMethods();
-  Assert.assertTrue(methods.toString(),methods.isEmpty());
   int hibernateJDBCBatchSize=PropsValues.HIBERNATE_JDBC_BATCH_SIZE;
   ReflectionTestUtil.setFieldValue(PropsValues.class,"HIBERNATE_JDBC_BATCH_SIZE",2);
-  try {
+  try (PreparedStatement preparedStatement=AutoBatchPreparedStatementUtil.autoBatch((PreparedStatement)ProxyUtil.newProxyInstance(ClassLoader.getSystemClassLoader(),new Class<?>[]{PreparedStatement.class},preparedStatementInvocationHandler))){
+    InvocationHandler invocationHandler=ProxyUtil.getInvocationHandler(preparedStatement);
+    Assert.assertEquals(0,ReflectionTestUtil.getFieldValue(invocationHandler,"_count"));
+    Assert.assertTrue(methods.toString(),methods.isEmpty());
     Assert.assertArrayEquals(new int[0],preparedStatement.executeBatch());
     Assert.assertTrue(methods.toString(),methods.isEmpty());
     Assert.assertEquals(0,ReflectionTestUtil.getFieldValue(invocationHandler,"_count"));
@@ -36,4 +35,6 @@
   finally {
     ReflectionTestUtil.setFieldValue(PropsValues.class,"HIBERNATE_JDBC_BATCH_SIZE",hibernateJDBCBatchSize);
   }
+  Assert.assertEquals(methods.toString(),1,methods.size());
+  Assert.assertEquals(PreparedStatement.class.getMethod("close"),methods.remove(0));
 }

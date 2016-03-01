@@ -1,13 +1,12 @@
 {
   ConnectionInvocationHandler connectionInvocationHandler=new ConnectionInvocationHandler(true);
-  PreparedStatement preparedStatement=AutoBatchPreparedStatementUtil.concurrentAutoBatch((Connection)ProxyUtil.newProxyInstance(ClassLoader.getSystemClassLoader(),new Class<?>[]{Connection.class},connectionInvocationHandler),StringPool.BLANK);
-  InvocationHandler invocationHandler=ProxyUtil.getInvocationHandler(preparedStatement);
-  Assert.assertEquals(0,ReflectionTestUtil.getFieldValue(invocationHandler,"_count"));
   List<Method> methods=connectionInvocationHandler.getMethods();
-  Assert.assertTrue(methods.toString(),methods.isEmpty());
   int hibernateJDBCBatchSize=PropsValues.HIBERNATE_JDBC_BATCH_SIZE;
   ReflectionTestUtil.setFieldValue(PropsValues.class,"HIBERNATE_JDBC_BATCH_SIZE",2);
-  try {
+  try (PreparedStatement preparedStatement=AutoBatchPreparedStatementUtil.concurrentAutoBatch((Connection)ProxyUtil.newProxyInstance(ClassLoader.getSystemClassLoader(),new Class<?>[]{Connection.class},connectionInvocationHandler),StringPool.BLANK)){
+    InvocationHandler invocationHandler=ProxyUtil.getInvocationHandler(preparedStatement);
+    Assert.assertEquals(0,ReflectionTestUtil.getFieldValue(invocationHandler,"_count"));
+    Assert.assertTrue(methods.toString(),methods.isEmpty());
     Assert.assertArrayEquals(new int[0],preparedStatement.executeBatch());
     Assert.assertTrue(methods.toString(),methods.isEmpty());
     Assert.assertEquals(0,ReflectionTestUtil.getFieldValue(invocationHandler,"_count"));
@@ -36,11 +35,10 @@
     Assert.assertEquals(methods.toString(),1,methods.size());
     Assert.assertEquals(PreparedStatement.class.getMethod("execute"),methods.remove(0));
     Assert.assertEquals(0,ReflectionTestUtil.getFieldValue(invocationHandler,"_count"));
-    preparedStatement.close();
-    Assert.assertEquals(methods.toString(),1,methods.size());
-    Assert.assertEquals(PreparedStatement.class.getMethod("close"),methods.remove(0));
   }
   finally {
     ReflectionTestUtil.setFieldValue(PropsValues.class,"HIBERNATE_JDBC_BATCH_SIZE",hibernateJDBCBatchSize);
   }
+  Assert.assertEquals(methods.toString(),1,methods.size());
+  Assert.assertEquals(PreparedStatement.class.getMethod("close"),methods.remove(0));
 }
