@@ -1,7 +1,7 @@
 {
   try (LoggingTimer loggingTimer=new LoggingTimer()){
     runSQL("alter table DLFileEntry add fileName VARCHAR(255) null");
-    try (PreparedStatement ps=connection.prepareStatement("select fileEntryId, groupId, folderId, extension, title," + " version from DLFileEntry");ResultSet rs=ps.executeQuery()){
+    try (PreparedStatement ps=connection.prepareStatement("select fileEntryId, groupId, folderId, extension, title," + " version from DLFileEntry");PreparedStatement ps2=AutoBatchPreparedStatementUtil.autoBatch(connection.prepareStatement("update DLFileEntry set fileName = ? where " + "fileEntryId = ?"));PreparedStatement ps3=AutoBatchPreparedStatementUtil.autoBatch(connection.prepareStatement("update DLFileEntry set title = ? where " + "fileEntryId = ?"));PreparedStatement ps4=AutoBatchPreparedStatementUtil.autoBatch(connection.prepareStatement("update DLFileVersion set title = ? where " + "fileEntryId = " + "? and version = ?"));ResultSet rs=ps.executeQuery()){
       while (rs.next()) {
         long fileEntryId=rs.getLong("fileEntryId");
         long groupId=rs.getLong("groupId");
@@ -27,11 +27,22 @@
           }
           uniqueFileName=DLUtil.getSanitizedFileName(uniqueTitle,extension);
         }
-        updateFileEntryFileName(fileEntryId,uniqueFileName);
+        ps2.setString(1,uniqueFileName);
+        ps2.setLong(2,fileEntryId);
+        ps2.addBatch();
         if (Validator.isNotNull(uniqueTitle)) {
-          updateFileEntryTitle(fileEntryId,uniqueTitle,version);
+          ps3.setString(1,title);
+          ps3.setLong(2,fileEntryId);
+          ps3.addBatch();
+          ps4.setString(1,title);
+          ps4.setLong(2,fileEntryId);
+          ps4.setString(3,version);
+          ps4.addBatch();
         }
       }
+      ps2.executeBatch();
+      ps3.executeBatch();
+      ps4.executeBatch();
     }
    }
  }
