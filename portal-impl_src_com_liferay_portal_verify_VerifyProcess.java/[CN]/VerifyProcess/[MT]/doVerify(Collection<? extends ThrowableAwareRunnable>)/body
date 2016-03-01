@@ -3,30 +3,17 @@
     for (    ThrowableAwareRunnable throwableAwareRunnable : throwableAwareRunnables) {
       throwableAwareRunnable.run();
     }
-  }
- else {
-    ExecutorService executorService=Executors.newFixedThreadPool(throwableAwareRunnables.size());
-    List<Callable<Object>> jobs=new ArrayList<>(throwableAwareRunnables.size());
-    for (    Runnable runnable : throwableAwareRunnables) {
-      jobs.add(Executors.callable(runnable));
-    }
-    try {
-      List<Future<Object>> futures=executorService.invokeAll(jobs);
-      for (      Future<Object> future : futures) {
-        future.get();
+    List<Throwable> throwables=new ArrayList<>();
+    for (    ThrowableAwareRunnable throwableAwareRunnable : throwableAwareRunnables) {
+      if (throwableAwareRunnable.hasException()) {
+        throwables.add(throwableAwareRunnable.getThrowable());
       }
     }
-  finally {
-      executorService.shutdown();
+    if (!throwables.isEmpty()) {
+      throw new BulkException("Verification error: " + getClass().getName(),throwables);
     }
   }
-  List<Throwable> throwables=new ArrayList<>();
-  for (  ThrowableAwareRunnable throwableAwareRunnable : throwableAwareRunnables) {
-    if (throwableAwareRunnable.hasException()) {
-      throwables.add(throwableAwareRunnable.getThrowable());
-    }
-  }
-  if (!throwables.isEmpty()) {
-    throw new BulkException("Verification error: " + getClass().getName(),throwables);
+ else {
+    ThrowableAwareRunnablesExecutorUtil.execute(throwableAwareRunnables);
   }
 }
