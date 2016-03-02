@@ -1,25 +1,22 @@
 {
-  PreparedStatement ps=null;
-  ResultSet rs=null;
-  try {
-    ps=connection.prepareStatement("select uuid_ from Layout where groupId = ? and friendlyURL " + "= ?");
+  try (PreparedStatement ps=connection.prepareStatement("select uuid_ from Layout where groupId = ? and friendlyURL " + "= ?")){
     ps.setLong(1,groupId);
     ps.setString(2,friendlyURL);
-    rs=ps.executeQuery();
-    if (!rs.next()) {
-      ps=connection.prepareStatement("select uuid_ from Layout where groupId = ? and " + "privateLayout = ? and layoutId = ?");
-      ps.setLong(1,groupId);
-      ps.setBoolean(2,privateLayout);
-      ps.setLong(3,layoutId);
-      rs=ps.executeQuery();
+    try (ResultSet rs=ps.executeQuery()){
       if (!rs.next()) {
-        return;
-      }
+        try (PreparedStatement ps2=connection.prepareStatement("select uuid_ from Layout where groupId = ? and " + "privateLayout = ? and layoutId = ?")){
+          ps2.setLong(1,groupId);
+          ps2.setBoolean(2,privateLayout);
+          ps2.setLong(3,layoutId);
+          try (ResultSet rs2=ps2.executeQuery()){
+            if (!rs2.next()) {
+              return;
+            }
+          }
+         }
+       }
+      String uuid=rs.getString("uuid_");
+      runSQL("update Layout set uuid_ = '" + uuid + "' where plid = "+ plid);
     }
-    String uuid=rs.getString("uuid_");
-    runSQL("update Layout set uuid_ = '" + uuid + "' where plid = "+ plid);
-  }
-  finally {
-    DataAccess.cleanUp(ps,rs);
-  }
-}
+   }
+ }
