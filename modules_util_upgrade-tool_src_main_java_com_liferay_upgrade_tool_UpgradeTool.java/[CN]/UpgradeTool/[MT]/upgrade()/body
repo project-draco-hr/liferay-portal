@@ -1,0 +1,58 @@
+{
+  verifyProperties();
+  String classPath=_getClassPath();
+  List commands=new ArrayList<>();
+  commands.add(JAVA_HOME + "/bin/java");
+  commands.add("-Xmx1024m");
+  commands.add("-Dfile.encoding=UTF8");
+  commands.add("-Duser.country=US");
+  commands.add("-Duser.language=en");
+  commands.add("-Duser.timezone=GMT");
+  commands.add("-cp");
+  commands.add(classPath);
+  commands.add("com.liferay.portal.tools.DBUpgrader");
+  ProcessBuilder processBuilder=new ProcessBuilder();
+  processBuilder.redirectError(ProcessBuilder.Redirect.INHERIT);
+  processBuilder.command(commands);
+  Process process=processBuilder.start();
+  try (InputStreamReader isr=new InputStreamReader(process.getInputStream());BufferedReader br=new BufferedReader(isr)){
+    String line;
+    while ((line=br.readLine()) != null) {
+      if (line.equals("Running modules upgrades. Connect to your Gogo " + "Shell to check the status.")) {
+        break;
+      }
+ else {
+        System.out.println(line);
+      }
+    }
+    System.out.flush();
+  }
+ catch (  IOException ioe) {
+    ioe.printStackTrace();
+  }
+  try (GogoTelnetClient client=new GogoTelnetClient()){
+    System.out.println("You are now connected to Gogo Shell");
+    System.out.println("Try upgrade:list, verify:list");
+    _consoleReader.setPrompt("g! ");
+    String line;
+    while ((line=_consoleReader.readLine()) != null) {
+      if (line.equals("exit") || line.equals("quit")) {
+        break;
+      }
+ else {
+        System.out.println(client.send(line));
+      }
+    }
+  }
+ catch (  IOException ioe) {
+    ioe.printStackTrace();
+  }
+  process.getInputStream().close();
+  int exitCode=process.waitFor();
+  if (exitCode == 0) {
+    System.out.println("Upgrade completed");
+  }
+ else {
+    System.out.println("Upgrade failed: " + exitCode);
+  }
+}
