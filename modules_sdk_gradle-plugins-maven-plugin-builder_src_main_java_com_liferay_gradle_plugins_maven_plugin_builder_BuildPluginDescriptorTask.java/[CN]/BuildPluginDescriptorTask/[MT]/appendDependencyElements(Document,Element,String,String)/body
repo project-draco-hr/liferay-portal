@@ -5,14 +5,34 @@
   if (configuration == null) {
     return;
   }
-  Set<Dependency> dependencies=configuration.getDependencies();
   Set<String> forcedExclusions=getForcedExclusions();
-  for (  Dependency dependency : dependencies) {
+  ResolvedConfiguration resolvedConfiguration=configuration.getResolvedConfiguration();
+  for (  Dependency dependency : configuration.getDependencies()) {
     Element dependencyElement=document.createElement("dependency");
     dependenciesElement.appendChild(dependencyElement);
-    XMLUtil.appendElement(document,dependencyElement,"groupId",dependency.getGroup());
-    XMLUtil.appendElement(document,dependencyElement,"artifactId",dependency.getName());
-    XMLUtil.appendElement(document,dependencyElement,"version",dependency.getVersion());
+    final String dependencyGroup=dependency.getGroup();
+    final String dependencyName=dependency.getName();
+    XMLUtil.appendElement(document,dependencyElement,"groupId",dependencyGroup);
+    XMLUtil.appendElement(document,dependencyElement,"artifactId",dependencyName);
+    String dependencyVersion=dependency.getVersion();
+    Set<ResolvedDependency> resolvedDependencies=resolvedConfiguration.getFirstLevelModuleDependencies(new Spec<Dependency>(){
+      @Override public boolean isSatisfiedBy(      Dependency dependency){
+        if (dependencyGroup.equals(dependency.getGroup()) && dependencyName.equals(dependency.getName())) {
+          return true;
+        }
+        return false;
+      }
+    }
+);
+    if (!resolvedDependencies.isEmpty()) {
+      Iterator<ResolvedDependency> iterator=resolvedDependencies.iterator();
+      ResolvedDependency resolvedDependency=iterator.next();
+      dependencyVersion=resolvedDependency.getModuleVersion();
+    }
+ else     if (_logger.isWarnEnabled()) {
+      _logger.warn("Unable to find resolved module version for " + dependency);
+    }
+    XMLUtil.appendElement(document,dependencyElement,"version",dependencyVersion);
     XMLUtil.appendElement(document,dependencyElement,"scope",scope);
     if (!forcedExclusions.isEmpty()) {
       Element exclusionsElement=document.createElement("exclusions");
