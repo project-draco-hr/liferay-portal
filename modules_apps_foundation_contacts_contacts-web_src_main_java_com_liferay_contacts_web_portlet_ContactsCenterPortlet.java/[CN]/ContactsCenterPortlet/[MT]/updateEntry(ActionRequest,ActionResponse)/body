@@ -1,0 +1,45 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  String redirect=ParamUtil.getString(actionRequest,"redirect");
+  long entryId=ParamUtil.getLong(actionRequest,"entryId");
+  String fullName=ParamUtil.getString(actionRequest,"fullName");
+  String emailAddress=ParamUtil.getString(actionRequest,"emailAddress");
+  String comments=ParamUtil.getString(actionRequest,"comments");
+  JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+  String message=null;
+  try {
+    Entry entry=null;
+    if (entryId > 0) {
+      entry=EntryLocalServiceUtil.getEntry(entryId);
+      if (entry.getUserId() == themeDisplay.getUserId()) {
+        entry=EntryLocalServiceUtil.updateEntry(entryId,fullName,emailAddress,comments);
+        message="you-have-successfully-updated-the-contact";
+      }
+    }
+ else {
+      entry=EntryLocalServiceUtil.addEntry(themeDisplay.getUserId(),fullName,emailAddress,comments);
+      message="you-have-successfully-added-a-new-contact";
+    }
+    jsonObject.put("contact",getEntryJSONObject(actionResponse,themeDisplay,entry,redirect));
+    JSONObject contactsJSONObject=getContactsJSONObject(actionRequest,actionResponse);
+    jsonObject.put("contactList",contactsJSONObject);
+    jsonObject.put("success",Boolean.TRUE);
+  }
+ catch (  Exception e) {
+    if (e instanceof ContactFullNameException) {
+      message="full-name-cannot-be-empty";
+    }
+ else     if (e instanceof DuplicateEntryEmailAddressException) {
+      message="there-is-already-a-contact-with-this-email-address";
+    }
+ else     if (e instanceof EntryEmailAddressException) {
+      message="please-enter-a-valid-email-address";
+    }
+ else {
+      message="an-error-occurred-while-processing-the-requested-resource";
+    }
+    jsonObject.put("success",Boolean.FALSE);
+  }
+  jsonObject.put("message",translate(actionRequest,message));
+  writeJSON(actionRequest,actionResponse,jsonObject);
+}

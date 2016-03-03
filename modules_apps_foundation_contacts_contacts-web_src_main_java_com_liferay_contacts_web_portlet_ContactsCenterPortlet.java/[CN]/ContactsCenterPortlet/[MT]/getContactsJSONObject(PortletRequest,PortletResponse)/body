@@ -1,0 +1,89 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)portletRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  String redirect=ParamUtil.getString(portletRequest,"redirect");
+  String filterBy=ParamUtil.getString(portletRequest,"filterBy");
+  String keywords=ParamUtil.getString(portletRequest,"keywords");
+  int start=ParamUtil.getInteger(portletRequest,"start");
+  int end=ParamUtil.getInteger(portletRequest,"end");
+  JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+  JSONObject optionsJSONObject=JSONFactoryUtil.createJSONObject();
+  optionsJSONObject.put("end",end);
+  optionsJSONObject.put("filterBy",filterBy);
+  optionsJSONObject.put("keywords",keywords);
+  optionsJSONObject.put("start",start);
+  jsonObject.put("options",optionsJSONObject);
+  PortletDisplay portletDisplay=themeDisplay.getPortletDisplay();
+  String portletId=portletDisplay.getId();
+  JSONArray jsonArray=JSONFactoryUtil.createJSONArray();
+  if (filterBy.equals(ContactsConstants.FILTER_BY_DEFAULT) && !portletId.equals(PortletKeys.MEMBERS)) {
+    List<BaseModel<?>> contacts=EntryLocalServiceUtil.searchUsersAndContacts(themeDisplay.getCompanyId(),themeDisplay.getUserId(),keywords,start,end);
+    int contactsCount=EntryLocalServiceUtil.searchUsersAndContactsCount(themeDisplay.getCompanyId(),themeDisplay.getUserId(),keywords);
+    jsonObject.put("count",contactsCount);
+    for (    BaseModel<?> contact : contacts) {
+      JSONObject contactJSONObject=null;
+      if (contact instanceof User) {
+        contactJSONObject=getUserJSONObject(portletResponse,themeDisplay,(User)contact);
+      }
+ else {
+        contactJSONObject=getEntryJSONObject(portletResponse,themeDisplay,(Entry)contact,redirect);
+      }
+      jsonArray.put(contactJSONObject);
+    }
+  }
+ else   if (filterBy.equals(ContactsConstants.FILTER_BY_FOLLOWERS) && !portletId.equals(PortletKeys.MEMBERS)) {
+    List<SocialRelation> socialRelations=SocialRelationLocalServiceUtil.getInverseRelations(themeDisplay.getUserId(),SocialRelationConstants.TYPE_UNI_FOLLOWER,start,end);
+    for (    SocialRelation socialRelation : socialRelations) {
+      jsonArray.put(getUserJSONObject(portletResponse,themeDisplay,socialRelation.getUserId1()));
+    }
+  }
+ else   if (filterBy.equals(ContactsConstants.FILTER_BY_TYPE_MY_CONTACTS) && !portletId.equals(PortletKeys.MEMBERS)) {
+    List<Entry> entries=EntryLocalServiceUtil.search(themeDisplay.getUserId(),keywords,start,end);
+    int entriesCount=EntryLocalServiceUtil.searchCount(themeDisplay.getUserId(),keywords);
+    jsonObject.put("count",entriesCount);
+    for (    Entry entry : entries) {
+      JSONObject contactJSONObject=getEntryJSONObject(portletResponse,themeDisplay,entry,redirect);
+      jsonArray.put(contactJSONObject);
+    }
+  }
+ else {
+    LinkedHashMap<String,Object> params=new LinkedHashMap<>();
+    params.put("inherit",Boolean.TRUE);
+    Group group=themeDisplay.getScopeGroup();
+    Layout layout=themeDisplay.getLayout();
+    if (group.isUser() && layout.isPublicLayout()) {
+      params.put("socialRelationType",new Long[]{group.getClassPK(),(long)SocialRelationConstants.TYPE_BI_CONNECTION});
+    }
+ else     if (filterBy.startsWith(ContactsConstants.FILTER_BY_TYPE)) {
+      params.put("socialRelationType",new Long[]{themeDisplay.getUserId(),ContactsUtil.getSocialRelationType(filterBy)});
+    }
+    if (portletId.equals(PortletKeys.MEMBERS)) {
+      params.put("usersGroups",group.getGroupId());
+    }
+ else     if (filterBy.startsWith(ContactsConstants.FILTER_BY_GROUP)) {
+      params.put("usersGroups",ContactsUtil.getGroupId(filterBy));
+    }
+    List<User> usersList=null;
+    if (filterBy.equals(ContactsConstants.FILTER_BY_ADMINS)) {
+      Role siteAdministratorRole=RoleLocalServiceUtil.getRole(group.getCompanyId(),RoleConstants.SITE_ADMINISTRATOR);
+      params.put("userGroupRole",new Long[]{group.getGroupId(),siteAdministratorRole.getRoleId()});
+      Set<User> users=new HashSet<>();
+      users.addAll(UserLocalServiceUtil.search(themeDisplay.getCompanyId(),keywords,WorkflowConstants.STATUS_APPROVED,params,QueryUtil.ALL_POS,QueryUtil.ALL_POS,(OrderByComparator)null));
+      Role siteOwnerRole=RoleLocalServiceUtil.getRole(group.getCompanyId(),RoleConstants.SITE_OWNER);
+      params.put("userGroupRole",new Long[]{group.getGroupId(),siteOwnerRole.getRoleId()});
+      users.addAll(UserLocalServiceUtil.search(themeDisplay.getCompanyId(),keywords,WorkflowConstants.STATUS_APPROVED,params,QueryUtil.ALL_POS,QueryUtil.ALL_POS,(OrderByComparator)null));
+      usersList=new ArrayList<>(users);
+      ListUtil.sort(usersList,new UserLastNameComparator(true));
+    }
+ else {
+      int usersCount=UserLocalServiceUtil.searchCount(themeDisplay.getCompanyId(),keywords,WorkflowConstants.STATUS_APPROVED,params);
+      jsonObject.put("count",usersCount);
+      usersList=UserLocalServiceUtil.search(themeDisplay.getCompanyId(),keywords,WorkflowConstants.STATUS_APPROVED,params,start,end,new UserLastNameComparator(true));
+    }
+    for (    User user : usersList) {
+      JSONObject userJSONObject=getUserJSONObject(portletResponse,themeDisplay,user);
+      jsonArray.put(userJSONObject);
+    }
+  }
+  jsonObject.put("users",jsonArray);
+  return jsonObject;
+}
