@@ -1,18 +1,23 @@
 {
   try (LoggingTimer loggingTimer=new LoggingTimer()){
-    List<MBCategory> categories=MBCategoryLocalServiceUtil.getMBCategories(QueryUtil.ALL_POS,QueryUtil.ALL_POS);
     if (_log.isDebugEnabled()) {
-      _log.debug("Processing " + categories.size() + " categories for statistics accuracy");
+      _log.debug("Processing categories for statistics accuracy");
     }
-    for (    MBCategory category : categories) {
-      int threadCount=MBThreadLocalServiceUtil.getCategoryThreadsCount(category.getGroupId(),category.getCategoryId(),WorkflowConstants.STATUS_APPROVED);
-      int messageCount=MBMessageLocalServiceUtil.getCategoryMessagesCount(category.getGroupId(),category.getCategoryId(),WorkflowConstants.STATUS_APPROVED);
-      if ((category.getThreadCount() != threadCount) || (category.getMessageCount() != messageCount)) {
-        category.setThreadCount(threadCount);
-        category.setMessageCount(messageCount);
-        MBCategoryLocalServiceUtil.updateMBCategory(category);
+    ActionableDynamicQuery actionableDynamicQuery=MBCategoryLocalServiceUtil.getActionableDynamicQuery();
+    actionableDynamicQuery.setParallel(true);
+    actionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod<MBCategory>(){
+      @Override public void performAction(      MBCategory category){
+        int threadCount=MBThreadLocalServiceUtil.getCategoryThreadsCount(category.getGroupId(),category.getCategoryId(),WorkflowConstants.STATUS_APPROVED);
+        int messageCount=MBMessageLocalServiceUtil.getCategoryMessagesCount(category.getGroupId(),category.getCategoryId(),WorkflowConstants.STATUS_APPROVED);
+        if ((category.getThreadCount() != threadCount) || (category.getMessageCount() != messageCount)) {
+          category.setThreadCount(threadCount);
+          category.setMessageCount(messageCount);
+          MBCategoryLocalServiceUtil.updateMBCategory(category);
+        }
       }
     }
+);
+    actionableDynamicQuery.performActions();
     if (_log.isDebugEnabled()) {
       _log.debug("Statistics verified for categories");
     }
