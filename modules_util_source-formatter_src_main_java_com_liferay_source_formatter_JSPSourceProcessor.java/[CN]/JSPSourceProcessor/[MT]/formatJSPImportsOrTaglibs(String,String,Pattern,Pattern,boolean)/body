@@ -1,0 +1,29 @@
+{
+  if (fileName.endsWith("init-ext.jsp")) {
+    return content;
+  }
+  Matcher matcher=compressedPattern.matcher(content);
+  if (!matcher.find()) {
+    return content;
+  }
+  String imports=matcher.group();
+  String newImports=StringUtil.replace(imports,new String[]{"<%@\r\n","<%@\n"," %><%@ "},new String[]{"\r\n<%@ ","\n<%@ "," %>\n<%@ "});
+  if (checkUnusedImports) {
+    List<String> importLines=new ArrayList<>();
+    UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new UnsyncStringReader(newImports));
+    String line=null;
+    while ((line=unsyncBufferedReader.readLine()) != null) {
+      if (line.contains("import=")) {
+        importLines.add(line);
+      }
+    }
+    List<String> unneededImports=getJSPDuplicateImports(fileName,content,importLines);
+    addJSPUnusedImports(fileName,importLines,unneededImports);
+    for (    String unneededImport : unneededImports) {
+      newImports=StringUtil.replace(newImports,unneededImport,StringPool.BLANK);
+    }
+  }
+  content=StringUtil.replaceFirst(content,imports,newImports);
+  ImportsFormatter importsFormatter=new JSPImportsFormatter();
+  return importsFormatter.format(content,uncompressedPattern);
+}
