@@ -1,32 +1,27 @@
 {
-  PreparedStatement ps=null;
-  ResultSet rs=null;
-  try {
-    ps=con.prepareStatement("select companyId, userId, createDate, modifiedDate from " + tableName + " where "+ pkColumnName+ " = ?");
+  try (PreparedStatement ps=con.prepareStatement("select companyId, userId, createDate, modifiedDate from " + tableName + " where "+ pkColumnName+ " = ?")){
     ps.setLong(1,primKey);
-    rs=ps.executeQuery();
-    if (rs.next()) {
-      long companyId=rs.getLong("companyId");
-      long userId=0;
-      String userName=null;
-      if (allowAnonymousUser) {
-        userId=previousUserId;
-        userName="Anonymous";
-      }
+    try (ResultSet rs=ps.executeQuery()){
+      if (rs.next()) {
+        long companyId=rs.getLong("companyId");
+        long userId=0;
+        String userName=null;
+        if (allowAnonymousUser) {
+          userId=previousUserId;
+          userName="Anonymous";
+        }
  else {
-        userId=rs.getLong("userId");
-        userName=getUserName(con,userId);
+          userId=rs.getLong("userId");
+          userName=getUserName(con,userId);
+        }
+        Timestamp createDate=rs.getTimestamp("createDate");
+        Timestamp modifiedDate=rs.getTimestamp("modifiedDate");
+        return new Object[]{companyId,userId,userName,createDate,modifiedDate};
       }
-      Timestamp createDate=rs.getTimestamp("createDate");
-      Timestamp modifiedDate=rs.getTimestamp("modifiedDate");
-      return new Object[]{companyId,userId,userName,createDate,modifiedDate};
+      if (_log.isDebugEnabled()) {
+        _log.debug("Unable to find " + tableName + " "+ primKey);
+      }
+      return null;
     }
-    if (_log.isDebugEnabled()) {
-      _log.debug("Unable to find " + tableName + " "+ primKey);
-    }
-    return null;
-  }
-  finally {
-    DataAccess.cleanUp(ps,rs);
-  }
-}
+   }
+ }
