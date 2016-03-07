@@ -1,0 +1,20 @@
+{
+  Indexer<?> indexer=_bundleContext.getService(serviceReference);
+  boolean indexerIndexOnStartup=GetterUtil.getBoolean(serviceReference.getProperty(PropsKeys.INDEX_ON_STARTUP),true);
+  String className=indexer.getClassName();
+  if (!indexerIndexOnStartup || Validator.isNull(className) || isBaseSearcher(indexer.getClass())) {
+    return indexer;
+  }
+synchronized (_serviceRegistrations) {
+    if (_serviceRegistrations.containsKey(className)) {
+      if (_log.isInfoEnabled()) {
+        _log.info("IndexOnStartupPortalInstanceLifecycleListener " + "already registered for: " + className);
+      }
+      return indexer;
+    }
+    PortalInstanceLifecycleListener portalInstanceLifecycleListener=new IndexOnStartupPortalInstanceLifecycleListener(_clusterMasterExecutor,_indexWriterHelper,_props,className);
+    ServiceRegistration<PortalInstanceLifecycleListener> serviceRegistration=_bundleContext.registerService(PortalInstanceLifecycleListener.class,portalInstanceLifecycleListener,new HashMapDictionary<String,Object>());
+    _serviceRegistrations.put(className,serviceRegistration);
+  }
+  return indexer;
+}
