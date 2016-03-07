@@ -33,15 +33,7 @@
     if (MSOfficeFileUtil.isLegacyExcelFile(filePath)) {
       syncFile.setLocalExtraSetting("lastSavedDate",MSOfficeFileUtil.getLastSavedDate(tempFilePath));
     }
-    try {
-      Files.move(tempFilePath,filePath,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
-    }
- catch (    AccessDeniedException ade) {
-      syncFile.setState(SyncFile.STATE_ERROR);
-      syncFile.setUiEvent(SyncFile.UI_EVENT_ACCESS_DENIED_LOCAL);
-      SyncFileService.update(syncFile);
-      return;
-    }
+    Files.move(tempFilePath,filePath,StandardCopyOption.ATOMIC_MOVE,StandardCopyOption.REPLACE_EXISTING);
     ExecutorService executorService=SyncEngine.getExecutorService();
     Runnable runnable=new Runnable(){
       @Override public void run(){
@@ -54,6 +46,18 @@
     executorService.execute(runnable);
   }
  catch (  FileSystemException fse) {
+    if (fse instanceof AccessDeniedException) {
+      syncFile.setState(SyncFile.STATE_ERROR);
+      syncFile.setUiEvent(SyncFile.UI_EVENT_ACCESS_DENIED_LOCAL);
+      SyncFileService.update(syncFile);
+      return;
+    }
+ else     if (fse instanceof NoSuchFileException) {
+      if (isEventCancelled()) {
+        SyncFileService.deleteSyncFile(syncFile);
+        return;
+      }
+    }
     watcher.removeDownloadedFilePathName(filePath.toString());
     String message=fse.getMessage();
     _logger.error(message,fse);
