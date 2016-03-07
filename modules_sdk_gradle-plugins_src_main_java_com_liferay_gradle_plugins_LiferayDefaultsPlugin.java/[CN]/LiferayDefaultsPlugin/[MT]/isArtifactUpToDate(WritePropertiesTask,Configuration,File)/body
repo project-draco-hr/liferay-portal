@@ -1,0 +1,41 @@
+{
+  Project project=recordArtifactTask.getProject();
+  Properties artifactProperties;
+  try {
+    artifactProperties=FileUtil.readProperties(recordArtifactTask.getOutputFile());
+  }
+ catch (  IOException ioe) {
+    throw new GradleException("Unable to read artifact properties",ioe);
+  }
+  String artifactGitId=artifactProperties.getProperty("artifact.git.id");
+  if (Validator.isNull(artifactGitId)) {
+    if (_logger.isInfoEnabled()) {
+      _logger.info(project + " has never been published");
+    }
+    return false;
+  }
+  AntBuilder antBuilder=project.createAntBuilder();
+  if (portalRootDir == null) {
+    portalRootDir=project.getRootDir();
+    while (true) {
+      File gitDir=new File(portalRootDir,".git");
+      if (gitDir.exists()) {
+        break;
+      }
+      portalRootDir=portalRootDir.getParentFile();
+    }
+  }
+  antBuilder.setProperty("project.dir",portalRootDir);
+  Map<String,String> args=new HashMap<>();
+  args.put("classpath",antJGitConfiguration.getAsPath());
+  args.put("resource","com/liferay/ant/jgit/ant-jgit-tasks.properties");
+  antBuilder.invokeMethod("taskdef",args);
+  args.clear();
+  args.put("ignoredMessagePattern","artifact:ignore");
+  args.put("path",FileUtil.getAbsolutePath(project.getProjectDir()));
+  args.put("property","git.up.to.date");
+  args.put("since",artifactGitId);
+  antBuilder.invokeMethod("git-up-to-date",args);
+  Map<String,Object> properties=antBuilder.getProperties();
+  return Boolean.parseBoolean(String.valueOf(properties.get("git.up.to.date")));
+}
