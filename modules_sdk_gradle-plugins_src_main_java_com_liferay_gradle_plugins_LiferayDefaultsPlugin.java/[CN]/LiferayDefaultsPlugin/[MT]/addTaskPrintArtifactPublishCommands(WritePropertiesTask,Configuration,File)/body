@@ -1,0 +1,60 @@
+{
+  Project project=recordArtifactTask.getProject();
+  Task task=project.task(PRINT_ARTIFACT_PUBLISH_COMMANDS);
+  task.doLast(new Action<Task>(){
+    private String _getGitCommitCommand(    Project project,    String message,    boolean ignored){
+      return _getGitCommitCommand(project,message,false,ignored);
+    }
+    private String _getGitCommitCommand(    Project project,    String message,    boolean all,    boolean ignored){
+      StringBuilder sb=new StringBuilder();
+      sb.append("git commit ");
+      if (all) {
+        sb.append("--all ");
+      }
+      sb.append("--message=\"");
+      if (ignored) {
+        sb.append(_IGNORED_MESSAGE_PATTERN);
+        sb.append(' ');
+      }
+      sb.append(project.getName());
+      sb.append(' ');
+      sb.append(project.getVersion());
+      sb.append(' ');
+      sb.append(message);
+      sb.append('"');
+      return sb.toString();
+    }
+    @Override public void execute(    Task task){
+      List<String> commands=new ArrayList<>();
+      Project project=task.getProject();
+      commands.add("cd " + FileUtil.getAbsolutePath(project.getProjectDir()));
+      File rootDir=portalRootDir;
+      if (portalRootDir == null) {
+        rootDir=project.getRootDir();
+      }
+      File gradlewFile=new File(rootDir,"gradlew");
+      String gradlewRelativePath=project.relativePath(gradlewFile);
+      commands.add(gradlewRelativePath + " " + BasePlugin.UPLOAD_ARCHIVES_TASK_NAME+ " -P"+ _SNAPSHOT_PROPERTY_NAME);
+      commands.add(gradlewRelativePath + " " + BasePlugin.UPLOAD_ARCHIVES_TASK_NAME);
+      commands.add("git add " + project.relativePath("bnd.bnd"));
+      commands.add(_getGitCommitCommand(project,"prep next",true));
+      commands.add("git add " + project.relativePath(recordArtifactTask.getOutputFile()));
+      commands.add(_getGitCommitCommand(project,"artifact properties",true));
+      File projectDir=project.getProjectDir();
+      File projectGroupDir=projectDir.getParentFile();
+      BasePluginConvention basePluginConvention=GradleUtil.getConvention(project,BasePluginConvention.class);
+      String archivesBaseName=basePluginConvention.getArchivesBaseName();
+      commands.add(String.format(_MODULE_TO_PROJECT_DEPENDENCIES_COMMAND,FileUtil.getAbsolutePath(projectGroupDir),escapeBRE(project.getGroup()),escapeBRE(archivesBaseName),project.getPath()));
+      commands.add(String.format(_PROJECT_TO_MODULE_DEPENDENCIES_COMMAND,FileUtil.getAbsolutePath(rootDir),FileUtil.getAbsolutePath(projectGroupDir),escapeBRE(project.getPath()),project.getGroup(),archivesBaseName,String.valueOf(project.getVersion())));
+      commands.add(_getGitCommitCommand(project,"apply",true,false));
+      for (      String command : commands) {
+        System.out.println(command);
+      }
+      throw new GradleException();
+    }
+  }
+);
+  task.onlyIf(new OutOfDateArtifactSpec(antJGitConfiguration,recordArtifactTask,portalRootDir));
+  task.setDescription("Prints the artifact publish commands if this project has been " + "changed since the last publish.");
+  return task;
+}
