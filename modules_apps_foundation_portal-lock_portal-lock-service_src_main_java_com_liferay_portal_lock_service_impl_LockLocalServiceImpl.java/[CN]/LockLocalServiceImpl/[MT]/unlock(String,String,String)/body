@@ -1,10 +1,30 @@
 {
-  Lock lock=lockPersistence.fetchByC_K(className,key,false);
-  if (lock == null) {
-    return;
-  }
-  if (Validator.equals(lock.getOwner(),owner)) {
-    lockPersistence.remove(lock);
-    lockPersistence.flush();
+  while (true) {
+    try {
+      TransactionInvokerUtil.invoke(_transactionConfig,new Callable<Void>(){
+        @Override public Void call(){
+          Lock lock=lockPersistence.fetchByC_K(className,key,false);
+          if (lock == null) {
+            return null;
+          }
+          if (Validator.equals(lock.getOwner(),owner)) {
+            lockPersistence.remove(lock);
+            lockPersistence.flush();
+          }
+          return null;
+        }
+      }
+);
+      return;
+    }
+ catch (    Throwable t) {
+      if (t instanceof ORMException) {
+        Throwable cause=t.getCause();
+        if ((cause instanceof ConstraintViolationException) || (cause instanceof LockAcquisitionException)) {
+          continue;
+        }
+      }
+      ReflectionUtil.throwException(t);
+    }
   }
 }

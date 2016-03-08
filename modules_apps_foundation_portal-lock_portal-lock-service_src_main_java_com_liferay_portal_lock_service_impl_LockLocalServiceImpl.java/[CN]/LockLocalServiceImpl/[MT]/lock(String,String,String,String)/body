@@ -1,22 +1,40 @@
 {
-  Lock lock=lockPersistence.fetchByC_K(className,key,false);
-  if (lock == null) {
-    long lockId=counterLocalService.increment();
-    lock=lockPersistence.create(lockId);
-    lock.setCreateDate(new Date());
-    lock.setClassName(className);
-    lock.setKey(key);
-    lock.setOwner(updatedOwner);
-    lockPersistence.update(lock);
-    lock.setNew(true);
+  while (true) {
+    try {
+      return TransactionInvokerUtil.invoke(_transactionConfig,new Callable<Lock>(){
+        @Override public Lock call(){
+          Lock lock=lockPersistence.fetchByC_K(className,key,false);
+          if (lock == null) {
+            long lockId=counterLocalService.increment();
+            lock=lockPersistence.create(lockId);
+            lock.setCreateDate(new Date());
+            lock.setClassName(className);
+            lock.setKey(key);
+            lock.setOwner(updatedOwner);
+            lockPersistence.update(lock);
+            lock.setNew(true);
+          }
+ else           if (Validator.equals(lock.getOwner(),expectedOwner)) {
+            lock.setCreateDate(new Date());
+            lock.setClassName(className);
+            lock.setKey(key);
+            lock.setOwner(updatedOwner);
+            lockPersistence.update(lock);
+            lock.setNew(true);
+          }
+          return lock;
+        }
+      }
+);
+    }
+ catch (    Throwable t) {
+      if (t instanceof ORMException) {
+        Throwable cause=t.getCause();
+        if ((cause instanceof ConstraintViolationException) || (cause instanceof LockAcquisitionException)) {
+          continue;
+        }
+      }
+      ReflectionUtil.throwException(t);
+    }
   }
- else   if (Validator.equals(lock.getOwner(),expectedOwner)) {
-    lock.setCreateDate(new Date());
-    lock.setClassName(className);
-    lock.setKey(key);
-    lock.setOwner(updatedOwner);
-    lockPersistence.update(lock);
-    lock.setNew(true);
-  }
-  return lock;
 }
