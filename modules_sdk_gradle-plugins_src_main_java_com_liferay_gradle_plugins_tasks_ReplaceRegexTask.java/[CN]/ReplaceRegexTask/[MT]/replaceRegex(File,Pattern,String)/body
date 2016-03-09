@@ -1,8 +1,16 @@
 {
   Path path=file.toPath();
   String content=new String(Files.readAllBytes(path),StandardCharsets.UTF_8);
-  Matcher matcher=pattern.matcher(content);
-  if (!matcher.find()) {
+  String newContent=content;
+  for (  Closure<String> closure : getPre()) {
+    newContent=closure.call(newContent,file);
+  }
+  Matcher matcher=pattern.matcher(newContent);
+  if (matcher.find()) {
+    int groupCount=matcher.groupCount();
+    newContent=newContent.substring(0,matcher.start(groupCount)) + replacement + newContent.substring(matcher.end(groupCount));
+  }
+ else   if (content.equals(newContent)) {
     String message="Unable to match " + pattern + " in "+ file;
     if (isIgnoreUnmatched()) {
       if (_logger.isInfoEnabled()) {
@@ -11,11 +19,6 @@
       return;
     }
     throw new GradleException(message);
-  }
-  int groupCount=matcher.groupCount();
-  String newContent=content.substring(0,matcher.start(groupCount)) + replacement + content.substring(matcher.end(groupCount));
-  if (content.equals(newContent)) {
-    return;
   }
   Files.write(path,newContent.getBytes(StandardCharsets.UTF_8));
   _matchedFiles.add(file);
