@@ -11,29 +11,27 @@
     sb.append(" from ");
     sb.append(verifiableAuditedModel.getTableName());
     sb.append(" where userName is null order by companyId");
-    try (Connection con=DataAccess.getUpgradeOptimizedConnection();PreparedStatement ps1=con.prepareStatement(sb.toString());ResultSet rs=ps1.executeQuery()){
-      Object[] auditedModelArray=null;
-      long previousCompanyId=0;
-      try (PreparedStatement ps2=AutoBatchPreparedStatementUtil.autoBatch(createPreparedStatement(con,verifiableAuditedModel.getTableName(),verifiableAuditedModel.getPrimaryKeyColumnName(),verifiableAuditedModel.isUpdateDates()))){
-        while (rs.next()) {
-          long companyId=rs.getLong("companyId");
-          long primKey=rs.getLong(verifiableAuditedModel.getPrimaryKeyColumnName());
-          long previousUserId=rs.getLong("userId");
-          if (verifiableAuditedModel.getJoinByTableName() != null) {
-            long relatedPrimKey=rs.getLong(verifiableAuditedModel.getJoinByTableName());
-            auditedModelArray=getAuditedModelArray(con,verifiableAuditedModel.getRelatedModelName(),verifiableAuditedModel.getRelatedPKColumnName(),relatedPrimKey,verifiableAuditedModel.isAnonymousUserAllowed(),previousUserId);
-          }
- else           if (previousCompanyId != companyId) {
-            auditedModelArray=getDefaultUserArray(con,companyId);
-            previousCompanyId=companyId;
-          }
-          if (auditedModelArray == null) {
-            continue;
-          }
-          verifyAuditedModel(con,ps2,verifiableAuditedModel.getTableName(),primKey,auditedModelArray,verifiableAuditedModel.isUpdateDates());
+    Object[] auditedModelArray=null;
+    long previousCompanyId=0;
+    try (Connection con=DataAccess.getUpgradeOptimizedConnection();PreparedStatement ps1=con.prepareStatement(sb.toString());ResultSet rs=ps1.executeQuery();PreparedStatement ps2=AutoBatchPreparedStatementUtil.autoBatch(createPreparedStatement(con,verifiableAuditedModel.getTableName(),verifiableAuditedModel.getPrimaryKeyColumnName(),verifiableAuditedModel.isUpdateDates()))){
+      while (rs.next()) {
+        long companyId=rs.getLong("companyId");
+        long primKey=rs.getLong(verifiableAuditedModel.getPrimaryKeyColumnName());
+        long previousUserId=rs.getLong("userId");
+        if (verifiableAuditedModel.getJoinByTableName() != null) {
+          long relatedPrimKey=rs.getLong(verifiableAuditedModel.getJoinByTableName());
+          auditedModelArray=getAuditedModelArray(con,verifiableAuditedModel.getRelatedModelName(),verifiableAuditedModel.getRelatedPKColumnName(),relatedPrimKey,verifiableAuditedModel.isAnonymousUserAllowed(),previousUserId);
         }
-        ps2.executeBatch();
+ else         if (previousCompanyId != companyId) {
+          auditedModelArray=getDefaultUserArray(con,companyId);
+          previousCompanyId=companyId;
+        }
+        if (auditedModelArray == null) {
+          continue;
+        }
+        verifyAuditedModel(con,ps2,verifiableAuditedModel.getTableName(),primKey,auditedModelArray,verifiableAuditedModel.isUpdateDates());
       }
-     }
+      ps2.executeBatch();
+    }
    }
  }
