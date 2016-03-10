@@ -1,0 +1,159 @@
+{
+  Bundle bundle=bundleContext.getBundle();
+  BundleWiring bundleWiring=bundle.adapt(BundleWiring.class);
+  Collection<String> initializerResources=bundleWiring.listResources("META-INF/services","javax.servlet.ServletContainerInitializer",BundleWiring.LISTRESOURCES_RECURSE);
+  if (initializerResources == null) {
+    return;
+  }
+  for (  String initializerResource : initializerResources) {
+    URL url=bundle.getResource(initializerResource);
+    if (url == null) {
+      continue;
+    }
+    try (InputStream inputStream=url.openStream()){
+      String fdqn=StringUtil.read(inputStream);
+      Class<? extends ServletContainerInitializer> initializerClass=null;
+      try {
+        initializerClass=(Class<? extends ServletContainerInitializer>)bundle.loadClass(fdqn);
+      }
+ catch (      Exception e) {
+        _logger.log(Logger.LOG_ERROR,e.getMessage(),e);
+        continue;
+      }
+      HandlesTypes handledTypesAnnotation=initializerClass.getAnnotation(HandlesTypes.class);
+      if (handledTypesAnnotation == null) {
+        handledTypesAnnotation=new HandlesTypes(){
+          @Override public Class<? extends Annotation> annotationType(){
+            return null;
+          }
+          @Override public Class<?>[] value(){
+            return new Class[0];
+          }
+        }
+;
+      }
+      Class<?>[] handledTypesArray=handledTypesAnnotation.value();
+      if (handledTypesArray == null) {
+        handledTypesArray=new Class[0];
+      }
+      Collection<String> classResources=bundleWiring.listResources("/","*.class",BundleWiring.LISTRESOURCES_RECURSE);
+      if (classResources == null) {
+        classResources=new ArrayList<>(0);
+      }
+      Set<Class<?>> annotatedClasses=new HashSet<>();
+      for (      String classResource : classResources) {
+        boolean found=false;
+        URL urlClassResource=bundle.getResource(classResource);
+        if (urlClassResource == null) {
+          continue;
+        }
+        String className=classResource.replaceAll(".class","");
+        className=className.replaceAll("/",".");
+        Class<?> annotatedClass=null;
+        try {
+          annotatedClass=bundle.loadClass(className);
+        }
+ catch (        Throwable t) {
+          _logger.log(Logger.LOG_DEBUG,t.getMessage());
+          continue;
+        }
+        for (        Class<?> handledType : handledTypesArray) {
+          if (handledType.isAssignableFrom(annotatedClass)) {
+            annotatedClasses.add(annotatedClass);
+            found=true;
+            break;
+          }
+        }
+        if (found) {
+          continue;
+        }
+        Annotation[] classAnnotations=new Annotation[0];
+        try {
+          classAnnotations=annotatedClass.getAnnotations();
+        }
+ catch (        Throwable t) {
+          _logger.log(Logger.LOG_DEBUG,t.getMessage());
+        }
+        for (        Annotation classAnnotation : classAnnotations) {
+          if (ArrayUtil.contains(handledTypesArray,classAnnotation.annotationType())) {
+            annotatedClasses.add(annotatedClass);
+            found=true;
+            break;
+          }
+        }
+        if (found) {
+          continue;
+        }
+        Method[] classMethods=new Method[0];
+        try {
+          classMethods=annotatedClass.getDeclaredMethods();
+        }
+ catch (        Throwable t) {
+          _logger.log(Logger.LOG_DEBUG,t.getMessage());
+        }
+        for (        Method method : classMethods) {
+          if (found) {
+            break;
+          }
+          Annotation[] methodAnnotations=new Annotation[0];
+          try {
+            methodAnnotations=method.getDeclaredAnnotations();
+          }
+ catch (          Throwable t) {
+            _logger.log(Logger.LOG_DEBUG,t.getMessage());
+          }
+          for (          Annotation methodAnnotation : methodAnnotations) {
+            if (ArrayUtil.contains(handledTypesArray,methodAnnotation.annotationType())) {
+              annotatedClasses.add(annotatedClass);
+              found=true;
+              break;
+            }
+          }
+        }
+        if (found) {
+          continue;
+        }
+        Field[] declaredFields=new Field[0];
+        try {
+          declaredFields=annotatedClass.getDeclaredFields();
+        }
+ catch (        Throwable t) {
+          _logger.log(Logger.LOG_DEBUG,t.getMessage());
+        }
+        for (        Field field : declaredFields) {
+          if (found) {
+            break;
+          }
+          Annotation[] fieldAnnotations=new Annotation[0];
+          try {
+            fieldAnnotations=field.getDeclaredAnnotations();
+          }
+ catch (          Throwable t) {
+            _logger.log(Logger.LOG_DEBUG,t.getMessage());
+          }
+          for (          Annotation fieldAnnotation : fieldAnnotations) {
+            if (ArrayUtil.contains(handledTypesArray,fieldAnnotation.annotationType())) {
+              annotatedClasses.add(annotatedClass);
+              found=true;
+              break;
+            }
+          }
+        }
+      }
+      if (annotatedClasses.isEmpty()) {
+        annotatedClasses=null;
+      }
+      ServletContext servletContext=getServletContext();
+      try {
+        ServletContainerInitializer servletContainerInitializer=initializerClass.newInstance();
+        servletContainerInitializer.onStartup(annotatedClasses,servletContext);
+      }
+ catch (      Throwable t) {
+        _logger.log(Logger.LOG_ERROR,t.getMessage(),t);
+      }
+    }
+ catch (    IOException ioe) {
+      _logger.log(Logger.LOG_ERROR,ioe.getMessage(),ioe);
+    }
+  }
+}
