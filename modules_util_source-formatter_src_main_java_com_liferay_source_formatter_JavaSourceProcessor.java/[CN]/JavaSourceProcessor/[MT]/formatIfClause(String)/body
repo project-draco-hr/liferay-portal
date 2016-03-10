@@ -7,9 +7,8 @@
   String line=null;
   String previousLine=null;
   int previousLineLength=0;
-  int previousLineCloseParenthesesCount=0;
   int previousLineLeadingWhitespace=0;
-  int previousLineOpenParenthesesCount=0;
+  int previousLineLevel=0;
   int baseLeadingWhitespace=0;
   int insideMethodCallExpectedWhitespace=0;
   int level=-1;
@@ -22,10 +21,8 @@
       return StringUtil.replace(ifClause,line,line.substring(0,x) + "\n" + leadingWhitespace+ line.substring(x + 1));
     }
     line=StringUtil.replace(line,StringPool.TAB,StringPool.FOUR_SPACES);
-    String strippedQuotesLine=stripQuotes(trimmedLine);
-    int closeParenthesesCount=StringUtil.count(strippedQuotesLine,StringPool.CLOSE_PARENTHESIS);
-    int openParenthesesCount=StringUtil.count(strippedQuotesLine,StringPool.OPEN_PARENTHESIS);
-    if ((previousLineLength > 0) && (line.endsWith("|") || line.endsWith("&&") || line.endsWith(") {")) && (previousLine.endsWith("|") || previousLine.endsWith("&&"))&& (previousLineLength + trimmedLine.length() < _MAX_LINE_LENGTH)&& (openParenthesesCount <= closeParenthesesCount)&& (previousLineCloseParenthesesCount <= previousLineOpenParenthesesCount)) {
+    int lineLevel=getLevel(trimmedLine);
+    if ((previousLineLength > 0) && (line.endsWith("|") || line.endsWith("&&") || line.endsWith(") {")) && (previousLine.endsWith("|") || previousLine.endsWith("&&"))&& (previousLineLength + trimmedLine.length() < _MAX_LINE_LENGTH)&& (lineLevel <= 0)&& (previousLineLevel >= 0)) {
       return StringUtil.replace(ifClause,previousLine + "\n" + originalLine,previousLine + StringPool.SPACE + trimmedLine);
     }
     int leadingWhitespace=line.length() - trimmedLine.length();
@@ -50,7 +47,7 @@
         expectedLeadingWhitespace=baseLeadingWhitespace + 5;
       }
       if (previousLine.endsWith(StringPool.COMMA) && (insideMethodCallExpectedWhitespace > 0)) {
-        if (previousLineCloseParenthesesCount > previousLineOpenParenthesesCount) {
+        if (previousLineLevel < 0) {
           insideMethodCallExpectedWhitespace-=4;
         }
         expectedLeadingWhitespace=insideMethodCallExpectedWhitespace;
@@ -70,12 +67,11 @@
     if (line.endsWith(") {")) {
       return ifClause;
     }
-    level=level + openParenthesesCount - closeParenthesesCount;
+    level+=lineLevel;
     previousLine=originalLine;
     previousLineLength=line.length();
-    previousLineCloseParenthesesCount=closeParenthesesCount;
+    previousLineLevel=lineLevel;
     previousLineLeadingWhitespace=leadingWhitespace;
-    previousLineOpenParenthesesCount=openParenthesesCount;
   }
   return ifClause;
 }
