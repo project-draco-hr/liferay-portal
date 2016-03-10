@@ -7,7 +7,7 @@
   sb.append("DDLRecordVersion.DDMStorageId = DDMContent.contentId ");
   sb.append("inner join DDMStructure on DDLRecordSet.");
   sb.append("DDMStructureId = DDMStructure.structureId");
-  try (PreparedStatement ps=connection.prepareStatement(sb.toString());ResultSet rs=ps.executeQuery()){
+  try (PreparedStatement ps=connection.prepareStatement(sb.toString());PreparedStatement ps2=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"update DDMContent set data_= ? where contentId = ?");ResultSet rs=ps.executeQuery()){
     while (rs.next()) {
       long groupId=rs.getLong("groupId");
       long companyId=rs.getLong("companyId");
@@ -22,7 +22,10 @@
       DDMForm ddmForm=getDDMForm(ddmStructureId);
       DDMFormValues ddmFormValues=_ddmFormValuesJSONDeserializer.deserialize(ddmForm,data_);
       transformFieldTypeDDMFormFields(groupId,companyId,userId,userName,createDate,entryId,entryVersion,ddmFormValues);
-      updateContent(contentId,toJSON(ddmFormValues));
+      ps2.setString(1,toJSON(ddmFormValues));
+      ps2.setLong(2,contentId);
+      ps2.addBatch();
     }
+    ps2.executeBatch();
   }
  }

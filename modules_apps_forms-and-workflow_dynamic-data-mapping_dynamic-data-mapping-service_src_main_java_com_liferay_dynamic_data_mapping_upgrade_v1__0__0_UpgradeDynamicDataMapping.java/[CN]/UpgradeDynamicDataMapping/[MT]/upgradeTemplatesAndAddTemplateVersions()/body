@@ -1,5 +1,12 @@
 {
-  try (LoggingTimer loggingTimer=new LoggingTimer();PreparedStatement ps=connection.prepareStatement("select * from DDMTemplate");ResultSet rs=ps.executeQuery()){
+  StringBundler sb=new StringBundler(6);
+  sb.append("insert into DDMTemplateVersion (templateVersionId, ");
+  sb.append("groupId, companyId, userId, userName, createDate, ");
+  sb.append("classNameId, classPK, templateId, version, name, ");
+  sb.append("description, language, script, status, ");
+  sb.append("statusByUserId, statusByUserName, statusDate) values (");
+  sb.append("?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  try (LoggingTimer loggingTimer=new LoggingTimer();PreparedStatement ps=connection.prepareStatement("select * from DDMTemplate");PreparedStatement ps2=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"update DDMTemplate set resourceClassNameId = ? where " + "templateId = ?");PreparedStatement ps3=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"update DDMTemplate set script = ? where templateId = ?");PreparedStatement ps4=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,sb.toString());ResultSet rs=ps.executeQuery()){
     while (rs.next()) {
       long groupId=rs.getLong("groupId");
       long companyId=rs.getLong("companyId");
@@ -15,7 +22,9 @@
       String language=rs.getString("language");
       String script=rs.getString("script");
       long resourceClassNameId=getTemplateResourceClassNameId(classNameId,classPK);
-      upgradeTemplateResourceClassNameId(templateId,resourceClassNameId);
+      ps2.setLong(1,resourceClassNameId);
+      ps2.setLong(2,templateId);
+      ps2.addBatch();
       _templateResourceClassNameIds.put(templateId,resourceClassNameId);
       String updatedScript=renameInvalidDDMFormFieldNames(classPK,script);
       if (language.equals("xsd")) {
@@ -24,11 +33,34 @@
         updatedScript=toJSON(ddmForm);
       }
       if (!script.equals(updatedScript)) {
-        updateTemplateScript(templateId,updatedScript);
+        ps3.setString(1,updatedScript);
+        ps3.setLong(2,templateId);
+        ps3.addBatch();
       }
       if (!hasTemplateVersion(templateId,version)) {
-        addTemplateVersion(increment(),groupId,companyId,userId,userName,modifiedDate,classNameId,classPK,templateId,name,description,language,updatedScript,WorkflowConstants.STATUS_APPROVED,userId,userName,modifiedDate);
+        ps4.setLong(1,increment());
+        ps4.setLong(2,groupId);
+        ps4.setLong(3,companyId);
+        ps4.setLong(4,userId);
+        ps4.setString(5,userName);
+        ps4.setTimestamp(6,modifiedDate);
+        ps4.setLong(7,classNameId);
+        ps4.setLong(8,classPK);
+        ps4.setLong(9,templateId);
+        ps4.setString(10,DDMStructureConstants.VERSION_DEFAULT);
+        ps4.setString(11,name);
+        ps4.setString(12,description);
+        ps4.setString(13,language);
+        ps4.setString(14,updatedScript);
+        ps4.setInt(15,WorkflowConstants.STATUS_APPROVED);
+        ps4.setLong(16,userId);
+        ps4.setString(17,userName);
+        ps4.setTimestamp(18,modifiedDate);
+        ps4.addBatch();
       }
     }
+    ps2.executeBatch();
+    ps3.executeBatch();
+    ps4.executeBatch();
   }
  }

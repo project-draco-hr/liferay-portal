@@ -5,7 +5,15 @@
     sb.append("DDMStorageLink inner join DDMStructure on ");
     sb.append("DDMStorageLink.structureId = DDMStructure.structureId ");
     sb.append("where DDMStructure.storageType = 'expando'");
-    try (PreparedStatement ps=connection.prepareStatement(sb.toString());ResultSet rs=ps.executeQuery()){
+    StringBundler sb2=new StringBundler(4);
+    sb2.append("insert into DDMContent (uuid_, contentId, groupId, ");
+    sb2.append("companyId, userId, userName, createDate, ");
+    sb2.append("modifiedDate, name, description, data_) values (?, ");
+    sb2.append("?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    StringBundler sb3=new StringBundler(2);
+    sb3.append("update DDMStorageLink set classNameId = ? where ");
+    sb3.append("classNameId = ? and classPK = ?");
+    try (PreparedStatement ps=connection.prepareStatement(sb.toString());PreparedStatement ps2=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,sb2.toString());PreparedStatement ps3=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,sb3.toString());ResultSet rs=ps.executeQuery()){
       Set<Long> expandoRowIds=new HashSet<>();
       while (rs.next()) {
         long groupId=rs.getLong("groupId");
@@ -16,13 +24,29 @@
         long expandoRowId=rs.getLong("classPK");
         Map<String,String> expandoValuesMap=getExpandoValuesMap(expandoRowId);
         String xml=toXML(expandoValuesMap);
-        addDDMContent(PortalUUIDUtil.generate(),expandoRowId,groupId,companyId,userId,userName,createDate,createDate,DDMStorageLink.class.getName(),null,xml);
-        updateDDMStorageLink(_expandoStorageAdapterClassNameId,expandoRowId,_ddmContentClassNameId);
+        ps2.setString(1,PortalUUIDUtil.generate());
+        ps2.setLong(2,expandoRowId);
+        ps2.setLong(3,groupId);
+        ps2.setLong(4,companyId);
+        ps2.setLong(5,userId);
+        ps2.setString(6,userName);
+        ps2.setTimestamp(7,createDate);
+        ps2.setTimestamp(8,createDate);
+        ps2.setString(9,DDMStorageLink.class.getName());
+        ps2.setString(10,null);
+        ps2.setString(11,xml);
+        ps2.addBatch();
+        ps3.setLong(1,_ddmContentClassNameId);
+        ps3.setLong(2,_expandoStorageAdapterClassNameId);
+        ps3.setLong(3,expandoRowId);
+        ps3.addBatch();
         expandoRowIds.add(expandoRowId);
       }
       if (expandoRowIds.isEmpty()) {
         return;
       }
+      ps2.executeBatch();
+      ps3.executeBatch();
       updateDDMStructureStorageType();
       deleteExpandoData(expandoRowIds);
     }

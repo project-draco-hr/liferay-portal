@@ -1,5 +1,18 @@
 {
-  try (LoggingTimer loggingTimer=new LoggingTimer();PreparedStatement ps=connection.prepareStatement("select * from DDMStructure");ResultSet rs=ps.executeQuery()){
+  StringBundler sb=new StringBundler(6);
+  sb.append("insert into DDMStructureVersion (structureVersionId, ");
+  sb.append("groupId, companyId, userId, userName, createDate, ");
+  sb.append("structureId, version, parentStructureId, name, ");
+  sb.append("description, definition, storageType, type_, status, ");
+  sb.append("statusByUserId, statusByUserName, statusDate) values ");
+  sb.append("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  StringBundler sb2=new StringBundler(5);
+  sb2.append("insert into DDMStructureLayout (uuid_, ");
+  sb2.append("structureLayoutId, groupId, companyId, userId, ");
+  sb2.append("userName, createDate, modifiedDate, ");
+  sb2.append("structureVersionId, definition) values (?, ?, ?, ?, ");
+  sb2.append("?, ?, ?, ?, ?, ?)");
+  try (LoggingTimer loggingTimer=new LoggingTimer();PreparedStatement ps=connection.prepareStatement("select * from DDMStructure");PreparedStatement ps2=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"update DDMStructure set definition = ? where structureId" + " = ?");PreparedStatement ps3=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,sb.toString());PreparedStatement ps4=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,sb2.toString());ResultSet rs=ps.executeQuery()){
     while (rs.next()) {
       long structureId=rs.getLong("structureId");
       long groupId=rs.getLong("groupId");
@@ -19,14 +32,47 @@
       ddmForm=updateDDMFormFields(ddmForm);
       populateStructureInvalidDDMFormFieldNamesMap(structureId,ddmForm);
       String definition=toJSON(ddmForm);
-      upgradeStructureDefinition(structureId,definition);
+      ps2.setString(1,definition);
+      ps2.setLong(2,structureId);
+      ps2.addBatch();
       if (hasStructureVersion(structureId,version)) {
         continue;
       }
       long structureVersionId=increment();
-      addStructureVersion(structureVersionId,groupId,companyId,userId,userName,modifiedDate,structureId,parentStructureId,name,description,definition,storageType,type,WorkflowConstants.STATUS_APPROVED,userId,userName,modifiedDate);
+      ps3.setLong(1,structureVersionId);
+      ps3.setLong(2,groupId);
+      ps3.setLong(3,companyId);
+      ps3.setLong(4,userId);
+      ps3.setString(5,userName);
+      ps3.setTimestamp(6,modifiedDate);
+      ps3.setLong(7,structureId);
+      ps3.setString(8,DDMStructureConstants.VERSION_DEFAULT);
+      ps3.setLong(9,parentStructureId);
+      ps3.setString(10,name);
+      ps3.setString(11,description);
+      ps3.setString(12,definition);
+      ps3.setString(13,storageType);
+      ps3.setInt(14,type);
+      ps3.setInt(15,WorkflowConstants.STATUS_APPROVED);
+      ps3.setLong(16,userId);
+      ps3.setString(17,userName);
+      ps3.setTimestamp(18,modifiedDate);
+      ps3.addBatch();
       String ddmFormLayoutDefinition=getDefaultDDMFormLayoutDefinition(ddmForm);
-      addStructureLayout(PortalUUIDUtil.generate(),increment(),groupId,companyId,userId,userName,modifiedDate,modifiedDate,structureVersionId,ddmFormLayoutDefinition);
+      ps4.setString(1,PortalUUIDUtil.generate());
+      ps4.setLong(2,increment());
+      ps4.setLong(3,groupId);
+      ps4.setLong(4,companyId);
+      ps4.setLong(5,userId);
+      ps4.setString(6,userName);
+      ps4.setTimestamp(7,modifiedDate);
+      ps4.setTimestamp(8,modifiedDate);
+      ps4.setLong(9,structureVersionId);
+      ps4.setString(10,ddmFormLayoutDefinition);
+      ps4.addBatch();
     }
+    ps2.executeBatch();
+    ps3.executeBatch();
+    ps4.executeBatch();
   }
  }

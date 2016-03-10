@@ -6,7 +6,7 @@
     sb.append("DDMStructure on (DDMStorageLink.structureId = ");
     sb.append("DDMStructure.structureId) where DDMStorageLink.");
     sb.append("classNameId = ? and DDMStructure.storageType = ?");
-    try (PreparedStatement ps=connection.prepareStatement(sb.toString())){
+    try (PreparedStatement ps=connection.prepareStatement(sb.toString());PreparedStatement ps2=connection.prepareStatement("select companyId, data_ from DDMContent where contentId " + "= ?");PreparedStatement ps3=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"update DDMContent set data_= ? where contentId = ?")){
       ps.setLong(1,_ddmContentClassNameId);
       ps.setString(2,"xml");
       try (ResultSet rs=ps.executeQuery()){
@@ -14,11 +14,24 @@
           long structureId=rs.getLong("structureId");
           long classPK=rs.getLong("classPK");
           DDMForm ddmForm=getDDMForm(structureId);
-          updateContent(structureId,classPK,ddmForm);
-        }
+          ps2.setLong(1,classPK);
+          try (ResultSet rs2=ps2.executeQuery()){
+            if (rs2.next()) {
+              long companyId=rs2.getLong("companyId");
+              String xml=rs2.getString("data_");
+              DDMFormValues ddmFormValues=getDDMFormValues(companyId,ddmForm,xml);
+              String content=toJSON(ddmFormValues);
+              content=renameInvalidDDMFormFieldNames(structureId,content);
+              ps3.setString(1,content);
+              ps3.setLong(2,classPK);
+              ps3.addBatch();
+            }
+          }
+         }
+        ps3.executeBatch();
       }
-       updateStructureStorageType();
-      updateStructureVersionStorageType();
-    }
-   }
+     }
+     updateStructureStorageType();
+    updateStructureVersionStorageType();
+  }
  }
