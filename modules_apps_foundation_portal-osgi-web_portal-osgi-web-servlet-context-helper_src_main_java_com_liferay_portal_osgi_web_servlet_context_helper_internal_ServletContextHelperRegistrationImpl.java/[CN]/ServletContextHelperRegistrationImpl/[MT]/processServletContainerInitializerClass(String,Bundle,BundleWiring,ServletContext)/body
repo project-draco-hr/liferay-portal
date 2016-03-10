@@ -1,0 +1,44 @@
+{
+  Class<? extends ServletContainerInitializer> initializerClass=null;
+  try {
+    Class<?> clazz=bundle.loadClass(fqcn);
+    if (!ServletContainerInitializer.class.isAssignableFrom(clazz)) {
+      return;
+    }
+    initializerClass=clazz.asSubclass(ServletContainerInitializer.class);
+  }
+ catch (  Exception e) {
+    _logger.log(Logger.LOG_ERROR,e.getMessage(),e);
+    return;
+  }
+  HandlesTypes handledTypesAnnotation=initializerClass.getAnnotation(HandlesTypes.class);
+  if (handledTypesAnnotation == null) {
+    handledTypesAnnotation=_NULL_HANDLES_TYPES;
+  }
+  Class<?>[] handledTypesArray=handledTypesAnnotation.value();
+  if (handledTypesArray == null) {
+    handledTypesArray=new Class[0];
+  }
+  Collection<String> classResources=bundleWiring.listResources("/","*.class",BundleWiring.LISTRESOURCES_RECURSE);
+  if (classResources == null) {
+    classResources=new ArrayList<>(0);
+  }
+  Set<Class<?>> annotatedClasses=new HashSet<>();
+  for (  String classResource : classResources) {
+    URL urlClassResource=bundle.getResource(classResource);
+    if (urlClassResource == null) {
+      continue;
+    }
+    collectAnnotatedClasses(classResource,bundle,handledTypesArray,annotatedClasses);
+  }
+  if (annotatedClasses.isEmpty()) {
+    annotatedClasses=null;
+  }
+  try {
+    ServletContainerInitializer servletContainerInitializer=initializerClass.newInstance();
+    servletContainerInitializer.onStartup(annotatedClasses,servletContext);
+  }
+ catch (  Throwable t) {
+    _logger.log(Logger.LOG_ERROR,t.getMessage(),t);
+  }
+}
