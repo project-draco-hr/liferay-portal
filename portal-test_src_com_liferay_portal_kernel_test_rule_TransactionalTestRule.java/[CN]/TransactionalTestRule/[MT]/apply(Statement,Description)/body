@@ -1,23 +1,41 @@
 {
-  String methodName=description.getMethodName();
-  if (methodName == null) {
-    return statement;
-  }
-  return new StatementWrapper(statement){
-    @Override public void evaluate() throws Throwable {
-      TransactionInvokerUtil.invoke(getTransactionConfig(),new Callable<Void>(){
-        @Override public Void call() throws Exception {
-          try {
-            statement.evaluate();
-          }
- catch (          Throwable t) {
-            ReflectionUtil.throwException(t);
-          }
-          return null;
-        }
-      }
-);
+  Statement currentStatement=statement;
+  while (true) {
+    if (currentStatement instanceof StatementWrapper) {
+      StatementWrapper statementWrapper=(StatementWrapper)currentStatement;
+      currentStatement=statementWrapper.getStatement();
+      continue;
     }
-  }
+    if (currentStatement instanceof RunRules) {
+      currentStatement=ReflectionTestUtil.getFieldValue(currentStatement,"statement");
+      continue;
+    }
+    if (currentStatement instanceof RunBefores) {
+      replaceFrameworkMethods(currentStatement,"befores");
+      currentStatement=ReflectionTestUtil.getFieldValue(currentStatement,"next");
+      continue;
+    }
+    if (currentStatement instanceof RunAfters) {
+      replaceFrameworkMethods(currentStatement,"afters");
+      currentStatement=ReflectionTestUtil.getFieldValue(currentStatement,"next");
+      continue;
+    }
+    return new StatementWrapper(statement){
+      @Override public void evaluate() throws Throwable {
+        TransactionInvokerUtil.invoke(getTransactionConfig(description.getAnnotation(Transactional.class)),new Callable<Void>(){
+          @Override public Void call() throws Exception {
+            try {
+              statement.evaluate();
+            }
+ catch (            Throwable t) {
+              ReflectionUtil.throwException(t);
+            }
+            return null;
+          }
+        }
+);
+      }
+    }
 ;
+  }
 }
