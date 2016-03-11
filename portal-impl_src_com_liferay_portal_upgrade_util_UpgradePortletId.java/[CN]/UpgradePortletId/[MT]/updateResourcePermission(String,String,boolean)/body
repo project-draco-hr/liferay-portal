@@ -1,5 +1,5 @@
 {
-  try (PreparedStatement ps=connection.prepareStatement("select resourcePermissionId, name, scope, primKey from " + "ResourcePermission where name = '" + oldRootPortletId + "'");ResultSet rs=ps.executeQuery()){
+  try (PreparedStatement ps=connection.prepareStatement("select resourcePermissionId, name, scope, primKey from " + "ResourcePermission where name = '" + oldRootPortletId + "'");PreparedStatement ps2=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"update ResourcePermission set name = ?, primKey = ? " + "where resourcePermissionId = ?");ResultSet rs=ps.executeQuery()){
     while (rs.next()) {
       long resourcePermissionId=rs.getLong("resourcePermissionId");
       String name=rs.getString("name");
@@ -23,8 +23,12 @@
           primKey=newName;
         }
       }
-      updateResourcePermission(resourcePermissionId,newName,primKey);
+      ps2.setString(1,newName);
+      ps2.setString(2,primKey);
+      ps2.setLong(3,resourcePermissionId);
+      ps2.addBatch();
     }
+    ps2.executeBatch();
   }
  catch (  SQLException sqle) {
     if (_log.isWarnEnabled()) {
