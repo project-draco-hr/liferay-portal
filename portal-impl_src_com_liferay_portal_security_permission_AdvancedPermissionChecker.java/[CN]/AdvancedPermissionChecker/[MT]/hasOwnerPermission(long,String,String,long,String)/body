@@ -2,19 +2,16 @@
   if (ownerId != getUserId()) {
     return false;
   }
-  if (ownerId == defaultUserId) {
-    try {
-      Role guestRole=RoleLocalServiceUtil.getRole(companyId,RoleConstants.GUEST);
-      ResourcePermission resourcePermission=ResourcePermissionLocalServiceUtil.getResourcePermission(companyId,name,ResourceConstants.SCOPE_INDIVIDUAL,primKey,guestRole.getRoleId());
-      ResourceAction resourceAction=ResourceActionLocalServiceUtil.getResourceAction(name,actionId);
-      if (resourcePermission.hasAction(resourceAction)) {
-        return true;
-      }
- else {
-        return false;
-      }
+  boolean ownerIsDefaultUser=ownerId == defaultUserId;
+  if (ownerIsDefaultUser) {
+    List<String> guestUnsupportedActions;
+    if (name.indexOf(CharPool.PERIOD) != -1) {
+      guestUnsupportedActions=ResourceActionsUtil.getModelResourceGuestUnsupportedActions(name);
     }
- catch (    PortalException pe) {
+ else {
+      guestUnsupportedActions=ResourceActionsUtil.getPortletResourceGuestUnsupportedActions(name);
+    }
+    if (guestUnsupportedActions.contains(actionId)) {
       return false;
     }
   }
@@ -26,10 +23,21 @@
         GroupedModel groupedModel=(GroupedModel)permissionedModel;
         groupId=groupedModel.getGroupId();
       }
-      ResourceBlockIdsBag resourceBlockIdsBag=getOwnerResourceBlockIdsBag(companyId,groupId,name);
+      ResourceBlockIdsBag resourceBlockIdsBag=null;
+      if (ownerIsDefaultUser) {
+        resourceBlockIdsBag=getGuestResourceBlockIdsBag(companyId,groupId,name);
+      }
+ else {
+        resourceBlockIdsBag=getOwnerResourceBlockIdsBag(companyId,groupId,name);
+      }
       return ResourceBlockLocalServiceUtil.hasPermission(name,permissionedModel,actionId,resourceBlockIdsBag);
     }
-    return ResourcePermissionLocalServiceUtil.hasResourcePermission(companyId,name,ResourceConstants.SCOPE_INDIVIDUAL,primKey,getOwnerRoleId(),actionId);
+    long ownerRoleId=getOwnerRoleId();
+    if (ownerIsDefaultUser) {
+      Role guestRole=RoleLocalServiceUtil.getRole(companyId,RoleConstants.GUEST);
+      ownerRoleId=guestRole.getRoleId();
+    }
+    return ResourcePermissionLocalServiceUtil.hasResourcePermission(companyId,name,ResourceConstants.SCOPE_INDIVIDUAL,primKey,ownerRoleId,actionId);
   }
  catch (  Exception e) {
     if (_log.isDebugEnabled()) {
