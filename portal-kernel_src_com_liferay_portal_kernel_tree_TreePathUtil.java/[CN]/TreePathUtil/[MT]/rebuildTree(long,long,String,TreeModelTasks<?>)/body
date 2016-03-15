@@ -1,0 +1,37 @@
+{
+  if (VerifyThreadLocal.isVerifyInProgress() && _VERIFY_DATABASE_TRANSACTIONS_DISABLED) {
+    ForkJoinPool forkJoinPool=new ForkJoinPool();
+    try {
+      forkJoinPool.invoke(new RecursiveRebuildTreeTask(treeModelTasks,companyId,parentPrimaryKey,parentTreePath,0L));
+    }
+  finally {
+      forkJoinPool.shutdown();
+    }
+    return;
+  }
+  Deque<Object[]> traces=new LinkedList<>();
+  traces.push(new Object[]{parentPrimaryKey,parentTreePath,0L});
+  Object[] trace=null;
+  while ((trace=traces.poll()) != null) {
+    Long curParentPrimaryKey=(Long)trace[0];
+    String curParentTreePath=(String)trace[1];
+    Long previousPrimaryKey=(Long)trace[2];
+    treeModelTasks.rebuildDependentModelsTreePaths(curParentPrimaryKey,curParentTreePath);
+    List<? extends TreeModel> treeModels=treeModelTasks.findTreeModels(previousPrimaryKey,companyId,curParentPrimaryKey,_MODEL_TREE_REBUILD_QUERY_RESULTS_BATCH_SIZE);
+    if (treeModels.isEmpty()) {
+      continue;
+    }
+    if (treeModels.size() == _MODEL_TREE_REBUILD_QUERY_RESULTS_BATCH_SIZE) {
+      TreeModel treeModel=treeModels.get(treeModels.size() - 1);
+      trace[2]=treeModel.getPrimaryKeyObj();
+      traces.push(trace);
+    }
+    for (    TreeModel treeModel : treeModels) {
+      String treePath=curParentTreePath.concat(String.valueOf(treeModel.getPrimaryKeyObj())).concat(StringPool.SLASH);
+      if (!treePath.equals(treeModel.getTreePath())) {
+        treeModel.updateTreePath(treePath);
+      }
+      traces.push(new Object[]{treeModel.getPrimaryKeyObj(),treePath,0L});
+    }
+  }
+}
