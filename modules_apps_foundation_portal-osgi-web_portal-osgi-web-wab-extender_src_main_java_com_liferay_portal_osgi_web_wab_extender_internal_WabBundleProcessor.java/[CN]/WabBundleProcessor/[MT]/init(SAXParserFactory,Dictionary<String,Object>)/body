@@ -6,12 +6,20 @@
     WebXMLDefinitionLoader webXMLDefinitionLoader=new WebXMLDefinitionLoader(_bundle,saxParserFactory,_logger);
     WebXMLDefinition webXMLDefinition=webXMLDefinitionLoader.loadWebXML();
     ServletContextHelperRegistration servletContextHelperRegistration=initContext(webXMLDefinition.getContextParameters(),webXMLDefinition.getJspTaglibMappings());
-    ServletContext servletContext=ModifiableServletContext.createInstance(servletContextHelperRegistration.getServletContext(),this);
+    boolean wabShapedBundle=servletContextHelperRegistration.isWabShapedBundle();
+    if (!wabShapedBundle) {
+      return;
+    }
+    ServletContext servletContext=ModifiableServletContextAdaptor.createInstance(servletContextHelperRegistration.getServletContext(),_bundle.getBundleContext(),webXMLDefinition,_logger);
     initServletContainerInitializers(_bundle,servletContext);
-    servletContextHelperRegistration.initDefaults();
-    initListeners(webXMLDefinition.getListenerDefinitions());
+    scanTLDsForListeners(webXMLDefinition,servletContext);
+    initListeners(webXMLDefinition.getListenerDefinitions(),servletContext);
+    ModifiableServletContext modifiableServletContext=(ModifiableServletContext)servletContext;
+    initListeners(modifiableServletContext.getListenerDefinitions(),servletContext);
+    modifiableServletContext.registerFilters();
     initFilters(webXMLDefinition.getFilterDefinitions());
-    initServlets(webXMLDefinition);
+    modifiableServletContext.registerServlets();
+    initServlets(webXMLDefinition.getServletDefinitions());
   }
  catch (  Exception e) {
     _logger.log(Logger.LOG_ERROR,"Catastrophic initialization failure! Shutting down " + _contextName + " WAB due to: "+ e.getMessage(),e);

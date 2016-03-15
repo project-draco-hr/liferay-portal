@@ -1,0 +1,30 @@
+{
+  for (  Entry<String,ServletDefinition> entry : servletDefinitions.entrySet()) {
+    ServletDefinition servletDefinition=entry.getValue();
+    Dictionary<String,Object> properties=new Hashtable<>();
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_SELECT,_contextName);
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_SERVLET_ASYNC_SUPPORTED,servletDefinition.isAsyncSupported());
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_SERVLET_ERROR_PAGE,servletDefinition.getErrorPages());
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_SERVLET_NAME,servletDefinition.getName());
+    String jspFile=servletDefinition.getJspFile();
+    List<String> urlPatterns=servletDefinition.getURLPatterns();
+    if (urlPatterns.isEmpty() && (jspFile != null)) {
+      urlPatterns.add(jspFile);
+    }
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_SERVLET_PATTERN,urlPatterns);
+    Map<String,String> initParameters=servletDefinition.getInitParameters();
+    for (    Entry<String,String> initParametersEntry : initParameters.entrySet()) {
+      String key=initParametersEntry.getKey();
+      String value=initParametersEntry.getValue();
+      properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_SERVLET_INIT_PARAM_PREFIX + key,value);
+    }
+    ServletExceptionAdapter servletExceptionAdaptor=new ServletExceptionAdapter(servletDefinition.getServlet());
+    ServiceRegistration<Servlet> serviceRegistration=_bundleContext.registerService(Servlet.class,servletExceptionAdaptor,properties);
+    Exception exception=servletExceptionAdaptor.getException();
+    if (exception != null) {
+      serviceRegistration.unregister();
+      throw exception;
+    }
+    _servletRegistrations.add(serviceRegistration);
+  }
+}

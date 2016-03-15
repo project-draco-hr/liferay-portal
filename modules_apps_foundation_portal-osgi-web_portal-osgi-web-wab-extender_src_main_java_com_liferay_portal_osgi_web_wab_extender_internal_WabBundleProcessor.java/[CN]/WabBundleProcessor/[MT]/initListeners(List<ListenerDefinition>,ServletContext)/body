@@ -1,0 +1,23 @@
+{
+  for (  ListenerDefinition listenerDefinition : listenerDefinitions) {
+    Dictionary<String,Object> properties=new Hashtable<>();
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_CONTEXT_SELECT,_contextName);
+    properties.put(HttpWhiteboardConstants.HTTP_WHITEBOARD_LISTENER,Boolean.TRUE.toString());
+    String[] classNames=getClassNames(listenerDefinition.getEventListener());
+    if (classNames.length > 0) {
+      ServiceRegistration<?> serviceRegistration=_bundleContext.registerService(classNames,listenerDefinition.getEventListener(),properties);
+      _listenerRegistrations.add(serviceRegistration);
+    }
+    if (!ServletContextListener.class.isInstance(listenerDefinition.getEventListener())) {
+      continue;
+    }
+    ServletContextListenerExceptionAdapter servletContextListenerExceptionAdaptor=new ServletContextListenerExceptionAdapter((ServletContextListener)listenerDefinition.getEventListener(),servletContext);
+    ServiceRegistration<?> serviceRegistration=_bundleContext.registerService(ServletContextListener.class,servletContextListenerExceptionAdaptor,properties);
+    Exception exception=servletContextListenerExceptionAdaptor.getException();
+    if (exception != null) {
+      serviceRegistration.unregister();
+      throw exception;
+    }
+    _listenerRegistrations.add(serviceRegistration);
+  }
+}
