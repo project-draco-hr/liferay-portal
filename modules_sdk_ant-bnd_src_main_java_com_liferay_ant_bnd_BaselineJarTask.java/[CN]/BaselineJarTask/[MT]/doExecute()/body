@@ -2,91 +2,23 @@
   if (_reportLevelIsOff) {
     return;
   }
-  BaselineProcessor baselineProcessor=new BaselineProcessor();
-  Properties properties=baselineProcessor.getProperties();
+  Baseline baseline=new Baseline(){
+    @Override protected void log(    Reporter reporter){
+      report(reporter);
+    }
+    @Override protected void log(    String output){
+      BaselineJarTask.this.log(output,Project.MSG_WARN);
+    }
+  }
+;
+  Properties properties=baseline.getProperties();
   properties.putAll(project.getProperties());
   properties.putAll(getBndFileProperties());
-  Jar newJar=new Jar(_newJarFile);
-  Jar oldJar=null;
-  if (_oldJarFile != null) {
-    if (!_oldJarFile.exists() || _oldJarFile.isDirectory() || !_oldJarFile.canRead()) {
-      baselineProcessor.warning("Baseline file %s is invalid. Check if it exists, " + "is readable, and is not a directory.",_oldJarFile);
-    }
- else {
-      oldJar=new Jar(_oldJarFile);
-    }
-  }
- else {
-    oldJar=baselineProcessor.getBaselineJar();
-  }
-  try {
-    if (oldJar == null) {
-      return;
-    }
-    Baseline baseline=new Baseline(baselineProcessor,new DiffPluginImpl());
-    Set<Info> infos=baseline.baseline(newJar,oldJar,null);
-    if (infos.isEmpty()) {
-      return;
-    }
-    BundleInfo bundleInfo=baseline.getBundleInfo();
-    Info[] infosArray=infos.toArray(new Info[infos.size()]);
-    Arrays.sort(infosArray,new Comparator<Info>(){
-      @Override public int compare(      Info info1,      Info info2){
-        return info1.packageName.compareTo(info2.packageName);
-      }
-    }
-);
-    doHeader(bundleInfo);
-    for (    Info info : infosArray) {
-      String warnings="-";
-      Version newerVersion=info.newerVersion;
-      Version suggestedVersion=info.suggestedVersion;
-      if (suggestedVersion != null) {
-        if (newerVersion.compareTo(suggestedVersion) > 0) {
-          warnings="EXCESSIVE VERSION INCREASE";
-        }
- else         if (newerVersion.compareTo(suggestedVersion) < 0) {
-          warnings="VERSION INCREASE REQUIRED";
-        }
-      }
-      Diff packageDiff=info.packageDiff;
-      Delta delta=packageDiff.getDelta();
-      if (delta == Delta.REMOVED) {
-        warnings="PACKAGE REMOVED";
-      }
- else       if (delta == Delta.UNCHANGED) {
-        boolean newVersionSuggested=false;
-        if (suggestedVersion.compareTo(newerVersion) > 0) {
-          warnings="VERSION INCREASE SUGGESTED";
-          newVersionSuggested=true;
-        }
- else         if (suggestedVersion.compareTo(newerVersion) < 0) {
-          warnings="EXCESSIVE VERSION INCREASE";
-          newVersionSuggested=true;
-        }
-        if (!newVersionSuggested && !info.mismatch) {
-          continue;
-        }
-      }
-      generatePackageInfo(info,delta,warnings);
-      if (((_reportLevelIsStandard || _reportOnlyDirtyPackages) && warnings.equals("-")) || (_reportOnlyDirtyPackages && (delta == Delta.REMOVED))) {
-        continue;
-      }
-      doInfo(bundleInfo,info,warnings);
-      if (_reportLevelIsDiff && (delta != Delta.REMOVED)) {
-        doPackageDiff(packageDiff);
-      }
-    }
-  }
-  finally {
-    report(baselineProcessor);
-    baselineProcessor.close();
-    newJar.close();
-    if (oldJar != null) {
-      oldJar.close();
-    }
-    if (_printWriter != null) {
-      _printWriter.close();
-    }
-  }
+  baseline.setLogFile(_logFile);
+  baseline.setNewJarFile(_newJarFile);
+  baseline.setOldJarFile(_oldJarFile);
+  baseline.setReportDiff(_reportLevelIsDiff);
+  baseline.setReportOnlyDirtyPackages(_reportOnlyDirtyPackages);
+  baseline.setSourceDir(_sourceDir);
+  baseline.execute();
 }

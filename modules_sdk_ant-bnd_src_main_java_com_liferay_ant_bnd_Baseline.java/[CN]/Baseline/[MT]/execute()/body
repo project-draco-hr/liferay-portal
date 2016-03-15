@@ -1,0 +1,102 @@
+{
+  boolean match=true;
+  _headerPrinted=false;
+  _printWriter=null;
+  if (_logFile.exists()) {
+    _logFile.delete();
+  }
+  File logDir=_logFile.getParentFile();
+  logDir.mkdirs();
+  BaselineProcessor baselineProcessor=new BaselineProcessor();
+  baselineProcessor.setProperties(_properties);
+  Jar newJar=new Jar(_newJarFile);
+  Jar oldJar=null;
+  if (_oldJarFile != null) {
+    if (!_oldJarFile.exists() || _oldJarFile.isDirectory() || !_oldJarFile.canRead()) {
+      baselineProcessor.warning("Baseline file %s is invalid. Check if it exists, " + "is readable, and is not a directory.",_oldJarFile);
+    }
+ else {
+      oldJar=new Jar(_oldJarFile);
+    }
+  }
+ else {
+    oldJar=baselineProcessor.getBaselineJar();
+  }
+  try {
+    if (oldJar == null) {
+      return match;
+    }
+    aQute.bnd.differ.Baseline baseline=new aQute.bnd.differ.Baseline(baselineProcessor,new DiffPluginImpl());
+    Set<Info> infos=baseline.baseline(newJar,oldJar,null);
+    if (infos.isEmpty()) {
+      return match;
+    }
+    BundleInfo bundleInfo=baseline.getBundleInfo();
+    if (bundleInfo.mismatch) {
+      match=false;
+    }
+    Info[] infosArray=infos.toArray(new Info[infos.size()]);
+    Arrays.sort(infosArray,new Comparator<Info>(){
+      @Override public int compare(      Info info1,      Info info2){
+        return info1.packageName.compareTo(info2.packageName);
+      }
+    }
+);
+    doHeader(bundleInfo);
+    for (    Info info : infosArray) {
+      if (info.mismatch) {
+        match=false;
+      }
+      String warnings="-";
+      Version newerVersion=info.newerVersion;
+      Version suggestedVersion=info.suggestedVersion;
+      if (suggestedVersion != null) {
+        if (newerVersion.compareTo(suggestedVersion) > 0) {
+          warnings="EXCESSIVE VERSION INCREASE";
+        }
+ else         if (newerVersion.compareTo(suggestedVersion) < 0) {
+          warnings="VERSION INCREASE REQUIRED";
+        }
+      }
+      Diff packageDiff=info.packageDiff;
+      Delta delta=packageDiff.getDelta();
+      if (delta == Delta.REMOVED) {
+        warnings="PACKAGE REMOVED";
+      }
+ else       if (delta == Delta.UNCHANGED) {
+        boolean newVersionSuggested=false;
+        if (suggestedVersion.compareTo(newerVersion) > 0) {
+          warnings="VERSION INCREASE SUGGESTED";
+          newVersionSuggested=true;
+        }
+ else         if (suggestedVersion.compareTo(newerVersion) < 0) {
+          warnings="EXCESSIVE VERSION INCREASE";
+          newVersionSuggested=true;
+        }
+        if (!newVersionSuggested && !info.mismatch) {
+          continue;
+        }
+      }
+      generatePackageInfo(info,delta,warnings);
+      if (((!_reportDiff || _reportOnlyDirtyPackages) && warnings.equals("-")) || (_reportOnlyDirtyPackages && (delta == Delta.REMOVED))) {
+        continue;
+      }
+      doInfo(bundleInfo,info,warnings);
+      if (_reportDiff && (delta != Delta.REMOVED)) {
+        doPackageDiff(packageDiff);
+      }
+    }
+  }
+  finally {
+    log(baselineProcessor);
+    baselineProcessor.close();
+    newJar.close();
+    if (oldJar != null) {
+      oldJar.close();
+    }
+    if (_printWriter != null) {
+      _printWriter.close();
+    }
+  }
+  return match;
+}
