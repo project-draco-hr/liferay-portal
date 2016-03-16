@@ -6,7 +6,7 @@
     sb.append("%' and name not like '%");
     sb.append(GroupLocalServiceImpl.ORGANIZATION_NAME_SUFFIX);
     sb.append("'");
-    try (PreparedStatement ps=connection.prepareStatement(sb.toString());ResultSet rs=ps.executeQuery()){
+    try (PreparedStatement ps=connection.prepareStatement(sb.toString());PreparedStatement ps2=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"update Group_ set name = ? where groupId = ?");ResultSet rs=ps.executeQuery()){
       while (rs.next()) {
         long groupId=rs.getLong("groupId");
         String name=rs.getString("name");
@@ -16,8 +16,11 @@
         int pos=name.indexOf(GroupLocalServiceImpl.ORGANIZATION_NAME_SUFFIX);
         pos=name.indexOf(" ",pos + 1);
         String newName=name.substring(pos + 1) + GroupLocalServiceImpl.ORGANIZATION_NAME_SUFFIX;
-        updateName(groupId,newName);
+        ps2.setString(1,newName);
+        ps2.setLong(2,groupId);
+        ps2.addBatch();
       }
+      ps2.executeBatch();
     }
    }
  }
