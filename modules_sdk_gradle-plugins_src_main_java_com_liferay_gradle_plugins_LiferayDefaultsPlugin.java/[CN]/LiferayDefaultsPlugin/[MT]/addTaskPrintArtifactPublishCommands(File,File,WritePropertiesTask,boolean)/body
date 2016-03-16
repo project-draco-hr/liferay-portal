@@ -1,16 +1,16 @@
 {
-  Project project=recordArtifactTask.getProject();
+  final Project project=recordArtifactTask.getProject();
   Task task=project.task(PRINT_ARTIFACT_PUBLISH_COMMANDS);
   task.doLast(new Action<Task>(){
-    private String _getGitCommitCommand(    Project project,    String message,    boolean ignored){
-      return _getGitCommitCommand(project,message,false,ignored);
+    private String _getGitCommitCommand(    String message,    boolean ignored){
+      return _getGitCommitCommand(message,false,ignored);
     }
-    private String _getGradlewCommand(    String gradlewRelativePath,    String command,    boolean daemon,    String... arguments){
+    private String _getGradleCommand(    String gradleRelativePath,    String command,    boolean gradleDaemon,    String... arguments){
       StringBuilder sb=new StringBuilder();
-      sb.append(gradlewRelativePath);
+      sb.append(gradleRelativePath);
       sb.append(' ');
       sb.append(command);
-      if (daemon) {
+      if (gradleDaemon) {
         sb.append(" --daemon");
       }
       for (      String argument : arguments) {
@@ -19,7 +19,7 @@
       }
       return sb.toString();
     }
-    private String _getGitCommitCommand(    Project project,    String message,    boolean all,    boolean ignored){
+    private String _getGitCommitCommand(    String message,    boolean all,    boolean ignored){
       StringBuilder sb=new StringBuilder();
       if (all) {
         sb.append("(git diff-index --quiet HEAD || ");
@@ -44,28 +44,51 @@
       }
       return sb.toString();
     }
-    @Override public void execute(    Task task){
-      List<String> commands=new ArrayList<>();
-      Project project=task.getProject();
-      commands.add("cd " + FileUtil.getAbsolutePath(project.getProjectDir()));
+    private boolean _getGradleDaemon(    Task task){
+      boolean gradleDaemon=true;
+      String gradleDaemonString=GradleUtil.getTaskPrefixedProperty(task,"daemon");
+      if (Validator.isNotNull(gradleDaemonString)) {
+        gradleDaemon=Boolean.parseBoolean(gradleDaemonString);
+      }
+      return gradleDaemon;
+    }
+    private String _getGradleRelativePath(){
       File rootDir=portalRootDir;
       if (portalRootDir == null) {
         rootDir=project.getRootDir();
       }
       File gradlewFile=new File(rootDir,"gradlew");
-      String gradlewRelativePath=project.relativePath(gradlewFile);
-      boolean daemon=true;
-      String daemonString=GradleUtil.getTaskPrefixedProperty(task,"daemon");
-      if (Validator.isNotNull(daemonString)) {
-        daemon=Boolean.parseBoolean(daemonString);
+      return project.relativePath(gradlewFile);
+    }
+    private List<String> _getPublishCommands(    String gradleRelativePath,    boolean gradleDaemon,    boolean excludeUpdateFileVersions){
+      List<String> commands=new ArrayList<>();
+      commands.add(_getGradleCommand(gradleRelativePath,BasePlugin.UPLOAD_ARCHIVES_TASK_NAME,gradleDaemon,"-P" + _SNAPSHOT_PROPERTY_NAME));
+      String[] arguments;
+      if (excludeUpdateFileVersions) {
+        arguments=new String[]{"-x",UPDATE_FILE_VERSIONS_TASK_NAME};
       }
-      commands.add(_getGradlewCommand(gradlewRelativePath,BasePlugin.UPLOAD_ARCHIVES_TASK_NAME,daemon,"-P" + _SNAPSHOT_PROPERTY_NAME));
-      commands.add(_getGradlewCommand(gradlewRelativePath,BasePlugin.UPLOAD_ARCHIVES_TASK_NAME,daemon));
+ else {
+        arguments=new String[0];
+      }
+      commands.add(_getGradleCommand(gradleRelativePath,BasePlugin.UPLOAD_ARCHIVES_TASK_NAME,gradleDaemon,arguments));
       commands.add("git add " + project.relativePath("bnd.bnd"));
-      commands.add(_getGitCommitCommand(project,"prep next",true));
+      commands.add(_getGitCommitCommand("prep next",true));
       commands.add("git add " + project.relativePath(recordArtifactTask.getOutputFile()));
-      commands.add(_getGitCommitCommand(project,"artifact properties",true));
-      commands.add(_getGitCommitCommand(project,"apply",true,false));
+      commands.add(_getGitCommitCommand("artifact properties",true));
+      commands.add(_getGitCommitCommand("apply",true,false));
+      return commands;
+    }
+    @Override public void execute(    Task task){
+      List<String> commands=new ArrayList<>();
+      boolean gradleDaemon=_getGradleDaemon(task);
+      String gradleRelativePath=_getGradleRelativePath();
+      commands.add("cd " + FileUtil.getAbsolutePath(project.getProjectDir()));
+      if (!hasBaseline(project)) {
+        commands.addAll(_getPublishCommands(gradleRelativePath,gradleDaemon,true));
+      }
+      commands.add(_getGradleCommand(gradleRelativePath,BASELINE_TASK_NAME,gradleDaemon));
+      List<String> publishCommands=_getPublishCommands(gradleRelativePath,gradleDaemon,false);
+      commands.add("(git diff-index --quiet HEAD || (" + CollectionUtils.join(" && ",publishCommands) + "))");
       System.out.println();
       for (      String command : commands) {
         System.out.print(" && ");
