@@ -1,0 +1,23 @@
+{
+  DDMDataProvider ddmDataProvider=_ddmDataProviderTracker.getDDMDataProvider(dataProviderInstance.getType());
+  if (ddmDataProvider == null) {
+    throw new IllegalStateException("No such DataProvider of type " + dataProviderInstance.getType());
+  }
+  long userId=portletDataContext.getUserId(dataProviderInstance.getUserUuid());
+  DDMDataProviderInstance importedProvider=(DDMDataProviderInstance)dataProviderInstance.clone();
+  importedProvider.setGroupId(portletDataContext.getScopeGroupId());
+  DDMDataProviderInstance existingProvider=_ddmDataProviderInstanceLocalService.fetchDDMDataProviderInstanceByUuidAndGroupId(dataProviderInstance.getUuid(),portletDataContext.getScopeGroupId());
+  ServiceContext serviceContext=portletDataContext.createServiceContext(dataProviderInstance);
+  String definition=dataProviderInstance.getDefinition();
+  DDMForm ddmForm=DDMFormFactory.create(DDMRESTDataProviderSettings.class);
+  DDMFormValues ddmFormValues=_ddmFormValuesJSONDeserializer.deserialize(ddmForm,definition);
+  if (existingProvider == null) {
+    serviceContext.setUuid(dataProviderInstance.getUuid());
+    importedProvider=_ddmDataProviderInstanceLocalService.addDataProviderInstance(userId,portletDataContext.getScopeGroupId(),dataProviderInstance.getNameMap(),dataProviderInstance.getDescriptionMap(),ddmFormValues,dataProviderInstance.getType(),serviceContext);
+  }
+ else {
+    importedProvider.setDataProviderInstanceId(existingProvider.getDataProviderInstanceId());
+    importedProvider=_ddmDataProviderInstanceLocalService.updateDataProviderInstance(userId,existingProvider.getDataProviderInstanceId(),dataProviderInstance.getNameMap(),dataProviderInstance.getDescriptionMap(),ddmFormValues,serviceContext);
+  }
+  portletDataContext.importClassedModel(dataProviderInstance,importedProvider);
+}
