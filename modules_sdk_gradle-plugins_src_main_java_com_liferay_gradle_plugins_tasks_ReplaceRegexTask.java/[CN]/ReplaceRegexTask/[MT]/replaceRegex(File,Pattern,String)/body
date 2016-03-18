@@ -7,8 +7,21 @@
   }
   Matcher matcher=pattern.matcher(newContent);
   if (matcher.find()) {
+    boolean replace=true;
     int groupCount=matcher.groupCount();
-    newContent=newContent.substring(0,matcher.start(groupCount)) + replacement + newContent.substring(matcher.end(groupCount));
+    String group=matcher.group(groupCount);
+    for (    Closure<Boolean> closure : getReplaceOnlyIf()) {
+      if (!closure.call(group,replacement,newContent)) {
+        replace=false;
+        break;
+      }
+    }
+    if (replace) {
+      newContent=newContent.substring(0,matcher.start(groupCount)) + replacement + newContent.substring(matcher.end(groupCount));
+    }
+ else     if (_logger.isInfoEnabled()) {
+      _logger.info("Skipped replacement of " + group + " to "+ replacement+ " in "+ file);
+    }
   }
  else   if (content.equals(newContent)) {
     String message="Unable to match " + pattern + " in "+ file;
@@ -20,6 +33,8 @@
     }
     throw new GradleException(message);
   }
-  Files.write(path,newContent.getBytes(StandardCharsets.UTF_8));
-  _matchedFiles.add(file);
+  if (!content.equals(newContent)) {
+    Files.write(path,newContent.getBytes(StandardCharsets.UTF_8));
+    _matchedFiles.add(file);
+  }
 }
