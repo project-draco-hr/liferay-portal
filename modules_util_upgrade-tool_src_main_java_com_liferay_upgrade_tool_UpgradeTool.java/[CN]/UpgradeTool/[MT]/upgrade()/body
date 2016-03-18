@@ -2,8 +2,13 @@
   verifyProperties();
   String classPath=_getClassPath();
   List commands=new ArrayList<>();
-  commands.add(JAVA_HOME + "/bin/java");
-  commands.add("-Xmx1024m");
+  if (JAVA_HOME != null) {
+    commands.add(JAVA_HOME + "/bin/java");
+  }
+ else {
+    commands.add("java");
+  }
+  commands.add("-Xmx2048m");
   commands.add("-Dfile.encoding=UTF8");
   commands.add("-Duser.country=US");
   commands.add("-Duser.language=en");
@@ -13,6 +18,7 @@
   commands.add("com.liferay.portal.tools.DBUpgrader");
   ProcessBuilder processBuilder=new ProcessBuilder();
   processBuilder.redirectError(ProcessBuilder.Redirect.INHERIT);
+  processBuilder.redirectInput(ProcessBuilder.Redirect.INHERIT);
   processBuilder.command(commands);
   Process process=processBuilder.start();
   try (InputStreamReader isr=new InputStreamReader(process.getInputStream());BufferedReader br=new BufferedReader(isr)){
@@ -32,27 +38,37 @@
   }
   try (GogoTelnetClient client=new GogoTelnetClient()){
     System.out.println("You are now connected to Gogo Shell");
-    System.out.println("Try upgrade:list, verify:list");
+    _printHelp();
     _consoleReader.setPrompt("g! ");
     String line;
     while ((line=_consoleReader.readLine()) != null) {
       if (line.equals("exit") || line.equals("quit")) {
         break;
       }
+ else       if (line.equals("help")) {
+        _printHelp();
+      }
  else {
         System.out.println(client.send(line));
       }
     }
+    System.out.print("Making sure all upgrades steps have been completed");
+    boolean upgrading=true;
+    while (upgrading) {
+      System.out.print("...");
+      String upgradeSteps=client.send("upgrade:list | grep Registered | grep step");
+      upgrading=upgradeSteps.contains("true");
+    }
+    System.out.println("Done");
+    System.out.println("Exiting Gogo Shell");
   }
  catch (  IOException ioe) {
     ioe.printStackTrace();
   }
   process.getInputStream().close();
-  int exitCode=process.waitFor();
-  if (exitCode == 0) {
-    System.out.println("Upgrade completed");
-  }
- else {
-    System.out.println("Upgrade failed: " + exitCode);
+  process.getOutputStream().close();
+  process.getErrorStream().close();
+  if (!process.waitFor(5,TimeUnit.SECONDS)) {
+    process.destroy();
   }
 }
