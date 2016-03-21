@@ -1,9 +1,12 @@
 {
-  try (LoggingTimer loggingTimer=new LoggingTimer();PreparedStatement ps=connection.prepareStatement("select vocabularyId, settings_ from AssetVocabulary");ResultSet rs=ps.executeQuery()){
+  try (LoggingTimer loggingTimer=new LoggingTimer();PreparedStatement ps1=connection.prepareStatement("select vocabularyId, settings_ from AssetVocabulary");PreparedStatement ps2=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"update AssetVocabulary set settings_ = ? where " + "vocabularyId = ?");ResultSet rs=ps1.executeQuery()){
     while (rs.next()) {
       long vocabularyId=rs.getLong("vocabularyId");
       String settings=rs.getString("settings_");
-      updateAssetVocabulary(vocabularyId,upgradeVocabularySettings(settings));
+      ps2.setString(1,upgradeVocabularySettings(settings));
+      ps2.setLong(2,vocabularyId);
+      ps2.addBatch();
     }
+    ps2.executeBatch();
   }
  }
