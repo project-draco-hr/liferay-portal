@@ -1,10 +1,19 @@
 {
-  try (LoggingTimer loggingTimer=new LoggingTimer();PreparedStatement ps=connection.prepareStatement("select subscriptionId, classNameId, classPK from " + "Subscription");ResultSet rs=ps.executeQuery()){
+  try (LoggingTimer loggingTimer=new LoggingTimer();PreparedStatement ps1=connection.prepareStatement("select subscriptionId, classNameId, classPK from " + "Subscription");PreparedStatement ps2=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"update Subscription set groupId = ? where " + "subscriptionId = ?");ResultSet rs=ps1.executeQuery()){
     while (rs.next()) {
       long subscriptionId=rs.getLong("subscriptionId");
       long classNameId=rs.getLong("classNameId");
       long classPK=rs.getLong("classPK");
-      updateSubscriptionGroupId(subscriptionId,classNameId,classPK);
+      long groupId=getGroupId(classNameId,classPK);
+      if ((groupId == 0) && hasGroup(classPK)) {
+        groupId=classPK;
+      }
+      if (groupId != 0) {
+        ps2.setLong(1,groupId);
+        ps2.setLong(2,subscriptionId);
+        ps2.addBatch();
+      }
     }
+    ps2.executeBatch();
   }
  }
