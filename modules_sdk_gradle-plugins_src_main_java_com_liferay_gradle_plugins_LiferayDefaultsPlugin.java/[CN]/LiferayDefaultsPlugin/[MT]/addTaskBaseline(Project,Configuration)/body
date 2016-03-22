@@ -1,28 +1,43 @@
 {
-  GradleUtil.applyPlugin(project,ReportingBasePlugin.class);
-  BaselineTask baselineTask=GradleUtil.addTask(project,BASELINE_TASK_NAME,BaselineTask.class);
-  final Jar jar=(Jar)GradleUtil.getTask(project,JavaPlugin.JAR_TASK_NAME);
-  baselineTask.dependsOn(jar);
-  baselineTask.setDescription("Compares the public API of this project with the public API of " + "the previous released version, if found.");
-  baselineTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
-  baselineTask.setNewJarFile(new Callable<File>(){
-    @Override public File call() throws Exception {
-      return jar.getArchivePath();
+  Task task;
+  if (baselineConfiguration != null) {
+    GradleUtil.applyPlugin(project,ReportingBasePlugin.class);
+    BaselineTask baselineTask=GradleUtil.addTask(project,BASELINE_TASK_NAME,BaselineTask.class);
+    final Jar jar=(Jar)GradleUtil.getTask(project,JavaPlugin.JAR_TASK_NAME);
+    baselineTask.dependsOn(jar);
+    baselineTask.setNewJarFile(new Callable<File>(){
+      @Override public File call() throws Exception {
+        return jar.getArchivePath();
+      }
     }
-  }
 );
-  baselineTask.setOldJarFile(new Callable<File>(){
-    @Override public File call() throws Exception {
-      return baselineConfiguration.getSingleFile();
+    baselineTask.setOldJarFile(new Callable<File>(){
+      @Override public File call() throws Exception {
+        return baselineConfiguration.getSingleFile();
+      }
     }
-  }
 );
-  baselineTask.setSourceDir(new Callable<File>(){
-    @Override public File call() throws Exception {
-      SourceSet sourceSet=GradleUtil.getSourceSet(project,SourceSet.MAIN_SOURCE_SET_NAME);
-      return GradleUtil.getSrcDir(sourceSet.getResources());
+    baselineTask.setSourceDir(new Callable<File>(){
+      @Override public File call() throws Exception {
+        SourceSet sourceSet=GradleUtil.getSourceSet(project,SourceSet.MAIN_SOURCE_SET_NAME);
+        return GradleUtil.getSrcDir(sourceSet.getResources());
+      }
     }
-  }
 );
-  return baselineTask;
+    task=baselineTask;
+  }
+ else {
+    task=project.task(BASELINE_TASK_NAME);
+    task.doLast(new Action<Task>(){
+      @Override public void execute(      Task task){
+        if (_logger.isLifecycleEnabled()) {
+          _logger.lifecycle("Unable to baseline, " + project + " has never been released.");
+        }
+      }
+    }
+);
+  }
+  task.setDescription("Compares the public API of this project with the public API of " + "the previous released version, if found.");
+  task.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
+  return task;
 }
