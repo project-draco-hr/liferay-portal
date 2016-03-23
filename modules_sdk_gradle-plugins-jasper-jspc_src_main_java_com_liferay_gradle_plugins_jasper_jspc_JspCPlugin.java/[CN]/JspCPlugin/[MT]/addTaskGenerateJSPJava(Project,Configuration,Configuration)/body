@@ -1,18 +1,22 @@
 {
-  CompileJSPTask compileJSPTask=GradleUtil.addTask(project,GENERATE_JSP_JAVA_TASK_NAME,CompileJSPTask.class);
+  final CompileJSPTask compileJSPTask=GradleUtil.addTask(project,GENERATE_JSP_JAVA_TASK_NAME,CompileJSPTask.class);
   compileJSPTask.setClasspath(jspCToolConfiguration);
   compileJSPTask.setDescription("Compiles JSP files to Java source files to check for errors.");
   compileJSPTask.setDestinationDir(new File(project.getBuildDir(),"jspc"));
   compileJSPTask.setJspCClasspath(jspCConfiguration);
-  File webAppDir=null;
+  compileJSPTask.setWebAppDir(new Callable<File>(){
+    @Override public File call() throws Exception {
+      SourceSet sourceSet=GradleUtil.getSourceSet(compileJSPTask.getProject(),SourceSet.MAIN_SOURCE_SET_NAME);
+      return getSrcDir(sourceSet.getResources());
+    }
+  }
+);
   PluginContainer pluginContainer=project.getPlugins();
-  if (pluginContainer.hasPlugin(WarPlugin.class)) {
-    WarPluginConvention warPluginConvention=GradleUtil.getConvention(project,WarPluginConvention.class);
-    webAppDir=warPluginConvention.getWebAppDir();
+  pluginContainer.withType(WarPlugin.class,new Action<WarPlugin>(){
+    @Override public void execute(    WarPlugin warPlugin){
+      configureTaskGenerateJSPJavaForWarPlugin(compileJSPTask);
+    }
   }
- else {
-    webAppDir=getResourcesDir(project);
-  }
-  compileJSPTask.setWebAppDir(webAppDir);
+);
   return compileJSPTask;
 }
