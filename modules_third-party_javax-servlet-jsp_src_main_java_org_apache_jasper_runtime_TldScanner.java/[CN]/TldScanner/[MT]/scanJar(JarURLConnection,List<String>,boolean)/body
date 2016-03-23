@@ -1,0 +1,67 @@
+{
+  String resourcePath=conn.getJarFileURL().toString();
+  TldInfo[] tldInfos=jarTldCacheLocal.get(resourcePath);
+  if (tldInfos != null && tldInfos.length == 0) {
+    try {
+      conn.getJarFile().close();
+    }
+ catch (    IOException ex) {
+    }
+    return;
+  }
+  if (tldInfos == null) {
+    JarFile jarFile=null;
+    ArrayList<TldInfo> tldInfoA=new ArrayList<TldInfo>();
+    try {
+      jarFile=conn.getJarFile();
+      if (tldNames != null) {
+        for (        String tldName : tldNames) {
+          JarEntry entry=jarFile.getJarEntry(tldName);
+          InputStream stream=jarFile.getInputStream(entry);
+          tldInfoA.add(scanTld(resourcePath,tldName,stream));
+        }
+      }
+ else {
+        Enumeration<JarEntry> entries=jarFile.entries();
+        while (entries.hasMoreElements()) {
+          JarEntry entry=entries.nextElement();
+          String name=entry.getName();
+          if (!name.startsWith("META-INF/"))           continue;
+          if (!name.endsWith(".tld"))           continue;
+          InputStream stream=jarFile.getInputStream(entry);
+          tldInfoA.add(scanTld(resourcePath,name,stream));
+        }
+      }
+    }
+ catch (    IOException ex) {
+      if (resourcePath.startsWith(FILE_PROTOCOL) && !((new File(resourcePath)).exists())) {
+        if (log.isLoggable(Level.WARNING)) {
+          log.log(Level.WARNING,Localizer.getMessage("jsp.warn.nojar",resourcePath),ex);
+        }
+      }
+ else {
+        throw new JasperException(Localizer.getMessage("jsp.error.jar.io",resourcePath),ex);
+      }
+    }
+ finally {
+      if (jarFile != null) {
+        try {
+          jarFile.close();
+        }
+ catch (        Throwable t) {
+        }
+      }
+    }
+    tldInfos=tldInfoA.toArray(new TldInfo[tldInfoA.size()]);
+    jarTldCacheLocal.put(resourcePath,tldInfos);
+    if (!isLocal) {
+      jarTldCache.put(resourcePath,tldInfos);
+    }
+  }
+  for (  TldInfo tldInfo : tldInfos) {
+    if (scanListeners) {
+      addListener(tldInfo,isLocal);
+    }
+    mapTldLocation(resourcePath,tldInfo,isLocal);
+  }
+}

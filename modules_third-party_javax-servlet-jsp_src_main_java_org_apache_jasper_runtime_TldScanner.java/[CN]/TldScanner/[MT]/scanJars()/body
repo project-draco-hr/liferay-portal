@@ -1,0 +1,73 @@
+{
+  ClassLoader webappLoader=Thread.currentThread().getContextClassLoader();
+  ClassLoader loader=webappLoader;
+  Map<URI,List<String>> tldMap;
+  if (scanListeners) {
+    tldMap=getTldListenerMap();
+  }
+ else {
+    tldMap=getTldMap();
+  }
+  Boolean isStandalone=(Boolean)ctxt.getAttribute(IS_STANDALONE_ATTRIBUTE_NAME);
+  while (loader != null) {
+    if (loader instanceof URLClassLoader) {
+      boolean isLocal=(loader == webappLoader);
+      URL[] urls=((URLClassLoader)loader).getURLs();
+      List<String> extraJars=new ArrayList<String>();
+      for (int i=0; i < urls.length; i++) {
+        URLConnection conn=urls[i].openConnection();
+        JarURLConnection jconn=null;
+        if (conn instanceof JarURLConnection) {
+          jconn=(JarURLConnection)conn;
+        }
+ else {
+          String urlStr=urls[i].toString();
+          if (urlStr.startsWith(FILE_PROTOCOL) && urlStr.endsWith(JAR_FILE_SUFFIX)) {
+            URL jarURL=new URL("jar:" + urlStr + "!/");
+            jconn=(JarURLConnection)jarURL.openConnection();
+          }
+        }
+        if (jconn != null) {
+          jconn.setUseCaches(false);
+          if (isLocal) {
+            addManifestClassPath(null,extraJars,jconn);
+          }
+          scanJar(jconn,null,isLocal);
+        }
+      }
+      if (extraJars.size() > 0) {
+        List<String> newJars;
+        do {
+          newJars=new ArrayList<String>();
+          for (          String jar : extraJars) {
+            URL jarURL=new URL("jar:" + jar + "!/");
+            JarURLConnection jconn=(JarURLConnection)jarURL.openConnection();
+            jconn.setUseCaches(false);
+            if (addManifestClassPath(extraJars,newJars,jconn)) {
+              scanJar(jconn,null,true);
+            }
+          }
+          extraJars.addAll(newJars);
+        }
+ while (newJars.size() != 0);
+      }
+    }
+    if (tldMap != null && isStandalone != null) {
+      if (isStandalone.booleanValue()) {
+        break;
+      }
+ else {
+        if (EAR_LIB_CLASSLOADER.equals(loader.getClass().getName())) {
+          break;
+        }
+      }
+    }
+    loader=loader.getParent();
+  }
+  if (tldMap != null) {
+    for (    URI uri : tldMap.keySet()) {
+      URL jarURL=new URL("jar:" + uri.toString() + "!/");
+      scanJar((JarURLConnection)jarURL.openConnection(),tldMap.get(uri),false);
+    }
+  }
+}
