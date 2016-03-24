@@ -1,0 +1,37 @@
+{
+  Project project=abstractArchiveTask.getProject();
+  Task task=GradleUtil.getTask(abstractArchiveTask.getProject(),DEPLOY_TASK_NAME);
+  if (!(task instanceof Copy)) {
+    return;
+  }
+  final Copy copy=(Copy)task;
+  Object sourcePath=abstractArchiveTask;
+  if (lazy) {
+    sourcePath=new Callable<File>(){
+      @Override public File call() throws Exception {
+        return abstractArchiveTask.getArchivePath();
+      }
+    }
+;
+  }
+  copy.from(sourcePath,new Closure<Void>(null){
+    @SuppressWarnings("unused") public void doCall(    CopySpec copySpec){
+      copySpec.rename(new Closure<String>(null){
+        public String doCall(        String fileName){
+          return getDeployedFileName(abstractArchiveTask);
+        }
+      }
+);
+    }
+  }
+);
+  Delete delete=(Delete)GradleUtil.getTask(project,BasePlugin.CLEAN_TASK_NAME);
+  if (GradleUtil.getProperty(delete,CLEAN_DEPLOYED_PROPERTY_NAME,true)) {
+    delete.delete(new Callable<File>(){
+      @Override public File call() throws Exception {
+        return new File(copy.getDestinationDir(),getDeployedFileName(abstractArchiveTask));
+      }
+    }
+);
+  }
+}
