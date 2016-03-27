@@ -1,0 +1,50 @@
+{
+  boolean result=false;
+  for (TemplateElement elem=this.prevTerminalNode(); elem != null && elem.endLine == this.beginLine; elem=elem.prevTerminalNode()) {
+    if (elem instanceof TrimInstruction) {
+      TrimInstruction ti=(TrimInstruction)elem;
+      if (!ti.left && !ti.right) {
+        result=true;
+      }
+      if (ti.right) {
+        result=true;
+        int firstLineIndex=firstNewLineIndex() + 1;
+        if (firstLineIndex == 0) {
+          return false;
+        }
+        if (text.length() > firstLineIndex && text.charAt(firstLineIndex - 1) == '\r' && text.charAt(firstLineIndex) == '\n') {
+          firstLineIndex++;
+        }
+        String trailingPart=text.substring(firstLineIndex);
+        String openingPart=text.substring(0,firstLineIndex);
+        if (isTrimmableToEmpty(openingPart)) {
+          this.text=trailingPart;
+          this.beginLine++;
+          this.beginColumn=1;
+        }
+ else {
+          int lastNonWS=openingPart.length() - 1;
+          while (Character.isWhitespace(text.charAt(lastNonWS))) {
+            lastNonWS--;
+          }
+          String printablePart=text.substring(0,lastNonWS + 1);
+          if (isTrimmableToEmpty(trailingPart)) {
+            boolean trimTrailingPart=true;
+            for (TemplateElement te=this.nextTerminalNode(); te != null && te.beginLine == this.endLine; te=te.nextTerminalNode()) {
+              if (te.heedsOpeningWhitespace()) {
+                trimTrailingPart=false;
+              }
+              if (te instanceof TrimInstruction && ((TrimInstruction)te).left) {
+                trimTrailingPart=true;
+                break;
+              }
+            }
+            if (trimTrailingPart)             trailingPart=EMPTY_STRING;
+          }
+          this.text=printablePart.concat(trailingPart);
+        }
+      }
+    }
+  }
+  return result;
+}
