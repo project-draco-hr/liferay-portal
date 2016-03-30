@@ -1,0 +1,83 @@
+{
+  String name=element.attributeValue("name");
+  String type=element.attributeValue("type");
+  Element metadataElement=element.element("meta-data");
+  if (metadataElement == null) {
+    metadataElement=element.addElement("meta-data");
+  }
+  if (type.equals("multi-list")) {
+    element.addAttribute("multiple","true");
+  }
+ else {
+    Element parentElement=element.getParent();
+    String parentType=parentElement.attributeValue("type");
+    if ((parentType != null) && parentType.equals("select")) {
+      metadataElement.addAttribute("locale",defaultLanguageId);
+      addMetadataEntry(metadataElement,"label",decodeURL(name));
+      removeAttribute(element,"index-type");
+      element.addAttribute("name","option" + StringUtil.randomId());
+      element.addAttribute("type","option");
+      element.addAttribute("value",decodeURL(type));
+      return;
+    }
+  }
+  String indexType=StringPool.BLANK;
+  Attribute indexTypeAttribute=element.attribute("index-type");
+  if (indexTypeAttribute != null) {
+    indexType=indexTypeAttribute.getValue();
+    element.remove(indexTypeAttribute);
+  }
+  element.remove(element.attribute("type"));
+  if (!type.equals("selection_break")) {
+    String dataType=_ddmDataTypes.get(type);
+    if (dataType == null) {
+      dataType="string";
+    }
+    element.addAttribute("dataType",dataType);
+  }
+  element.addAttribute("indexType",indexType);
+  String required="false";
+  Element requiredElement=fetchMetadataEntry(metadataElement,"name","required");
+  if (requiredElement != null) {
+    required=requiredElement.getText();
+  }
+  element.addAttribute("required",required);
+  element.addAttribute("showLabel","true");
+  String newType=_journalTypesToDDMTypes.get(type);
+  if (newType == null) {
+    newType=type;
+  }
+  element.addAttribute("type",newType);
+  if (newType.startsWith("ddm")) {
+    element.addAttribute("fieldNamespace","ddm");
+  }
+  metadataElement.addAttribute("locale",defaultLanguageId);
+  List<Element> entryElements=metadataElement.elements();
+  if (entryElements.isEmpty()) {
+    addMetadataEntry(metadataElement,"label",name);
+  }
+ else {
+    for (    Element entryElement : entryElements) {
+      String oldEntryName=entryElement.attributeValue("name");
+      String newEntryName=_ddmMetadataAttributes.get(oldEntryName);
+      if (newEntryName == null) {
+        metadataElement.remove(entryElement);
+      }
+ else {
+        entryElement.addAttribute("name",newEntryName);
+      }
+    }
+  }
+  if (newType.equals("ddm-date") || newType.equals("ddm-decimal") || newType.equals("ddm-integer")|| newType.equals("ddm-link-to-page")|| newType.equals("ddm-number")|| newType.equals("ddm-text-html")|| newType.equals("text")|| newType.equals("textarea")) {
+    element.addAttribute("width","25");
+  }
+ else   if (newType.equals("ddm-image")) {
+    element.addAttribute("fieldNamespace","ddm");
+    element.addAttribute("readOnly","false");
+  }
+  element.add(metadataElement.detach());
+  List<Element> dynamicElementElements=element.elements("dynamic-element");
+  for (  Element dynamicElementElement : dynamicElementElements) {
+    updateJournalXSDDynamicElement(dynamicElementElement,defaultLanguageId);
+  }
+}
