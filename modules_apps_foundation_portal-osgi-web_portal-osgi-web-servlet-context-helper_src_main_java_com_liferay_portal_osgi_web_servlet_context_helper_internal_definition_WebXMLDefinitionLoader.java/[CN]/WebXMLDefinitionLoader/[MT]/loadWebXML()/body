@@ -1,19 +1,20 @@
 {
-  URL url=_bundle.getEntry("WEB-INF/web.xml");
-  if (url != null) {
-    try (InputStream inputStream=url.openStream()){
-      SAXParser saxParser=_saxParserFactory.newSAXParser();
-      XMLReader xmlReader=saxParser.getXMLReader();
-      xmlReader.setContentHandler(this);
-      xmlReader.parse(new InputSource(inputStream));
-    }
- catch (    SAXParseException saxpe) {
-      String message=saxpe.getMessage();
-      if (message.contains("DOCTYPE is disallowed")) {
-        throw new Exception("WEB-INF/web.xml must be updated to the Servlet 2.4 " + "specification");
-      }
-      throw saxpe;
+  WebXMLDefinition webXMLDefinition=loadWebXML(_bundle.getEntry("WEB-INF/web.xml"));
+  if (webXMLDefinition.isMetadataComplete()) {
+    return webXMLDefinition;
+  }
+  Enumeration<URL> resources=_bundle.getResources("META-INF/web-fragment.xml");
+  List<WebXMLDefinition> webFragments=new ArrayList<>();
+  if (resources != null) {
+    while (resources.hasMoreElements()) {
+      URL url=resources.nextElement();
+      WebXMLDefinitionLoader webFragmentsDefinitionLoader=new WebXMLDefinitionLoader(_bundle,_saxParserFactory,_logger);
+      webFragments.add(webFragmentsDefinitionLoader.loadWebXML(url));
     }
   }
-  return _webXMLDefinition;
+  List<WebXMLDefinition> sortedWebFragments=new ArrayList<>();
+  if (ListUtil.isNotEmpty(webFragments)) {
+    sortedWebFragments=OrderUtil.getWebXMLDefinitionOrder(webFragments,webXMLDefinition.getAbsoluteOrderNames());
+  }
+  return assembleWebXML(webXMLDefinition,sortedWebFragments);
 }
