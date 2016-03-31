@@ -1,13 +1,27 @@
 {
   try {
     String filePathName=filePath.toString();
-    Path parentFilePath=filePath.getParent();
-    String parentFilePathName=parentFilePath.toString();
-    SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(getSyncAccountId());
-    if (isDuplicateEvent(eventType,filePath.toString(),getSyncAccountId())) {
+    if (isDuplicateEvent(eventType,filePathName,getSyncAccountId())) {
       return;
     }
-    if (filePathName.equals(syncAccount.getFilePathName()) || parentFilePathName.equals(syncAccount.getFilePathName())) {
+    SyncAccount syncAccount=SyncAccountService.fetchSyncAccount(getSyncAccountId());
+    if (filePathName.equals(syncAccount.getFilePathName())) {
+      return;
+    }
+    Path parentFilePath=filePath.getParent();
+    String parentFilePathName=parentFilePath.toString();
+    if (parentFilePathName.equals(syncAccount.getFilePathName())) {
+      SyncSite syncSite=SyncSiteService.fetchSyncSite(filePathName,getSyncAccountId());
+      if ((syncSite == null) || syncSite.isActive()) {
+        return;
+      }
+      SyncFile syncFile=SyncFileService.fetchSyncFile(filePathName);
+      if (FileKeyUtil.hasFileKey(filePath,syncFile.getSyncFileId())) {
+        if (_logger.isDebugEnabled()) {
+          _logger.debug("Sync site {} reactivated.",syncSite.getName());
+        }
+        SyncSiteService.activateSyncSite(syncSite.getSyncSiteId(),false);
+      }
       return;
     }
     long repositoryId=getRepositoryId(filePath);
