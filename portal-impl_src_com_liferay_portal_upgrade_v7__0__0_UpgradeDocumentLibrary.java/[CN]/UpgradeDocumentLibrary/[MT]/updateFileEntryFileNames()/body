@@ -1,9 +1,9 @@
 {
   try (LoggingTimer loggingTimer=new LoggingTimer()){
     runSQL("alter table DLFileEntry add fileName VARCHAR(255) null");
+    Set<String> generatedUniqueFileNames=new HashSet<>();
+    Set<String> generatedUniqueTitles=new HashSet<>();
     try (PreparedStatement ps1=connection.prepareStatement("select fileEntryId, groupId, folderId, extension, title," + " version from DLFileEntry");PreparedStatement ps2=AutoBatchPreparedStatementUtil.autoBatch(connection.prepareStatement("update DLFileEntry set fileName = ?, title = ? " + "where fileEntryId = ?"));PreparedStatement ps3=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"update DLFileVersion set title = ? where " + "fileEntryId = " + "? and version = ?");ResultSet rs=ps1.executeQuery()){
-      Set<String> generatedUniqueFileNames=new HashSet<>();
-      Set<String> generatedUniqueTitles=new HashSet<>();
       while (rs.next()) {
         long fileEntryId=rs.getLong("fileEntryId");
         long groupId=rs.getLong("groupId");
@@ -18,20 +18,20 @@
           titleExtension=extension;
           titleWithoutExtension=FileUtil.stripExtension(title);
         }
+        boolean generatedUniqueFileName=false;
         String uniqueTitle=title;
-        boolean foundNameClash=false;
         for (int i=1; ; i++) {
           if (!generatedUniqueFileNames.contains(uniqueFileName) && !generatedUniqueTitles.contains(uniqueTitle) && !hasFileEntry(groupId,folderId,fileEntryId,uniqueTitle,uniqueFileName)) {
             break;
           }
-          foundNameClash=true;
+          generatedUniqueFileName=true;
           uniqueTitle=titleWithoutExtension + StringPool.UNDERLINE + String.valueOf(i);
           if (Validator.isNotNull(titleExtension)) {
             uniqueTitle+=StringPool.PERIOD.concat(titleExtension);
           }
           uniqueFileName=DLUtil.getSanitizedFileName(uniqueTitle,extension);
         }
-        if (foundNameClash) {
+        if (generatedUniqueFileName) {
           generatedUniqueFileNames.add(uniqueFileName);
           generatedUniqueTitles.add(uniqueTitle);
         }
