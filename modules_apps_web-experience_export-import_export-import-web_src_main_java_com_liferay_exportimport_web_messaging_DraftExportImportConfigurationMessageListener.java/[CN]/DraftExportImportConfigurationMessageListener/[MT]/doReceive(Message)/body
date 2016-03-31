@@ -2,27 +2,47 @@
   if (ExportImportWebConfigurationValues.DRAFT_EXPORT_IMPORT_CONFIGURATION_CLEAN_UP_COUNT == -1) {
     return;
   }
-  DynamicQuery dynamicQuery=_exportImportConfigurationLocalService.dynamicQuery();
-  Property typeProperty=PropertyFactoryUtil.forName("type");
-  dynamicQuery.add(typeProperty.ne(ExportImportConfigurationConstants.TYPE_SCHEDULED_PUBLISH_LAYOUT_LOCAL));
-  dynamicQuery.add(typeProperty.ne(ExportImportConfigurationConstants.TYPE_SCHEDULED_PUBLISH_LAYOUT_REMOTE));
-  Property statusProperty=PropertyFactoryUtil.forName("status");
-  dynamicQuery.add(statusProperty.eq(WorkflowConstants.STATUS_DRAFT));
-  Order order=OrderFactoryUtil.asc("createDate");
-  dynamicQuery.addOrder(order);
-  dynamicQuery.setLimit(QueryUtil.ALL_POS,ExportImportWebConfigurationValues.DRAFT_EXPORT_IMPORT_CONFIGURATION_CLEAN_UP_COUNT);
-  List<ExportImportConfiguration> exportImportConfigurations=_exportImportConfigurationLocalService.dynamicQuery(dynamicQuery);
-  for (  ExportImportConfiguration exportImportConfiguration : exportImportConfigurations) {
-    List<BackgroundTask> backgroundTasks=getParentBackgroundTasks(exportImportConfiguration);
-    if (ListUtil.isEmpty(backgroundTasks)) {
-      _exportImportConfigurationLocalService.deleteExportImportConfiguration(exportImportConfiguration);
-      continue;
+  final Date lastDate;
+  if (ExportImportWebConfigurationValues.DRAFT_EXPORT_IMPORT_CONFIGURATION_CLEAN_UP_COUNT == 0) {
+    lastDate=new Date();
+  }
+ else {
+    DynamicQuery dynamicQuery=_exportImportConfigurationLocalService.dynamicQuery();
+    addCommonCriterions(dynamicQuery);
+    Order order=OrderFactoryUtil.desc("createDate");
+    dynamicQuery.addOrder(order);
+    dynamicQuery.setLimit(QueryUtil.ALL_POS,ExportImportWebConfigurationValues.DRAFT_EXPORT_IMPORT_CONFIGURATION_CLEAN_UP_COUNT);
+    dynamicQuery.setProjection(ProjectionFactoryUtil.property("createDate"));
+    List<Date> createDates=_exportImportConfigurationLocalService.dynamicQuery(dynamicQuery);
+    if (ListUtil.isEmpty(createDates)) {
+      return;
     }
-    for (    BackgroundTask backgroundTask : backgroundTasks) {
-      if (isLiveGroup(backgroundTask.getGroupId())) {
-        continue;
-      }
-      _backgroundTaskLocalService.deleteBackgroundTask(backgroundTask.getBackgroundTaskId());
+    lastDate=createDates.get(createDates.size() - 1);
+  }
+  ActionableDynamicQuery actionableDynamicQuery=_exportImportConfigurationLocalService.getActionableDynamicQuery();
+  final Property createDate=PropertyFactoryUtil.forName("createDate");
+  actionableDynamicQuery.setAddCriteriaMethod(new ActionableDynamicQuery.AddCriteriaMethod(){
+    @Override public void addCriteria(    DynamicQuery dynamicQuery){
+      addCommonCriterions(dynamicQuery);
+      dynamicQuery.add(createDate.lt(lastDate));
     }
   }
+);
+  actionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod<ExportImportConfiguration>(){
+    @Override public void performAction(    ExportImportConfiguration exportImportConfiguration) throws PortalException {
+      List<BackgroundTask> backgroundTasks=getParentBackgroundTasks(exportImportConfiguration);
+      if (ListUtil.isEmpty(backgroundTasks)) {
+        _exportImportConfigurationLocalService.deleteExportImportConfiguration(exportImportConfiguration);
+        return;
+      }
+      for (      BackgroundTask backgroundTask : backgroundTasks) {
+        if (isLiveGroup(backgroundTask.getGroupId())) {
+          continue;
+        }
+        _backgroundTaskLocalService.deleteBackgroundTask(backgroundTask.getBackgroundTaskId());
+      }
+    }
+  }
+);
+  actionableDynamicQuery.performActions();
 }
