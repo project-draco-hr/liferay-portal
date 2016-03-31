@@ -1,0 +1,56 @@
+{
+  try {
+    boolean smtpAuth=GetterUtil.getBoolean(_getSMTPProperty(session,"auth"),false);
+    String smtpHost=_getSMTPProperty(session,"host");
+    int smtpPort=GetterUtil.getInteger(_getSMTPProperty(session,"port"),Account.PORT_SMTP);
+    String user=_getSMTPProperty(session,"user");
+    String password=_getSMTPProperty(session,"password");
+    if (smtpAuth && Validator.isNotNull(user) && Validator.isNotNull(password)) {
+      String protocol=GetterUtil.getString(session.getProperty("mail.transport.protocol"),Account.PROTOCOL_SMTP);
+      Transport transport=session.getTransport(protocol);
+      transport.connect(smtpHost,smtpPort,user,password);
+      Address[] addresses=null;
+      if (ArrayUtil.isNotEmpty(bulkAddresses)) {
+        addresses=bulkAddresses;
+      }
+ else {
+        addresses=message.getAllRecipients();
+      }
+      for (int i=0; ; i++) {
+        Address[] batchAddresses=_getBatchAddresses(addresses,i,batchSize);
+        if (ArrayUtil.isEmpty(batchAddresses)) {
+          break;
+        }
+        transport.sendMessage(message,batchAddresses);
+      }
+      transport.close();
+    }
+ else {
+      if (ArrayUtil.isNotEmpty(bulkAddresses)) {
+        int curBatch=0;
+        Address[] portion=_getBatchAddresses(bulkAddresses,curBatch,batchSize);
+        while (ArrayUtil.isNotEmpty(portion)) {
+          Transport.send(message,portion);
+          curBatch++;
+          portion=_getBatchAddresses(bulkAddresses,curBatch,batchSize);
+        }
+      }
+ else {
+        Transport.send(message);
+      }
+    }
+  }
+ catch (  MessagingException me) {
+    if (me.getNextException() instanceof SocketException) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Failed to connect to a valid mail server. Please " + "make sure one is properly configured. " + me.getMessage());
+      }
+    }
+ else {
+      LogUtil.log(_log,me);
+    }
+    if (_isThrowsExceptionOnFailure()) {
+      throw new MailEngineException(me);
+    }
+  }
+}

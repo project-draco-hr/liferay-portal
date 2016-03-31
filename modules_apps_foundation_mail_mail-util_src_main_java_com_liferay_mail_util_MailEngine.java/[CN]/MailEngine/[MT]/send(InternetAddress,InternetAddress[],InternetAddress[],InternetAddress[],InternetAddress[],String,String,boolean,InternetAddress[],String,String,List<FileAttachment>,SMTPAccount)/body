@@ -1,0 +1,135 @@
+{
+  long startTime=System.currentTimeMillis();
+  if (_log.isDebugEnabled()) {
+    _log.debug("From: " + from);
+    _log.debug("To: " + Arrays.toString(to));
+    _log.debug("CC: " + Arrays.toString(cc));
+    _log.debug("BCC: " + Arrays.toString(bcc));
+    _log.debug("List Addresses: " + Arrays.toString(bulkAddresses));
+    _log.debug("Subject: " + subject);
+    _log.debug("Body: " + body);
+    _log.debug("HTML Format: " + htmlFormat);
+    _log.debug("Reply to: " + Arrays.toString(replyTo));
+    _log.debug("Message ID: " + messageId);
+    _log.debug("In Reply To: " + inReplyTo);
+    if ((fileAttachments != null) && _log.isDebugEnabled()) {
+      for (int i=0; i < fileAttachments.size(); i++) {
+        FileAttachment fileAttachment=fileAttachments.get(i);
+        File file=fileAttachment.getFile();
+        if (file == null) {
+          continue;
+        }
+        _log.debug("Attachment " + i + " file "+ file.getAbsolutePath()+ " and file name "+ fileAttachment.getFileName());
+      }
+    }
+  }
+  try {
+    InternetAddressUtil.validateAddress(from);
+    if (ArrayUtil.isNotEmpty(to)) {
+      InternetAddressUtil.validateAddresses(to);
+    }
+    if (ArrayUtil.isNotEmpty(cc)) {
+      InternetAddressUtil.validateAddresses(cc);
+    }
+    if (ArrayUtil.isNotEmpty(bcc)) {
+      InternetAddressUtil.validateAddresses(bcc);
+    }
+    if (ArrayUtil.isNotEmpty(replyTo)) {
+      InternetAddressUtil.validateAddresses(replyTo);
+    }
+    if (ArrayUtil.isNotEmpty(bulkAddresses)) {
+      InternetAddressUtil.validateAddresses(bulkAddresses);
+    }
+    Session session=null;
+    if (smtpAccount == null) {
+      session=getSession();
+    }
+ else {
+      session=getSession(smtpAccount);
+    }
+    Message message=new LiferayMimeMessage(session);
+    message.addHeader("X-Auto-Response-Suppress","AutoReply, DR, NDR, NRN, OOF, RN");
+    message.setFrom(from);
+    if (ArrayUtil.isNotEmpty(to)) {
+      message.setRecipients(Message.RecipientType.TO,to);
+    }
+    if (ArrayUtil.isNotEmpty(cc)) {
+      message.setRecipients(Message.RecipientType.CC,cc);
+    }
+    if (ArrayUtil.isNotEmpty(bcc)) {
+      message.setRecipients(Message.RecipientType.BCC,bcc);
+    }
+    subject=GetterUtil.getString(subject);
+    message.setSubject(_sanitizeCRLF(subject));
+    if (ListUtil.isNotEmpty(fileAttachments)) {
+      MimeMultipart rootMultipart=new MimeMultipart(_MULTIPART_TYPE_MIXED);
+      MimeMultipart messageMultipart=new MimeMultipart(_MULTIPART_TYPE_ALTERNATIVE);
+      MimeBodyPart messageBodyPart=new MimeBodyPart();
+      messageBodyPart.setContent(messageMultipart);
+      rootMultipart.addBodyPart(messageBodyPart);
+      if (htmlFormat) {
+        MimeBodyPart bodyPart=new MimeBodyPart();
+        bodyPart.setContent(body,_TEXT_HTML);
+        messageMultipart.addBodyPart(bodyPart);
+      }
+ else {
+        MimeBodyPart bodyPart=new MimeBodyPart();
+        bodyPart.setText(body);
+        messageMultipart.addBodyPart(bodyPart);
+      }
+      for (int i=0; i < fileAttachments.size(); i++) {
+        FileAttachment fileAttachment=fileAttachments.get(i);
+        File file=fileAttachment.getFile();
+        if (file == null) {
+          continue;
+        }
+        MimeBodyPart mimeBodyPart=new MimeBodyPart();
+        DataSource dataSource=new FileDataSource(file);
+        mimeBodyPart.setDataHandler(new DataHandler(dataSource));
+        mimeBodyPart.setDisposition(Part.ATTACHMENT);
+        if (fileAttachment.getFileName() != null) {
+          mimeBodyPart.setFileName(fileAttachment.getFileName());
+        }
+ else {
+          mimeBodyPart.setFileName(file.getName());
+        }
+        rootMultipart.addBodyPart(mimeBodyPart);
+      }
+      message.setContent(rootMultipart);
+      message.saveChanges();
+    }
+ else {
+      if (htmlFormat) {
+        message.setContent(body,_TEXT_HTML);
+      }
+ else {
+        message.setContent(body,_TEXT_PLAIN);
+      }
+    }
+    message.setSentDate(new Date());
+    if (ArrayUtil.isNotEmpty(replyTo)) {
+      message.setReplyTo(replyTo);
+    }
+    if (messageId != null) {
+      message.setHeader("Message-ID",_sanitizeCRLF(messageId));
+    }
+    if (inReplyTo != null) {
+      message.setHeader("In-Reply-To",_sanitizeCRLF(inReplyTo));
+      message.setHeader("References",_sanitizeCRLF(inReplyTo));
+    }
+    int batchSize=GetterUtil.getInteger(PropsUtil.get(PropsKeys.MAIL_BATCH_SIZE),_BATCH_SIZE);
+    _send(session,message,bulkAddresses,batchSize);
+  }
+ catch (  SendFailedException sfe) {
+    _log.error(sfe);
+    if (_isThrowsExceptionOnFailure()) {
+      throw new MailEngineException(sfe);
+    }
+  }
+catch (  Exception e) {
+    throw new MailEngineException(e);
+  }
+  if (_log.isDebugEnabled()) {
+    _log.debug("Sending mail takes " + (System.currentTimeMillis() - startTime) + " ms");
+  }
+}
