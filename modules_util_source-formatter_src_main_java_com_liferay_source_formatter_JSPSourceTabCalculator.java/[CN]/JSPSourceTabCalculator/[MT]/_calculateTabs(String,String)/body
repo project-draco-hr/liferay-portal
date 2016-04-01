@@ -1,0 +1,53 @@
+{
+  List<JSPLine> jspLines=_getJSPLines(content);
+  if (jspLines == null) {
+    return originalContent;
+  }
+  for (int i=0; i < jspLines.size(); i++) {
+    JSPLine jspLine=jspLines.get(i);
+    if (jspLine.isCloseTag()) {
+      if (!jspLine.isClosed()) {
+        return originalContent;
+      }
+      continue;
+    }
+    String line=jspLine.getLine();
+    if (!jspLine.isOpenTag()) {
+      if (!jspLine.isJavaSource() && line.matches("\t*<.*")) {
+        int actualTabCount=jspLine.getLeadingTabCount();
+        int expectedTabCount=jspLine.getTabLevel();
+        if (expectedTabCount != actualTabCount) {
+          return _fixTabs(content,jspLine.getLineCount(),actualTabCount - expectedTabCount);
+        }
+      }
+      continue;
+    }
+    JSPLine closeTagJSPLine=_getCloseTagJSPLine(jspLine,jspLines,i);
+    if (closeTagJSPLine == null) {
+      return originalContent;
+    }
+    String closeTagName=closeTagJSPLine.getTagName();
+    String openTagName=jspLine.getTagName();
+    if (Validator.isNotNull(closeTagName) && !closeTagName.equals(openTagName)) {
+      return originalContent;
+    }
+    int expectedTabCount=_getExpectedTabCount(jspLine,closeTagJSPLine,jspLines,i);
+    int actualCloseTagTabCount=closeTagJSPLine.getLeadingTabCount();
+    int actualOpenTagTabCount=jspLine.getLeadingTabCount();
+    if (expectedTabCount != actualOpenTagTabCount) {
+      int diff=actualOpenTagTabCount - expectedTabCount;
+      if (actualOpenTagTabCount == actualCloseTagTabCount) {
+        return _fixTabs(content,jspLine.getLineCount(),closeTagJSPLine.getLineCount(),diff);
+      }
+      return _fixTabs(content,jspLine.getLineCount(),diff);
+    }
+    if (expectedTabCount != actualCloseTagTabCount) {
+      return _fixTabs(content,closeTagJSPLine.getLineCount(),actualCloseTagTabCount - expectedTabCount);
+    }
+    if (line.matches("\t*<%!?")) {
+      content=_checkTabsJavaSourceBlock(content,expectedTabCount,jspLine.getLineCount() + 1,closeTagJSPLine.getLineCount() - 1);
+    }
+    closeTagJSPLine.setClosed(true);
+  }
+  return content;
+}

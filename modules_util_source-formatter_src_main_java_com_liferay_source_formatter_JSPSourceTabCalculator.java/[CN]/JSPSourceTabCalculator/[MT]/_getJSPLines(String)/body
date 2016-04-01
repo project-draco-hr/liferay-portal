@@ -1,0 +1,79 @@
+{
+  List<JSPLine> jspLines=new ArrayList();
+  try (UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new UnsyncStringReader(content))){
+    String line=null;
+    int lineCount=0;
+    int tabLevel=0;
+    boolean javaSource=false;
+    boolean scriptSource=false;
+    boolean multiLineComment=false;
+    boolean insidePreTag=false;
+    while ((line=unsyncBufferedReader.readLine()) != null) {
+      lineCount++;
+      if (Validator.isNull(line)) {
+        continue;
+      }
+      String trimmedLine=StringUtil.trimLeading(line);
+      if (insidePreTag) {
+        if (trimmedLine.equals("</pre>")) {
+          insidePreTag=false;
+        }
+ else {
+          continue;
+        }
+      }
+      if (javaSource) {
+        if (trimmedLine.equals("%>")) {
+          javaSource=false;
+        }
+        if (trimmedLine.startsWith("/*") && !trimmedLine.startsWith("/**")) {
+          multiLineComment=true;
+          continue;
+        }
+        if (line.endsWith("*/")) {
+          multiLineComment=false;
+          continue;
+        }
+        if (multiLineComment || trimmedLine.startsWith("*") || trimmedLine.startsWith("/*")|| trimmedLine.startsWith("//")) {
+          continue;
+        }
+      }
+ else       if (!scriptSource && line.endsWith("--%>")) {
+        multiLineComment=false;
+      }
+      if (scriptSource && trimmedLine.matches("</(aui:)?script>")) {
+        scriptSource=false;
+      }
+      if (trimmedLine.equals("AUI.add(")) {
+        return jspLines;
+      }
+      if (!scriptSource && !multiLineComment) {
+        int lineTabLevel=_calculateTabLevel(trimmedLine,javaSource);
+        if (!javaSource && Math.abs(lineTabLevel) > 1) {
+          return null;
+        }
+        JSPLine jspLine=new JSPLine(line,lineCount,tabLevel,lineTabLevel,javaSource);
+        jspLines.add(jspLine);
+        tabLevel+=lineTabLevel;
+      }
+      if (!javaSource && trimmedLine.matches("<%!?")) {
+        javaSource=true;
+      }
+ else       if (!scriptSource) {
+        if (trimmedLine.matches("<(aui:)?script.*")) {
+          int lineTabLevel=_calculateTabLevel(trimmedLine,javaSource);
+          if (lineTabLevel > 0) {
+            scriptSource=true;
+          }
+        }
+ else         if (trimmedLine.startsWith("<%--")) {
+          multiLineComment=true;
+        }
+ else         if (trimmedLine.equals("<pre>")) {
+          insidePreTag=true;
+        }
+      }
+    }
+  }
+   return jspLines;
+}
