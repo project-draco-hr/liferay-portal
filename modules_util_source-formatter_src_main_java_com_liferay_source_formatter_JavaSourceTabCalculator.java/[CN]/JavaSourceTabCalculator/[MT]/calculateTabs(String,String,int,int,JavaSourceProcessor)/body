@@ -1,0 +1,46 @@
+{
+  content=stripTrailingComments(content);
+  try (UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new UnsyncStringReader(content))){
+    String line=null;
+    boolean forClause=false;
+    boolean ifClause=false;
+    boolean multiLineComment=false;
+    _extraTabMap=new HashMap<>();
+    _ignoreTabCheck=new HashSet<>();
+    _printIncorrectTabMessage=true;
+    String remainingContent=content;
+    while ((line=unsyncBufferedReader.readLine()) != null) {
+      lineCount++;
+      String trimmedLine=StringUtil.trimLeading(line);
+      int leadingTabCount=_javaSourceProcessor.getLeadingTabCount(line);
+      if (trimmedLine.startsWith("/*") && !trimmedLine.startsWith("/**")) {
+        multiLineComment=true;
+      }
+      if (!multiLineComment) {
+        if (trimmedLine.startsWith("for (") || trimmedLine.startsWith("try (")) {
+          forClause=true;
+        }
+        if (line.endsWith(") {")) {
+          forClause=false;
+        }
+        if (Validator.isNotNull(line) && !ifClause) {
+          checkTabLevel(trimmedLine,leadingTabCount,tabLevel,fileName,lineCount,javaSourceProcessor);
+        }
+        if (trimmedLine.startsWith("catch (") || trimmedLine.startsWith("if (") || trimmedLine.startsWith("else if (")|| trimmedLine.startsWith("while (")) {
+          ifClause=true;
+        }
+        if (!trimmedLine.startsWith("*") && !trimmedLine.startsWith("/*") && !trimmedLine.startsWith("//")) {
+          tabLevel=calculateTabLevel(tabLevel,line);
+          calculateExtraTabs(trimmedLine,lineCount,remainingContent,forClause,ifClause);
+        }
+      }
+ else       if (line.endsWith("*/")) {
+        multiLineComment=false;
+      }
+      remainingContent=StringUtil.replaceFirst(remainingContent,line + "\n","");
+      if (line.endsWith(StringPool.SEMICOLON) || line.endsWith(") {")) {
+        ifClause=false;
+      }
+    }
+  }
+ }
