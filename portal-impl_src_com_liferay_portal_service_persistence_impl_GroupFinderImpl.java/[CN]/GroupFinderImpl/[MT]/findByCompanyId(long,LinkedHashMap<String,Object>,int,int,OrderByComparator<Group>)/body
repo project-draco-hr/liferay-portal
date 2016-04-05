@@ -5,7 +5,6 @@
   LinkedHashMap<String,Object> params1=params;
   LinkedHashMap<String,Object> params2=null;
   LinkedHashMap<String,Object> params3=null;
-  LinkedHashMap<String,Object> params4=null;
   Long userId=(Long)params.get("usersGroups");
   boolean inherit=GetterUtil.getBoolean(params.get("inherit"),true);
   boolean doUnion=Validator.isNotNull(userId) && inherit;
@@ -16,33 +15,31 @@
     params3=new LinkedHashMap<>(params1);
     params3.remove("usersGroups");
     params3.put("groupsOrgs",userId);
-    params4=new LinkedHashMap<>(params1);
-    params4.remove("usersGroups");
-    params4.put("groupsUserGroups",userId);
+    long groupClassNameId=_getGroupOrganizationClassNameIds()[0];
+    long organizationClassNameId=_getGroupOrganizationClassNameIds()[1];
+    params2.put("classNameIds",organizationClassNameId);
+    params3.put("classNameIds",groupClassNameId);
   }
+  params1.put("classNameIds",_getGroupOrganizationClassNameIds());
   String sql=null;
-  String sqlKey=_buildSQLKey(params1,params2,params3,params4,obc,doUnion);
+  String sqlKey=_buildSQLKey(params1,params2,params3,null,obc,doUnion);
   sql=_findByCompanyIdSQLCache.get(sqlKey);
   if (sql == null) {
-    String findByC_C_SQL=CustomSQLUtil.get(FIND_BY_C_C);
+    String findByCompanyIdSQL=CustomSQLUtil.get(FIND_BY_COMPANY_ID);
     if (params.get("active") == Boolean.TRUE) {
-      findByC_C_SQL=StringUtil.replace(findByC_C_SQL,"(Group_.liveGroupId = 0) AND",StringPool.BLANK);
+      findByCompanyIdSQL=StringUtil.replace(findByCompanyIdSQL,"(Group_.liveGroupId = 0) AND",StringPool.BLANK);
     }
-    findByC_C_SQL=StringUtil.replace(findByC_C_SQL,"Group_.classNameId = ?","Group_.classNameId = ".concat(StringUtil.merge(_getGroupOrganizationClassNameIds()," OR Group_.classNameId = ")));
-    findByC_C_SQL=replaceOrderBy(findByC_C_SQL,obc);
-    StringBundler sb=new StringBundler(12);
+    findByCompanyIdSQL=replaceOrderBy(findByCompanyIdSQL,obc);
+    StringBundler sb=new StringBundler(9);
     sb.append(StringPool.OPEN_PARENTHESIS);
-    sb.append(replaceJoinAndWhere(findByC_C_SQL,params1));
-    sb.append(StringPool.CLOSE_PARENTHESIS);
+    sb.append(replaceJoinAndWhere(findByCompanyIdSQL,params1));
     if (doUnion) {
-      sb.append(" UNION (");
-      sb.append(replaceJoinAndWhere(findByC_C_SQL,params2));
       sb.append(") UNION (");
-      sb.append(replaceJoinAndWhere(findByC_C_SQL,params3));
+      sb.append(replaceJoinAndWhere(findByCompanyIdSQL,params2));
       sb.append(") UNION (");
-      sb.append(replaceJoinAndWhere(findByC_C_SQL,params4));
-      sb.append(StringPool.CLOSE_PARENTHESIS);
+      sb.append(replaceJoinAndWhere(findByCompanyIdSQL,params3));
     }
+    sb.append(StringPool.CLOSE_PARENTHESIS);
     if (obc != null) {
       sb.append(" ORDER BY ");
       sb.append(obc.toString());
@@ -62,8 +59,6 @@
       setJoin(qPos,params2);
       qPos.add(companyId);
       setJoin(qPos,params3);
-      qPos.add(companyId);
-      setJoin(qPos,params4);
       qPos.add(companyId);
     }
     List<Long> groupIds=(List<Long>)QueryUtil.list(q,getDialect(),start,end);
