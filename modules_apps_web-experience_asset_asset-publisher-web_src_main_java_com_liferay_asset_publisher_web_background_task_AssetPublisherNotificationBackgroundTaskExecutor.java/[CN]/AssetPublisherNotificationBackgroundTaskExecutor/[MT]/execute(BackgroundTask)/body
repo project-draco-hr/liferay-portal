@@ -1,0 +1,29 @@
+{
+  BackgroundTaskResult backgroundTaskResult=new BackgroundTaskResult();
+  Map<String,Serializable> context=backgroundTask.getTaskContextMap();
+  List<AssetEntry> assetEntries=(List<AssetEntry>)context.get("assetEntries");
+  long companyId=GetterUtil.getLong(context.get("companyId"));
+  com.liferay.portal.kernel.model.PortletPreferences portletPreferencesModel=(com.liferay.portal.kernel.model.PortletPreferences)context.get("portletPreferences");
+  List<Subscription> subscriptions=SubscriptionLocalServiceUtil.getSubscriptions(companyId,com.liferay.portal.kernel.model.PortletPreferences.class.getName(),AssetPublisherUtil.getSubscriptionClassPK(portletPreferencesModel.getPlid(),portletPreferencesModel.getPortletId()));
+  PortletPreferences portletPreferences=PortletPreferencesFactoryUtil.fromXML(companyId,portletPreferencesModel.getOwnerId(),portletPreferencesModel.getOwnerType(),portletPreferencesModel.getPlid(),portletPreferencesModel.getPortletId(),portletPreferencesModel.getPreferences());
+  Map<Subscription,List<AssetEntry>> subscriptionsMap=filterAssetEntries(subscriptions,assetEntries);
+  for (  Subscription subscription : subscriptionsMap.keySet()) {
+    List<Subscription> subscriptionList=new ArrayList<>();
+    subscriptionList.add(subscription);
+    AssetPublisherUtil.notifySubscribers(portletPreferences,subscriptionList,subscriptionsMap.get(subscription));
+  }
+  try {
+    portletPreferences.setValues("notifiedAssetEntryIds",StringUtil.split(ListUtil.toString(assetEntries,AssetEntry.ENTRY_ID_ACCESSOR)));
+    portletPreferences.store();
+    backgroundTaskResult.setStatus(BackgroundTaskConstants.STATUS_SUCCESSFUL);
+  }
+ catch (  IOException ioe) {
+    backgroundTaskResult.setStatus(BackgroundTaskConstants.STATUS_FAILED);
+    throw new SystemException(ioe);
+  }
+catch (  PortletException pe) {
+    backgroundTaskResult.setStatus(BackgroundTaskConstants.STATUS_FAILED);
+    throw new SystemException(pe);
+  }
+  return backgroundTaskResult;
+}
