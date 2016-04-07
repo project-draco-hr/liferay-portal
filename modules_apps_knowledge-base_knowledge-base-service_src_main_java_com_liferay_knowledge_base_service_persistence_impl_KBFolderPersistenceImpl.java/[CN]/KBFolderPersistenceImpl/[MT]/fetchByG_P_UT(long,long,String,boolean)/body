@@ -1,0 +1,70 @@
+{
+  Object[] finderArgs=new Object[]{groupId,parentKBFolderId,urlTitle};
+  Object result=null;
+  if (retrieveFromCache) {
+    result=finderCache.getResult(FINDER_PATH_FETCH_BY_G_P_UT,finderArgs,this);
+  }
+  if (result instanceof KBFolder) {
+    KBFolder kbFolder=(KBFolder)result;
+    if ((groupId != kbFolder.getGroupId()) || (parentKBFolderId != kbFolder.getParentKBFolderId()) || !Validator.equals(urlTitle,kbFolder.getUrlTitle())) {
+      result=null;
+    }
+  }
+  if (result == null) {
+    StringBundler query=new StringBundler(5);
+    query.append(_SQL_SELECT_KBFOLDER_WHERE);
+    query.append(_FINDER_COLUMN_G_P_UT_GROUPID_2);
+    query.append(_FINDER_COLUMN_G_P_UT_PARENTKBFOLDERID_2);
+    boolean bindUrlTitle=false;
+    if (urlTitle == null) {
+      query.append(_FINDER_COLUMN_G_P_UT_URLTITLE_1);
+    }
+ else     if (urlTitle.equals(StringPool.BLANK)) {
+      query.append(_FINDER_COLUMN_G_P_UT_URLTITLE_3);
+    }
+ else {
+      bindUrlTitle=true;
+      query.append(_FINDER_COLUMN_G_P_UT_URLTITLE_2);
+    }
+    String sql=query.toString();
+    Session session=null;
+    try {
+      session=openSession();
+      Query q=session.createQuery(sql);
+      QueryPos qPos=QueryPos.getInstance(q);
+      qPos.add(groupId);
+      qPos.add(parentKBFolderId);
+      if (bindUrlTitle) {
+        qPos.add(urlTitle);
+      }
+      List<KBFolder> list=q.list();
+      if (list.isEmpty()) {
+        finderCache.putResult(FINDER_PATH_FETCH_BY_G_P_UT,finderArgs,list);
+      }
+ else {
+        if ((list.size() > 1) && _log.isWarnEnabled()) {
+          _log.warn("KBFolderPersistenceImpl.fetchByG_P_UT(long, long, String, boolean) with parameters (" + StringUtil.merge(finderArgs) + ") yields a result set with more than 1 result. This violates the logical unique restriction. There is no order guarantee on which result is returned by this finder.");
+        }
+        KBFolder kbFolder=list.get(0);
+        result=kbFolder;
+        cacheResult(kbFolder);
+        if ((kbFolder.getGroupId() != groupId) || (kbFolder.getParentKBFolderId() != parentKBFolderId) || (kbFolder.getUrlTitle() == null)|| !kbFolder.getUrlTitle().equals(urlTitle)) {
+          finderCache.putResult(FINDER_PATH_FETCH_BY_G_P_UT,finderArgs,kbFolder);
+        }
+      }
+    }
+ catch (    Exception e) {
+      finderCache.removeResult(FINDER_PATH_FETCH_BY_G_P_UT,finderArgs);
+      throw processException(e);
+    }
+ finally {
+      closeSession(session);
+    }
+  }
+  if (result instanceof List<?>) {
+    return null;
+  }
+ else {
+    return (KBFolder)result;
+  }
+}
