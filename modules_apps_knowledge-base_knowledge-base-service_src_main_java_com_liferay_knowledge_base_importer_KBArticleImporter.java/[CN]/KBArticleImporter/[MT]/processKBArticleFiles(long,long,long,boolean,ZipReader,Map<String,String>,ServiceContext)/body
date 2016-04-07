@@ -1,0 +1,41 @@
+{
+  int importedKBArticlesCount=0;
+  PrioritizationStrategy prioritizationStrategy=PrioritizationStrategy.create(groupId,parentKBFolderId,prioritizeByNumericalPrefix);
+  Map<String,List<String>> folderNameFileEntryNamesMap=getFolderNameFileEntryNamesMap(zipReader);
+  Set<String> folderNames=folderNameFileEntryNamesMap.keySet();
+  for (  String folderName : folderNames) {
+    List<String> fileEntryNames=folderNameFileEntryNamesMap.get(folderName);
+    String sectionIntroFileEntryName=null;
+    List<String> sectionFileEntryNames=new ArrayList<>();
+    for (    String fileEntryName : fileEntryNames) {
+      if (fileEntryName.endsWith(PortletPropsValues.MARKDOWN_IMPORTER_ARTICLE_INTRO)) {
+        sectionIntroFileEntryName=fileEntryName;
+      }
+ else {
+        sectionFileEntryNames.add(fileEntryName);
+      }
+    }
+    long parentResourceClassNameId=PortalUtil.getClassNameId(KBFolderConstants.getClassName());
+    long parentResourcePrimaryKey=parentKBFolderId;
+    long sectionResourceClassNameId=parentResourceClassNameId;
+    long sectionResourcePrimaryKey=parentResourcePrimaryKey;
+    if (Validator.isNotNull(sectionIntroFileEntryName)) {
+      KBArticle sectionIntroKBArticle=addKBArticleMarkdown(userId,groupId,parentKBFolderId,sectionResourceClassNameId,sectionResourcePrimaryKey,zipReader.getEntryAsString(sectionIntroFileEntryName),sectionIntroFileEntryName,zipReader,metadata,prioritizationStrategy,serviceContext);
+      sectionResourceClassNameId=PortalUtil.getClassNameId(KBArticleConstants.getClassName());
+      sectionResourcePrimaryKey=sectionIntroKBArticle.getResourcePrimKey();
+      importedKBArticlesCount++;
+    }
+    for (    String sectionFileEntryName : sectionFileEntryNames) {
+      String sectionMarkdown=zipReader.getEntryAsString(sectionFileEntryName);
+      if (Validator.isNull(sectionMarkdown)) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Missing Markdown in file entry " + sectionFileEntryName);
+        }
+      }
+      addKBArticleMarkdown(userId,groupId,parentKBFolderId,sectionResourceClassNameId,sectionResourcePrimaryKey,sectionMarkdown,sectionFileEntryName,zipReader,metadata,prioritizationStrategy,serviceContext);
+      importedKBArticlesCount++;
+    }
+  }
+  prioritizationStrategy.prioritizeKBArticles();
+  return importedKBArticlesCount;
+}
