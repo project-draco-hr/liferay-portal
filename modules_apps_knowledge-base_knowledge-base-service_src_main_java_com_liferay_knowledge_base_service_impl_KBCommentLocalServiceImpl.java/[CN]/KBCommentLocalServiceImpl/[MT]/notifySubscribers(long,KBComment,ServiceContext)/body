@@ -1,0 +1,31 @@
+{
+  PortletPreferences preferences=portletPreferencesLocalService.getPreferences(kbComment.getCompanyId(),kbComment.getGroupId(),PortletKeys.PREFS_OWNER_TYPE_GROUP,PortletKeys.PREFS_PLID_SHARED,PortletKeys.KNOWLEDGE_BASE_ADMIN,null);
+  if (!AdminUtil.isSuggestionStatusChangeNotificationEnabled(kbComment.getStatus(),preferences)) {
+    return;
+  }
+  String fromName=AdminUtil.getEmailFromName(preferences,serviceContext.getCompanyId());
+  String fromAddress=AdminUtil.getEmailFromAddress(preferences,kbComment.getCompanyId());
+  String subject=AdminUtil.getEmailKBArticleSuggestionNotificationSubject(kbComment.getStatus(),preferences);
+  String body=AdminUtil.getEmailKBArticleSuggestionNotificationBody(kbComment.getStatus(),preferences);
+  KBArticle kbArticle=kbArticleLocalService.getLatestKBArticle(kbComment.getClassPK(),WorkflowConstants.STATUS_APPROVED);
+  String kbArticleContent=StringUtil.replace(kbArticle.getContent(),new String[]{"href=\"/","src=\"/"},new String[]{"href=\"" + serviceContext.getPortalURL() + "/","src=\"" + serviceContext.getPortalURL() + "/"});
+  SubscriptionSender subscriptionSender=new AdminSubscriptionSender(kbArticle,serviceContext);
+  subscriptionSender.setBody(body);
+  subscriptionSender.setCompanyId(kbArticle.getCompanyId());
+  subscriptionSender.setContextAttribute("[$ARTICLE_CONTENT$]",kbArticleContent,false);
+  subscriptionSender.setContextAttribute("[$COMMENT_CONTENT$]",kbComment.getContent(),false);
+  subscriptionSender.setContextAttribute("[$COMMENT_CREATE_DATE$]",_getFormattedKBCommentCreateDate(kbComment,serviceContext),false);
+  subscriptionSender.setContextCreatorUserPrefix("ARTICLE");
+  subscriptionSender.setCreatorUserId(kbArticle.getUserId());
+  subscriptionSender.setCurrentUserId(userId);
+  subscriptionSender.setFrom(fromAddress,fromName);
+  subscriptionSender.setHtmlFormat(true);
+  subscriptionSender.setMailId("kb_article",kbArticle.getKbArticleId());
+  subscriptionSender.setPortletId(serviceContext.getPortletId());
+  subscriptionSender.setReplyToAddress(fromAddress);
+  subscriptionSender.setScopeGroupId(kbArticle.getGroupId());
+  subscriptionSender.setSubject(subject);
+  User user=userLocalService.getUser(kbComment.getUserId());
+  subscriptionSender.addRuntimeSubscribers(user.getEmailAddress(),user.getFullName());
+  subscriptionSender.flushNotificationsAsync();
+}
