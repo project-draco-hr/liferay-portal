@@ -1,0 +1,48 @@
+{
+  List<String> tldFileNames=getFileNames(new String[]{"**/dependencies/**","**/util-taglib/**"},new String[]{"**/*.tld"});
+  outerLoop:   for (  String tldFileName : tldFileNames) {
+    File tldFile=new File(tldFileName);
+    tldFileName=StringUtil.replace(tldFileName,StringPool.BACK_SLASH,StringPool.SLASH);
+    String content=FileUtil.read(tldFile);
+    Document document=readXML(content);
+    Element rootElement=document.getRootElement();
+    Element shortNameElement=rootElement.element("short-name");
+    String shortName=shortNameElement.getStringValue();
+    List<Element> tagElements=rootElement.elements("tag");
+    String srcDir=null;
+    for (    Element tagElement : tagElements) {
+      Element tagClassElement=tagElement.element("tag-class");
+      String tagClassName=tagClassElement.getStringValue();
+      if (!tagClassName.startsWith("com.liferay")) {
+        continue;
+      }
+      if (srcDir == null) {
+        if (tldFileName.contains("/src/")) {
+          srcDir=tldFile.getAbsolutePath();
+          srcDir=StringUtil.replace(srcDir,StringPool.BACK_SLASH,StringPool.SLASH);
+          srcDir=srcDir.substring(0,srcDir.lastIndexOf("/src/")) + "/src/main/java/";
+        }
+ else {
+          srcDir=getUtilTaglibSrcDirName();
+          if (Validator.isNull(srcDir)) {
+            continue outerLoop;
+          }
+        }
+      }
+      StringBundler sb=new StringBundler(3);
+      sb.append(srcDir);
+      sb.append(StringUtil.replace(tagClassName,CharPool.PERIOD,CharPool.SLASH));
+      sb.append(".java");
+      File tagJavaFile=new File(sb.toString());
+      if (!tagJavaFile.exists()) {
+        continue;
+      }
+      JavaDocBuilder javaDocBuilder=new JavaDocBuilder();
+      javaDocBuilder.addSource(tagJavaFile);
+      JavaClass tagJavaClass=javaDocBuilder.getClassByName(tagClassName);
+      Element tagNameElement=tagElement.element("name");
+      String tagName=tagNameElement.getStringValue();
+      _tagJavaClassesMap.put(shortName + StringPool.COLON + tagName,tagJavaClass);
+    }
+  }
+}
