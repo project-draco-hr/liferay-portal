@@ -1,0 +1,33 @@
+{
+  boolean track=false;
+  Enumeration<URL> enumeration=bundle.findEntries("/","*taglib-mapping.properties",false);
+  if (enumeration != null) {
+    while (enumeration.hasMoreElements()) {
+      URL url=enumeration.nextElement();
+      try (InputStream inputStream=url.openStream()){
+        Properties properties=PropertiesUtil.load(inputStream,StringPool.UTF8);
+        _taglibMappings.putAll(PropertiesUtil.toMap(properties));
+        track=true;
+      }
+ catch (      Exception e) {
+        _log.error(e,e);
+      }
+    }
+  }
+  BundleWiring bundleWiring=bundle.adapt(BundleWiring.class);
+  List<BundleCapability> bundleCapabilities=bundleWiring.getCapabilities("osgi.extender");
+  for (  BundleCapability bundleCapability : bundleCapabilities) {
+    Map<String,Object> attributes=bundleCapability.getAttributes();
+    Object value=attributes.get("osgi.extender");
+    if (value.equals("jsp.taglib")) {
+      Bundle[] bundles=ArrayUtil.append(_classLoader.getBundles(),bundle);
+      _classLoader=new FreeMarkerBundleClassloader(bundles);
+      track=true;
+      break;
+    }
+  }
+  if (track) {
+    return bundle;
+  }
+  return null;
+}
