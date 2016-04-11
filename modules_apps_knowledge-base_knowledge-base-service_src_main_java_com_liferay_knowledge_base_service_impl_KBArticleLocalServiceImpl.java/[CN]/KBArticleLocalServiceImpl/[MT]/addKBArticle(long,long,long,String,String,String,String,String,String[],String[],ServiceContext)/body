@@ -1,0 +1,51 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  long groupId=serviceContext.getScopeGroupId();
+  urlTitle=normalizeUrlTitle(urlTitle);
+  double priority=getPriority(groupId,parentResourcePrimKey);
+  Date now=new Date();
+  validate(title,content,sourceURL);
+  validateParent(parentResourceClassNameId,parentResourcePrimKey);
+  long kbFolderId=KnowledgeBaseUtil.getKBFolderId(parentResourceClassNameId,parentResourcePrimKey);
+  urlTitle=StringUtil.toLowerCase(urlTitle);
+  validateUrlTitle(groupId,kbFolderId,urlTitle);
+  long kbArticleId=counterLocalService.increment();
+  long resourcePrimKey=counterLocalService.increment();
+  long rootResourcePrimKey=getRootResourcePrimKey(resourcePrimKey,parentResourceClassNameId,parentResourcePrimKey);
+  KBArticle kbArticle=kbArticlePersistence.create(kbArticleId);
+  kbArticle.setUuid(serviceContext.getUuid());
+  kbArticle.setResourcePrimKey(resourcePrimKey);
+  kbArticle.setGroupId(groupId);
+  kbArticle.setCompanyId(user.getCompanyId());
+  kbArticle.setUserId(user.getUserId());
+  kbArticle.setUserName(user.getFullName());
+  kbArticle.setCreateDate(serviceContext.getCreateDate(now));
+  kbArticle.setModifiedDate(serviceContext.getModifiedDate(now));
+  kbArticle.setRootResourcePrimKey(rootResourcePrimKey);
+  kbArticle.setParentResourceClassNameId(parentResourceClassNameId);
+  kbArticle.setParentResourcePrimKey(parentResourcePrimKey);
+  kbArticle.setKbFolderId(kbFolderId);
+  kbArticle.setVersion(KBArticleConstants.DEFAULT_VERSION);
+  kbArticle.setTitle(title);
+  kbArticle.setUrlTitle(getUniqueUrlTitle(groupId,kbFolderId,kbArticleId,title,urlTitle));
+  kbArticle.setContent(content);
+  kbArticle.setDescription(description);
+  kbArticle.setPriority(priority);
+  kbArticle.setSections(StringUtil.merge(AdminUtil.escapeSections(sections)));
+  kbArticle.setViewCount(0);
+  kbArticle.setLatest(true);
+  kbArticle.setMain(false);
+  kbArticle.setStatus(WorkflowConstants.STATUS_DRAFT);
+  kbArticle.setSourceURL(sourceURL);
+  kbArticlePersistence.update(kbArticle);
+  if (serviceContext.isAddGroupPermissions() || serviceContext.isAddGuestPermissions()) {
+    addKBArticleResources(kbArticle,serviceContext.isAddGroupPermissions(),serviceContext.isAddGuestPermissions());
+  }
+ else {
+    addKBArticleResources(kbArticle,serviceContext.getGroupPermissions(),serviceContext.getGuestPermissions());
+  }
+  updateKBArticleAsset(userId,kbArticle,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames(),serviceContext.getAssetLinkEntryIds());
+  addKBArticleAttachments(userId,kbArticle,selectedFileNames);
+  WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),groupId,userId,KBArticle.class.getName(),resourcePrimKey,kbArticle,serviceContext);
+  return kbArticle;
+}

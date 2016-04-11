@@ -1,0 +1,38 @@
+{
+  validate(priority);
+  updatePermissionFields(resourcePrimKey,parentResourceClassNameId,parentResourcePrimKey);
+  long kbFolderClassNameId=classNameLocalService.getClassNameId(KBFolderConstants.getClassName());
+  long kbFolderId=KBFolderConstants.DEFAULT_PARENT_FOLDER_ID;
+  if (parentResourceClassNameId == kbFolderClassNameId) {
+    kbFolderId=parentResourcePrimKey;
+  }
+ else {
+    KBArticle latestKBArticle=getLatestKBArticle(parentResourcePrimKey,WorkflowConstants.STATUS_ANY);
+    kbFolderId=latestKBArticle.getKbFolderId();
+  }
+  List<KBArticle> kbArticles=getKBArticleVersions(resourcePrimKey,WorkflowConstants.STATUS_ANY,QueryUtil.ALL_POS,QueryUtil.ALL_POS,new KBArticleVersionComparator());
+  for (  KBArticle curKBArticle : kbArticles) {
+    curKBArticle.setParentResourceClassNameId(parentResourceClassNameId);
+    curKBArticle.setParentResourcePrimKey(parentResourcePrimKey);
+    curKBArticle.setKbFolderId(kbFolderId);
+    curKBArticle.setPriority(priority);
+    kbArticlePersistence.update(curKBArticle);
+  }
+  KBArticle kbArticle=getLatestKBArticle(resourcePrimKey,WorkflowConstants.STATUS_ANY);
+  if (kbArticle.getKbFolderId() != kbFolderId) {
+    List<KBArticle> descendantKBArticles=getAllDescendantKBArticles(resourcePrimKey,WorkflowConstants.STATUS_ANY,null);
+    for (    KBArticle curKBArticle : descendantKBArticles) {
+      List<KBArticle> kbArticleVersions=getKBArticleVersions(curKBArticle.getResourcePrimKey(),WorkflowConstants.STATUS_ANY,QueryUtil.ALL_POS,QueryUtil.ALL_POS,new KBArticleVersionComparator());
+      for (      KBArticle kbArticleVersion : kbArticleVersions) {
+        kbArticleVersion.setKbFolderId(kbFolderId);
+        kbArticlePersistence.update(kbArticleVersion);
+      }
+    }
+  }
+  KBArticle latestKBArticle=getLatestKBArticle(resourcePrimKey,WorkflowConstants.STATUS_ANY);
+  JSONObject extraDataJSONObject=JSONFactoryUtil.createJSONObject();
+  extraDataJSONObject.put("title",latestKBArticle.getTitle());
+  if (latestKBArticle.isApproved() || !latestKBArticle.isFirstVersion()) {
+    socialActivityLocalService.addActivity(userId,latestKBArticle.getGroupId(),KBArticle.class.getName(),resourcePrimKey,AdminActivityKeys.MOVE_KB_ARTICLE,extraDataJSONObject.toString(),0);
+  }
+}

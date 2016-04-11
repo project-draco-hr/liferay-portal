@@ -1,0 +1,56 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  validate(title,content,sourceURL);
+  KBArticle oldKBArticle=getLatestKBArticle(resourcePrimKey,WorkflowConstants.STATUS_ANY);
+  int oldVersion=oldKBArticle.getVersion();
+  KBArticle kbArticle=null;
+  if (oldKBArticle.isApproved()) {
+    long kbArticleId=counterLocalService.increment();
+    kbArticle=kbArticlePersistence.create(kbArticleId);
+    kbArticle.setUuid(serviceContext.getUuid());
+    kbArticle.setResourcePrimKey(oldKBArticle.getResourcePrimKey());
+    kbArticle.setGroupId(oldKBArticle.getGroupId());
+    kbArticle.setCompanyId(user.getCompanyId());
+    kbArticle.setUserId(user.getUserId());
+    kbArticle.setUserName(user.getFullName());
+    kbArticle.setCreateDate(oldKBArticle.getCreateDate());
+    kbArticle.setRootResourcePrimKey(oldKBArticle.getRootResourcePrimKey());
+    kbArticle.setParentResourceClassNameId(oldKBArticle.getParentResourceClassNameId());
+    kbArticle.setParentResourcePrimKey(oldKBArticle.getParentResourcePrimKey());
+    kbArticle.setKbFolderId(oldKBArticle.getKbFolderId());
+    kbArticle.setVersion(oldVersion + 1);
+    kbArticle.setUrlTitle(oldKBArticle.getUrlTitle());
+    kbArticle.setPriority(oldKBArticle.getPriority());
+    kbArticle.setViewCount(oldKBArticle.getViewCount());
+  }
+ else {
+    kbArticle=oldKBArticle;
+  }
+  if (oldKBArticle.isPending()) {
+    kbArticle.setStatus(WorkflowConstants.STATUS_PENDING);
+  }
+ else {
+    kbArticle.setStatus(WorkflowConstants.STATUS_DRAFT);
+  }
+  kbArticle.setModifiedDate(serviceContext.getModifiedDate(null));
+  kbArticle.setTitle(title);
+  kbArticle.setContent(content);
+  kbArticle.setDescription(description);
+  kbArticle.setSourceURL(sourceURL);
+  kbArticle.setSections(StringUtil.merge(AdminUtil.escapeSections(sections)));
+  kbArticle.setLatest(true);
+  kbArticle.setMain(false);
+  kbArticlePersistence.update(kbArticle);
+  if (oldKBArticle.isApproved()) {
+    oldKBArticle.setLatest(false);
+    kbArticlePersistence.update(oldKBArticle);
+  }
+  if ((serviceContext.getGroupPermissions() != null) || (serviceContext.getGuestPermissions() != null)) {
+    updateKBArticleResources(kbArticle,serviceContext.getGroupPermissions(),serviceContext.getGuestPermissions());
+  }
+  updateKBArticleAsset(userId,kbArticle,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames(),serviceContext.getAssetLinkEntryIds());
+  addKBArticleAttachments(userId,kbArticle,selectedFileNames);
+  removeKBArticleAttachments(removeFileEntryIds);
+  WorkflowHandlerRegistryUtil.startWorkflowInstance(user.getCompanyId(),kbArticle.getGroupId(),userId,KBArticle.class.getName(),resourcePrimKey,kbArticle,serviceContext);
+  return kbArticle;
+}

@@ -1,0 +1,48 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  boolean main=false;
+  Date now=new Date();
+  if (status == WorkflowConstants.STATUS_APPROVED) {
+    main=true;
+  }
+  KBArticle kbArticle=getLatestKBArticle(resourcePrimKey,WorkflowConstants.STATUS_ANY);
+  kbArticle.setModifiedDate(serviceContext.getModifiedDate(now));
+  kbArticle.setMain(main);
+  kbArticle.setStatus(status);
+  kbArticle.setStatusByUserId(user.getUserId());
+  kbArticle.setStatusByUserName(user.getFullName());
+  kbArticle.setStatusDate(serviceContext.getModifiedDate(now));
+  kbArticlePersistence.update(kbArticle);
+  if (status != WorkflowConstants.STATUS_APPROVED) {
+    return kbArticle;
+  }
+  if (!kbArticle.isFirstVersion()) {
+    KBArticle oldKBArticle=kbArticlePersistence.findByR_V(resourcePrimKey,kbArticle.getVersion() - 1);
+    oldKBArticle.setMain(false);
+    kbArticlePersistence.update(oldKBArticle);
+  }
+  AssetEntry assetEntry=assetEntryLocalService.getEntry(KBArticle.class.getName(),kbArticle.getKbArticleId());
+  List<AssetLink> assetLinks=assetLinkLocalService.getDirectLinks(assetEntry.getEntryId(),AssetLinkConstants.TYPE_RELATED);
+  long[] assetLinkEntryIds=StringUtil.split(ListUtil.toString(assetLinks,AssetLink.ENTRY_ID2_ACCESSOR),0L);
+  updateKBArticleAsset(userId,kbArticle,assetEntry.getCategoryIds(),assetEntry.getTagNames(),assetLinkEntryIds);
+  SystemEventHierarchyEntryThreadLocal.push(KBArticle.class);
+  try {
+    assetEntryLocalService.deleteEntry(KBArticle.class.getName(),kbArticle.getKbArticleId());
+  }
+  finally {
+    SystemEventHierarchyEntryThreadLocal.pop(KBArticle.class);
+  }
+  assetEntryLocalService.updateVisible(KBArticle.class.getName(),kbArticle.getResourcePrimKey(),true);
+  JSONObject extraDataJSONObject=JSONFactoryUtil.createJSONObject();
+  extraDataJSONObject.put("title",kbArticle.getTitle());
+  if (!kbArticle.isFirstVersion()) {
+    socialActivityLocalService.addActivity(userId,kbArticle.getGroupId(),KBArticle.class.getName(),resourcePrimKey,AdminActivityKeys.UPDATE_KB_ARTICLE,extraDataJSONObject.toString(),0);
+  }
+ else {
+    socialActivityLocalService.addActivity(userId,kbArticle.getGroupId(),KBArticle.class.getName(),resourcePrimKey,AdminActivityKeys.ADD_KB_ARTICLE,extraDataJSONObject.toString(),0);
+  }
+  Indexer<KBArticle> indexer=IndexerRegistryUtil.getIndexer(KBArticle.class);
+  indexer.reindex(kbArticle);
+  notifySubscribers(userId,kbArticle,serviceContext);
+  return kbArticle;
+}

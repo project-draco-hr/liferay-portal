@@ -1,0 +1,54 @@
+{
+  if (Validator.isNull(serviceContext.getLayoutFullURL())) {
+    return;
+  }
+  PortletPreferences preferences=portletPreferencesLocalService.getPreferences(kbArticle.getCompanyId(),kbArticle.getGroupId(),PortletKeys.PREFS_OWNER_TYPE_GROUP,PortletKeys.PREFS_PLID_SHARED,PortletKeys.KNOWLEDGE_BASE_ADMIN,null);
+  if (serviceContext.isCommandAdd() && !AdminUtil.getEmailKBArticleAddedEnabled(preferences)) {
+    return;
+  }
+  if (serviceContext.isCommandUpdate() && !AdminUtil.getEmailKBArticleUpdatedEnabled(preferences)) {
+    return;
+  }
+  String fromName=AdminUtil.getEmailFromName(preferences,kbArticle.getCompanyId());
+  String fromAddress=AdminUtil.getEmailFromAddress(preferences,kbArticle.getCompanyId());
+  String kbArticleContent=StringUtil.replace(kbArticle.getContent(),new String[]{"href=\"/","src=\"/"},new String[]{"href=\"" + serviceContext.getPortalURL() + "/","src=\"" + serviceContext.getPortalURL() + "/"});
+  Map<String,String> kbArticleDiffs=getEmailKBArticleDiffs(kbArticle);
+  for (  String key : kbArticleDiffs.keySet()) {
+    String value=StringUtil.replace(kbArticleDiffs.get(key),new String[]{"href=\"/","src=\"/"},new String[]{"href=\"" + serviceContext.getPortalURL() + "/","src=\"" + serviceContext.getPortalURL() + "/"});
+    kbArticleDiffs.put(key,value);
+  }
+  String subject=null;
+  String body=null;
+  if (serviceContext.isCommandAdd()) {
+    subject=AdminUtil.getEmailKBArticleAddedSubject(preferences);
+    body=AdminUtil.getEmailKBArticleAddedBody(preferences);
+  }
+ else {
+    subject=AdminUtil.getEmailKBArticleUpdatedSubject(preferences);
+    body=AdminUtil.getEmailKBArticleUpdatedBody(preferences);
+  }
+  SubscriptionSender subscriptionSender=new AdminSubscriptionSender(kbArticle,serviceContext);
+  subscriptionSender.setBody(body);
+  subscriptionSender.setCompanyId(kbArticle.getCompanyId());
+  subscriptionSender.setContextAttribute("[$ARTICLE_CONTENT$]",kbArticleContent,false);
+  subscriptionSender.setContextAttribute("[$ARTICLE_CONTENT_DIFF$]",kbArticleDiffs.get("content"),false);
+  subscriptionSender.setContextAttribute("[$ARTICLE_TITLE$]",kbArticle.getTitle(),false);
+  subscriptionSender.setContextAttribute("[$ARTICLE_TITLE_DIFF$]",kbArticleDiffs.get("title"),false);
+  subscriptionSender.setContextCreatorUserPrefix("ARTICLE");
+  subscriptionSender.setCreatorUserId(kbArticle.getUserId());
+  subscriptionSender.setCurrentUserId(userId);
+  subscriptionSender.setFrom(fromAddress,fromName);
+  subscriptionSender.setHtmlFormat(true);
+  subscriptionSender.setMailId("kb_article",kbArticle.getKbArticleId());
+  subscriptionSender.setPortletId(serviceContext.getPortletId());
+  subscriptionSender.setReplyToAddress(fromAddress);
+  subscriptionSender.setScopeGroupId(kbArticle.getGroupId());
+  subscriptionSender.setSubject(subject);
+  subscriptionSender.addPersistedSubscribers(KBArticle.class.getName(),kbArticle.getGroupId());
+  subscriptionSender.addPersistedSubscribers(KBArticle.class.getName(),kbArticle.getResourcePrimKey());
+  while (!kbArticle.isRoot() && (kbArticle.getClassNameId() == kbArticle.getParentResourceClassNameId())) {
+    kbArticle=getLatestKBArticle(kbArticle.getParentResourcePrimKey(),WorkflowConstants.STATUS_APPROVED);
+    subscriptionSender.addPersistedSubscribers(KBArticle.class.getName(),kbArticle.getResourcePrimKey());
+  }
+  subscriptionSender.flushNotificationsAsync();
+}
