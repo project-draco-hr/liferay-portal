@@ -14,15 +14,61 @@
     path='/' + path;
   }
   if (path.startsWith("/META-INF/") || path.startsWith("/OSGI-INF/") || path.startsWith("/OSGI-OPT/")|| path.startsWith("/WEB-INF/")) {
-    try {
-      ServletContext servletContext=request.getServletContext();
-      servletContext.log("[WAB ERROR] Attempt to load illegal path " + path + " in "+ toString());
-      response.sendError(HttpServletResponse.SC_FORBIDDEN,path);
+    return forbiddenPath(request,response,path);
+  }
+  if (ListUtil.isNotEmpty(_webResourceCollectionDefinitions)) {
+    for (    WebResourceCollectionDefinition webResourceCollectionDefinition : _webResourceCollectionDefinitions) {
+      boolean forbidden=false;
+      for (      String urlPattern : webResourceCollectionDefinition.getUrlPatterns()) {
+        if (urlPattern.startsWith("*.")) {
+          String patternExtension=urlPattern.substring(2);
+          if (Validator.isNotNull(patternExtension) && Validator.equals("*",patternExtension)) {
+            forbidden=true;
+            break;
+          }
+          int pathExtensionLastIndexOf=path.lastIndexOf(".");
+          String pathExtension=path.substring(pathExtensionLastIndexOf + 1);
+          if (Validator.equals(patternExtension,pathExtension)) {
+            forbidden=true;
+            break;
+          }
+        }
+ else         if (urlPattern.endsWith("/*")) {
+          if (urlPattern.equals("/*")) {
+            forbidden=true;
+            break;
+          }
+          String pathCompare=path;
+          String urlPatternPath=urlPattern.substring(0,urlPattern.indexOf("/*") + 1);
+          int pathCompareSlashIndexOf=pathCompare.lastIndexOf("/");
+          if (pathCompareSlashIndexOf > 0) {
+            pathCompare=pathCompare.substring(0,pathCompareSlashIndexOf + 1);
+          }
+          if (Validator.equals(urlPatternPath,pathCompare)) {
+            forbidden=true;
+            break;
+          }
+        }
+ else         if (Validator.equals(urlPattern,path)) {
+          forbidden=true;
+          break;
+        }
+      }
+      if (forbidden) {
+        String requestMethod=request.getMethod();
+        List<String> httpMethods=webResourceCollectionDefinition.getHttpMethods();
+        if (ListUtil.isNotEmpty(httpMethods) && !httpMethods.contains(requestMethod)) {
+          forbidden=false;
+        }
+        List<String> httpMethodExceptions=webResourceCollectionDefinition.getHttpMethodExceptions();
+        if (ListUtil.isNotEmpty(httpMethodExceptions) && httpMethodExceptions.contains(requestMethod)) {
+          forbidden=false;
+        }
+      }
+      if (forbidden) {
+        return forbiddenPath(request,response,path);
+      }
     }
- catch (    IOException ioe) {
-      response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-    }
-    return false;
   }
   return true;
 }
