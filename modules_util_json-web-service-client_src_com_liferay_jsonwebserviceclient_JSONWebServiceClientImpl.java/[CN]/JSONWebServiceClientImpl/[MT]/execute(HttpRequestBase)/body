@@ -1,0 +1,45 @@
+{
+  HttpHost httpHost=new HttpHost(_hostName,_hostPort,_protocol);
+  try {
+    if (_closeableHttpClient == null) {
+      afterPropertiesSet();
+    }
+    HttpResponse httpResponse=null;
+    if (!isNull(_login) && !isNull(_password)) {
+      HttpClientContext httpClientContext=HttpClientContext.create();
+      AuthCache authCache=new BasicAuthCache();
+      AuthScheme authScheme=null;
+      if (!isNull(_proxyHostName)) {
+        authScheme=new BasicScheme(ChallengeState.PROXY);
+      }
+ else {
+        authScheme=new BasicScheme(ChallengeState.TARGET);
+      }
+      authCache.put(httpHost,authScheme);
+      httpClientContext.setAttribute(ClientContext.AUTH_CACHE,authCache);
+      httpResponse=_closeableHttpClient.execute(httpHost,httpRequestBase,httpClientContext);
+    }
+ else {
+      httpResponse=_closeableHttpClient.execute(httpHost,httpRequestBase);
+    }
+    StatusLine statusLine=httpResponse.getStatusLine();
+    if (statusLine.getStatusCode() == HttpServletResponse.SC_UNAUTHORIZED) {
+      throw new JSONWebServiceTransportException.AuthenticationFailure("Not authorized to access JSON web service");
+    }
+ else     if (statusLine.getStatusCode() >= 400) {
+      String message=null;
+      if (httpResponse.getEntity() != null) {
+        HttpEntity httpEntity=httpResponse.getEntity();
+        message=EntityUtils.toString(httpEntity,StandardCharsets.UTF_8);
+      }
+      throw new JSONWebServiceTransportException.CommunicationFailure(message,statusLine.getStatusCode());
+    }
+    return EntityUtils.toString(httpResponse.getEntity(),StandardCharsets.UTF_8);
+  }
+ catch (  IOException ioe) {
+    throw new JSONWebServiceTransportException.CommunicationFailure("Unable to transmit request",ioe);
+  }
+ finally {
+    httpRequestBase.releaseConnection();
+  }
+}

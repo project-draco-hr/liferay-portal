@@ -1,0 +1,33 @@
+{
+  HttpClientBuilder httpClientBuilder=HttpClients.custom();
+  HttpClientConnectionManager httpClientConnectionManager=getPoolingHttpClientConnectionManager();
+  httpClientBuilder.setConnectionManager(httpClientConnectionManager);
+  if ((!isNull(_login) && !isNull(_password)) || (!isNull(_proxyLogin) && !isNull(_proxyPassword))) {
+    CredentialsProvider credentialsProvider=new BasicCredentialsProvider();
+    if (!isNull(_login)) {
+      credentialsProvider.setCredentials(new AuthScope(_hostName,_hostPort),new UsernamePasswordCredentials(_login,_password));
+    }
+ else {
+      if (_logger.isInfoEnabled()) {
+        _logger.info("No credentials are used");
+      }
+    }
+    if (!isNull(_proxyLogin)) {
+      credentialsProvider.setCredentials(new AuthScope(_proxyHostName,_proxyHostPort),new UsernamePasswordCredentials(_proxyLogin,_proxyPassword));
+    }
+    httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+    httpClientBuilder.setRetryHandler(new HttpRequestRetryHandlerImpl());
+  }
+  try {
+    setProxyHost(httpClientBuilder);
+    _closeableHttpClient=httpClientBuilder.build();
+    _idleConnectionMonitorThread=new IdleConnectionMonitorThread(httpClientConnectionManager);
+    _idleConnectionMonitorThread.start();
+    if (_logger.isDebugEnabled()) {
+      _logger.debug("Configured client for " + _protocol + "://"+ _hostName);
+    }
+  }
+ catch (  Exception e) {
+    _logger.error("Unable to configure client",e);
+  }
+}
