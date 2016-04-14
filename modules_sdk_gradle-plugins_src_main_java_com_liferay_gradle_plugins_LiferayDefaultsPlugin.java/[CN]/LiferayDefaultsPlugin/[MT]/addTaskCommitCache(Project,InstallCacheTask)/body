@@ -1,0 +1,59 @@
+{
+  Task task=project.task(COMMIT_CACHE_TASK_NAME);
+  task.dependsOn(installCacheTask);
+  task.doLast(new Action<Task>(){
+    @Override public void execute(    Task task){
+      File cachedVersionDir=installCacheTask.getCacheDestinationDir();
+      File cachedArtifactDir=cachedVersionDir.getParentFile();
+      File[] cachedVersionDirs=FileUtil.getDirectories(cachedArtifactDir);
+      if (cachedVersionDirs.length != 2) {
+        throw new StopActionException("Skipping old cached version deletion");
+      }
+      File oldCachedVersionDir=cachedVersionDirs[0];
+      if (cachedVersionDir.equals(oldCachedVersionDir)) {
+        oldCachedVersionDir=cachedVersionDirs[1];
+      }
+      Project project=task.getProject();
+      boolean deleted=project.delete(oldCachedVersionDir);
+      if (!deleted && _logger.isWarnEnabled()) {
+        _logger.warn("Unable to delete old cached version in " + oldCachedVersionDir);
+      }
+    }
+  }
+);
+  task.doLast(new Action<Task>(){
+    @Override public void execute(    Task task){
+      Project project=task.getProject();
+      project.exec(new Action<ExecSpec>(){
+        @Override public void execute(        ExecSpec execSpec){
+          execSpec.setCommandLine("git","add",".");
+          File cachedVersionDir=installCacheTask.getCacheDestinationDir();
+          execSpec.setWorkingDir(cachedVersionDir.getParentFile());
+        }
+      }
+);
+    }
+  }
+);
+  task.doLast(new Action<Task>(){
+    @Override public void execute(    Task task){
+      Project project=task.getProject();
+      final String commitSubject=getGitResult(project,"log","-1","--pretty=%s");
+      project.exec(new Action<ExecSpec>(){
+        @Override public void execute(        ExecSpec execSpec){
+          String message=_CACHE_COMMIT_MESSAGE;
+          int index=commitSubject.indexOf(' ');
+          if (index != -1) {
+            message=commitSubject.substring(0,index + 1) + _CACHE_COMMIT_MESSAGE;
+          }
+          execSpec.setCommandLine("git","commit","-m",message);
+        }
+      }
+);
+    }
+  }
+);
+  task.setDescription("Installs and commits the project to the local Gradle cache for " + "testing.");
+  task.setGroup(BasePlugin.UPLOAD_GROUP);
+  return task;
+}
