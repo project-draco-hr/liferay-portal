@@ -1,11 +1,13 @@
 {
-  final Session session=SessionManager.getSession(getSyncAccountId());
+  long syncAccountId=getSyncAccountId();
+  final Session session=SessionManager.getSession(syncAccountId);
   Header header=httpResponse.getFirstHeader("Sync-JWT");
   if (header != null) {
     session.addHeader("Sync-JWT",header.getValue());
   }
   Map<String,DownloadFileHandler> handlers=(Map<String,DownloadFileHandler>)getParameterValue("handlers");
   InputStream inputStream=null;
+  ThrottledInputStream throttledInputStream=null;
   try {
     HttpEntity httpEntity=httpResponse.getEntity();
     inputStream=new CountingInputStream(httpEntity.getContent()){
@@ -15,7 +17,8 @@
       }
     }
 ;
-    ZipInputStream zipInputStream=new ZipInputStream(inputStream);
+    throttledInputStream=new ThrottledInputStream(inputStream,syncAccountId);
+    ZipInputStream zipInputStream=new ZipInputStream(throttledInputStream);
     ZipEntry zipEntry=null;
     while ((zipEntry=zipInputStream.getNextEntry()) != null) {
       String zipEntryName=zipEntry.getName();
@@ -61,6 +64,7 @@
     }
   }
  finally {
+    StreamUtil.cleanUp(throttledInputStream);
     StreamUtil.cleanUp(inputStream);
   }
 }

@@ -3,17 +3,20 @@
   if (errorHeader != null) {
     handleSiteDeactivatedException();
   }
-  final Session session=SessionManager.getSession(getSyncAccountId());
+  long syncAccountId=getSyncAccountId();
+  final Session session=SessionManager.getSession(syncAccountId);
   Header tokenHeader=httpResponse.getFirstHeader("Sync-JWT");
   if (tokenHeader != null) {
     session.addHeader("Sync-JWT",tokenHeader.getValue());
   }
   InputStream inputStream=null;
+  ThrottledInputStream throttledInputStream=null;
   SyncFile syncFile=getLocalSyncFile();
   if ((syncFile == null) || isUnsynced(syncFile)) {
     return;
   }
   Path filePath=Paths.get(syncFile.getFilePathName());
+  Long start=System.currentTimeMillis();
   try {
     HttpEntity httpEntity=httpResponse.getEntity();
     inputStream=new CountingInputStream(httpEntity.getContent()){
@@ -23,14 +26,18 @@
       }
     }
 ;
+    throttledInputStream=new ThrottledInputStream(inputStream,syncAccountId);
     if (httpResponse.getFirstHeader("Accept-Ranges") != null) {
-      copyFile(syncFile,filePath,inputStream,true);
+      copyFile(syncFile,filePath,throttledInputStream,true);
     }
  else {
-      copyFile(syncFile,filePath,inputStream,false);
+      copyFile(syncFile,filePath,throttledInputStream,false);
     }
   }
   finally {
+    StreamUtil.cleanUp(throttledInputStream);
     StreamUtil.cleanUp(inputStream);
   }
+  Long end=System.currentTimeMillis();
+  System.out.println("end - start = " + (end - start));
 }
