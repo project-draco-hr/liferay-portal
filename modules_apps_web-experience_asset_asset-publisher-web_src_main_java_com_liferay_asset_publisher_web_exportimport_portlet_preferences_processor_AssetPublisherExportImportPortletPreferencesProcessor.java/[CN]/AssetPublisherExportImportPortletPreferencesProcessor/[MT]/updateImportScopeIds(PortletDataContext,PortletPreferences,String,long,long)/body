@@ -3,11 +3,30 @@
   if (oldValues == null) {
     return;
   }
+  StagedModelDataHandler<StagedGroup> stagedModelDataHandler=(StagedModelDataHandler<StagedGroup>)StagedModelDataHandlerRegistryUtil.getStagedModelDataHandler(StagedGroup.class.getName());
+  Element rootElement=portletDataContext.getImportDataRootElement();
+  Element groupIdMappingsElement=rootElement.element("group-id-mappings");
+  for (  Element groupIdMappingElement : groupIdMappingsElement.elements("group-id-mapping")) {
+    stagedModelDataHandler.importMissingReference(portletDataContext,groupIdMappingElement);
+  }
+  Map<Long,Long> groupIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(Group.class);
   Layout layout=_layoutLocalService.getLayout(plid);
   String companyGroupScopeId=AssetPublisherUtil.SCOPE_ID_GROUP_PREFIX + companyGroupId;
   List<String> newValues=new ArrayList<>(oldValues.length);
   for (  String oldValue : oldValues) {
     String newValue=StringUtil.replace(oldValue,"[$COMPANY_GROUP_SCOPE_ID$]",companyGroupScopeId);
+    if (Validator.isNumber(oldValue) && groupIds.containsKey(Long.valueOf(oldValue))) {
+      Group group=_groupLocalService.fetchGroup(groupIds.get(Long.valueOf(oldValue)));
+      if (group != null) {
+        newValue=AssetPublisherUtil.getScopeId(group,portletDataContext.getScopeGroupId());
+      }
+    }
+    if (Validator.isNumber(newValue)) {
+      if (_log.isInfoEnabled()) {
+        _log.info("Ignoring group " + newValue + " because it cannot "+ "be converted to scope");
+      }
+      continue;
+    }
     try {
       if (!AssetPublisherUtil.isScopeIdSelectable(PermissionThreadLocal.getPermissionChecker(),newValue,companyGroupId,layout,false)) {
         continue;

@@ -6,10 +6,15 @@
   Layout layout=_layoutLocalService.getLayout(plid);
   String companyGroupScopeId=AssetPublisherUtil.SCOPE_ID_GROUP_PREFIX + portletDataContext.getCompanyGroupId();
   String[] newValues=new String[oldValues.length];
+  Element rootElement=portletDataContext.getExportDataRootElement();
+  Element groupIdMappingsElement=rootElement.addElement("group-id-mappings");
   for (int i=0; i < oldValues.length; i++) {
     String oldValue=oldValues[i];
     if (oldValue.startsWith(AssetPublisherUtil.SCOPE_ID_GROUP_PREFIX)) {
       newValues[i]=StringUtil.replace(oldValue,companyGroupScopeId,"[$COMPANY_GROUP_SCOPE_ID$]");
+      if (newValues[i].contains("[$COMPANY_GROUP_SCOPE_ID$]")) {
+        continue;
+      }
     }
  else     if (oldValue.startsWith(AssetPublisherUtil.SCOPE_ID_LAYOUT_PREFIX)) {
       String scopeIdSuffix=oldValue.substring(AssetPublisherUtil.SCOPE_ID_LAYOUT_PREFIX.length());
@@ -20,6 +25,22 @@
  else {
       newValues[i]=oldValue;
     }
+    long groupId=AssetPublisherUtil.getGroupIdFromScopeId(newValues[i],portletDataContext.getGroupId(),portletDataContext.isPrivateLayout());
+    Group group=_groupLocalService.fetchGroup(groupId);
+    long liveGroupId=0;
+    if (group != null) {
+      liveGroupId=group.getLiveGroupId();
+      if (group.isStagedRemotely()) {
+        liveGroupId=group.getRemoteLiveGroupId();
+      }
+    }
+    if ((groupId == 0) || (liveGroupId == 0)) {
+      continue;
+    }
+    newValues[i]=String.valueOf(groupId);
+    Element groupIdMappingElement=groupIdMappingsElement.addElement("group-id-mapping");
+    groupIdMappingElement.addAttribute("group-id",String.valueOf(groupId));
+    groupIdMappingElement.addAttribute("live-group-id",String.valueOf(liveGroupId));
   }
   portletPreferences.setValues(key,newValues);
 }
