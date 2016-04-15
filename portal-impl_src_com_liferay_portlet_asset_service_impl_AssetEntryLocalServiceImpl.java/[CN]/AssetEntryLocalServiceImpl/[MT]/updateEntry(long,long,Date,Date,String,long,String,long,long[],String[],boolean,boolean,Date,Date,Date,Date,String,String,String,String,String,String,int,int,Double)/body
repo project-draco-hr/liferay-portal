@@ -1,0 +1,98 @@
+{
+  long classNameId=classNameLocalService.getClassNameId(className);
+  validate(groupId,className,classTypeId,categoryIds,tagNames);
+  AssetEntry entry=assetEntryPersistence.fetchByC_C(classNameId,classPK);
+  boolean oldVisible=false;
+  if (entry != null) {
+    oldVisible=entry.isVisible();
+  }
+  if (modifiedDate == null) {
+    modifiedDate=new Date();
+  }
+  if (entry == null) {
+    long entryId=counterLocalService.increment();
+    entry=assetEntryPersistence.create(entryId);
+    Group group=groupLocalService.getGroup(groupId);
+    entry.setCompanyId(group.getCompanyId());
+    entry.setUserId(userId);
+    User user=userPersistence.fetchByPrimaryKey(userId);
+    if (user != null) {
+      entry.setUserName(user.getFullName());
+    }
+ else {
+      entry.setUserName(StringPool.BLANK);
+    }
+    if (createDate == null) {
+      createDate=new Date();
+    }
+    entry.setCreateDate(createDate);
+    entry.setClassNameId(classNameId);
+    entry.setClassPK(classPK);
+    entry.setClassUuid(classUuid);
+    if (priority == null) {
+      entry.setPriority(0);
+    }
+    entry.setViewCount(0);
+  }
+  entry.setGroupId(groupId);
+  entry.setModifiedDate(modifiedDate);
+  entry.setClassTypeId(classTypeId);
+  entry.setListable(listable);
+  entry.setVisible(visible);
+  entry.setStartDate(startDate);
+  entry.setEndDate(endDate);
+  if (publishDate != null) {
+    entry.setPublishDate(publishDate);
+  }
+  entry.setExpirationDate(expirationDate);
+  entry.setMimeType(mimeType);
+  entry.setTitle(title);
+  entry.setDescription(description);
+  entry.setSummary(summary);
+  entry.setUrl(url);
+  entry.setLayoutUuid(layoutUuid);
+  entry.setHeight(height);
+  entry.setWidth(width);
+  if (priority != null) {
+    entry.setPriority(priority.doubleValue());
+  }
+  if (categoryIds != null) {
+    categoryIds=checkCategories(className,classPK,categoryIds);
+    assetEntryPersistence.setAssetCategories(entry.getEntryId(),categoryIds);
+  }
+  if (tagNames != null) {
+    long siteGroupId=PortalUtil.getSiteGroupId(groupId);
+    Group siteGroup=groupLocalService.getGroup(siteGroupId);
+    List<AssetTag> tags=assetTagLocalService.checkTags(userId,siteGroup,tagNames);
+    List<AssetTag> oldTags=assetEntryPersistence.getAssetTags(entry.getEntryId());
+    assetEntryPersistence.setAssetTags(entry.getEntryId(),tags);
+    if (entry.isVisible()) {
+      boolean isNew=entry.isNew();
+      if (isNew) {
+        for (        AssetTag tag : tags) {
+          assetTagLocalService.incrementAssetCount(tag.getTagId(),classNameId);
+        }
+      }
+ else {
+        for (        AssetTag oldTag : oldTags) {
+          if (!tags.contains(oldTag)) {
+            assetTagLocalService.decrementAssetCount(oldTag.getTagId(),classNameId);
+          }
+        }
+        for (        AssetTag tag : tags) {
+          if (!oldTags.contains(tag)) {
+            assetTagLocalService.incrementAssetCount(tag.getTagId(),classNameId);
+          }
+        }
+      }
+    }
+ else     if (oldVisible) {
+      for (      AssetTag oldTag : oldTags) {
+        assetTagLocalService.decrementAssetCount(oldTag.getTagId(),classNameId);
+      }
+    }
+  }
+  assetEntryPersistence.update(entry);
+  reindex(entry);
+  return entry;
+}
