@@ -1,23 +1,10 @@
 {
-  Lock lock=_readyLock.get(getRootPortletId());
-  if (lock == null) {
-    Lock newLock=new ReentrantLock();
-    lock=_readyLock.putIfAbsent(getRootPortletId(),newLock);
-    if (lock == null) {
-      lock=newLock;
-    }
+  Boolean readyMapValue=_readyMap.putIfAbsent(getRootPortletId(),ready);
+  if ((readyMapValue != null) && (ready == readyMapValue)) {
+    return;
   }
-  try {
-    lock.lock();
-    Lock doubleCheckLock=_readyLock.get(getRootPortletId());
-    if (lock != doubleCheckLock) {
-      return;
-    }
-    Boolean readyMapValue=_readyMap.get(getRootPortletId());
-    if ((readyMapValue != null) && (ready == readyMapValue)) {
-      return;
-    }
-    Registry registry=RegistryUtil.getRegistry();
+  Registry registry=RegistryUtil.getRegistry();
+synchronized (this) {
     if (ready) {
       ServiceRegistrar<Portlet> serviceRegistrar=registry.getServiceRegistrar(Portlet.class);
       Map<String,Object> properties=new HashMap<>();
@@ -29,9 +16,5 @@
       ServiceRegistrar<Portlet> serviceRegistrar=_serviceRegistrars.remove(getRootPortletId());
       serviceRegistrar.destroy();
     }
-    _readyMap.put(getRootPortletId(),ready);
-  }
-  finally {
-    lock.unlock();
   }
 }
