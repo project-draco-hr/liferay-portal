@@ -1,6 +1,13 @@
 {
-  MethodTargetClassKey methodTargetClassKey=new MethodTargetClassKey(method,targetClass);
-  TransactionAttribute transactionAttribute=_transactionAttributes.get(methodTargetClassKey);
+  Map<Method,TransactionAttribute> transactionAttributes=_transactionAttributes.get(targetClass);
+  if (transactionAttributes == null) {
+    transactionAttributes=new ConcurrentHashMap<>();
+    Map<Method,TransactionAttribute> previousTransactionAttributes=_transactionAttributes.putIfAbsent(targetClass,transactionAttributes);
+    if (previousTransactionAttributes != null) {
+      transactionAttributes=previousTransactionAttributes;
+    }
+  }
+  TransactionAttribute transactionAttribute=transactionAttributes.get(method);
   if (transactionAttribute != null) {
     if (transactionAttribute == _nullTransactionAttribute) {
       return null;
@@ -12,10 +19,10 @@
   Transactional transactional=AnnotationLocator.locate(method,targetClass,Transactional.class);
   transactionAttribute=TransactionAttributeBuilder.build(transactional);
   if (transactionAttribute == null) {
-    _transactionAttributes.put(methodTargetClassKey,_nullTransactionAttribute);
+    transactionAttributes.put(method,_nullTransactionAttribute);
   }
  else {
-    _transactionAttributes.put(methodTargetClassKey,transactionAttribute);
+    transactionAttributes.put(method,transactionAttribute);
   }
   return transactionAttribute;
 }
