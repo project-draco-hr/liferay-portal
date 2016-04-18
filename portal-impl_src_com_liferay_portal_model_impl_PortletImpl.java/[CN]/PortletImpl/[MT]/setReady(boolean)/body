@@ -1,19 +1,27 @@
 {
-  _readyMap.put(getRootPortletId(),ready);
   Registry registry=RegistryUtil.getRegistry();
-  if (ready) {
-    ServiceRegistrar<Portlet> serviceRegistrar=registry.getServiceRegistrar(Portlet.class);
-    ServiceRegistrar<Portlet> previousServiceRegistrar=_serviceRegistrars.putIfAbsent(getRootPortletId(),serviceRegistrar);
-    if (previousServiceRegistrar != null) {
-      serviceRegistrar=previousServiceRegistrar;
-    }
-    Map<String,Object> properties=new HashMap<>();
-    properties.put("javax.portlet.name",getPortletName());
-    serviceRegistrar.registerService(Portlet.class,this,properties);
+  Readiness readiness=new Readiness(ready,registry.getServiceRegistrar(Portlet.class));
+  String rootPortletId=getRootPortletId();
+  Readiness previousReadiness=_readinessMap.putIfAbsent(rootPortletId,readiness);
+  if (previousReadiness != null) {
+    readiness=previousReadiness;
   }
+synchronized (readiness) {
+    if (readiness != _readinessMap.get(rootPortletId)) {
+      return;
+    }
+    readiness._ready=ready;
+    ServiceRegistrar<Portlet> serviceRegistrar=readiness._serviceRegistrar;
+    if (ready) {
+      if (serviceRegistrar.isDestroyed()) {
+        serviceRegistrar=registry.getServiceRegistrar(Portlet.class);
+        readiness._serviceRegistrar=serviceRegistrar;
+      }
+      Map<String,Object> properties=new HashMap<>();
+      properties.put("javax.portlet.name",getPortletName());
+      serviceRegistrar.registerService(Portlet.class,this,properties);
+    }
  else {
-    ServiceRegistrar<Portlet> serviceRegistrar=_serviceRegistrars.remove(getRootPortletId());
-    if (serviceRegistrar != null) {
       serviceRegistrar.destroy();
     }
   }
