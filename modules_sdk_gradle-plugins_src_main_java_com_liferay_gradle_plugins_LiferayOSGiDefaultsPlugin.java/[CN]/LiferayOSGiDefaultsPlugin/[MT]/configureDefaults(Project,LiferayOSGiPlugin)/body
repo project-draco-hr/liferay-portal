@@ -22,11 +22,18 @@
     configureSourceSetTest(project,portalConfiguration,portalTestConfiguration);
     configureSourceSetTestIntegration(project,portalConfiguration,portalTestConfiguration);
   }
+  Configuration baselineConfiguration=null;
+  if (hasBaseline(project)) {
+    baselineConfiguration=addConfigurationBaseline(project);
+  }
+  addTaskBaseline(project,baselineConfiguration);
   InstallCacheTask installCacheTask=addTaskInstallCache(project);
   addTaskCommitCache(project,installCacheTask);
+  addTaskCopyLibs(project);
   final Jar jarJavadocTask=addTaskJarJavadoc(project);
   final Jar jarSourcesTask=addTaskJarSources(project,testProject);
   final Jar jarTLDDocTask=addTaskJarTLDDoc(project);
+  addTaskUpdateBundleVersion(project);
   if (relengDir != null) {
     GradleUtil.applyPlugin(project,ChangeLogBuilderPlugin.class);
     BuildChangeLogTask buildChangeLogTask=(BuildChangeLogTask)GradleUtil.getTask(project,ChangeLogBuilderPlugin.BUILD_CHANGE_LOG_TASK_NAME);
@@ -41,33 +48,21 @@
   }
   final ReplaceRegexTask updateFileVersionsTask=addTaskUpdateFileVersions(project,gitRepoDir);
   configureBasePlugin(project,portalRootDir);
+  configureBundleDefaultInstructions(project,publishing);
   configureConfigurations(project);
+  configureDeployDir(project);
   configureJavaPlugin(project);
   configureProject(project);
   configureRepositories(project);
   configureSourceSetMain(project);
   configureTaskJar(project,testProject);
+  configureTaskJavadoc(project);
   configureTaskTest(project);
   configureTaskTestIntegration(project);
   configureTasksBaseline(project);
   configureTasksFindBugs(project);
   configureTasksJavaCompile(project);
   configureTasksPublishNodeModule(project);
-  withPlugin(project,BundlePlugin.class,new Action<BundlePlugin>(){
-    @Override public void execute(    BundlePlugin bundlePlugin){
-      Configuration baselineConfiguration=null;
-      if (hasBaseline(project)) {
-        baselineConfiguration=addConfigurationBaseline(project);
-      }
-      addTaskBaseline(project,baselineConfiguration);
-      addTaskCopyLibs(project);
-      addTaskUpdateBundleVersion(project);
-      configureBundleDefaultInstructions(project,publishing);
-      configureDeployDir(project);
-      configureTaskJavadoc(project);
-    }
-  }
-);
   withPlugin(project,ServiceBuilderPlugin.class,new Action<ServiceBuilderPlugin>(){
     @Override public void execute(    ServiceBuilderPlugin serviceBuilderPlugin){
       configureLocalPortalTool(project,portalRootDir,ServiceBuilderPlugin.CONFIGURATION_NAME,ServiceBuilderDefaultsPlugin.PORTAL_TOOL_NAME,"portal-tools-service-builder");
@@ -82,9 +77,7 @@
       configureTaskJarSources(jarSourcesTask);
       configureTaskUpdateFileVersions(updateFileVersionsTask,portalRootDir);
       configureTaskUploadArchives(project,updateFileVersionsTask);
-      if (hasPlugin(project,BundlePlugin.class)) {
-        configureProjectBndProperties(project);
-      }
+      configureProjectBndProperties(project);
     }
   }
 );
@@ -95,7 +88,7 @@
   taskExecutionGraph.whenReady(new Closure<Void>(null){
     @SuppressWarnings("unused") public void doCall(    TaskExecutionGraph taskExecutionGraph){
       Task jarTask=GradleUtil.getTask(project,JavaPlugin.JAR_TASK_NAME);
-      if (hasPlugin(project,BundlePlugin.class) && taskExecutionGraph.hasTask(jarTask)) {
+      if (taskExecutionGraph.hasTask(jarTask)) {
         configureBundleInstructions(project);
       }
     }
