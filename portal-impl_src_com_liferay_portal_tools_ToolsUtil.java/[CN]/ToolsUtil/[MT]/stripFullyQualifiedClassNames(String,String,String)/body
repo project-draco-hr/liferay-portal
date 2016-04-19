@@ -1,0 +1,34 @@
+{
+  if (Validator.isNull(content) || Validator.isNull(imports)) {
+    return content;
+  }
+  Pattern pattern=Pattern.compile("\n(.*)" + StringUtil.replace(packagePath,".","\\.") + "\\.[A-Z]");
+  Matcher matcher=pattern.matcher(content);
+  while (matcher.find()) {
+    String lineStart=matcher.group(1);
+    if (lineStart.startsWith("import ") || lineStart.contains("//") || ToolsUtil.isInsideQuotes(content,matcher.end())) {
+      continue;
+    }
+    content=StringUtil.replaceFirst(content,packagePath + ".",StringPool.BLANK,matcher.start());
+  }
+  UnsyncBufferedReader unsyncBufferedReader=new UnsyncBufferedReader(new UnsyncStringReader(imports));
+  String line=null;
+  while ((line=unsyncBufferedReader.readLine()) != null) {
+    int x=line.indexOf("import ");
+    if (x == -1) {
+      continue;
+    }
+    String importPackageAndClassName=line.substring(x + 7,line.lastIndexOf(StringPool.SEMICOLON));
+    pattern=Pattern.compile("\n(.*)" + StringUtil.replace(importPackageAndClassName,".","\\.") + "\\W");
+    matcher=pattern.matcher(content);
+    while (matcher.find()) {
+      String lineStart=matcher.group(1);
+      if (lineStart.startsWith("import ") || lineStart.contains("//") || ToolsUtil.isInsideQuotes(content,matcher.end() - 2)) {
+        continue;
+      }
+      String importClassName=importPackageAndClassName.substring(importPackageAndClassName.lastIndexOf(StringPool.PERIOD) + 1);
+      content=StringUtil.replaceFirst(content,importPackageAndClassName,importClassName,matcher.start());
+    }
+  }
+  return content;
+}
