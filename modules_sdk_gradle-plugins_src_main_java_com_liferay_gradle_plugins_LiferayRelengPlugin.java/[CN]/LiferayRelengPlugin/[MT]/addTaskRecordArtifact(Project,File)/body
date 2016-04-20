@@ -1,0 +1,40 @@
+{
+  final WritePropertiesTask writePropertiesTask=GradleUtil.addTask(project,RECORD_ARTIFACT_TASK_NAME,WritePropertiesTask.class);
+  writePropertiesTask.property("artifact.git.id",new Callable<String>(){
+    @Override public String call() throws Exception {
+      return getGitResult(writePropertiesTask.getProject(),"rev-parse","HEAD");
+    }
+  }
+);
+  writePropertiesTask.setDescription("Records the commit ID and the artifact URLs.");
+  writePropertiesTask.setOutputFile(new File(destinationDir,"artifact.properties"));
+  Configuration configuration=GradleUtil.getConfiguration(project,Dependency.ARCHIVES_CONFIGURATION);
+  PublishArtifactSet publishArtifactSet=configuration.getArtifacts();
+  Action<PublishArtifact> action=new Action<PublishArtifact>(){
+    @Override public void execute(    final PublishArtifact publishArtifact){
+      String key=publishArtifact.getClassifier();
+      if (Validator.isNull(key)) {
+        key="artifact.url";
+      }
+ else {
+        key="artifact." + key + ".url";
+      }
+      writePropertiesTask.property(key,new Callable<String>(){
+        @Override public String call() throws Exception {
+          if (publishArtifact instanceof ArchivePublishArtifact) {
+            ArchivePublishArtifact archivePublishArtifact=(ArchivePublishArtifact)publishArtifact;
+            return getArtifactRemoteURL(archivePublishArtifact.getArchiveTask(),false);
+          }
+ else {
+            Project project=writePropertiesTask.getProject();
+            return getArtifactRemoteURL(project,publishArtifact.getName(),String.valueOf(project.getVersion()),publishArtifact.getExtension(),false);
+          }
+        }
+      }
+);
+    }
+  }
+;
+  publishArtifactSet.all(action);
+  return writePropertiesTask;
+}
