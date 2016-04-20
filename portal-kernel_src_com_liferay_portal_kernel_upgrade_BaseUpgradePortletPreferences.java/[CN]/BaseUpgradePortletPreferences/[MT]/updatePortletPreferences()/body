@@ -8,7 +8,7 @@
       sb.append(" where ");
       sb.append(whereClause);
     }
-    try (PreparedStatement ps=connection.prepareStatement(sb.toString());ResultSet rs=ps.executeQuery()){
+    try (PreparedStatement ps1=connection.prepareStatement(sb.toString());PreparedStatement ps2=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"update PortletPreferences set preferences = ? where " + "portletPreferencesId = ?");PreparedStatement ps3=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"delete from PortletPreferences where " + "portletPreferencesId = ?");ResultSet rs=ps1.executeQuery()){
       while (rs.next()) {
         long portletPreferencesId=rs.getLong("portletPreferencesId");
         long ownerId=rs.getLong("ownerId");
@@ -47,12 +47,17 @@
         if (companyId > 0) {
           String newPreferences=upgradePreferences(companyId,ownerId,ownerType,plid,portletId,preferences);
           if (!preferences.equals(newPreferences)) {
-            updatePortletPreferences(portletPreferencesId,newPreferences);
+            ps2.setString(1,newPreferences);
+            ps2.setLong(2,portletPreferencesId);
+            ps2.addBatch();
           }
         }
  else {
-          deletePortletPreferences(portletPreferencesId);
+          ps3.setLong(1,portletPreferencesId);
+          ps3.addBatch();
         }
+        ps2.executeBatch();
+        ps3.executeBatch();
       }
     }
    }
