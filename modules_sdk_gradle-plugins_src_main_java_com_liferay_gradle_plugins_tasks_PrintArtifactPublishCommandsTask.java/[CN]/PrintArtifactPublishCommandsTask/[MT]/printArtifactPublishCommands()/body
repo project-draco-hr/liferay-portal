@@ -1,0 +1,32 @@
+{
+  List<String> commands=new ArrayList<>();
+  Project project=getProject();
+  commands.add("cd " + FileUtil.getAbsolutePath(project.getRootDir()));
+  if (!isPublished()) {
+    addPublishCommands(commands,true);
+  }
+  TaskContainer taskContainer=project.getTasks();
+  BuildChangeLogTask buildChangeLogTask=(BuildChangeLogTask)taskContainer.findByName(ChangeLogBuilderPlugin.BUILD_CHANGE_LOG_TASK_NAME);
+  if (buildChangeLogTask != null) {
+    commands.add(getGradleCommand(buildChangeLogTask));
+    commands.add("git add " + getRelativePath(buildChangeLogTask.getChangeLogFile()));
+    commands.add(getGitCommitCommand("change log",false,true,true));
+  }
+  BaselineTask baselineTask=(BaselineTask)taskContainer.findByName(LiferayOSGiDefaultsPlugin.BASELINE_TASK_NAME);
+  if (baselineTask != null) {
+    commands.add(getGradleCommand(baselineTask));
+    commands.add("git add --all " + getRelativePath(project.getProjectDir()));
+    commands.add(getGitCommitCommand("packageinfo",false,false,true));
+  }
+  if ((baselineTask != null) || (buildChangeLogTask != null)) {
+    addPublishCommands(commands,false);
+  }
+  System.out.println();
+  for (  String command : commands) {
+    System.out.print(" && ");
+    System.out.print(command);
+  }
+  if (GradleUtil.getProperty(project,"first",false)) {
+    throw new GradleException();
+  }
+}
