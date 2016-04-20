@@ -1,7 +1,8 @@
 {
+  String language=getDDMStructureLanguage(fileName);
   fileName=FileUtil.stripExtension(fileName);
   String name=getName(fileName);
-  DDMStructure ddmStructure=ddmStructureLocalService.fetchStructure(groupId,PortalUtil.getClassNameId(JournalArticle.class),getKey(fileName));
+  DDMStructure ddmStructure=DDMStructureLocalServiceUtil.fetchStructure(groupId,PortalUtil.getClassNameId(JournalArticle.class),getKey(fileName));
   if (ddmStructure != null) {
     if (!developerModeEnabled) {
       if (_log.isInfoEnabled()) {
@@ -10,24 +11,34 @@
       return;
     }
     if (!updateModeEnabled) {
-      ddmStructureLocalService.deleteDDMStructure(ddmStructure);
+      DDMStructureLocalServiceUtil.deleteDDMStructure(ddmStructure);
     }
   }
   String content=StringUtil.read(inputStream);
+  DDMForm ddmForm=null;
+  if (language.equals(TemplateConstants.LANG_TYPE_XML)) {
+    if (isJournalStructureXSD(content)) {
+      content=journalConverter.getDDMXSD(content);
+    }
+    DDMXMLUtil.validateXML(content);
+    ddmForm=DDMFormXSDDeserializerUtil.deserialize(content);
+  }
+ else {
+    ddmForm=DDMFormJSONDeserializerUtil.deserialize(content);
+  }
+  DDMFormLayout ddmFormLayout=DDMUtil.getDefaultDDMFormLayout(ddmForm);
+  setServiceContext(fileName);
   try {
-    DDMForm ddmForm=_ddmFormJSONDeserializer.deserialize(content);
-    DDMFormLayout ddmFormLayout=_ddm.getDefaultDDMFormLayout(ddmForm);
-    setServiceContext(fileName);
     if (!updateModeEnabled || (ddmStructure == null)) {
-      ddmStructure=ddmStructureLocalService.addStructure(userId,groupId,parentDDMStructureKey,PortalUtil.getClassNameId(JournalArticle.class),getKey(fileName),getMap(name),null,ddmForm,ddmFormLayout,JournalServiceConfigurationValues.JOURNAL_ARTICLE_STORAGE_TYPE,DDMStructureConstants.TYPE_DEFAULT,serviceContext);
+      ddmStructure=DDMStructureLocalServiceUtil.addStructure(userId,groupId,parentDDMStructureKey,PortalUtil.getClassNameId(JournalArticle.class),getKey(fileName),getMap(name),null,ddmForm,ddmFormLayout,JournalServiceConfigurationValues.JOURNAL_ARTICLE_STORAGE_TYPE,DDMStructureConstants.TYPE_DEFAULT,serviceContext);
     }
  else {
-      DDMStructure parentStructure=ddmStructureLocalService.fetchStructure(groupId,PortalUtil.getClassNameId(JournalArticle.class),parentDDMStructureKey);
+      DDMStructure parentStructure=DDMStructureLocalServiceUtil.fetchStructure(groupId,PortalUtil.getClassNameId(JournalArticle.class),parentDDMStructureKey);
       long parentDDMStructureId=DDMStructureConstants.DEFAULT_PARENT_STRUCTURE_ID;
       if (parentStructure != null) {
         parentDDMStructureId=parentStructure.getStructureId();
       }
-      ddmStructure=ddmStructureLocalService.updateStructure(userId,ddmStructure.getStructureId(),parentDDMStructureId,getMap(name),null,ddmForm,ddmFormLayout,serviceContext);
+      ddmStructure=DDMStructureLocalServiceUtil.updateStructure(userId,ddmStructure.getStructureId(),parentDDMStructureId,getMap(name),null,ddmForm,ddmFormLayout,serviceContext);
     }
   }
  catch (  PortalException pe) {
