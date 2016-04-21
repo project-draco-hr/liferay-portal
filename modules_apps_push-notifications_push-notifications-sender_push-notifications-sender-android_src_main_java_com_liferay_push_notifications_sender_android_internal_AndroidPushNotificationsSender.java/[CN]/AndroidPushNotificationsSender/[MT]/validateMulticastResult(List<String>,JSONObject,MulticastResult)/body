@@ -1,0 +1,37 @@
+{
+  List<Result> results=multicastResult.getResults();
+  for (int i=0; i < results.size(); i++) {
+    Result result=results.get(i);
+    String token=tokens.get(i);
+    Response response=new AndroidResponse(result,token,payloadJSONObject);
+    MessageBusUtil.sendMessage(DestinationNames.PUSH_NOTIFICATION_RESPONSE,response);
+    if ((multicastResult.getCanonicalIds() == 0) && (multicastResult.getFailure() == 0)) {
+      continue;
+    }
+    String canonicalRegistrationId=result.getCanonicalRegistrationId();
+    String messageId=result.getMessageId();
+    if (Validator.isNotNull(canonicalRegistrationId) && Validator.isNotNull(messageId)) {
+      try {
+        PushNotificationsDeviceLocalServiceUtil.updateToken(token,canonicalRegistrationId);
+      }
+ catch (      Exception e) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Unable to update token " + token);
+        }
+      }
+    }
+    String errorCodeName=result.getErrorCodeName();
+    if (Validator.isNotNull(errorCodeName)) {
+      if (errorCodeName.equals(Constants.ERROR_INVALID_REGISTRATION) || errorCodeName.equals(Constants.ERROR_MISMATCH_SENDER_ID) || errorCodeName.equals(Constants.ERROR_NOT_REGISTERED)) {
+        try {
+          PushNotificationsDeviceLocalServiceUtil.deletePushNotificationsDevice(token);
+        }
+ catch (        Exception e) {
+          if (_log.isWarnEnabled()) {
+            _log.warn("Unable to delete invalid token " + token);
+          }
+        }
+      }
+    }
+  }
+}
