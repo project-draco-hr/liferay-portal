@@ -1,0 +1,67 @@
+{
+  String commandHash=Integer.toString(commands.hashCode());
+  File shellFile=new File(commandHash + ".sh");
+  try {
+    StringBuffer sb=new StringBuffer("ssh ");
+    sb.append(targetSlave);
+    sb.append(" '");
+    for (    String command : commands) {
+      sb.append(command);
+      if (commands.indexOf(command) < (commands.size() - 1)) {
+        sb.append("; ");
+      }
+    }
+    sb.append("'\n");
+    System.out.println("Executing commands:\n" + sb.toString());
+    try (FileWriter shellFileWriter=new FileWriter(shellFile)){
+      shellFileWriter.write(sb.toString());
+    }
+     shellFile.setExecutable(true);
+    Integer exitCode=null;
+    Process process=null;
+    long start=System.currentTimeMillis();
+    String output=null;
+    while (exitCode == null) {
+      try {
+        process=Runtime.getRuntime().exec("./" + shellFile.getName());
+      }
+ catch (      IOException ioe) {
+        if (ioe.getMessage().contains("Text file busy") && (System.currentTimeMillis() - start) < 2000) {
+          try {
+            Thread.sleep(100);
+          }
+ catch (          InterruptedException ie) {
+            throw new RuntimeException(ie);
+          }
+          continue;
+        }
+        throw ioe;
+      }
+      output=_getOutput(process.getErrorStream());
+      if (output.contains("No buffer space available") || output.contains("Temporary failure in name resolution")) {
+        System.out.println("Out of buffer space OR Temporary DNS failure - Retry in 1 minute.");
+        try {
+          Thread.sleep(1000 * 60);
+        }
+ catch (        InterruptedException ie) {
+          throw new RuntimeException(ie);
+        }
+        continue;
+      }
+      try {
+        exitCode=process.waitFor();
+      }
+ catch (      InterruptedException ie) {
+        throw new RuntimeException(ie);
+      }
+      process.destroy();
+    }
+    System.out.println(output);
+    return exitCode;
+  }
+  finally {
+    if (shellFile.exists()) {
+      shellFile.delete();
+    }
+  }
+}

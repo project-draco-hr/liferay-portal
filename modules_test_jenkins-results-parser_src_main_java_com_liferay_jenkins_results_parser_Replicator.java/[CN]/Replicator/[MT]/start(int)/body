@@ -1,0 +1,59 @@
+{
+  ExecutorService executorService=Executors.newFixedThreadPool(threadCount);
+  System.out.println("Replication starting with " + threadCount + " threads.");
+  try {
+    long start=System.currentTimeMillis();
+    while ((_sourceSlaves.size() + _errorSlaves.size()) < _slaveCount) {
+      List<String> usedSourceSlaves=new ArrayList<>(_slaveCount);
+synchronized (this) {
+        for (        String sourceSlave : _sourceSlaves) {
+          if (_targetSlaves.isEmpty()) {
+            break;
+          }
+          String targetSlave=_targetSlaves.get(0);
+          usedSourceSlaves.add(sourceSlave);
+          _targetSlaves.remove(0);
+          executorService.execute(new ReplicatorThread(this,sourceSlave,targetSlave));
+          _busySlaves.add(sourceSlave);
+          _busySlaves.add(targetSlave);
+        }
+        _sourceSlaves.removeAll(usedSourceSlaves);
+        usedSourceSlaves.clear();
+      }
+      StringBuffer sb=new StringBuffer();
+      sb.append("Busy slaves:");
+      sb.append(Integer.toString(_busySlaves.size()));
+      sb.append("\nSource slaves:");
+      sb.append(Integer.toString(_sourceSlaves.size()));
+      sb.append("\nTarget slaves:");
+      sb.append(Integer.toString(_targetSlaves.size()));
+      sb.append("\nTotal Time: ");
+      sb.append(Long.toString((System.currentTimeMillis() - start)));
+      sb.append("\nAverage Duration: ");
+      sb.append(Long.toString(getAverageDuration()));
+      sb.append("ms\n");
+      System.out.println(sb.toString());
+      try {
+        Thread.sleep(5000);
+      }
+ catch (      InterruptedException ie) {
+        throw new RuntimeException(ie);
+      }
+    }
+    StringBuffer sb=new StringBuffer();
+    sb.append("Replication complete.\nTotal Time: ");
+    sb.append(Long.toString(System.currentTimeMillis() - start));
+    sb.append("ms\n");
+    sb.append("Average Duration: ");
+    sb.append(Long.toString(getAverageDuration()));
+    sb.append("ms\n");
+    sb.append(Integer.toString(_errorSlaves.size()));
+    sb.append(" failures occurred.\n");
+    sb.append("Slaves that failed to respond:\n");
+    sb.append(_errorSlaves.toString());
+    System.out.println(sb.toString());
+  }
+  finally {
+    executorService.shutdown();
+  }
+}
