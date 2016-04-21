@@ -1,0 +1,35 @@
+{
+  ApplePushNotificationsSenderConfiguration applePushNotificationsSenderConfiguration=ConfigurableUtil.createConfigurable(ApplePushNotificationsSenderConfiguration.class,properties);
+  String certificatePath=applePushNotificationsSenderConfiguration.certificatePath();
+  String certificatePassword=applePushNotificationsSenderConfiguration.certificatePassword();
+  if (Validator.isNull(certificatePath) || Validator.isNull(certificatePassword)) {
+    _apnsService=null;
+    return;
+  }
+  ApnsServiceBuilder appleServiceBuilder=APNS.newService();
+  InputStream inputStream=null;
+  try {
+    try {
+      inputStream=new FileInputStream(certificatePath);
+    }
+ catch (    FileNotFoundException fnfe) {
+      ClassLoader classLoader=ApplePushNotificationsSender.class.getClassLoader();
+      inputStream=classLoader.getResourceAsStream(certificatePath);
+    }
+    if (inputStream == null) {
+      throw new IllegalArgumentException("Unable to find Apple certificate at " + certificatePath);
+    }
+    appleServiceBuilder.withCert(inputStream,certificatePassword);
+  }
+  finally {
+    StreamUtil.cleanUp(inputStream);
+  }
+  appleServiceBuilder.withDelegate(new AppleDelegate());
+  if (applePushNotificationsSenderConfiguration.sandbox()) {
+    appleServiceBuilder.withSandboxDestination();
+  }
+ else {
+    appleServiceBuilder.withProductionDestination();
+  }
+  _apnsService=appleServiceBuilder.build();
+}
