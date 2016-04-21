@@ -1,11 +1,20 @@
 {
-  Registry registry=RegistryUtil.getRegistry();
-  Collection<MessageListener> messageListeners=registry.getServices(MessageListener.class,"(destination.name=" + DestinationNames.HOT_DEPLOY + ")");
-  for (  MessageListener messageListener : messageListeners) {
-    if (messageListener instanceof ResourcesImporterHotDeployMessageListener) {
-      _hotDeployMessageListener=(HotDeployMessageListener)messageListener;
-      break;
+  Bundle testBundle=FrameworkUtil.getBundle(ResourcesImporterTest.class);
+  _bundleContext=testBundle.getBundleContext();
+  URL resource=ResourcesImporterTest.class.getResource("dependencies/test.war");
+  resource=new URL(resource.toExternalForm() + "?Web-ContextPath=/" + TEST_CONTEXT_NAME);
+  URL url=new URL("webbundle",null,resource.toString());
+  _wabBundle=_bundleContext.installBundle(url.toString());
+  Dictionary<String,Object> properties=new Hashtable<>();
+  properties.put("destination.name","liferay/resources_importer");
+  final CountDownLatch countDownLatch=new CountDownLatch(1);
+  ServiceRegistration<MessageListener> serviceRegistration=_bundleContext.registerService(MessageListener.class,new MessageListener(){
+    public void receive(    Message message) throws MessageListenerException {
+      countDownLatch.countDown();
     }
   }
-  Assert.assertNotNull("Resources importer is not deployed",messageListeners);
+,properties);
+  _wabBundle.start();
+  countDownLatch.await(1,TimeUnit.MINUTES);
+  serviceRegistration.unregister();
 }
