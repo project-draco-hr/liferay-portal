@@ -1,0 +1,43 @@
+{
+  try {
+    if (Validator.isNull(content)) {
+      return;
+    }
+    Connection connection=getConnection(fromUserId);
+    if (connection == null) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("User " + fromUserId + " is not connected to Jabber"+ " and cannot send messages");
+      }
+      return;
+    }
+    User toUser=UserLocalServiceUtil.getUser(toUserId);
+    Roster roster=connection.getRoster();
+    String jabberId=getJabberId(toUser.getScreenName());
+    if (!roster.contains(jabberId)) {
+      return;
+    }
+    Iterator<Presence> presences=roster.getPresences(jabberId);
+    while (presences.hasNext()) {
+      Presence presence=presences.next();
+      String from=presence.getFrom();
+      String resource=getResource(from);
+      if (StringUtil.equalsIgnoreCase(resource,PortletPropsValues.JABBER_RESOURCE)) {
+        continue;
+      }
+      ChatManager chatManager=connection.getChatManager();
+      MessageListener messageListener=new JabberMessageListener(toUser.getCompanyId(),fromUserId);
+      Chat chat=chatManager.createChat(from,messageListener);
+      try {
+        chat.sendMessage(content);
+      }
+ catch (      XMPPException xmppe) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("User " + fromUserId + " could not send message",xmppe);
+        }
+      }
+    }
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+  }
+}

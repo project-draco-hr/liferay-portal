@@ -1,0 +1,50 @@
+{
+  Status status=StatusLocalServiceUtil.getUserStatus(pollerRequest.getUserId());
+  long createDate=0;
+  if (pollerRequest.isInitialRequest()) {
+    createDate=status.getModifiedDate() - Time.DAY;
+  }
+  List<Entry> entries=EntryLocalServiceUtil.getNewEntries(pollerRequest.getUserId(),createDate,0,PortletPropsValues.BUDDY_LIST_MAX_BUDDIES);
+  entries=ListUtil.copy(entries);
+  Collections.reverse(entries);
+  JSONArray entriesJSONArray=JSONFactoryUtil.createJSONArray();
+  for (  Entry entry : entries) {
+    JSONObject entryJSONObject=JSONFactoryUtil.createJSONObject();
+    entryJSONObject.put("entryId",entry.getEntryId());
+    entryJSONObject.put("createDate",entry.getCreateDate());
+    entryJSONObject.put("fromUserId",entry.getFromUserId());
+    if (entry.getFromUserId() != pollerRequest.getUserId()) {
+      try {
+        User fromUser=UserLocalServiceUtil.getUserById(entry.getFromUserId());
+        entryJSONObject.put("fromFullName",fromUser.getFullName());
+        entryJSONObject.put("fromPortraitId",fromUser.getPortraitId());
+      }
+ catch (      NoSuchUserException nsue) {
+        continue;
+      }
+    }
+    entryJSONObject.put("toUserId",entry.getToUserId());
+    entryJSONObject.put("content",HtmlUtil.escape(entry.getContent()));
+    entryJSONObject.put("flag",entry.getFlag());
+    entriesJSONArray.put(entryJSONObject);
+  }
+  pollerResponse.setParameter("entries",entriesJSONArray);
+  if (!entries.isEmpty()) {
+    pollerResponse.setParameter(PollerResponse.POLLER_HINT_HIGH_CONNECTIVITY,Boolean.TRUE.toString());
+  }
+  boolean updatePresence=getBoolean(pollerRequest,"updatePresence");
+  if (updatePresence) {
+  }
+ else   if (!entries.isEmpty()) {
+    updatePresence=true;
+  }
+ else {
+    long onlineTimestamp=status.getModifiedDate() + ChatConstants.ONLINE_DELTA - ChatConstants.MAX_POLL_LATENCY;
+    if (onlineTimestamp < pollerRequest.getTimestamp()) {
+      updatePresence=true;
+    }
+  }
+  if (updatePresence) {
+    StatusLocalServiceUtil.updateStatus(pollerRequest.getUserId(),pollerRequest.getTimestamp());
+  }
+}
