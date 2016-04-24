@@ -1,26 +1,12 @@
 {
-  String commandHash=Integer.toString(commands.hashCode());
-  File shellFile=new File(commandHash + ".sh");
+  File shellFile=_writeShellFile(commands,targetSlave);
   try {
-    StringBuffer sb=new StringBuffer("ssh ");
-    sb.append(targetSlave);
-    sb.append(" '");
-    for (    String command : commands) {
-      sb.append(command);
-      if (commands.indexOf(command) < (commands.size() - 1)) {
-        sb.append("; ");
-      }
-    }
-    sb.append("'\n");
-    System.out.println("Executing commands:\n" + sb.toString());
-    try (FileWriter shellFileWriter=new FileWriter(shellFile)){
-      shellFileWriter.write(sb.toString());
-    }
-     shellFile.setExecutable(true);
+    FileSystem fileSystem=FileSystems.getDefault();
+    System.out.println("Executing commands:\n" + new String(Files.readAllBytes(fileSystem.getPath(shellFile.getAbsolutePath()))));
+    String errorText=null;
     Integer exitCode=null;
     Process process=null;
     long start=System.currentTimeMillis();
-    String output=null;
     while (exitCode == null) {
       try {
         process=Runtime.getRuntime().exec("./" + shellFile.getName());
@@ -32,9 +18,9 @@
         }
         throw ioe;
       }
-      output=_getOutput(process.getErrorStream());
-      if (output.contains("No buffer space available") || output.contains("Temporary failure in name resolution")) {
-        System.out.println("Out of buffer space OR Temporary DNS failure - Retry in 1 minute.");
+      errorText=_readInputStream(process.getErrorStream());
+      if (errorText.contains("No buffer space available") || errorText.contains("Temporary failure in name resolution")) {
+        System.out.println(errorText + "\nRetry in 1 minute.");
         JenkinsResultsParserUtil.sleep(1000 * 60);
         continue;
       }
@@ -46,7 +32,10 @@
       }
       process.destroy();
     }
-    System.out.println(output);
+    errorText=errorText.trim();
+    if (!errorText.isEmpty()) {
+      System.out.println(errorText);
+    }
     return exitCode;
   }
   finally {
