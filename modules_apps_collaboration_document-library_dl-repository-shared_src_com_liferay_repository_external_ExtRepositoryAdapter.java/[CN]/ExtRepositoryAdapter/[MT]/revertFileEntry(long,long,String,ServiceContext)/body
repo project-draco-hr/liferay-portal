@@ -1,0 +1,37 @@
+{
+  String extRepositoryFileEntryKey=getExtRepositoryObjectKey(fileEntryId);
+  ExtRepositoryFileEntry extRepositoryFileEntry=_extRepository.getExtRepositoryObject(ExtRepositoryObjectType.FILE,extRepositoryFileEntryKey);
+  ExtRepositoryFileVersion extRepositoryFileVersion=null;
+  List<ExtRepositoryFileVersion> extRepositoryFileVersions=_extRepository.getExtRepositoryFileVersions(extRepositoryFileEntry);
+  for (  ExtRepositoryFileVersion curExtRepositoryFileVersion : extRepositoryFileVersions) {
+    String curVersion=curExtRepositoryFileVersion.getVersion();
+    if (curVersion.equals(version)) {
+      extRepositoryFileVersion=curExtRepositoryFileVersion;
+      break;
+    }
+  }
+  if (extRepositoryFileVersion != null) {
+    InputStream inputStream=_extRepository.getContentStream(extRepositoryFileVersion);
+    boolean needsCheckIn=false;
+    if (!isCheckedOut(extRepositoryFileEntry)) {
+      try {
+        _extRepository.checkOutExtRepositoryFileEntry(extRepositoryFileEntryKey);
+        needsCheckIn=true;
+      }
+ catch (      UnsupportedOperationException uoe) {
+      }
+    }
+    _extRepository.updateExtRepositoryFileEntry(extRepositoryFileEntryKey,extRepositoryFileVersion.getMimeType(),inputStream);
+    String changeLog=LanguageUtil.format(serviceContext.getLocale(),"reverted-to-x",version,false);
+    if (needsCheckIn) {
+      try {
+        _extRepository.checkInExtRepositoryFileEntry(extRepositoryFileEntryKey,true,changeLog);
+      }
+ catch (      UnsupportedOperationException uoe) {
+      }
+    }
+  }
+ else {
+    throw new NoSuchFileVersionException("No file version with {extRepositoryModelKey=" + extRepositoryFileEntry.getExtRepositoryModelKey() + ", version: "+ version+ "}");
+  }
+}

@@ -1,0 +1,48 @@
+{
+  long startTime=System.currentTimeMillis();
+  List<ExtRepositorySearchResult<?>> extRepositorySearchResults=null;
+  try {
+    extRepositorySearchResults=_extRepository.search(searchContext,query,new ExtRepositoryQueryMapperImpl(this));
+  }
+ catch (  PortalException|SystemException e) {
+    throw new SearchException("Unable to perform search",e);
+  }
+  QueryConfig queryConfig=searchContext.getQueryConfig();
+  List<Document> documents=new ArrayList<>();
+  List<String> snippets=new ArrayList<>();
+  List<Float> scores=new ArrayList<>();
+  int total=0;
+  for (  ExtRepositorySearchResult<?> extRepositorySearchResult : extRepositorySearchResults) {
+    try {
+      ExtRepositoryObjectAdapter<?> extRepositoryEntryAdapter=_toExtRepositoryObjectAdapter(ExtRepositoryObjectAdapterType.OBJECT,extRepositorySearchResult.getObject());
+      Document document=new DocumentImpl();
+      document.addKeyword(Field.ENTRY_CLASS_NAME,extRepositoryEntryAdapter.getModelClassName());
+      document.addKeyword(Field.ENTRY_CLASS_PK,extRepositoryEntryAdapter.getPrimaryKey());
+      document.addKeyword(Field.TITLE,extRepositoryEntryAdapter.getName());
+      documents.add(document);
+      if (queryConfig.isScoreEnabled()) {
+        scores.add(extRepositorySearchResult.getScore());
+      }
+ else {
+        scores.add(1.0F);
+      }
+      snippets.add(extRepositorySearchResult.getSnippet());
+      total++;
+    }
+ catch (    PortalException|SystemException e) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Invalid entry returned from search",e);
+      }
+    }
+  }
+  float searchTime=(float)(System.currentTimeMillis() - startTime) / Time.SECOND;
+  Hits hits=new HitsImpl();
+  hits.setDocs(documents.toArray(new Document[documents.size()]));
+  hits.setLength(total);
+  hits.setQueryTerms(new String[0]);
+  hits.setScores(ArrayUtil.toFloatArray(scores));
+  hits.setSearchTime(searchTime);
+  hits.setSnippets(snippets.toArray(new String[snippets.size()]));
+  hits.setStart(startTime);
+  return hits;
+}
