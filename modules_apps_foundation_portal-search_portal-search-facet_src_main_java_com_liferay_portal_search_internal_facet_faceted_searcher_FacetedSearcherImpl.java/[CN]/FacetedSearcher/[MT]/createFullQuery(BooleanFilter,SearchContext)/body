@@ -1,0 +1,76 @@
+{
+  BooleanQuery searchQuery=new BooleanQueryImpl();
+  String keywords=searchContext.getKeywords();
+  if (Validator.isNotNull(keywords)) {
+    addSearchLocalizedTerm(searchQuery,searchContext,Field.ASSET_CATEGORY_TITLES,false);
+    searchQuery.addExactTerm(Field.ASSET_TAG_NAMES,keywords);
+    int groupId=GetterUtil.getInteger(searchContext.getAttribute(Field.GROUP_ID));
+    if (groupId == 0) {
+      fullQueryBooleanFilter.addTerm(Field.STAGING_GROUP,"true",BooleanClauseOccur.MUST_NOT);
+    }
+    searchQuery.addTerms(Field.KEYWORDS,keywords);
+  }
+  List<Group> inactiveGroups=GroupLocalServiceUtil.getActiveGroups(searchContext.getCompanyId(),false);
+  if (ListUtil.isNotEmpty(inactiveGroups)) {
+    TermsFilter groupIdTermsFilter=new TermsFilter(Field.GROUP_ID);
+    groupIdTermsFilter.addValues(ArrayUtil.toStringArray(ListUtil.toArray(inactiveGroups,Group.GROUP_ID_ACCESSOR)));
+    fullQueryBooleanFilter.add(groupIdTermsFilter,BooleanClauseOccur.MUST_NOT);
+  }
+  for (  String entryClassName : searchContext.getEntryClassNames()) {
+    Indexer<?> indexer=IndexerRegistryUtil.getIndexer(entryClassName);
+    if (indexer == null) {
+      continue;
+    }
+    String searchEngineId=searchContext.getSearchEngineId();
+    if (!searchEngineId.equals(indexer.getSearchEngineId())) {
+      continue;
+    }
+    if (Validator.isNotNull(keywords)) {
+      addSearchExpandoKeywords(searchQuery,searchContext,keywords,entryClassName);
+    }
+    indexer.postProcessSearchQuery(searchQuery,fullQueryBooleanFilter,searchContext);
+    for (    IndexerPostProcessor indexerPostProcessor : indexer.getIndexerPostProcessors()) {
+      indexerPostProcessor.postProcessSearchQuery(searchQuery,fullQueryBooleanFilter,searchContext);
+    }
+    doPostProcessSearchQuery(indexer,searchQuery,searchContext);
+  }
+  Map<String,Facet> facets=searchContext.getFacets();
+  BooleanFilter facetBooleanFilter=new BooleanFilter();
+  for (  Facet facet : facets.values()) {
+    BooleanClause<Filter> facetClause=facet.getFacetFilterBooleanClause();
+    if (facetClause != null) {
+      facetBooleanFilter.add(facetClause.getClause(),facetClause.getBooleanClauseOccur());
+    }
+  }
+  addFacetClause(searchContext,facetBooleanFilter,facets.values());
+  if (facetBooleanFilter.hasClauses()) {
+    fullQueryBooleanFilter.add(facetBooleanFilter,BooleanClauseOccur.MUST);
+  }
+  BooleanQuery fullQuery=new BooleanQueryImpl();
+  if (fullQueryBooleanFilter.hasClauses()) {
+    fullQuery.setPreBooleanFilter(fullQueryBooleanFilter);
+  }
+  if (searchQuery.hasClauses()) {
+    fullQuery.add(searchQuery,BooleanClauseOccur.MUST);
+  }
+  BooleanClause<Query>[] booleanClauses=searchContext.getBooleanClauses();
+  if (booleanClauses != null) {
+    for (    BooleanClause<Query> booleanClause : booleanClauses) {
+      fullQuery.add(booleanClause.getClause(),booleanClause.getBooleanClauseOccur());
+    }
+  }
+  for (  String entryClassName : searchContext.getEntryClassNames()) {
+    Indexer<?> indexer=IndexerRegistryUtil.getIndexer(entryClassName);
+    if (indexer == null) {
+      continue;
+    }
+    String searchEngineId=searchContext.getSearchEngineId();
+    if (!searchEngineId.equals(indexer.getSearchEngineId())) {
+      continue;
+    }
+    for (    IndexerPostProcessor indexerPostProcessor : indexer.getIndexerPostProcessors()) {
+      indexerPostProcessor.postProcessFullQuery(fullQuery,searchContext);
+    }
+  }
+  return fullQuery;
+}
