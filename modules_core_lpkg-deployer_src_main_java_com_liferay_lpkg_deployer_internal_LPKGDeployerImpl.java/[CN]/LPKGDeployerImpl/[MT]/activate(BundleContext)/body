@@ -1,0 +1,32 @@
+{
+  _lpkgBundleTracker=new BundleTracker<>(bundleContext,~Bundle.UNINSTALLED,new LPKGBundleTrackerCustomizer(bundleContext));
+  _lpkgBundleTracker.open();
+  String deploymentDir=GetterUtil.getString(bundleContext.getProperty("lpkg.deployment.dir"),PropsValues.MODULE_FRAMEWORK_BASE_DIR + "marketplace");
+  Path deploymentDirPath=Paths.get(deploymentDir);
+  if (Files.notExists(deploymentDirPath)) {
+    return;
+  }
+  Files.walkFileTree(deploymentDirPath,new SimpleFileVisitor<Path>(){
+    @Override public FileVisitResult visitFile(    Path filePath,    BasicFileAttributes basicFileAttributes) throws IOException {
+      Path fileNamePath=filePath.getFileName();
+      String fileName=StringUtil.toLowerCase(fileNamePath.toString());
+      if (fileName.endsWith(".lpkg")) {
+        try {
+          for (          Bundle bundle : deploy(bundleContext,filePath.toFile())) {
+            try {
+              bundle.start();
+            }
+ catch (            BundleException be) {
+              _log.error("Unable to start " + bundle + " for "+ filePath,be);
+            }
+          }
+        }
+ catch (        Exception e) {
+          _log.error("Unable to deploy lpkg file " + filePath,e);
+        }
+      }
+      return FileVisitResult.CONTINUE;
+    }
+  }
+);
+}

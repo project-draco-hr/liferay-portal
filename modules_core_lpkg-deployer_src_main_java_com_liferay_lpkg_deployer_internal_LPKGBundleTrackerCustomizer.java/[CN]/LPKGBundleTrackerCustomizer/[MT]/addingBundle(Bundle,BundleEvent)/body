@@ -1,0 +1,55 @@
+{
+  URL url=bundle.getEntry("liferay-marketplace.properties");
+  if (url == null) {
+    return null;
+  }
+  List<Bundle> bundles=new ArrayList<>();
+  try {
+    Enumeration<URL> enumeration=bundle.findEntries("/","*.jar",false);
+    if (enumeration != null) {
+      while (enumeration.hasMoreElements()) {
+        url=enumeration.nextElement();
+        Bundle newBundle=_bundleContext.installBundle(url.getPath(),url.openStream());
+        BundleStartLevel bundleStartLevel=newBundle.adapt(BundleStartLevel.class);
+        bundleStartLevel.setStartLevel(PropsValues.MODULE_FRAMEWORK_DYNAMIC_INSTALL_START_LEVEL);
+        bundles.add(newBundle);
+      }
+    }
+    enumeration=bundle.findEntries("/","*.war",false);
+    if (enumeration != null) {
+      while (enumeration.hasMoreElements()) {
+        url=enumeration.nextElement();
+        String path=url.getPath();
+        String contextName=path.substring(path.lastIndexOf('/') + 1,path.lastIndexOf(".war"));
+        int index=contextName.lastIndexOf('-');
+        if (index >= 0) {
+          contextName=contextName.substring(0,index);
+        }
+        Path filePath=Files.createTempFile("lpkg-web-" + contextName,".war");
+        try {
+          Files.copy(url.openStream(),filePath);
+          Bundle newBundle=_bundleContext.installBundle("webbundle:file://" + filePath.toString() + "?Web-ContextPath=/"+ contextName);
+          BundleStartLevel bundleStartLevel=newBundle.adapt(BundleStartLevel.class);
+          bundleStartLevel.setStartLevel(PropsValues.MODULE_FRAMEWORK_DYNAMIC_INSTALL_START_LEVEL);
+          bundles.add(newBundle);
+        }
+  finally {
+          Files.delete(filePath);
+        }
+      }
+    }
+  }
+ catch (  Exception e) {
+    _log.error("Rollback bundle installation for " + bundles,e);
+    for (    Bundle newBundle : bundles) {
+      try {
+        newBundle.uninstall();
+      }
+ catch (      BundleException be) {
+        _log.error("Unable to uninstall bundle " + newBundle,be);
+      }
+    }
+    return null;
+  }
+  return bundles;
+}
