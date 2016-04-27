@@ -1,6 +1,38 @@
 {
-  Set<String> portalImplPackageNames=_getPackageNames(Paths.get("portal-impl/src"));
-  Set<String> portalKernelPackageNames=_getPackageNames(Paths.get("portal-kernel/src"));
-  portalImplPackageNames.retainAll(portalKernelPackageNames);
-  Assert.assertTrue("Detected split packages in portal-impl and portal-kernel: " + portalImplPackageNames,portalImplPackageNames.isEmpty());
+  final Map<Path,Set<String>> moduleMap=new HashMap<>();
+  final Path portalPath=Paths.get(System.getProperty("user.dir"));
+  Files.walkFileTree(portalPath,new SimpleFileVisitor<Path>(){
+    @Override public FileVisitResult preVisitDirectory(    Path path,    BasicFileAttributes basicFileAttributes) throws IOException {
+      Path pathFileName=path.getFileName();
+      Path parentPath=path.getParent();
+      String pathFileNameString=pathFileName.toString();
+      if (pathFileNameString.equals("portal-test") || pathFileNameString.equals("portal-test-integration")) {
+        return FileVisitResult.SKIP_SUBTREE;
+      }
+ else       if (parentPath.equals(portalPath) && Files.exists(path.resolve("src"))) {
+        Set<String> packages=_getPackageNames(path.resolve("src"));
+        _checkPackageSet(path,portalPath,moduleMap,packages);
+        return FileVisitResult.SKIP_SUBTREE;
+      }
+ else       if (Files.exists(path.resolve("portal.build"))) {
+        Set<String> packages=new HashSet<>();
+        if (Files.exists(path.resolve("docroot"))) {
+          Path sourcePath=path.resolve(_DOCROOTPATH);
+          if (Files.exists(sourcePath)) {
+            packages=_getPackageNames(sourcePath);
+          }
+        }
+ else {
+          Path sourcePath=path.resolve(_MAINJAVAPATH);
+          if (Files.exists(sourcePath)) {
+            packages=_getPackageNames(sourcePath);
+          }
+        }
+        _checkPackageSet(path,portalPath,moduleMap,packages);
+        return FileVisitResult.SKIP_SUBTREE;
+      }
+      return FileVisitResult.CONTINUE;
+    }
+  }
+);
 }
