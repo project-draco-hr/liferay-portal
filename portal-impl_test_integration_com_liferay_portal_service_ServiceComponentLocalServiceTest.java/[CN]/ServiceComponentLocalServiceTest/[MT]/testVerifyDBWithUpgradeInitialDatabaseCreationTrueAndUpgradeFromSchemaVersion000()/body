@@ -1,0 +1,23 @@
+{
+  Registry registry=RegistryUtil.getRegistry();
+  Map<String,Object> properties=new HashMap<>();
+  properties.put("upgrade.initial.database.creation",true);
+  properties.put("upgrade.from.schema.version","0.0.0");
+  final DB db=DBManagerUtil.getDB();
+  ServiceRegistration<UpgradeStep> upgradeStepServiceRegistration=registry.registerService(UpgradeStep.class,new SimpleUpgradeStep(db),properties);
+  String tableName=_TEST_TABLE;
+  try {
+    ServiceComponentLocalServiceUtil.verifyDB();
+    try (Connection connection=DataAccess.getConnection()){
+      DatabaseMetaData metadata=connection.getMetaData();
+      tableName=normalizeTableName(metadata,_TEST_TABLE);
+      try (ResultSet verifyTable=metadata.getTables(null,null,tableName,new String[]{"TABLE"})){
+        Assert.assertTrue(verifyTable.next());
+      }
+     }
+   }
+  finally {
+    db.runSQL("drop table " + tableName);
+    upgradeStepServiceRegistration.unregister();
+  }
+}
