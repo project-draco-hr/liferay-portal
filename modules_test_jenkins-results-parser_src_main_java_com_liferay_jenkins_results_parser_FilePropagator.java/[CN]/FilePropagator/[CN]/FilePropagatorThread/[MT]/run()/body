@@ -2,8 +2,8 @@
   long start=System.currentTimeMillis();
   List<String> commands=new ArrayList<>(_filePropagator._filePropagatorTasks.size());
   for (  FilePropagatorTask filePropagatorTask : _filePropagator._filePropagatorTasks) {
-    commands.add(_filePropagator._getMkdirCommand(filePropagatorTask._filePath));
-    commands.add("rsync -vI " + _sourceSlave + ":"+ filePropagatorTask._filePath+ " "+ filePropagatorTask._filePath);
+    commands.add(_filePropagator._getMkdirCommand(filePropagatorTask._targetFileName));
+    commands.add("rsync -vI " + _mirrorSlave + ":"+ filePropagatorTask._targetFileName+ " "+ filePropagatorTask._targetFileName);
   }
   try {
     _successful=_filePropagator._executeCommands(commands,false,_targetSlave) == 0;
@@ -12,5 +12,16 @@
     _successful=false;
   }
   _duration=System.currentTimeMillis() - start;
-  _filePropagator._recordFilePropagatorThreadCompletion(this);
+synchronized (_filePropagator) {
+    _filePropagator._busySlaves.remove(_mirrorSlave);
+    _filePropagator._busySlaves.remove(_targetSlave);
+    _filePropagator._mirrorSlaves.add(_mirrorSlave);
+    _filePropagator._threadsCompletedCount++;
+    _filePropagator._threadsDurationTotal+=_duration;
+    if (!_successful) {
+      _filePropagator._errorSlaves.add(_targetSlave);
+      return;
+    }
+    _filePropagator._mirrorSlaves.add(_targetSlave);
+  }
 }

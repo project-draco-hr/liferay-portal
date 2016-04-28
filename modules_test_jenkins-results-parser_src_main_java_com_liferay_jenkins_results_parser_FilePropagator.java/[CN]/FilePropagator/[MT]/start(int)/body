@@ -1,50 +1,40 @@
 {
   ExecutorService executorService=Executors.newFixedThreadPool(threadCount);
-  System.out.println("File Propagation starting with " + threadCount + " threads.");
+  System.out.println("File propagation starting with " + threadCount + " threads.");
   try {
     long start=System.currentTimeMillis();
     while (!_targetSlaves.isEmpty() || !_busySlaves.isEmpty()) {
 synchronized (this) {
-        for (        String sourceSlave : _sourceSlaves) {
+        for (        String mirrorSlave : _mirrorSlaves) {
           if (_targetSlaves.isEmpty()) {
             break;
           }
           String targetSlave=_targetSlaves.remove(0);
-          executorService.execute(new FilePropagatorThread(this,sourceSlave,targetSlave));
-          _busySlaves.add(sourceSlave);
+          executorService.execute(new FilePropagatorThread(this,mirrorSlave,targetSlave));
+          _busySlaves.add(mirrorSlave);
           _busySlaves.add(targetSlave);
         }
-        _sourceSlaves.removeAll(_busySlaves);
+        _mirrorSlaves.removeAll(_busySlaves);
       }
       StringBuffer sb=new StringBuffer();
-      sb.append("Busy slaves:");
-      sb.append(Integer.toString(_busySlaves.size()));
-      sb.append("\nSource slaves:");
-      sb.append(Integer.toString(_sourceSlaves.size()));
+      sb.append("Average thread duration: ");
+      sb.append(getAverageThreadDuration());
+      sb.append("ms\nBusy slaves:");
+      sb.append(_busySlaves.size());
+      sb.append("\nMirror slaves:");
+      sb.append(_mirrorSlaves.size());
       sb.append("\nTarget slaves:");
-      sb.append(Integer.toString(_targetSlaves.size()));
+      sb.append(_targetSlaves.size());
       sb.append("\nTotal duration: ");
-      sb.append(Long.toString((System.currentTimeMillis() - start)));
-      sb.append("\nAverage thread duration: ");
-      sb.append(Long.toString(getAverageThreadDuration()));
-      sb.append("ms\n");
+      sb.append(System.currentTimeMillis() - start);
+      sb.append("\n");
       System.out.println(sb.toString());
       JenkinsResultsParserUtil.sleep(5000);
     }
-    StringBuffer sb=new StringBuffer();
-    sb.append("File Propagation complete.\nTotal duration: ");
-    sb.append(Long.toString(System.currentTimeMillis() - start));
-    sb.append("ms\n");
-    sb.append("Average thread duration: ");
-    sb.append(Long.toString(getAverageThreadDuration()));
-    sb.append("ms\n");
-    sb.append(Integer.toString(_errorSlaves.size()));
-    sb.append(" failures occurred.\n");
-    if (_errorSlaves.size() > 0) {
-      sb.append("Slaves that failed to respond:\n");
-      sb.append(_errorSlaves.toString());
+    System.out.println("File propagation completed in " + (System.currentTimeMillis() - start) + "ms.");
+    if (!_errorSlaves.isEmpty()) {
+      System.out.println(_errorSlaves.size() + " slaves failed to respond:\n" + _errorSlaves);
     }
-    System.out.println(sb.toString());
   }
   finally {
     executorService.shutdown();
