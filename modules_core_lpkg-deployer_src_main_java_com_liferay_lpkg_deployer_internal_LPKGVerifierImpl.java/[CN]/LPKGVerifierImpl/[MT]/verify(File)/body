@@ -1,0 +1,46 @@
+{
+  try (ZipFile zipFile=new ZipFile(lpkeFile)){
+    ZipEntry zipEntry=zipFile.getEntry("liferay-marketplace.properties");
+    if (zipEntry == null) {
+      throw new LPKGVerifyException(lpkeFile + " does not have liferay-marketplace.properties");
+    }
+    Properties properties=new Properties();
+    properties.load(zipFile.getInputStream(zipEntry));
+    String symbolicName=properties.getProperty("title");
+    if (Validator.isNull(symbolicName)) {
+      throw new LPKGVerifyException(lpkeFile + " does not have a valid symbolicName");
+    }
+    String versionString=properties.getProperty("version");
+    Version version=null;
+    try {
+      version=new Version(versionString);
+    }
+ catch (    IllegalArgumentException iae) {
+      throw new LPKGVerifyException(lpkeFile + " does not have a valid version :" + versionString,iae);
+    }
+    List<Bundle> oldBundles=new ArrayList<>();
+    for (    Bundle bundle : _bundleContext.getBundles()) {
+      if (!symbolicName.equals(bundle.getSymbolicName())) {
+        continue;
+      }
+      int result=version.compareTo(bundle.getVersion());
+      if (result > 0) {
+        oldBundles.add(bundle);
+      }
+ else       if (result == 0) {
+        String path=lpkeFile.getCanonicalPath();
+        if (path.equals(bundle.getLocation())) {
+          continue;
+        }
+        throw new LPKGVerifyException("LPKG bundle " + bundle + " has the same symbolic "+ "name and version as LPKG file :"+ lpkeFile);
+      }
+ else {
+        throw new LPKGVerifyException("A newer version LPKG bundle " + bundle + " has been installed comparing to "+ lpkeFile);
+      }
+    }
+    return oldBundles;
+  }
+ catch (  IOException ioe) {
+    throw new LPKGVerifyException(ioe);
+  }
+}
