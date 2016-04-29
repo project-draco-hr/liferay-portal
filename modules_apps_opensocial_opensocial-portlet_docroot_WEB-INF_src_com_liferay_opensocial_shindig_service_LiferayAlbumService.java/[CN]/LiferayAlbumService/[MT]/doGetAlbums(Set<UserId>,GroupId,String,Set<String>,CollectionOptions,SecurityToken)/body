@@ -1,0 +1,30 @@
+{
+  List<Album> albums=new ArrayList<>();
+  for (  UserId userId : userIds) {
+    String userIdString=userId.getUserId(securityToken);
+    long userIdLong=GetterUtil.getLong(userIdString);
+    User user=UserLocalServiceUtil.getUserById(userIdLong);
+    if (!ShindigUtil.isValidUser(user)) {
+      continue;
+    }
+    List<Folder> folders=new ArrayList<>();
+    GroupId.Type groupIdType=groupId.getType();
+    if (groupIdType.equals(GroupId.Type.all) || groupIdType.equals(GroupId.Type.friends) || groupIdType.equals(GroupId.Type.groupId)) {
+      List<User> socialUsers=UserLocalServiceUtil.getSocialUsers(user.getUserId(),SocialRelationConstants.TYPE_BI_FRIEND,QueryUtil.ALL_POS,QueryUtil.ALL_POS,null);
+      for (      User socialUser : socialUsers) {
+        Group group=socialUser.getGroup();
+        List<Folder> friendFolders=DLAppServiceUtil.getFolders(group.getGroupId(),DLFolderConstants.DEFAULT_PARENT_FOLDER_ID);
+        folders.addAll(friendFolders);
+      }
+    }
+ else     if (groupIdType.equals(GroupId.Type.self)) {
+      Group group=user.getGroup();
+      folders=DLAppServiceUtil.getFolders(group.getGroupId(),DLFolderConstants.DEFAULT_PARENT_FOLDER_ID);
+    }
+    for (    Folder folder : folders) {
+      Album album=toAlbum(folder,fields,securityToken);
+      albums.add(album);
+    }
+  }
+  return new RestfulCollection<Album>(albums,collectionOptions.getFirst(),albums.size(),collectionOptions.getMax());
+}

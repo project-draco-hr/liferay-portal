@@ -1,0 +1,32 @@
+{
+  HttpResponseBuilder response=null;
+  try {
+    accessorInfo=fetcherConfig.getTokenStore().getOAuthAccessor(realRequest.getSecurityToken(),realRequest.getOAuthArguments(),clientState,responseParams,fetcherConfig);
+    response=fetchWithRetry();
+  }
+ catch (  OAuthRequestException e) {
+    if (OAuthError.UNAUTHENTICATED.name().equals(e.getError())) {
+      responseParams.logDetailedInfo("Unauthenticated OAuth fetch",e);
+    }
+ else     if (OAuthError.BAD_OAUTH_TOKEN_URL.name().equals(e.getError())) {
+      responseParams.logDetailedInfo("Invalid OAuth fetch request",e);
+    }
+ else {
+      responseParams.logDetailedWarning("OAuth fetch fatal error",e);
+    }
+    responseParams.setSendTraceToClient(true);
+    response=new HttpResponseBuilder().setHttpStatusCode(HttpResponse.SC_FORBIDDEN).setStrictNoCache();
+    responseParams.addToResponse(response,e);
+    return response.create();
+  }
+  if (response.getHttpStatusCode() >= 400) {
+    responseParams.logDetailedWarning("OAuth fetch fatal error");
+    responseParams.setSendTraceToClient(true);
+  }
+ else   if (responseParams.getAznUrl() != null && responseParams.sawErrorResponse()) {
+    responseParams.logDetailedWarning("OAuth fetch error, reprompting for user approval");
+    responseParams.setSendTraceToClient(true);
+  }
+  responseParams.addToResponse(response,null);
+  return response.create();
+}

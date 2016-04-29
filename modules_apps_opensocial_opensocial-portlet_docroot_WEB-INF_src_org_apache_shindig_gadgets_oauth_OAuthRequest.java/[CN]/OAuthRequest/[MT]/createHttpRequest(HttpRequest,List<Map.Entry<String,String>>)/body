@@ -1,0 +1,35 @@
+{
+  OAuthParamLocation paramLocation=accessorInfo.getParamLocation();
+  HttpRequest result=new HttpRequest(base);
+  if (paramLocation == OAuthParamLocation.POST_BODY && !result.getMethod().equals("POST")) {
+    paramLocation=OAuthParamLocation.AUTH_HEADER;
+  }
+switch (paramLocation) {
+case AUTH_HEADER:
+    result.addHeader("Authorization",getAuthorizationHeader(oauthParams));
+  break;
+case POST_BODY:
+String contentType=result.getHeader("Content-Type");
+if (!OAuth.isFormEncoded(contentType)) {
+throw new OAuthRequestException(OAuthError.INVALID_REQUEST,"OAuth param location can only be post_body if it is of " + "type x-www-form-urlencoded");
+}
+String oauthData=OAuthUtil.formEncode(oauthParams);
+if (result.getPostBodyLength() == 0) {
+result.setPostBody(CharsetUtil.getUtf8Bytes(oauthData));
+}
+ else {
+StringBuilder postBody=new StringBuilder();
+postBody.append(result.getPostBodyAsString());
+if (!result.getPostBodyAsString().endsWith("&")) {
+postBody.append('&');
+}
+postBody.append(oauthData);
+result.setPostBody(postBody.toString().getBytes());
+}
+break;
+case URI_QUERY:
+result.setUri(Uri.parse(OAuthUtil.addParameters(result.getUri().toString(),oauthParams)));
+break;
+}
+return result;
+}

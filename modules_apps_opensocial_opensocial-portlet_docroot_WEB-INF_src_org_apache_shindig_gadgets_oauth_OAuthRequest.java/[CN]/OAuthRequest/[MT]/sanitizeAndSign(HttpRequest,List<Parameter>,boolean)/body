@@ -1,0 +1,46 @@
+{
+  if (params == null) {
+    params=Lists.newArrayList();
+  }
+  UriBuilder target=new UriBuilder(base.getUri());
+  String query=target.getQuery();
+  target.setQuery(null);
+  params.addAll(sanitize(OAuth.decodeForm(query)));
+switch (OAuthUtil.getSignatureType(tokenEndpoint,base.getHeader("Content-Type"))) {
+case URL_ONLY:
+    break;
+case URL_AND_FORM_PARAMS:
+  try {
+    params.addAll(sanitize(OAuth.decodeForm(base.getPostBodyAsString())));
+  }
+ catch (  IllegalArgumentException e) {
+    throw new OAuthRequestException(OAuthError.INVALID_REQUEST,"Could not decode body",e);
+  }
+break;
+case URL_AND_BODY_HASH:
+try {
+byte[] body=IOUtils.toByteArray(base.getPostBody());
+byte[] hash=DigestUtils.sha(body);
+String b64=new String(Base64.encodeBase64(hash),Charsets.UTF_8.name());
+params.add(new Parameter(OAuthConstants.OAUTH_BODY_HASH,b64));
+}
+ catch (IOException e) {
+throw new OAuthRequestException(OAuthError.UNKNOWN_PROBLEM,"Error taking body hash",e);
+}
+break;
+}
+List<Parameter> authParams=Lists.newArrayList();
+addIdentityParams(authParams);
+addSignatureParams(authParams);
+overrideParameters(authParams);
+params.addAll(authParams);
+try {
+OAuthMessage signed=OAuthUtil.newRequestMessage(accessorInfo.getAccessor(),base.getMethod(),target.toString(),params);
+HttpRequest oauthHttpRequest=createHttpRequest(base,selectOAuthParams(signed));
+oauthHttpRequest.setFollowRedirects(false);
+return oauthHttpRequest;
+}
+ catch (OAuthException e) {
+throw new OAuthRequestException(OAuthError.UNKNOWN_PROBLEM,"Error signing message",e);
+}
+}

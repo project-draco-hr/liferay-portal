@@ -1,0 +1,48 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)resourceRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  long repositoryId=ParamUtil.getLong(resourceRequest,"repositoryId");
+  long folderId=ParamUtil.getLong(resourceRequest,"folderId");
+  List<Folder> folders=DLAppServiceUtil.getFolders(repositoryId,folderId);
+  folders=ListUtil.sort(folders,new FolderNameComparator(true));
+  JSONArray jsonArray=JSONFactoryUtil.createJSONArray();
+  for (  Folder folder : folders) {
+    JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+    jsonObject.put("entryId",folder.getFolderId());
+    jsonObject.put("label",folder.getName());
+    jsonObject.put("leaf",false);
+    jsonObject.put("type","editor");
+    jsonArray.put(jsonObject);
+  }
+  boolean getFileEntries=ParamUtil.getBoolean(resourceRequest,"getFileEntries");
+  if (getFileEntries) {
+    PermissionChecker permissionChecker=themeDisplay.getPermissionChecker();
+    List<FileEntry> fileEntries=DLAppServiceUtil.getFileEntries(repositoryId,folderId);
+    fileEntries=ListUtil.sort(fileEntries,new RepositoryModelTitleComparator<FileEntry>(true));
+    for (    FileEntry fileEntry : fileEntries) {
+      JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+      jsonObject.put("entryId",fileEntry.getFileEntryId());
+      String portalURL=PortalUtil.getPortalURL(themeDisplay);
+      String fileEntryURL=ShindigUtil.getFileEntryURL(portalURL,fileEntry.getFileEntryId());
+      jsonObject.put("fileEntryURL",fileEntryURL);
+      long gadgetId=0;
+      try {
+        Gadget gadget=GadgetLocalServiceUtil.getGadget(themeDisplay.getCompanyId(),fileEntryURL);
+        gadgetId=gadget.getGadgetId();
+      }
+ catch (      Exception e) {
+      }
+      jsonObject.put("gadgetId",gadgetId);
+      jsonObject.put("label",fileEntry.getTitle());
+      jsonObject.put("leaf",true);
+      JSONObject jsonPermissions=JSONFactoryUtil.createJSONObject();
+      if (gadgetId > 0) {
+        boolean unpublishPermission=GadgetPermission.contains(permissionChecker,themeDisplay.getScopeGroupId(),gadgetId,ActionKeys.DELETE);
+        jsonPermissions.put("unpublishPermission",unpublishPermission);
+      }
+      jsonObject.put("permissions",jsonPermissions);
+      jsonObject.put("type","editor");
+      jsonArray.put(jsonObject);
+    }
+  }
+  writeJSON(resourceRequest,resourceResponse,jsonArray);
+}

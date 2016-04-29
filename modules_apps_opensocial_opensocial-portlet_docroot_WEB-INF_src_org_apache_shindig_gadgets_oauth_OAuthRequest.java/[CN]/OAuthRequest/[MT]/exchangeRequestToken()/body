@@ -1,0 +1,58 @@
+{
+  if (accessorInfo.getAccessor().accessToken != null) {
+    accessorInfo.getAccessor().requestToken=accessorInfo.getAccessor().accessToken;
+    accessorInfo.getAccessor().accessToken=null;
+  }
+  OAuthAccessor accessor=accessorInfo.getAccessor();
+  if (accessor.consumer.serviceProvider.accessTokenURL == null) {
+    throw new OAuthRequestException(OAuthError.BAD_OAUTH_TOKEN_URL,"access token");
+  }
+  Uri accessTokenUri=Uri.parse(accessor.consumer.serviceProvider.accessTokenURL);
+  HttpRequest request=new HttpRequest(accessTokenUri);
+  request.setMethod(accessorInfo.getHttpMethod().toString());
+  if (accessorInfo.getHttpMethod() == HttpMethod.POST) {
+    request.setHeader("Content-Type",OAuth.FORM_ENCODED);
+  }
+  List<Parameter> msgParams=Lists.newArrayList();
+  msgParams.add(new Parameter(OAuth.OAUTH_TOKEN,accessor.requestToken));
+  if (accessorInfo.getSessionHandle() != null) {
+    msgParams.add(new Parameter(OAuthConstants.OAUTH_SESSION_HANDLE,accessorInfo.getSessionHandle()));
+  }
+  String receivedCallback=realRequest.getOAuthArguments().getReceivedCallbackUrl();
+  if (!StringUtils.isBlank(receivedCallback)) {
+    try {
+      Uri parsed=Uri.parse(receivedCallback);
+      String verifier=parsed.getQueryParameter(OAuth.OAUTH_VERIFIER);
+      if (verifier != null) {
+        msgParams.add(new Parameter(OAuth.OAUTH_VERIFIER,verifier));
+      }
+    }
+ catch (    IllegalArgumentException e) {
+      throw new OAuthRequestException(OAuthError.INVALID_REQUEST,"Invalid received callback URL: " + receivedCallback,e);
+    }
+  }
+  HttpRequest signed=sanitizeAndSign(request,msgParams,true);
+  OAuthMessage reply=sendOAuthMessage(signed);
+  accessor.accessToken=OAuthUtil.getParameter(reply,OAuth.OAUTH_TOKEN);
+  accessor.tokenSecret=OAuthUtil.getParameter(reply,OAuth.OAUTH_TOKEN_SECRET);
+  accessorInfo.setSessionHandle(OAuthUtil.getParameter(reply,OAuthConstants.OAUTH_SESSION_HANDLE));
+  accessorInfo.setTokenExpireMillis(ACCESS_TOKEN_EXPIRE_UNKNOWN);
+  if (OAuthUtil.getParameter(reply,OAuthConstants.OAUTH_EXPIRES_IN) != null) {
+    try {
+      int expireSecs=Integer.parseInt(OAuthUtil.getParameter(reply,OAuthConstants.OAUTH_EXPIRES_IN));
+      long expireMillis=fetcherConfig.getClock().currentTimeMillis() + expireSecs * 1000L;
+      accessorInfo.setTokenExpireMillis(expireMillis);
+    }
+ catch (    NumberFormatException e) {
+      responseParams.logDetailedWarning("server returned bogus expiration");
+    }
+  }
+  if (accessTokenUri.equals(realRequest.getUri())) {
+    accessTokenData=Maps.newHashMap();
+    for (    Entry<String,String> param : OAuthUtil.getParameters(reply)) {
+      if (!param.getKey().startsWith("oauth")) {
+        accessTokenData.put(param.getKey(),param.getValue());
+      }
+    }
+  }
+}

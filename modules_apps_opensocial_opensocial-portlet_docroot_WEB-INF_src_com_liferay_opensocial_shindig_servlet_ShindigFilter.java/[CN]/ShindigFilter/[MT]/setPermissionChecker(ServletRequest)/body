@@ -1,0 +1,42 @@
+{
+  String companyIdString=CookieKeys.getCookie((HttpServletRequest)servletRequest,CookieKeys.COMPANY_ID);
+  if (Validator.isNull(companyIdString)) {
+    return false;
+  }
+  long companyId=GetterUtil.getLong(companyIdString);
+  String userUUID=StringPool.BLANK;
+  try {
+    Company company=CompanyLocalServiceUtil.fetchCompany(companyId);
+    if (company == null) {
+      return false;
+    }
+    String userUUIDString=CookieKeys.getCookie((HttpServletRequest)servletRequest,CookieKeys.USER_UUID);
+    if (Validator.isNull(userUUIDString)) {
+      return false;
+    }
+    userUUID=GetterUtil.getString(Encryptor.decrypt(company.getKeyObj(),userUUIDString));
+  }
+ catch (  EncryptorException ee) {
+    return false;
+  }
+catch (  Exception e) {
+    _log.error(e,e);
+    return false;
+  }
+  if (!AuthenticatedUserUUIDStoreUtil.exists(userUUID)) {
+    return false;
+  }
+  String userIdString=userUUID.substring(0,userUUID.indexOf(StringPool.PERIOD));
+  long userId=GetterUtil.getLong(userIdString);
+  try {
+    User user=UserLocalServiceUtil.getUserById(userId);
+    PrincipalThreadLocal.setName(userIdString);
+    PermissionChecker permissionChecker=PermissionCheckerFactoryUtil.create(user);
+    PermissionThreadLocal.setPermissionChecker(permissionChecker);
+  }
+ catch (  Exception e) {
+    _log.error(e,e);
+    return false;
+  }
+  return true;
+}
