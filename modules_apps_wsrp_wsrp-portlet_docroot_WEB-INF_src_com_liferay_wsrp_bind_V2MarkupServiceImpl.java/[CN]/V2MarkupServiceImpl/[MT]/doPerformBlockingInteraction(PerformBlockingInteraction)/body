@@ -1,0 +1,47 @@
+{
+  WSRPProducer wsrpProducer=getWSRPProducer();
+  Http.Options httpOptions=new Http.Options();
+  addHeaders(performBlockingInteraction.getMarkupParams(),httpOptions);
+  httpOptions.setLocation(getURL(performBlockingInteraction,wsrpProducer));
+  RuntimeContext runtimeContext=performBlockingInteraction.getRuntimeContext();
+  InteractionParams interactionParams=performBlockingInteraction.getInteractionParams();
+  UploadContext[] uploadContexts=interactionParams.getUploadContexts();
+  processUploadContexts(uploadContexts,httpOptions);
+  NamedString[] formParameters=interactionParams.getFormParameters();
+  if (formParameters != null) {
+    for (    NamedString formParameter : formParameters) {
+      String name=StringUtil.replace(formParameter.getName(),runtimeContext.getNamespacePrefix(),StringPool.BLANK);
+      httpOptions.addPart(name,formParameter.getValue());
+    }
+  }
+  httpOptions.setFollowRedirects(false);
+  httpOptions.setPost(true);
+  String rawContent=getRawContent(httpOptions);
+  Http.Response response=httpOptions.getResponse();
+  String redirect=response.getRedirect();
+  String widgetPath=getWidgetPath();
+  BlockingInteractionResponse blockingInteractionResponse=new BlockingInteractionResponse();
+  if (Validator.isNotNull(redirect) && !redirect.startsWith(widgetPath)) {
+    int pos=redirect.indexOf("wsrp_rewrite?");
+    if (pos >= 0) {
+      redirect=redirect.substring(pos);
+    }
+    blockingInteractionResponse.setRedirectURL(redirect);
+  }
+ else {
+    if (Validator.isNotNull(redirect) && redirect.startsWith(widgetPath)) {
+      httpOptions.setLocation(redirect);
+      rawContent=getRawContent(httpOptions);
+    }
+    String windowState=getWindowState(performBlockingInteraction.getMarkupParams());
+    String content=getContent(rawContent,windowState);
+    MarkupContext markupContext=new MarkupContext();
+    markupContext.setItemString(content);
+    markupContext.setMimeType(ContentTypes.TEXT_HTML_UTF8);
+    markupContext.setRequiresRewriting(true);
+    UpdateResponse updateResponse=new UpdateResponse();
+    updateResponse.setMarkupContext(markupContext);
+    blockingInteractionResponse.setUpdateResponse(updateResponse);
+  }
+  return blockingInteractionResponse;
+}

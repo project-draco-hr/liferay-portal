@@ -1,0 +1,51 @@
+{
+  List<NamedString> formParameters=new ArrayList<>();
+  List<UploadContext> uploadContexts=new ArrayList<>();
+  UploadPortletRequest uploadPortletRequest=PortalUtil.getUploadPortletRequest(portletRequest);
+  Enumeration<String> enu=uploadPortletRequest.getParameterNames();
+  while (enu.hasMoreElements()) {
+    String name=enu.nextElement();
+    if (isReservedParameter(name) || name.startsWith("p_p_")) {
+      continue;
+    }
+    if (uploadPortletRequest.isFormField(name)) {
+      String[] values=uploadPortletRequest.getParameterValues(name);
+      if (values == null) {
+        continue;
+      }
+      addFormField(formParameters,name,values);
+    }
+ else {
+      UploadContext uploadContext=new UploadContext();
+      String contentType=uploadPortletRequest.getContentType(name);
+      uploadContext.setMimeType(contentType);
+      StringBuilder sb=new StringBuilder();
+      sb.append("form-data; ");
+      sb.append("name=");
+      sb.append(name);
+      sb.append("; filename=");
+      sb.append(uploadPortletRequest.getFileName(name));
+      NamedString mimeAttribute=new NamedString();
+      mimeAttribute.setName(HttpHeaders.CONTENT_DISPOSITION);
+      mimeAttribute.setValue(sb.toString());
+      uploadContext.setMimeAttributes(new NamedString[]{mimeAttribute});
+      InputStream inputStream=null;
+      try {
+        inputStream=uploadPortletRequest.getFileAsStream(name);
+        if (inputStream == null) {
+          continue;
+        }
+        byte[] bytes=FileUtil.getBytes(inputStream);
+        if (bytes == null) {
+          continue;
+        }
+        uploadContext.setUploadData(bytes);
+      }
+  finally {
+        StreamUtil.cleanUp(inputStream);
+      }
+      uploadContexts.add(uploadContext);
+    }
+  }
+  return new Object[]{formParameters,uploadContexts};
+}

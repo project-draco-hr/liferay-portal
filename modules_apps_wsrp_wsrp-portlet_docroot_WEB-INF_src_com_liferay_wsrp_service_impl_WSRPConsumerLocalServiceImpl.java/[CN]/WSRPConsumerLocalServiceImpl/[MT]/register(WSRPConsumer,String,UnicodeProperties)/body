@@ -1,0 +1,45 @@
+{
+  WSRPConsumerManager wsrpConsumerManager=WSRPConsumerManagerFactory.getWSRPConsumerManager(wsrpConsumer);
+  WSRP_v2_Registration_PortType registrationService=wsrpConsumerManager.getRegistrationService();
+  RegistrationContext registrationContext=wsrpConsumer.getRegistrationContext();
+  Property[] properties=new Property[registrationProperties.size()];
+  List<Map.Entry<String,String>> registrationPropertiesList=ListUtil.fromCollection(registrationProperties.entrySet());
+  for (int i=0; i < properties.length; i++) {
+    Map.Entry<String,String> entry=registrationPropertiesList.get(i);
+    String name=entry.getKey();
+    String value=entry.getValue();
+    PropertyDescription propertyDescription=wsrpConsumerManager.getPropertyDescription(name);
+    QName qName=propertyDescription.getName();
+    Property property=new Property();
+    property.setName(qName);
+    property.setStringValue(value);
+    properties[i]=property;
+  }
+  Company company=CompanyLocalServiceUtil.getCompany(wsrpConsumer.getCompanyId());
+  RegistrationData registrationData=new RegistrationData();
+  registrationData.setConsumerAgent(ReleaseInfo.getServerInfo());
+  registrationData.setConsumerName(company.getVirtualHostname());
+  registrationData.setMethodGetSupported(true);
+  registrationData.setRegistrationProperties(properties);
+  if (registrationContext == null) {
+    Register register=new Register();
+    register.setRegistrationData(registrationData);
+    registrationContext=registrationService.register(register);
+  }
+ else {
+    ModifyRegistration modifyRegistration=new ModifyRegistration();
+    modifyRegistration.setRegistrationContext(registrationContext);
+    modifyRegistration.setRegistrationData(registrationData);
+    RegistrationState registrationState=registrationService.modifyRegistration(modifyRegistration);
+    byte[] registrationStateValue=registrationState.getRegistrationState();
+    if (registrationStateValue != null) {
+      registrationContext.setRegistrationState(registrationState.getRegistrationState());
+    }
+    Lifetime scheduledDestruction=registrationState.getScheduledDestruction();
+    if (scheduledDestruction != null) {
+      registrationContext.setScheduledDestruction(scheduledDestruction);
+    }
+  }
+  wsrpConsumerManager.updateServiceDescription(registrationContext);
+  return registrationContext;
+}

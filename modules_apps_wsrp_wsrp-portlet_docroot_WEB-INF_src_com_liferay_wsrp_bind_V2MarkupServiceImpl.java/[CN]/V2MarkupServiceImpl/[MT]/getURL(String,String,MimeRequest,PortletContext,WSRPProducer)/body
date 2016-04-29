@@ -1,0 +1,64 @@
+{
+  StringBundler sb=new StringBundler();
+  String[] locales=mimeRequest.getLocales();
+  if (locales.length > 0) {
+    sb.append(getWidgetPath(locales[0]));
+  }
+ else {
+    sb.append(getWidgetPath());
+  }
+  sb.append(StringPool.QUESTION);
+  String propertiesAuthenticatonTokenSharedSecret=Encryptor.digest(PropsUtil.get(PropsKeys.AUTH_TOKEN_SHARED_SECRET));
+  sb.append("p_auth_secret=");
+  sb.append(HttpUtil.encodeURL(propertiesAuthenticatonTokenSharedSecret));
+  Layout layout=getLayout(portletContext,wsrpProducer);
+  sb.append("&p_l_id=");
+  sb.append(layout.getPlid());
+  NavigationalContext navigationalContext=mimeRequest.getNavigationalContext();
+  String portletId=getPortletId(portletContext,navigationalContext);
+  sb.append("&p_p_id=");
+  sb.append(HttpUtil.encodeURL(portletId));
+  sb.append("&p_p_lifecycle=");
+  sb.append(lifecycle);
+  String windowState=getWindowState(mimeRequest);
+  sb.append("&p_p_state=");
+  sb.append(HttpUtil.encodeURL(windowState));
+  String portletMode=getPortletMode(mimeRequest);
+  sb.append("&p_p_mode=");
+  sb.append(HttpUtil.encodeURL(portletMode));
+  if (lifecycle.equals("2") && Validator.isNotNull(resourceID)) {
+    sb.append("&p_p_resource_id=");
+    sb.append(resourceID);
+  }
+  sb.append("&p_p_isolated=1");
+  String opaqueValue=null;
+  if (navigationalContext != null) {
+    opaqueValue=navigationalContext.getOpaqueValue();
+  }
+  if (Validator.isNotNull(opaqueValue)) {
+    sb.append(StringPool.AMPERSAND);
+    opaqueValue=new String(Base64.decode(Base64.fromURLSafe(opaqueValue)),StringPool.UTF8);
+    sb.append(opaqueValue);
+  }
+  if (lifecycle.equals("0")) {
+    MessageElement[] formParameters=ExtensionHelperUtil.getMessageElements(mimeRequest.getExtensions());
+    if (formParameters != null) {
+      String namespace=PortalUtil.getPortletNamespace(portletId);
+      for (      MessageElement formParameter : formParameters) {
+        sb.append(StringPool.AMPERSAND);
+        String name=namespace.concat(ExtensionHelperUtil.getNameAttribute(formParameter));
+        sb.append(name);
+        sb.append(StringPool.EQUAL);
+        sb.append(HttpUtil.encodeURL(formParameter.getValue()));
+      }
+    }
+  }
+  if (windowState.equals(LiferayWindowState.EXCLUSIVE.toString())) {
+    sb.append("&ensureContentLength=1");
+  }
+  sb.append("&wsrp=1");
+  if (_log.isInfoEnabled()) {
+    _log.info("URL " + sb.toString());
+  }
+  return sb.toString();
+}

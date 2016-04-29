@@ -1,0 +1,36 @@
+{
+  PortletSession portletSession=resourceRequest.getPortletSession();
+  WSRPConsumerPortlet wsrpConsumerPortlet=getWSRPConsumerPortlet();
+  WSRPConsumer wsrpConsumer=WSRPConsumerLocalServiceUtil.getWSRPConsumer(wsrpConsumerPortlet.getWsrpConsumerId());
+  Http.Options options=new Http.Options();
+  options.setLocation(url);
+  String cookieKey=getSessionKey(WebKeys.COOKIE,resourceRequest,wsrpConsumer);
+  String cookie=(String)portletSession.getAttribute(cookieKey,PortletSession.APPLICATION_SCOPE);
+  if (Validator.isNotNull(cookie)) {
+    Map<String,String> headers=new HashMap<>();
+    headers.put(HttpHeaders.COOKIE,cookie);
+    options.setHeaders(headers);
+  }
+  byte[] bytes=HttpUtil.URLtoByteArray(options);
+  Http.Response response=options.getResponse();
+  String contentDisposition=response.getHeader(HttpHeaders.CONTENT_DISPOSITION);
+  if (Validator.isNotNull(contentDisposition)) {
+    resourceResponse.setProperty(HttpHeaders.CONTENT_DISPOSITION,contentDisposition);
+  }
+  int contentLength=response.getContentLength();
+  if (contentLength >= 0) {
+    resourceResponse.setContentLength(contentLength);
+  }
+  String contentType=response.getContentType();
+  if (Validator.isNotNull(contentType)) {
+    resourceResponse.setContentType(contentType);
+  }
+  String charSet=getCharSet(contentType);
+  if (ParamUtil.getBoolean(resourceRequest,"wsrp-requiresRewrite")) {
+    String content=rewriteURLs(resourceRequest,resourceResponse,new String(bytes,charSet));
+    PortletResponseUtil.write(resourceResponse,content);
+  }
+ else {
+    PortletResponseUtil.write(resourceResponse,bytes);
+  }
+}

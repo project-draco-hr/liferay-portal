@@ -1,0 +1,43 @@
+{
+  Portlet portlet=_portletsPool.get(wsrpConsumerPortletUuid);
+  if ((portlet != null) && portlet.isActive()) {
+    return portlet;
+  }
+  String portletId=getPortletId(wsrpConsumerPortletUuid);
+  portlet=PortletLocalServiceUtil.clonePortlet(_CONSUMER_PORTLET_ID);
+  portlet.setCompanyId(companyId);
+  portlet.setPortletId(portletId);
+  PortletApp portletApp=PortletLocalServiceUtil.getPortletApp(ClpSerializer.getServletContextName());
+  portlet.setPortletApp(portletApp);
+  portlet.setPortletName(portletId);
+  portlet.setDisplayName(portletId);
+  Map<String,String> initParams=portlet.getInitParams();
+  initParams.put(InvokerPortlet.INIT_INVOKER_PORTLET_NAME,_CONSUMER_PORTLET_NAME);
+  WSRPConsumer wsrpConsumer=wsrpConsumerPersistence.findByPrimaryKey(wsrpConsumerId);
+  PortletDescription portletDescription=null;
+  try {
+    WSRPConsumerManager wsrpConsumerManager=WSRPConsumerManagerFactory.getWSRPConsumerManager(wsrpConsumer);
+    portletDescription=wsrpConsumerManager.getPortletDescription(portletHandle);
+  }
+ catch (  Exception e) {
+    if (_log.isWarnEnabled()) {
+      _log.warn("Unable to connect to WSRP producer for portlet " + wsrpConsumerPortletUuid,e);
+    }
+  }
+  if (portletDescription != null) {
+    addPortletExtraInfo(portlet,portletApp,portletDescription,name);
+    portlet.setActive(true);
+  }
+ else {
+    PortletInfo portletInfo=new PortletInfo(name,name,StringPool.BLANK,StringPool.BLANK);
+    portlet.setPortletInfo(portletInfo);
+  }
+  _portletsPool.put(wsrpConsumerPortletUuid,portlet);
+  PortletBag portletBag=PortletBagPool.get(_CONSUMER_PORTLET_ID);
+  portletBag=(PortletBag)portletBag.clone();
+  portletBag.setPortletName(portletId);
+  ConsumerPortlet consumerPortletInstance=getConsumerPortletInstance(portlet);
+  portletBag.setPortletInstance(consumerPortletInstance);
+  PortletBagPool.put(portletId,portletBag);
+  return portlet;
+}

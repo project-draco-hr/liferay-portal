@@ -1,0 +1,99 @@
+{
+  PortletSession portletSession=portletRequest.getPortletSession();
+  HttpServletRequest request=PortalUtil.getHttpServletRequest(portletRequest);
+  ThemeDisplay themeDisplay=(ThemeDisplay)portletRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  ClientData clientData=new ClientData();
+  clientData.setRequestVerb(request.getMethod());
+  clientData.setUserAgent(request.getHeader(HttpHeaders.USER_AGENT));
+  User user=themeDisplay.getUser();
+  List<MessageElement> clientAttributes=new ArrayList<>();
+  Enumeration<String> enu=request.getHeaderNames();
+  while (enu.hasMoreElements()) {
+    String name=enu.nextElement();
+    String value=request.getHeader(name);
+    ExtensionHelperUtil.addMessageElement(clientAttributes,name,value);
+  }
+  ExtensionHelperUtil.addMessageElement(clientAttributes,HttpHeaders.LIFERAY_EMAIL_ADDRESS,user.getEmailAddress());
+  ExtensionHelperUtil.addMessageElement(clientAttributes,HttpHeaders.LIFERAY_SCREEN_NAME,user.getScreenName());
+  ExtensionHelperUtil.addMessageElement(clientAttributes,HttpHeaders.LIFERAY_USER_ID,String.valueOf(user.getUserId()));
+  ConsumerRequestExtensionsHelper.addClientAttributes(clientAttributes);
+  clientData.setExtensions(ExtensionHelperUtil.getExtensions(clientAttributes));
+  mimeRequest.setClientData(clientData);
+  List<Locale> locales=Collections.list(portletRequest.getLocales());
+  String[] localesArray=new String[locales.size()];
+  for (int i=0; i < locales.size(); i++) {
+    Locale locale=locales.get(i);
+    localesArray[i]=locale.toString();
+  }
+  Locale locale=themeDisplay.getLocale();
+  if (!locales.contains(locale)) {
+    localesArray=ArrayUtil.append(new String[]{locale.toString(),locale.getLanguage()},localesArray);
+  }
+  mimeRequest.setLocales(localesArray);
+  String[] markupCharacterSets=null;
+  if (Validator.isNotNull(wsrpConsumer.getMarkupCharacterSets())) {
+    String markupCharacterSetsString=wsrpConsumer.getMarkupCharacterSets();
+    markupCharacterSetsString=MarkupCharacterSetsUtil.getSupportedMarkupCharacterSets(markupCharacterSetsString);
+    markupCharacterSets=StringUtil.split(markupCharacterSetsString);
+  }
+ else {
+    markupCharacterSets=_CHAR_SETS;
+  }
+  mimeRequest.setMarkupCharacterSets(markupCharacterSets);
+  mimeRequest.setMimeTypes(_MIME_TYPES);
+  mimeRequest.setMode(getWSRPMode(portletRequest.getPortletMode()));
+  mimeRequest.setWindowState(getWSRPWindowState(portletRequest.getWindowState()));
+  String[] modes={getWSRPMode(PortletMode.EDIT),getWSRPMode(PortletMode.HELP),getWSRPMode(PortletMode.VIEW)};
+  mimeRequest.setValidNewModes(modes);
+  String[] windowStates={getWSRPWindowState(WindowState.MAXIMIZED),getWSRPWindowState(WindowState.MINIMIZED),getWSRPWindowState(WindowState.NORMAL)};
+  mimeRequest.setValidNewWindowStates(windowStates);
+  NavigationalContext navigationalContext=new NavigationalContext();
+  String navigationalState=portletRequest.getParameter("wsrp-navigationalState");
+  if (Validator.isNotNull(navigationalState)) {
+    navigationalState=new String(Base64.decode(Base64.fromURLSafe(navigationalState)),StringPool.UTF8);
+    navigationalContext.setOpaqueValue(navigationalState);
+  }
+  Map<String,String[]> publicParameterMap=portletRequest.getPublicParameterMap();
+  List<NamedString> publicValues=new ArrayList<>();
+  for (  Map.Entry<String,String[]> entry : publicParameterMap.entrySet()) {
+    String name=entry.getKey();
+    String[] values=entry.getValue();
+    for (    String value : values) {
+      NamedString publicValue=new NamedString();
+      publicValue.setName(name);
+      publicValue.setValue(value);
+      publicValues.add(publicValue);
+    }
+  }
+  navigationalContext.setPublicValues(publicValues.toArray(new NamedString[publicValues.size()]));
+  mimeRequest.setNavigationalContext(navigationalContext);
+  if (mimeRequest instanceof MarkupParams) {
+    processFormParameters(portletRequest,portletResponse,mimeRequest);
+  }
+  portletContext.setPortletHandle(wsrpConsumerPortlet.getPortletHandle());
+  runtimeContext.setNamespacePrefix(portletResponse.getNamespace());
+  runtimeContext.setPortletInstanceKey(portletResponse.getNamespace());
+  SessionContext sessionContext=(SessionContext)portletSession.getAttribute(WebKeys.SESSION_CONTEXT);
+  if (sessionContext != null) {
+    SessionParams sessionParams=new SessionParams();
+    sessionParams.setSessionID(sessionContext.getSessionID());
+    runtimeContext.setSessionParams(sessionParams);
+  }
+  runtimeContext.setUserAuthentication("wsrp:password");
+  PortletDescription portletDescription=wsrpConsumerManager.getPortletDescription(wsrpConsumerPortlet.getPortletHandle());
+  Boolean doesUrlTemplateProcessing=portletDescription.getDoesUrlTemplateProcessing();
+  if ((doesUrlTemplateProcessing != null) && doesUrlTemplateProcessing) {
+    Templates templates=new Templates();
+    templates.setBlockingActionTemplate(_BLOCKING_ACTION_TEMPLATE);
+    templates.setRenderTemplate(_RENDER_TEMPLATE);
+    templates.setResourceTemplate(_RESOURCE_TEMPLATE);
+    templates.setSecureBlockingActionTemplate(_BLOCKING_ACTION_TEMPLATE);
+    templates.setSecureRenderTemplate(_RENDER_TEMPLATE);
+    templates.setSecureResourceTemplate(_RESOURCE_TEMPLATE);
+    runtimeContext.setTemplates(templates);
+  }
+  UserProfile userProfile=getUserProfile(user);
+  ConsumerRequestExtensionsHelper.addUserProfileAttributes(userProfile,user);
+  userContext.setProfile(userProfile);
+  userContext.setUserContextKey(String.valueOf(user.getUserId()));
+}

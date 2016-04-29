@@ -1,0 +1,62 @@
+{
+  WSRPProducer wsrpProducer=getWSRPProducer();
+  Http.Options httpOptions=new Http.Options();
+  addHeaders(getResource.getResourceParams(),httpOptions);
+  httpOptions.setLocation(getURL(getResource,wsrpProducer));
+  ResourceParams resourceParams=getResource.getResourceParams();
+  UploadContext[] uploadContexts=resourceParams.getUploadContexts();
+  processUploadContexts(uploadContexts,httpOptions);
+  NamedString[] formParameters=resourceParams.getFormParameters();
+  if (formParameters != null) {
+    NavigationalContext navigationalContext=resourceParams.getNavigationalContext();
+    PortletContext portletContext=getResource.getPortletContext();
+    String namespace=PortalUtil.getPortletNamespace(getPortletId(portletContext,navigationalContext));
+    for (    NamedString formParameter : formParameters) {
+      httpOptions.addPart(namespace + formParameter.getName(),formParameter.getValue());
+    }
+    if (formParameters.length > 0) {
+      httpOptions.setPost(true);
+    }
+  }
+  httpOptions.setFollowRedirects(false);
+  byte[] itemBinary=getBinaryContent(httpOptions);
+  ResourceContext resourceContext=new ResourceContext();
+  Http.Response response=httpOptions.getResponse();
+  String contentType=response.getContentType();
+  if (itemBinary != null) {
+    if (Validator.isNotNull(contentType) && StringUtil.toLowerCase(contentType).startsWith("text")) {
+      String content=new String(itemBinary);
+      resourceContext.setItemString(content);
+      resourceContext.setRequiresRewriting(true);
+    }
+ else {
+      resourceContext.setItemBinary(itemBinary);
+    }
+  }
+  List<NamedString> clientAttributes=new ArrayList<>();
+  String contentDisposition=response.getHeader(HttpHeaders.CONTENT_DISPOSITION);
+  if (Validator.isNotNull(contentDisposition)) {
+    NamedString clientAttribute=new NamedString();
+    clientAttribute.setName(HttpHeaders.CONTENT_DISPOSITION);
+    clientAttribute.setValue(contentDisposition);
+    clientAttributes.add(clientAttribute);
+  }
+  if (Validator.isNotNull(contentType)) {
+    resourceContext.setMimeType(contentType);
+    NamedString clientAttribute=new NamedString();
+    clientAttribute.setName(HttpHeaders.CONTENT_TYPE);
+    clientAttribute.setValue(contentType);
+    clientAttributes.add(clientAttribute);
+  }
+  int contentLength=response.getContentLength();
+  if (contentLength >= 0) {
+    NamedString clientAttribute=new NamedString();
+    clientAttribute.setName(HttpHeaders.CONTENT_LENGTH);
+    clientAttribute.setValue(Integer.toString(contentLength));
+    clientAttributes.add(clientAttribute);
+  }
+  resourceContext.setClientAttributes(clientAttributes.toArray(new NamedString[clientAttributes.size()]));
+  ResourceResponse resourceResponse=new ResourceResponse();
+  resourceResponse.setResourceContext(resourceContext);
+  return resourceResponse;
+}
