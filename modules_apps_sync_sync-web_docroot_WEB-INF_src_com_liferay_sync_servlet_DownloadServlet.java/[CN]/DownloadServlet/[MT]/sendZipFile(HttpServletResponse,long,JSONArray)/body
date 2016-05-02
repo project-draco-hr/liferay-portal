@@ -1,0 +1,38 @@
+{
+  ZipWriter zipWriter=ZipWriterFactoryUtil.getZipWriter();
+  JSONObject errorsJSONObject=JSONFactoryUtil.createJSONObject();
+  for (int i=0; i < zipFileIdsJSONArray.length(); i++) {
+    JSONObject zipObjectJSONObject=zipFileIdsJSONArray.getJSONObject(i);
+    long groupId=zipObjectJSONObject.getLong("groupId");
+    String zipFileId=zipObjectJSONObject.getString("zipFileId");
+    Group group=GroupLocalServiceUtil.fetchGroup(groupId);
+    if ((group == null) || !SyncUtil.isSyncEnabled(group)) {
+      processException(zipFileId,SyncSiteUnavailableException.class.getName(),errorsJSONObject);
+      continue;
+    }
+    InputStream inputStream=null;
+    try {
+      String uuid=zipObjectJSONObject.getString("uuid");
+      if (zipObjectJSONObject.getBoolean("patch")) {
+        long sourceVersionId=zipObjectJSONObject.getLong("sourceVersionId",0);
+        long targetVersionId=zipObjectJSONObject.getLong("targetVersionId",0);
+        inputStream=getPatchDownloadServletInputStream(userId,groupId,uuid,sourceVersionId,targetVersionId);
+        zipWriter.addEntry(zipFileId,inputStream);
+      }
+ else {
+        inputStream=getFileDownloadServletInputStream(userId,groupId,uuid,zipObjectJSONObject.getString("version"),zipObjectJSONObject.getLong("versionId"));
+        zipWriter.addEntry(zipFileId,inputStream);
+      }
+    }
+ catch (    Exception e) {
+      Class clazz=e.getClass();
+      processException(zipFileId,clazz.getName(),errorsJSONObject);
+    }
+ finally {
+      StreamUtil.cleanUp(inputStream);
+    }
+  }
+  zipWriter.addEntry("errors.json",errorsJSONObject.toString());
+  File file=zipWriter.getFile();
+  ServletResponseUtil.write(response,new FileInputStream(file),file.length());
+}

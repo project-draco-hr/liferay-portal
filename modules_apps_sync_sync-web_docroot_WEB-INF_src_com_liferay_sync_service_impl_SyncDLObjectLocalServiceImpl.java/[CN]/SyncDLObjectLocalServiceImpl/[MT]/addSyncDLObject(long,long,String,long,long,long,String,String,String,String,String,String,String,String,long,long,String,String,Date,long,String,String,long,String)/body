@@ -1,0 +1,95 @@
+{
+  if (!isDefaultRepository(parentFolderId)) {
+    return null;
+  }
+  SyncDLObject syncDLObject=syncDLObjectPersistence.fetchByT_T(type,typePK);
+  if (syncDLObject == null) {
+    long syncDLObjectId=counterLocalService.increment();
+    syncDLObject=syncDLObjectPersistence.create(syncDLObjectId);
+    syncDLObject.setCompanyId(companyId);
+    syncDLObject.setCreateTime(modifiedTime);
+    syncDLObject.setRepositoryId(repositoryId);
+    syncDLObject.setType(type);
+    syncDLObject.setTypePK(typePK);
+    syncDLObject.setTypeUuid(typeUuid);
+    if (type.equals(SyncDLObjectConstants.TYPE_PRIVATE_WORKING_COPY)) {
+      SyncDLObject approvedSyncDLObject=syncDLObjectPersistence.fetchByT_T(SyncDLObjectConstants.TYPE_FILE,typePK);
+      approvedSyncDLObject.setModifiedTime(modifiedTime);
+      approvedSyncDLObject.setLockExpirationDate(lockExpirationDate);
+      approvedSyncDLObject.setLockUserId(lockUserId);
+      approvedSyncDLObject.setLockUserName(lockUserName);
+      syncDLObjectPersistence.update(approvedSyncDLObject);
+    }
+  }
+ else   if (syncDLObject.getModifiedTime() >= modifiedTime) {
+    return null;
+  }
+ else   if (type.equals(SyncDLObjectConstants.TYPE_FILE)) {
+    SyncDLObject pwcSyncDLObject=syncDLObjectPersistence.fetchByT_T(SyncDLObjectConstants.TYPE_PRIVATE_WORKING_COPY,typePK);
+    if (pwcSyncDLObject != null) {
+      DLFileEntry dlFileEntry=dlFileEntryLocalService.fetchDLFileEntry(typePK);
+      if ((dlFileEntry == null) || !dlFileEntry.isCheckedOut()) {
+        syncDLObjectPersistence.remove(pwcSyncDLObject);
+      }
+    }
+  }
+ else   if (type.equals(SyncDLObjectConstants.TYPE_PRIVATE_WORKING_COPY)) {
+    if (event.equals(SyncDLObjectConstants.EVENT_RESTORE) || event.equals(SyncDLObjectConstants.EVENT_TRASH)) {
+      SyncDLObject approvedSyncDLObject=syncDLObjectPersistence.fetchByT_T(SyncDLObjectConstants.TYPE_FILE,typePK);
+      approvedSyncDLObject.setEvent(event);
+      syncDLObjectPersistence.update(approvedSyncDLObject);
+    }
+  }
+  syncDLObject.setUserId(userId);
+  syncDLObject.setUserName(userName);
+  syncDLObject.setModifiedTime(modifiedTime);
+  syncDLObject.setParentFolderId(parentFolderId);
+  syncDLObject.setTreePath(treePath);
+  syncDLObject.setName(name);
+  syncDLObject.setExtension(extension);
+  syncDLObject.setMimeType(mimeType);
+  syncDLObject.setDescription(description);
+  syncDLObject.setChangeLog(changeLog);
+  syncDLObject.setVersion(version);
+  syncDLObject.setVersionId(versionId);
+  syncDLObject.setSize(size);
+  syncDLObject.setChecksum(checksum);
+  syncDLObject.setEvent(event);
+  syncDLObject.setLockExpirationDate(lockExpirationDate);
+  syncDLObject.setLockUserId(lockUserId);
+  syncDLObject.setLockUserName(lockUserName);
+  syncDLObject=syncDLObjectPersistence.update(syncDLObject);
+  if (type.equals(SyncDLObjectConstants.TYPE_FILE) && ArrayUtil.contains(PortletPropsValues.SYNC_MAC_PACKAGE_METADATA_FILE_NAMES,syncDLObject.getName())) {
+    SyncDLObject parentFolderSyncDLObject=syncDLObjectPersistence.fetchByT_T(SyncDLObjectConstants.TYPE_FOLDER,syncDLObject.getParentFolderId());
+    String parentFolderExtension=FileUtil.getExtension(parentFolderSyncDLObject.getName());
+    if (ArrayUtil.contains(PortletPropsValues.SYNC_MAC_PACKAGE_FOLDER_EXTENSIONS,parentFolderExtension)) {
+      JSONObject extraSettingsJSONObject=JSONFactoryUtil.createJSONObject(parentFolderSyncDLObject.getExtraSettings());
+      extraSettingsJSONObject.put("macPackage",true);
+      parentFolderSyncDLObject.setExtraSettings(extraSettingsJSONObject.toString());
+      syncDLObjectPersistence.update(parentFolderSyncDLObject);
+    }
+  }
+  if (type.equals(SyncDLObjectConstants.TYPE_FOLDER)) {
+    if (Validator.isNull(treePath)) {
+      return syncDLObject;
+    }
+    if (event.equals(SyncDLObjectConstants.EVENT_MOVE)) {
+      moveSyncDLObjects(syncDLObject);
+    }
+ else     if (event.equals(SyncDLObjectConstants.EVENT_RESTORE)) {
+      restoreSyncDLObjects(syncDLObject);
+    }
+ else     if (event.equals(SyncDLObjectConstants.EVENT_TRASH)) {
+      trashSyncDLObjects(syncDLObject);
+    }
+  }
+ else   if (event.equals(SyncDLObjectConstants.EVENT_DELETE)) {
+    try {
+      syncDLFileVersionDiffLocalService.deleteSyncDLFileVersionDiffs(typePK);
+    }
+ catch (    Exception e) {
+      _log.error(e,e);
+    }
+  }
+  return syncDLObject;
+}

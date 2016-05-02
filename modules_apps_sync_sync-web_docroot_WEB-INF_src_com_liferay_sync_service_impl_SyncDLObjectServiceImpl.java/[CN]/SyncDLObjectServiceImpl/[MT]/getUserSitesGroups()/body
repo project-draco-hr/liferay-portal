@@ -1,0 +1,48 @@
+{
+  try {
+    SyncUtil.checkSyncEnabled(0);
+    User user=getUser();
+    List<Group> groups=new ArrayList<>();
+    LinkedHashMap<String,Object> groupParams=new LinkedHashMap<>();
+    groupParams.put("active",true);
+    groupParams.put("usersGroups",user.getUserId());
+    List<Group> userSiteGroups=groupLocalService.search(user.getCompanyId(),null,groupParams,QueryUtil.ALL_POS,QueryUtil.ALL_POS);
+    for (    Group userSiteGroup : userSiteGroups) {
+      if (SyncUtil.isSyncEnabled(userSiteGroup)) {
+        userSiteGroup.setName(userSiteGroup.getDescriptiveName());
+        groups.add(userSiteGroup);
+      }
+    }
+    List<Organization> organizations=organizationLocalService.getOrganizations(user.getUserId(),QueryUtil.ALL_POS,QueryUtil.ALL_POS,null);
+    for (    Organization organization : organizations) {
+      Group userOrganizationGroup=organization.getGroup();
+      if (SyncUtil.isSyncEnabled(userOrganizationGroup)) {
+        groups.add(userOrganizationGroup);
+      }
+      if (!GetterUtil.getBoolean(PropsUtil.get(PropsKeys.ORGANIZATIONS_MEMBERSHIP_STRICT))) {
+        for (        Organization ancestorOrganization : organization.getAncestors()) {
+          Group userAncestorOrganizationGroup=ancestorOrganization.getGroup();
+          if (SyncUtil.isSyncEnabled(userAncestorOrganizationGroup)) {
+            groups.add(userAncestorOrganizationGroup);
+          }
+        }
+      }
+    }
+    if (PrefsPropsUtil.getBoolean(user.getCompanyId(),PortletPropsKeys.SYNC_ALLOW_USER_PERSONAL_SITES,PortletPropsValues.SYNC_ALLOW_USER_PERSONAL_SITES)) {
+      Group userGroup=user.getGroup();
+      userGroup.setName(user.getScreenName());
+      groups.add(userGroup);
+    }
+    Group companyGroup=groupLocalService.getCompanyGroup(user.getCompanyId());
+    if (SyncUtil.isSyncEnabled(companyGroup)) {
+      companyGroup.setName(companyGroup.getDescriptiveName());
+      groups.add(companyGroup);
+    }
+    Collections.sort(groups,new GroupNameComparator());
+    return ListUtil.unique(groups);
+  }
+ catch (  PortalException pe) {
+    Class clazz=pe.getClass();
+    throw new PortalException(clazz.getName(),pe);
+  }
+}

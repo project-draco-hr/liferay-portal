@@ -1,0 +1,75 @@
+{
+  _dlFoldersAndFileEntriesCount=0;
+  ActionableDynamicQuery dlFolderActionableDynamicQuery=DLFolderLocalServiceUtil.getActionableDynamicQuery();
+  dlFolderActionableDynamicQuery.setAddCriteriaMethod(new ActionableDynamicQuery.AddCriteriaMethod(){
+    @Override public void addCriteria(    DynamicQuery dynamicQuery){
+      Property hiddenProperty=PropertyFactoryUtil.forName("hidden");
+      dynamicQuery.add(hiddenProperty.eq(false));
+      Property mountPointProperty=PropertyFactoryUtil.forName("mountPoint");
+      dynamicQuery.add(mountPointProperty.eq(false));
+      Property statusProperty=PropertyFactoryUtil.forName("status");
+      int[] workflowConstants=new int[]{WorkflowConstants.STATUS_APPROVED,WorkflowConstants.STATUS_IN_TRASH};
+      dynamicQuery.add(statusProperty.in(workflowConstants));
+    }
+  }
+);
+  dlFolderActionableDynamicQuery.setGroupId(groupId);
+  dlFolderActionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod<DLFolder>(){
+    @Override public void performAction(    DLFolder dlFolder) throws PortalException {
+      _dlFoldersAndFileEntriesCount++;
+      logCount(_dlFoldersAndFileEntriesCount,_dlFoldersAndFileEntriesTotalCount,"DL folders and DL file entries");
+      try {
+        if (dlFolder.getStatus() == WorkflowConstants.STATUS_APPROVED) {
+          SyncUtil.addSyncDLObject(SyncUtil.toSyncDLObject(dlFolder,0,StringPool.BLANK,SyncDLObjectConstants.EVENT_ADD));
+        }
+ else {
+          SyncUtil.addSyncDLObject(SyncUtil.toSyncDLObject(dlFolder,0,StringPool.BLANK,SyncDLObjectConstants.EVENT_TRASH));
+        }
+      }
+ catch (      Exception e) {
+        _log.error(e,e);
+      }
+    }
+  }
+);
+  ActionableDynamicQuery dlFileEntryActionableDynamicQuery=DLFileEntryLocalServiceUtil.getActionableDynamicQuery();
+  dlFileEntryActionableDynamicQuery.setGroupId(groupId);
+  dlFileEntryActionableDynamicQuery.setPerformActionMethod(new ActionableDynamicQuery.PerformActionMethod<DLFileEntry>(){
+    @Override public void performAction(    DLFileEntry dlFileEntry) throws PortalException {
+      _dlFoldersAndFileEntriesCount++;
+      logCount(_dlFoldersAndFileEntriesCount,_dlFoldersAndFileEntriesTotalCount,"DL folders and DL file entries");
+      if ((dlFileEntry.getStatus() != WorkflowConstants.STATUS_APPROVED) && !dlFileEntry.isInTrash()) {
+        return;
+      }
+      try {
+        SyncDLObject syncDLObject=SyncDLObjectLocalServiceUtil.fetchSyncDLObject(SyncDLObjectConstants.TYPE_FILE,dlFileEntry.getFileEntryId());
+        if (syncDLObject != null) {
+          Date modifiedDate=dlFileEntry.getModifiedDate();
+          if (syncDLObject.getModifiedTime() >= modifiedDate.getTime()) {
+            return;
+          }
+        }
+        String event=null;
+        if (dlFileEntry.getStatus() == WorkflowConstants.STATUS_APPROVED) {
+          event=SyncDLObjectConstants.EVENT_ADD;
+        }
+ else {
+          event=SyncDLObjectConstants.EVENT_TRASH;
+        }
+        if (dlFileEntry.isCheckedOut()) {
+          SyncDLObject approvedFileEntrySyncDLObject=SyncUtil.toSyncDLObject(dlFileEntry,event,!dlFileEntry.isInTrash(),true);
+          SyncUtil.addSyncDLObject(approvedFileEntrySyncDLObject);
+        }
+        SyncUtil.addSyncDLObject(SyncUtil.toSyncDLObject(dlFileEntry,event,!dlFileEntry.isInTrash()));
+      }
+ catch (      Exception e) {
+        _log.error(e,e);
+      }
+    }
+  }
+);
+  _dlFoldersAndFileEntriesTotalCount=dlFolderActionableDynamicQuery.performCount() + dlFileEntryActionableDynamicQuery.performCount();
+  dlFolderActionableDynamicQuery.performActions();
+  dlFileEntryActionableDynamicQuery.performActions();
+  logCount(_dlFoldersAndFileEntriesCount,_dlFoldersAndFileEntriesTotalCount,"DL folders and DL file entries");
+}

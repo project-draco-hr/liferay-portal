@@ -1,0 +1,39 @@
+{
+  PermissionChecker permissionChecker=getPermissionChecker();
+  if (permissionChecker.isGroupAdmin(repositoryId)) {
+    return syncDLObjects;
+  }
+  boolean hasFileModelPermission=hasModelPermission(repositoryId,DLFileEntryConstants.getClassName());
+  boolean hasFolderModelPermission=hasModelPermission(repositoryId,DLFolderConstants.getClassName());
+  if (hasFileModelPermission && hasFolderModelPermission) {
+    return syncDLObjects;
+  }
+  Set<Long> typePKs=new HashSet<>();
+  for (  SyncDLObject syncDLObject : syncDLObjects) {
+    typePKs.add(syncDLObject.getTypePK());
+    if (!hasFolderModelPermission && _PERMISSIONS_VIEW_DYNAMIC_INHERITANCE) {
+      long[] parentFolderIds=StringUtil.split(syncDLObject.getTreePath(),StringPool.SLASH,0L);
+      for (      long parentFolderId : parentFolderIds) {
+        if (parentFolderId > 0) {
+          typePKs.add(parentFolderId);
+        }
+      }
+    }
+  }
+  Set<Long> checkedTypePKs=SetUtil.fromList(checkTypePKs(repositoryId,permissionChecker.getUserId(),new ArrayList(typePKs)));
+  List<SyncDLObject> checkedSyncDLObjects=new ArrayList<>();
+  Date lastAccessDate=new Date(lastAccessTime);
+  for (  SyncDLObject syncDLObject : syncDLObjects) {
+    String event=syncDLObject.getEvent();
+    if (event.equals(SyncDLObjectConstants.EVENT_DELETE) || event.equals(SyncDLObjectConstants.EVENT_TRASH) || hasPermission(checkedTypePKs,syncDLObject,hasFileModelPermission,hasFolderModelPermission)) {
+      checkedSyncDLObjects.add(syncDLObject);
+      continue;
+    }
+    Date lastPermissionChangeDate=syncDLObject.getLastPermissionChangeDate();
+    if ((lastPermissionChangeDate != null) && lastPermissionChangeDate.after(lastAccessDate)) {
+      syncDLObject.setEvent(SyncDLObjectConstants.EVENT_DELETE);
+      checkedSyncDLObjects.add(syncDLObject);
+    }
+  }
+  return checkedSyncDLObjects;
+}

@@ -1,0 +1,37 @@
+{
+  FileEntry fileEntry=DLAppServiceUtil.getFileEntryByUuidAndGroupId(uuid,groupId);
+  if (fileEntry.isInTrash()) {
+    throw new NoSuchFileEntryException();
+  }
+  if (!PortletPropsValues.SYNC_FILE_DIFF_CACHE_ENABLED) {
+    File deltaFile=null;
+    try {
+      deltaFile=getDeltaFile(userId,fileEntry.getFileEntryId(),sourceVersionId,targetVersionId);
+      return new DownloadServletInputStream(new FileInputStream(deltaFile),deltaFile.length());
+    }
+  finally {
+      FileUtil.delete(deltaFile);
+    }
+  }
+  SyncDLFileVersionDiff syncDLFileVersionDiff=SyncDLFileVersionDiffLocalServiceUtil.fetchSyncDLFileVersionDiff(fileEntry.getFileEntryId(),sourceVersionId,targetVersionId);
+  if (syncDLFileVersionDiff != null) {
+    SyncDLFileVersionDiffLocalServiceUtil.refreshExpirationDate(syncDLFileVersionDiff.getSyncDLFileVersionDiffId());
+    FileEntry dataFileEntry=PortletFileRepositoryUtil.getPortletFileEntry(syncDLFileVersionDiff.getDataFileEntryId());
+    return new DownloadServletInputStream(dataFileEntry.getContentStream(),dataFileEntry.getSize());
+  }
+ else {
+    File deltaFile=null;
+    try {
+      deltaFile=getDeltaFile(userId,fileEntry.getFileEntryId(),sourceVersionId,targetVersionId);
+      try {
+        SyncDLFileVersionDiffLocalServiceUtil.addSyncDLFileVersionDiff(fileEntry.getFileEntryId(),sourceVersionId,targetVersionId,deltaFile);
+      }
+ catch (      DuplicateFileException dfe) {
+      }
+      return new DownloadServletInputStream(new FileInputStream(deltaFile),deltaFile.length());
+    }
+  finally {
+      FileUtil.delete(deltaFile);
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  File patchedFile=null;
+  try {
+    FileEntry fileEntry=dlAppLocalService.getFileEntry(fileEntryId);
+    SyncUtil.checkSyncEnabled(fileEntry.getGroupId());
+    checkFileEntry(fileEntry);
+    DLFileVersion dlFileVersion=dlFileVersionLocalService.getDLFileVersion(sourceVersionId);
+    File sourceFile=dlFileEntryLocalService.getFile(fileEntryId,dlFileVersion.getVersion(),false);
+    patchedFile=FileUtil.createTempFile();
+    SyncUtil.patchFile(sourceFile,deltaFile,patchedFile);
+    SyncDLObject syncDLObject=updateFileEntry(fileEntryId,sourceFileName,mimeType,title,description,changeLog,majorVersion,patchedFile,checksum,serviceContext);
+    if (PortletPropsValues.SYNC_FILE_DIFF_CACHE_ENABLED && (sourceVersionId != syncDLObject.getVersionId())) {
+      DLFileVersion targetDLFileVersion=dlFileVersionLocalService.getFileVersion(syncDLObject.getVersionId());
+      syncDLFileVersionDiffLocalService.addSyncDLFileVersionDiff(fileEntryId,sourceVersionId,targetDLFileVersion.getFileVersionId(),deltaFile);
+    }
+    return syncDLObject;
+  }
+ catch (  PortalException pe) {
+    throw new PortalException(SyncUtil.buildExceptionMessage(pe),pe);
+  }
+ finally {
+    FileUtil.delete(patchedFile);
+  }
+}

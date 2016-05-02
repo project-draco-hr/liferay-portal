@@ -1,0 +1,39 @@
+{
+  Map<String,Object> responseMap=new HashMap<>();
+  ZipReader zipReader=null;
+  try {
+    SyncUtil.checkSyncEnabled(0);
+    zipReader=ZipReaderFactoryUtil.getZipReader(zipFile);
+    String manifest=zipReader.getEntryAsString("/manifest.json");
+    JSONArray jsonArray=JSONFactoryUtil.createJSONArray(manifest);
+    for (int i=0; i < jsonArray.length(); i++) {
+      JSONObject jsonObject=jsonArray.getJSONObject(i);
+      JSONWebServiceActionParametersMap jsonWebServiceActionParametersMap=JSONFactoryUtil.looseDeserialize(jsonObject.toString(),JSONWebServiceActionParametersMap.class);
+      String zipFileId=MapUtil.getString(jsonWebServiceActionParametersMap,"zipFileId");
+      try {
+        responseMap.put(zipFileId,updateFileEntries(zipReader,zipFileId,jsonWebServiceActionParametersMap));
+      }
+ catch (      Exception e) {
+        String message=e.getMessage();
+        if (message == null) {
+          _log.error(e,e);
+          message=e.toString();
+        }
+        if (!message.startsWith(StringPool.QUOTE) && !message.endsWith(StringPool.QUOTE)) {
+          message=StringUtil.quote(message,StringPool.QUOTE);
+        }
+        String json="{\"exception\": " + message + "}";
+        responseMap.put(zipFileId,json);
+      }
+    }
+  }
+ catch (  PortalException pe) {
+    throw new PortalException(SyncUtil.buildExceptionMessage(pe),pe);
+  }
+ finally {
+    if (zipReader != null) {
+      zipReader.close();
+    }
+  }
+  return responseMap;
+}

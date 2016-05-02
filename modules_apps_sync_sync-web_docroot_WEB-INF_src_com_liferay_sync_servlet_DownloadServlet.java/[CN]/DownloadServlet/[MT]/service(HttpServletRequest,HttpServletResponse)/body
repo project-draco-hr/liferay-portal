@@ -1,0 +1,69 @@
+{
+  try {
+    HttpSession session=request.getSession();
+    if (PortalSessionThreadLocal.getHttpSession() == null) {
+      PortalSessionThreadLocal.setHttpSession(session);
+    }
+    User user=PortalUtil.getUser(request);
+    String syncUuid=request.getHeader("Sync-UUID");
+    if (syncUuid != null) {
+      SyncDevice syncDevice=SyncDeviceLocalServiceUtil.fetchSyncDeviceByUuidAndCompanyId(syncUuid,user.getCompanyId());
+      if (syncDevice != null) {
+        syncDevice.checkStatus();
+      }
+    }
+    PermissionChecker permissionChecker=PermissionCheckerFactoryUtil.create(user);
+    PermissionThreadLocal.setPermissionChecker(permissionChecker);
+    String path=HttpUtil.fixPath(request.getPathInfo());
+    String[] pathArray=StringUtil.split(path,CharPool.SLASH);
+    if (pathArray[0].equals("image")) {
+      long imageId=GetterUtil.getLong(pathArray[1]);
+      sendImage(response,imageId);
+    }
+ else     if (pathArray[0].equals("zip")) {
+      String zipFileIds=ParamUtil.get(request,"zipFileIds",StringPool.BLANK);
+      if (Validator.isNull(zipFileIds)) {
+        throw new IllegalArgumentException("Missing parameter zipFileIds");
+      }
+      JSONArray zipFileIdsJSONArray=JSONFactoryUtil.createJSONArray(zipFileIds);
+      sendZipFile(response,user.getUserId(),zipFileIdsJSONArray);
+    }
+ else     if (pathArray[0].equals("zipfolder")) {
+      long repositoryId=ParamUtil.getLong(request,"repositoryId");
+      long folderId=ParamUtil.getLong(request,"folderId");
+      if (repositoryId == 0) {
+        throw new IllegalArgumentException("Missing parameter repositoryId");
+      }
+ else       if (folderId == 0) {
+        throw new IllegalArgumentException("Missing parameter folderId");
+      }
+      sendZipFolder(response,user.getUserId(),repositoryId,folderId);
+    }
+ else {
+      long groupId=GetterUtil.getLong(pathArray[0]);
+      String fileUuid=pathArray[1];
+      Group group=GroupLocalServiceUtil.fetchGroup(groupId);
+      if ((group == null) || !SyncUtil.isSyncEnabled(group)) {
+        response.setHeader(_ERROR_HEADER,SyncSiteUnavailableException.class.getName());
+        ServletResponseUtil.write(response,new byte[0]);
+        return;
+      }
+      boolean patch=ParamUtil.getBoolean(request,"patch");
+      if (patch) {
+        sendPatch(request,response,user.getUserId(),groupId,fileUuid);
+      }
+ else {
+        sendFile(request,response,user.getUserId(),groupId,fileUuid);
+      }
+    }
+  }
+ catch (  NoSuchFileEntryException nsfee) {
+    PortalUtil.sendError(HttpServletResponse.SC_NOT_FOUND,nsfee,request,response);
+  }
+catch (  NoSuchFileVersionException nsfve) {
+    PortalUtil.sendError(HttpServletResponse.SC_NOT_FOUND,nsfve,request,response);
+  }
+catch (  Exception e) {
+    PortalUtil.sendError(e,request,response);
+  }
+}
