@@ -1,0 +1,26 @@
+{
+  long companyId=TestPropsValues.getCompanyId();
+  User user=UserLocalServiceUtil.getDefaultUser(companyId);
+  Group group=GroupTestUtil.addGroup(companyId,user.getUserId(),GroupConstants.DEFAULT_PARENT_GROUP_ID);
+  DDLRecordSetTestHelper recordSetTestHelper=new DDLRecordSetTestHelper(group);
+  DDMStructureTestHelper ddmStructureTestHelper=new DDMStructureTestHelper(PortalUtil.getClassNameId(DDLRecordSet.class),group);
+  DDMStructure ddmStructure=ddmStructureTestHelper.addStructure(createDDMForm(),StorageType.JSON.toString());
+  DDLRecordSet recordSet=recordSetTestHelper.addRecordSet(ddmStructure);
+  final SearchContext searchContext=getSearchContext(group,recordSet);
+  DDLRecordTestHelper recordTestHelper=new DDLRecordTestHelper(group,recordSet);
+  DDMFormValues ddmFormValues=createDDMFormValues();
+  DDMFormFieldValue nameDDMFormFieldValue=createLocalizedDDMFormFieldValue("name","Joe Bloggs");
+  ddmFormValues.addDDMFormFieldValue(nameDDMFormFieldValue);
+  DDMFormFieldValue descriptionDDMFormFieldValue=createLocalizedDDMFormFieldValue("description","Simple description");
+  ddmFormValues.addDDMFormFieldValue(descriptionDDMFormFieldValue);
+  recordTestHelper.addRecord(ddmFormValues,WorkflowConstants.ACTION_PUBLISH);
+  IdempotentRetryAssert.retryAssert(3,TimeUnit.SECONDS,new Callable<Void>(){
+    @Override public Void call() throws Exception {
+      searchContext.setKeywords("description");
+      Hits hits=DDLRecordLocalServiceUtil.search(searchContext);
+      Assert.assertEquals(1,hits.getLength());
+      return null;
+    }
+  }
+);
+}
