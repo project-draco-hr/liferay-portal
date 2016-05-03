@@ -1,0 +1,68 @@
+{
+  String remoteAddr=request.getRemoteAddr();
+  if (_log.isInfoEnabled()) {
+    _log.info("Remote address: " + remoteAddr);
+  }
+  if (!isValidIP(remoteAddr)) {
+    sendError(response,"IP " + remoteAddr + " is invalid.");
+    return;
+  }
+  String pathInfo=request.getPathInfo();
+  if (pathInfo.length() > 1) {
+    if (pathInfo.endsWith("/")) {
+      pathInfo=pathInfo.substring(0,pathInfo.length() - 1);
+    }
+  }
+  for (  Map.Entry<String,DoulosRequestProcessor> entry : _doulosRequestProcessors.entrySet()) {
+    String doulosRequestProcessorKey=entry.getKey();
+    if (!pathInfo.startsWith(doulosRequestProcessorKey)) {
+      continue;
+    }
+    DoulosRequestProcessor doulosRequestProcessor=entry.getValue();
+    if (_log.isInfoEnabled()) {
+      _log.info("Processing " + request.getRequestURL() + " with "+ doulosRequestProcessor);
+    }
+    try {
+      String payload=request.getParameter("payload");
+      if (_log.isInfoEnabled()) {
+        _log.info("Payload parameter: " + payload);
+      }
+      if (payload == null) {
+        StringBuilder sb=new StringBuilder();
+        String line=null;
+        BufferedReader bufferedReader=request.getReader();
+        while ((line=bufferedReader.readLine()) != null) {
+          sb.append(line);
+        }
+        bufferedReader.close();
+        payload=sb.toString();
+        if (_log.isInfoEnabled()) {
+          _log.info("Payload body: " + payload);
+        }
+      }
+      JSONObject payloadJSONObject=null;
+      if (payload.length() > 0) {
+        payloadJSONObject=new JSONObject(payload);
+      }
+ else {
+        payloadJSONObject=new JSONObject();
+      }
+      JSONObject responseJSONObject=new JSONObject();
+      doulosRequestProcessor.process(request.getParameterMap(),payloadJSONObject,responseJSONObject);
+      String json=responseJSONObject.toString();
+      write(response,new ByteArrayInputStream(json.getBytes("UTF-8")));
+    }
+ catch (    Exception e) {
+      StringWriter stringWriter=new StringWriter();
+      PrintWriter printWriter=new PrintWriter(stringWriter);
+      e.printStackTrace(printWriter);
+      String output=stringWriter.toString();
+      if (_log.isInfoEnabled()) {
+        _log.info(output);
+      }
+      sendError(response,output);
+    }
+    return;
+  }
+  sendError(response,"Unregistered path " + request.getPathInfo() + ".");
+}
