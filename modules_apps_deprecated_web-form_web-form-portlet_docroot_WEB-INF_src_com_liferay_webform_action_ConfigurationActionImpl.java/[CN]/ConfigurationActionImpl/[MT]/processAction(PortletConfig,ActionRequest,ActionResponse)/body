@@ -1,0 +1,73 @@
+{
+  validateFields(actionRequest);
+  if (!SessionErrors.isEmpty(actionRequest)) {
+    return;
+  }
+  Locale defaultLocale=LocaleUtil.getSiteDefault();
+  String defaultLanguageId=LocaleUtil.toLanguageId(defaultLocale);
+  boolean updateFields=ParamUtil.getBoolean(actionRequest,"updateFields");
+  String portletResource=ParamUtil.getString(actionRequest,"portletResource");
+  PortletPreferences preferences=actionRequest.getPreferences();
+  LocalizationUtil.setLocalizedPreferencesValues(actionRequest,preferences,"title");
+  Map<Locale,String> titleMap=LocalizationUtil.getLocalizationMap(actionRequest,"title");
+  preferences.setValue("title",titleMap.get(defaultLocale));
+  LocalizationUtil.setLocalizedPreferencesValues(actionRequest,preferences,"description");
+  Map<Locale,String> descriptionMap=LocalizationUtil.getLocalizationMap(actionRequest,"description");
+  preferences.setValue("description",descriptionMap.get(defaultLocale));
+  if (updateFields) {
+    int i=1;
+    String databaseTableName=WebFormUtil.getNewDatabaseTableName(portletResource);
+    preferences.setValue("databaseTableName",databaseTableName);
+    int[] formFieldsIndexes=StringUtil.split(ParamUtil.getString(actionRequest,"formFieldsIndexes"),0);
+    for (    int formFieldsIndex : formFieldsIndexes) {
+      Map<Locale,String> fieldLabelMap=LocalizationUtil.getLocalizationMap(actionRequest,"fieldLabel" + formFieldsIndex);
+      if (Validator.isNull(fieldLabelMap.get(defaultLocale))) {
+        continue;
+      }
+      String fieldType=ParamUtil.getString(actionRequest,"fieldType" + formFieldsIndex);
+      boolean fieldOptional=ParamUtil.getBoolean(actionRequest,"fieldOptional" + formFieldsIndex);
+      Map<Locale,String> fieldOptionsMap=LocalizationUtil.getLocalizationMap(actionRequest,"fieldOptions" + formFieldsIndex);
+      Map<Locale,String> fieldParagraphMap=LocalizationUtil.getLocalizationMap(actionRequest,"fieldParagraph" + formFieldsIndex);
+      String fieldValidationScript=ParamUtil.getString(actionRequest,"fieldValidationScript" + formFieldsIndex);
+      String fieldValidationErrorMessage=ParamUtil.getString(actionRequest,"fieldValidationErrorMessage" + formFieldsIndex);
+      if (Validator.isNotNull(fieldValidationScript) ^ Validator.isNotNull(fieldValidationErrorMessage)) {
+        SessionErrors.add(actionRequest,"validationDefinitionInvalid" + i);
+      }
+      updateModifiedLocales("fieldLabel" + i,fieldLabelMap,preferences);
+      updateModifiedLocales("fieldOptions" + i,fieldOptionsMap,preferences);
+      updateModifiedLocales("fieldParagraph" + i,fieldParagraphMap,preferences);
+      preferences.setValue("fieldLabel" + i,fieldLabelMap.get(defaultLocale));
+      preferences.setValue("fieldType" + i,fieldType);
+      preferences.setValue("fieldOptional" + i,String.valueOf(fieldOptional));
+      preferences.setValue("fieldOptions" + i,StringPool.BLANK);
+      preferences.setValue("fieldParagraph" + i,StringPool.BLANK);
+      preferences.setValue("fieldValidationScript" + i,fieldValidationScript);
+      preferences.setValue("fieldValidationErrorMessage" + i,fieldValidationErrorMessage);
+      i++;
+    }
+    if (!SessionErrors.isEmpty(actionRequest)) {
+      return;
+    }
+    String fieldLabel=LocalizationUtil.getPreferencesValue(preferences,"fieldLabel" + i,defaultLanguageId);
+    while (Validator.isNotNull(fieldLabel)) {
+      Map<Locale,String> fieldLabelMap=LocalizationUtil.getLocalizationMap(actionRequest,"fieldLabel" + i);
+      for (      Locale locale : fieldLabelMap.keySet()) {
+        String languageId=LocaleUtil.toLanguageId(locale);
+        LocalizationUtil.setPreferencesValue(preferences,"fieldLabel" + i,languageId,StringPool.BLANK);
+        LocalizationUtil.setPreferencesValue(preferences,"fieldOptions" + i,languageId,StringPool.BLANK);
+        LocalizationUtil.setPreferencesValue(preferences,"fieldParagraph" + i,languageId,StringPool.BLANK);
+      }
+      preferences.setValue("fieldLabel" + i,StringPool.BLANK);
+      preferences.setValue("fieldType" + i,StringPool.BLANK);
+      preferences.setValue("fieldOptional" + i,StringPool.BLANK);
+      preferences.setValue("fieldValidationScript" + i,StringPool.BLANK);
+      preferences.setValue("fieldValidationErrorMessage" + i,StringPool.BLANK);
+      i++;
+      fieldLabel=LocalizationUtil.getPreferencesValue(preferences,"fieldLabel" + i,defaultLanguageId);
+    }
+  }
+  if (SessionErrors.isEmpty(actionRequest)) {
+    preferences.store();
+  }
+  super.processAction(portletConfig,actionRequest,actionResponse);
+}

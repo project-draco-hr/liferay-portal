@@ -1,0 +1,79 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)actionRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  String portletId=PortalUtil.getPortletId(actionRequest);
+  PortletPreferences preferences=PortletPreferencesFactoryUtil.getPortletSetup(actionRequest,portletId);
+  boolean requireCaptcha=GetterUtil.getBoolean(preferences.getValue("requireCaptcha",StringPool.BLANK));
+  String successURL=GetterUtil.getString(preferences.getValue("successURL",StringPool.BLANK));
+  boolean sendAsEmail=GetterUtil.getBoolean(preferences.getValue("sendAsEmail",StringPool.BLANK));
+  boolean saveToDatabase=GetterUtil.getBoolean(preferences.getValue("saveToDatabase",StringPool.BLANK));
+  String databaseTableName=GetterUtil.getString(preferences.getValue("databaseTableName",StringPool.BLANK));
+  boolean saveToFile=GetterUtil.getBoolean(preferences.getValue("saveToFile",StringPool.BLANK));
+  if (requireCaptcha) {
+    try {
+      CaptchaUtil.check(actionRequest);
+    }
+ catch (    CaptchaTextException cte) {
+      SessionErrors.add(actionRequest,CaptchaTextException.class.getName());
+      return;
+    }
+  }
+  Map<String,String> fieldsMap=new LinkedHashMap<>();
+  for (int i=1; true; i++) {
+    String fieldLabel=preferences.getValue("fieldLabel" + i,StringPool.BLANK);
+    String fieldType=preferences.getValue("fieldType" + i,StringPool.BLANK);
+    if (Validator.isNull(fieldLabel)) {
+      break;
+    }
+    if (StringUtil.equalsIgnoreCase(fieldType,"paragraph")) {
+      continue;
+    }
+    fieldsMap.put(fieldLabel,actionRequest.getParameter("field" + i));
+  }
+  Set<String> validationErrors=null;
+  try {
+    validationErrors=validate(fieldsMap,preferences);
+  }
+ catch (  Exception e) {
+    SessionErrors.add(actionRequest,"validationScriptError",e.getMessage().trim());
+    return;
+  }
+  if (validationErrors.isEmpty()) {
+    boolean emailSuccess=true;
+    boolean databaseSuccess=true;
+    boolean fileSuccess=true;
+    if (sendAsEmail) {
+      emailSuccess=sendEmail(themeDisplay.getCompanyId(),fieldsMap,preferences);
+    }
+    if (saveToDatabase) {
+      if (Validator.isNull(databaseTableName)) {
+        databaseTableName=WebFormUtil.getNewDatabaseTableName(portletId);
+        preferences.setValue("databaseTableName",databaseTableName);
+        preferences.store();
+      }
+      databaseSuccess=saveDatabase(themeDisplay.getCompanyId(),fieldsMap,preferences,databaseTableName);
+    }
+    if (saveToFile) {
+      String fileName=WebFormUtil.getFileName(themeDisplay,portletId);
+      fileSuccess=saveFile(fieldsMap,fileName);
+    }
+    if (emailSuccess && databaseSuccess && fileSuccess) {
+      if (Validator.isNull(successURL)) {
+        SessionMessages.add(actionRequest,"success");
+      }
+ else {
+        SessionMessages.add(actionRequest,portletId + SessionMessages.KEY_SUFFIX_HIDE_DEFAULT_SUCCESS_MESSAGE);
+      }
+    }
+ else {
+      SessionErrors.add(actionRequest,"error");
+    }
+  }
+ else {
+    for (    String badField : validationErrors) {
+      SessionErrors.add(actionRequest,"error" + badField);
+    }
+  }
+  if (SessionErrors.isEmpty(actionRequest) && Validator.isNotNull(successURL)) {
+    actionResponse.sendRedirect(successURL);
+  }
+}
