@@ -1,0 +1,67 @@
+{
+  message=toUnwrappedModel(message);
+  boolean isNew=message.isNew();
+  MessageModelImpl messageModelImpl=(MessageModelImpl)message;
+  ServiceContext serviceContext=ServiceContextThreadLocal.getServiceContext();
+  Date now=new Date();
+  if (isNew && (message.getCreateDate() == null)) {
+    if (serviceContext == null) {
+      message.setCreateDate(now);
+    }
+ else {
+      message.setCreateDate(serviceContext.getCreateDate(now));
+    }
+  }
+  if (!messageModelImpl.hasSetModifiedDate()) {
+    if (serviceContext == null) {
+      message.setModifiedDate(now);
+    }
+ else {
+      message.setModifiedDate(serviceContext.getModifiedDate(now));
+    }
+  }
+  Session session=null;
+  try {
+    session=openSession();
+    if (message.isNew()) {
+      session.save(message);
+      message.setNew(false);
+    }
+ else {
+      message=(Message)session.merge(message);
+    }
+  }
+ catch (  Exception e) {
+    throw processException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+  finderCache.clearCache(FINDER_CLASS_NAME_LIST_WITH_PAGINATION);
+  if (isNew || !MessageModelImpl.COLUMN_BITMASK_ENABLED) {
+    finderCache.clearCache(FINDER_CLASS_NAME_LIST_WITHOUT_PAGINATION);
+  }
+ else {
+    if ((messageModelImpl.getColumnBitmask() & FINDER_PATH_WITHOUT_PAGINATION_FIND_BY_COMPANYID.getColumnBitmask()) != 0) {
+      Object[] args=new Object[]{messageModelImpl.getOriginalCompanyId()};
+      finderCache.removeResult(FINDER_PATH_COUNT_BY_COMPANYID,args);
+      finderCache.removeResult(FINDER_PATH_WITHOUT_PAGINATION_FIND_BY_COMPANYID,args);
+      args=new Object[]{messageModelImpl.getCompanyId()};
+      finderCache.removeResult(FINDER_PATH_COUNT_BY_COMPANYID,args);
+      finderCache.removeResult(FINDER_PATH_WITHOUT_PAGINATION_FIND_BY_COMPANYID,args);
+    }
+    if ((messageModelImpl.getColumnBitmask() & FINDER_PATH_WITHOUT_PAGINATION_FIND_BY_FOLDERID.getColumnBitmask()) != 0) {
+      Object[] args=new Object[]{messageModelImpl.getOriginalFolderId()};
+      finderCache.removeResult(FINDER_PATH_COUNT_BY_FOLDERID,args);
+      finderCache.removeResult(FINDER_PATH_WITHOUT_PAGINATION_FIND_BY_FOLDERID,args);
+      args=new Object[]{messageModelImpl.getFolderId()};
+      finderCache.removeResult(FINDER_PATH_COUNT_BY_FOLDERID,args);
+      finderCache.removeResult(FINDER_PATH_WITHOUT_PAGINATION_FIND_BY_FOLDERID,args);
+    }
+  }
+  entityCache.putResult(MessageModelImpl.ENTITY_CACHE_ENABLED,MessageImpl.class,message.getPrimaryKey(),message,false);
+  clearUniqueFindersCache(messageModelImpl);
+  cacheUniqueFindersCache(messageModelImpl,isNew);
+  message.resetOriginalValues();
+  return message;
+}

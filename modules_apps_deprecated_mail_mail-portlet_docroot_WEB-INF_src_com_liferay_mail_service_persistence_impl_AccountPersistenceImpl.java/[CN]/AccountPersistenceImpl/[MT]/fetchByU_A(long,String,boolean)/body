@@ -1,0 +1,68 @@
+{
+  Object[] finderArgs=new Object[]{userId,address};
+  Object result=null;
+  if (retrieveFromCache) {
+    result=finderCache.getResult(FINDER_PATH_FETCH_BY_U_A,finderArgs,this);
+  }
+  if (result instanceof Account) {
+    Account account=(Account)result;
+    if ((userId != account.getUserId()) || !Validator.equals(address,account.getAddress())) {
+      result=null;
+    }
+  }
+  if (result == null) {
+    StringBundler query=new StringBundler(4);
+    query.append(_SQL_SELECT_ACCOUNT_WHERE);
+    query.append(_FINDER_COLUMN_U_A_USERID_2);
+    boolean bindAddress=false;
+    if (address == null) {
+      query.append(_FINDER_COLUMN_U_A_ADDRESS_1);
+    }
+ else     if (address.equals(StringPool.BLANK)) {
+      query.append(_FINDER_COLUMN_U_A_ADDRESS_3);
+    }
+ else {
+      bindAddress=true;
+      query.append(_FINDER_COLUMN_U_A_ADDRESS_2);
+    }
+    String sql=query.toString();
+    Session session=null;
+    try {
+      session=openSession();
+      Query q=session.createQuery(sql);
+      QueryPos qPos=QueryPos.getInstance(q);
+      qPos.add(userId);
+      if (bindAddress) {
+        qPos.add(address);
+      }
+      List<Account> list=q.list();
+      if (list.isEmpty()) {
+        finderCache.putResult(FINDER_PATH_FETCH_BY_U_A,finderArgs,list);
+      }
+ else {
+        if ((list.size() > 1) && _log.isWarnEnabled()) {
+          _log.warn("AccountPersistenceImpl.fetchByU_A(long, String, boolean) with parameters (" + StringUtil.merge(finderArgs) + ") yields a result set with more than 1 result. This violates the logical unique restriction. There is no order guarantee on which result is returned by this finder.");
+        }
+        Account account=list.get(0);
+        result=account;
+        cacheResult(account);
+        if ((account.getUserId() != userId) || (account.getAddress() == null) || !account.getAddress().equals(address)) {
+          finderCache.putResult(FINDER_PATH_FETCH_BY_U_A,finderArgs,account);
+        }
+      }
+    }
+ catch (    Exception e) {
+      finderCache.removeResult(FINDER_PATH_FETCH_BY_U_A,finderArgs);
+      throw processException(e);
+    }
+ finally {
+      closeSession(session);
+    }
+  }
+  if (result instanceof List<?>) {
+    return null;
+  }
+ else {
+    return (Account)result;
+  }
+}

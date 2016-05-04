@@ -1,0 +1,37 @@
+{
+  StopWatch stopWatch=new StopWatch();
+  stopWatch.start();
+  try {
+    FetchProfile fetchProfile=new FetchProfile();
+    fetchProfile.add(UIDFolder.FetchProfileItem.ENVELOPE);
+    fetchProfile.add(UIDFolder.FetchProfileItem.FLAGS);
+    fetchProfile.add(UIDFolder.FetchProfileItem.UID);
+    jxFolder.fetch(jxMessages,fetchProfile);
+    for (    Message jxMessage : jxMessages) {
+      String sender=InternetAddressUtil.toString(jxMessage.getFrom());
+      String to=InternetAddressUtil.toString(jxMessage.getRecipients(RecipientType.TO));
+      String cc=InternetAddressUtil.toString(jxMessage.getRecipients(RecipientType.CC));
+      String bcc=InternetAddressUtil.toString(jxMessage.getRecipients(RecipientType.BCC));
+      Date sentDate=jxMessage.getSentDate();
+      String subject=jxMessage.getSubject();
+      String flags=getFlags(jxMessage);
+      long remoteMessageId=getUID(jxFolder,jxMessage);
+      String contentType=jxMessage.getContentType();
+      try {
+        MessageLocalServiceUtil.getMessage(folderId,remoteMessageId);
+      }
+ catch (      NoSuchMessageException nsme) {
+        MessageLocalServiceUtil.addMessage(_user.getUserId(),folderId,sender,to,cc,bcc,sentDate,subject,StringPool.BLANK,flags,remoteMessageId,contentType);
+      }
+    }
+    com.liferay.mail.model.Folder folder=FolderLocalServiceUtil.getFolder(folderId);
+    FolderLocalServiceUtil.updateFolder(folderId,folder.getFullName(),folder.getDisplayName(),jxFolder.getMessageCount());
+  }
+ catch (  MessagingException me) {
+    throw new MailException(me);
+  }
+  if (_log.isDebugEnabled()) {
+    stopWatch.stop();
+    _log.debug("Downloaded " + jxMessages.length + " messages from folder "+ jxFolder.getFullName()+ " completed in "+ stopWatch.getTime()+ " ms");
+  }
+}

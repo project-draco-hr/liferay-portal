@@ -1,0 +1,68 @@
+{
+  Object[] finderArgs=new Object[]{accountId,fullName};
+  Object result=null;
+  if (retrieveFromCache) {
+    result=finderCache.getResult(FINDER_PATH_FETCH_BY_A_F,finderArgs,this);
+  }
+  if (result instanceof Folder) {
+    Folder folder=(Folder)result;
+    if ((accountId != folder.getAccountId()) || !Validator.equals(fullName,folder.getFullName())) {
+      result=null;
+    }
+  }
+  if (result == null) {
+    StringBundler query=new StringBundler(4);
+    query.append(_SQL_SELECT_FOLDER_WHERE);
+    query.append(_FINDER_COLUMN_A_F_ACCOUNTID_2);
+    boolean bindFullName=false;
+    if (fullName == null) {
+      query.append(_FINDER_COLUMN_A_F_FULLNAME_1);
+    }
+ else     if (fullName.equals(StringPool.BLANK)) {
+      query.append(_FINDER_COLUMN_A_F_FULLNAME_3);
+    }
+ else {
+      bindFullName=true;
+      query.append(_FINDER_COLUMN_A_F_FULLNAME_2);
+    }
+    String sql=query.toString();
+    Session session=null;
+    try {
+      session=openSession();
+      Query q=session.createQuery(sql);
+      QueryPos qPos=QueryPos.getInstance(q);
+      qPos.add(accountId);
+      if (bindFullName) {
+        qPos.add(fullName);
+      }
+      List<Folder> list=q.list();
+      if (list.isEmpty()) {
+        finderCache.putResult(FINDER_PATH_FETCH_BY_A_F,finderArgs,list);
+      }
+ else {
+        if ((list.size() > 1) && _log.isWarnEnabled()) {
+          _log.warn("FolderPersistenceImpl.fetchByA_F(long, String, boolean) with parameters (" + StringUtil.merge(finderArgs) + ") yields a result set with more than 1 result. This violates the logical unique restriction. There is no order guarantee on which result is returned by this finder.");
+        }
+        Folder folder=list.get(0);
+        result=folder;
+        cacheResult(folder);
+        if ((folder.getAccountId() != accountId) || (folder.getFullName() == null) || !folder.getFullName().equals(fullName)) {
+          finderCache.putResult(FINDER_PATH_FETCH_BY_A_F,finderArgs,folder);
+        }
+      }
+    }
+ catch (    Exception e) {
+      finderCache.removeResult(FINDER_PATH_FETCH_BY_A_F,finderArgs);
+      throw processException(e);
+    }
+ finally {
+      closeSession(session);
+    }
+  }
+  if (result instanceof List<?>) {
+    return null;
+  }
+ else {
+    return (Folder)result;
+  }
+}

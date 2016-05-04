@@ -1,0 +1,43 @@
+{
+  Folder jxFolder=null;
+  try {
+    jxFolder=openFolder(folderId);
+    Message[] jxMessages=getMessagesByUID(jxFolder,remoteMessageIds);
+    FetchProfile fetchProfile=new FetchProfile();
+    fetchProfile.add(UIDFolder.FetchProfileItem.CONTENT_INFO);
+    fetchProfile.add(UIDFolder.FetchProfileItem.FLAGS);
+    fetchProfile.add(UIDFolder.FetchProfileItem.UID);
+    jxFolder.fetch(jxMessages,fetchProfile);
+    for (    Message jxMessage : jxMessages) {
+      String flags=getFlags(jxMessage);
+      long remoteMessageId=getUID(jxFolder,jxMessage);
+      com.liferay.mail.model.Message message=MessageLocalServiceUtil.getMessage(folderId,remoteMessageId);
+      StringBundler bodyPlain=new StringBundler();
+      StringBundler bodyHtml=new StringBundler();
+      List<MailFile> mailFiles=new ArrayList<>();
+      getParts(_user.getUserId(),bodyPlain,bodyHtml,StringPool.BLANK,jxMessage,mailFiles);
+      if (bodyHtml.length() == 0) {
+        if (bodyPlain.length() == 0) {
+          bodyHtml.append("&nbsp;");
+        }
+ else {
+          bodyHtml=bodyPlain;
+        }
+      }
+      if (flags.indexOf(MailConstants.FLAG_SEEN) == -1) {
+        jxMessage.setFlag(Flags.Flag.SEEN,false);
+      }
+      AttachmentLocalServiceUtil.deleteAttachments(message.getCompanyId(),message.getMessageId());
+      for (      MailFile mailFile : mailFiles) {
+        AttachmentLocalServiceUtil.addAttachment(_user.getUserId(),message.getMessageId(),mailFile.getContentPath(),mailFile.getFileName(),mailFile.getSize(),mailFile.getFile());
+      }
+      MessageLocalServiceUtil.updateContent(message.getMessageId(),bodyHtml.toString(),flags);
+    }
+  }
+ catch (  MessagingException me) {
+    throw new MailException(me);
+  }
+ finally {
+    closeFolder(jxFolder,false);
+  }
+}

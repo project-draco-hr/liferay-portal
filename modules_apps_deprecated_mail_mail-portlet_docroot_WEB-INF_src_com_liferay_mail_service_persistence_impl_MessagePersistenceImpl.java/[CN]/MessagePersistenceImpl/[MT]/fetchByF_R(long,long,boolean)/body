@@ -1,0 +1,56 @@
+{
+  Object[] finderArgs=new Object[]{folderId,remoteMessageId};
+  Object result=null;
+  if (retrieveFromCache) {
+    result=finderCache.getResult(FINDER_PATH_FETCH_BY_F_R,finderArgs,this);
+  }
+  if (result instanceof Message) {
+    Message message=(Message)result;
+    if ((folderId != message.getFolderId()) || (remoteMessageId != message.getRemoteMessageId())) {
+      result=null;
+    }
+  }
+  if (result == null) {
+    StringBundler query=new StringBundler(4);
+    query.append(_SQL_SELECT_MESSAGE_WHERE);
+    query.append(_FINDER_COLUMN_F_R_FOLDERID_2);
+    query.append(_FINDER_COLUMN_F_R_REMOTEMESSAGEID_2);
+    String sql=query.toString();
+    Session session=null;
+    try {
+      session=openSession();
+      Query q=session.createQuery(sql);
+      QueryPos qPos=QueryPos.getInstance(q);
+      qPos.add(folderId);
+      qPos.add(remoteMessageId);
+      List<Message> list=q.list();
+      if (list.isEmpty()) {
+        finderCache.putResult(FINDER_PATH_FETCH_BY_F_R,finderArgs,list);
+      }
+ else {
+        if ((list.size() > 1) && _log.isWarnEnabled()) {
+          _log.warn("MessagePersistenceImpl.fetchByF_R(long, long, boolean) with parameters (" + StringUtil.merge(finderArgs) + ") yields a result set with more than 1 result. This violates the logical unique restriction. There is no order guarantee on which result is returned by this finder.");
+        }
+        Message message=list.get(0);
+        result=message;
+        cacheResult(message);
+        if ((message.getFolderId() != folderId) || (message.getRemoteMessageId() != remoteMessageId)) {
+          finderCache.putResult(FINDER_PATH_FETCH_BY_F_R,finderArgs,message);
+        }
+      }
+    }
+ catch (    Exception e) {
+      finderCache.removeResult(FINDER_PATH_FETCH_BY_F_R,finderArgs);
+      throw processException(e);
+    }
+ finally {
+      closeSession(session);
+    }
+  }
+  if (result instanceof List<?>) {
+    return null;
+  }
+ else {
+    return (Message)result;
+  }
+}

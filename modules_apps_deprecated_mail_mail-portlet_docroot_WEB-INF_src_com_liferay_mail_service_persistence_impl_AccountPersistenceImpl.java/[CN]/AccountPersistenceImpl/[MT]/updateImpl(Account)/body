@@ -1,0 +1,59 @@
+{
+  account=toUnwrappedModel(account);
+  boolean isNew=account.isNew();
+  AccountModelImpl accountModelImpl=(AccountModelImpl)account;
+  ServiceContext serviceContext=ServiceContextThreadLocal.getServiceContext();
+  Date now=new Date();
+  if (isNew && (account.getCreateDate() == null)) {
+    if (serviceContext == null) {
+      account.setCreateDate(now);
+    }
+ else {
+      account.setCreateDate(serviceContext.getCreateDate(now));
+    }
+  }
+  if (!accountModelImpl.hasSetModifiedDate()) {
+    if (serviceContext == null) {
+      account.setModifiedDate(now);
+    }
+ else {
+      account.setModifiedDate(serviceContext.getModifiedDate(now));
+    }
+  }
+  Session session=null;
+  try {
+    session=openSession();
+    if (account.isNew()) {
+      session.save(account);
+      account.setNew(false);
+    }
+ else {
+      account=(Account)session.merge(account);
+    }
+  }
+ catch (  Exception e) {
+    throw processException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+  finderCache.clearCache(FINDER_CLASS_NAME_LIST_WITH_PAGINATION);
+  if (isNew || !AccountModelImpl.COLUMN_BITMASK_ENABLED) {
+    finderCache.clearCache(FINDER_CLASS_NAME_LIST_WITHOUT_PAGINATION);
+  }
+ else {
+    if ((accountModelImpl.getColumnBitmask() & FINDER_PATH_WITHOUT_PAGINATION_FIND_BY_USERID.getColumnBitmask()) != 0) {
+      Object[] args=new Object[]{accountModelImpl.getOriginalUserId()};
+      finderCache.removeResult(FINDER_PATH_COUNT_BY_USERID,args);
+      finderCache.removeResult(FINDER_PATH_WITHOUT_PAGINATION_FIND_BY_USERID,args);
+      args=new Object[]{accountModelImpl.getUserId()};
+      finderCache.removeResult(FINDER_PATH_COUNT_BY_USERID,args);
+      finderCache.removeResult(FINDER_PATH_WITHOUT_PAGINATION_FIND_BY_USERID,args);
+    }
+  }
+  entityCache.putResult(AccountModelImpl.ENTITY_CACHE_ENABLED,AccountImpl.class,account.getPrimaryKey(),account,false);
+  clearUniqueFindersCache(accountModelImpl);
+  cacheUniqueFindersCache(accountModelImpl,isNew);
+  account.resetOriginalValues();
+  return account;
+}
