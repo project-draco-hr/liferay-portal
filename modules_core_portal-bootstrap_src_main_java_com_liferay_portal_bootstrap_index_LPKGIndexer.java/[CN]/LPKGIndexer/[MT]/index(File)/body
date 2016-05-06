@@ -1,0 +1,41 @@
+{
+  File tempFolder=FileUtil.createTempFolder();
+  _indexerConfig.put("root.url",tempFolder.getCanonicalPath());
+  String bsn=_lpkgFile.getName();
+  String version="1.0.0";
+  try (ZipFile zipFile=new ZipFile(_lpkgFile)){
+    Enumeration<? extends ZipEntry> entries=zipFile.entries();
+    Set<File> fileList=new LinkedHashSet<>();
+    while (entries.hasMoreElements()) {
+      ZipEntry entry=entries.nextElement();
+      String shortName=FileUtil.getShortFileName(entry.getName());
+      if (shortName.endsWith("liferay-marketplace.properties")) {
+        Properties properties=new Properties();
+        properties.load(zipFile.getInputStream(entry));
+        bsn=properties.getProperty("title");
+        version=properties.getProperty("version");
+        continue;
+      }
+ else       if (!shortName.endsWith(".jar")) {
+        continue;
+      }
+      File tempFile=new File(tempFolder,shortName);
+      FileUtil.write(tempFile,zipFile.getInputStream(entry));
+      fileList.add(tempFile);
+    }
+    File tempIndexFile=new File(tempFolder,bsn + "-" + version+ "-index.xml");
+    ResourceIndexer resourceIndexer=new RepoIndex();
+    try (FileOutputStream fos=new FileOutputStream(tempIndexFile)){
+      resourceIndexer.index(fileList,fos,_indexerConfig);
+    }
+     File indexFile=new File(output,tempIndexFile.getName());
+    FileUtil.copyFile(tempIndexFile,indexFile);
+    System.out.println("Wrote index file " + indexFile.getAbsolutePath());
+  }
+ catch (  Exception e) {
+    e.printStackTrace();
+  }
+ finally {
+    FileUtil.deltree(tempFolder);
+  }
+}
