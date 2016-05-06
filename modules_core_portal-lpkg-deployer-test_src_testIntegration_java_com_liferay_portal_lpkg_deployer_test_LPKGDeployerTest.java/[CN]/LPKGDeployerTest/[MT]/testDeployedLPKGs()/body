@@ -1,0 +1,47 @@
+{
+  Bundle testBundle=FrameworkUtil.getBundle(LPKGDeployerTest.class);
+  BundleContext bundleContext=testBundle.getBundleContext();
+  String deploymentDir=GetterUtil.getString(bundleContext.getProperty("lpkg.deployer.dir"),PropsValues.MODULE_FRAMEWORK_BASE_DIR + "/marketplace");
+  Path deploymentDirPath=Paths.get(deploymentDir);
+  final List<File> lpkgFiles=new ArrayList<>();
+  Files.createDirectories(deploymentDirPath);
+  Files.walkFileTree(deploymentDirPath,new SimpleFileVisitor<Path>(){
+    @Override public FileVisitResult visitFile(    Path filePath,    BasicFileAttributes basicFileAttributes) throws IOException {
+      Path fileNamePath=filePath.getFileName();
+      String fileName=StringUtil.toLowerCase(fileNamePath.toString());
+      if (!fileName.endsWith(".lpkg")) {
+        return FileVisitResult.CONTINUE;
+      }
+      lpkgFiles.add(filePath.toFile());
+      return FileVisitResult.CONTINUE;
+    }
+  }
+);
+  Assert.assertTrue(!lpkgFiles.isEmpty());
+  ServiceTracker<LPKGDeployer,LPKGDeployer> serviceTracker=new ServiceTracker<>(bundleContext,LPKGDeployer.class,null);
+  serviceTracker.open();
+  LPKGDeployer lpkgDeployer=serviceTracker.getService();
+  serviceTracker.close();
+  Map<Bundle,List<Bundle>> bundleMap=lpkgDeployer.getDeployedLPKGBundles();
+  List<Bundle> lpkgBundles=new ArrayList<>(bundleMap.keySet());
+  List<Bundle> bundles=new ArrayList<>();
+  for (  List<Bundle> bundleList : bundleMap.values()) {
+    bundles.addAll(bundleList);
+  }
+  for (  File file : lpkgFiles) {
+    Bundle lpkgBundle=bundleContext.getBundle(file.getCanonicalPath());
+    Assert.assertNotNull(lpkgBundle);
+    Assert.assertTrue(lpkgBundles.contains(lpkgBundle));
+    ZipFile zipFile=new ZipFile(file);
+    Enumeration<? extends ZipEntry> zipEntries=zipFile.entries();
+    while (zipEntries.hasMoreElements()) {
+      ZipEntry zipEntry=zipEntries.nextElement();
+      String name=zipEntry.getName();
+      if (name.endsWith(".jar") || name.endsWith("*.war")) {
+        Bundle bundle=bundleContext.getBundle(StringPool.SLASH + name);
+        Assert.assertNotNull(bundle);
+        Assert.assertTrue(bundles.contains(bundle));
+      }
+    }
+  }
+}
