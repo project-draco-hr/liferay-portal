@@ -1,4 +1,41 @@
 {
+  File tmpDir=null;
+  try {
+    tmpDir=FileUtil.createTempFolder();
+    LPKGIndexer lpkgIndexer=new LPKGIndexer(lpkgFile);
+    File indexFile=lpkgIndexer.index(tmpDir);
+    List<URI> uris=new ArrayList<>();
+    uris.add(indexFile.toURI());
+    IndexValidator indexValidator=new IndexValidator();
+    indexValidator.includeTargetPlatform(true);
+    List<String> errors=indexValidator.validate(uris);
+    if (!errors.isEmpty()) {
+      StringBundler sb=new StringBundler((errors.size() * 4) + 2);
+      sb.append("LPKG validation failed with {");
+      for (      String error : errors) {
+        sb.append("[");
+        sb.append(error);
+        sb.append("]");
+        sb.append(",");
+      }
+      sb.setIndex(sb.index() - 1);
+      sb.append("}");
+      throw new LPKGVerifyException(sb.toString());
+    }
+    File targetPlatformDir=new File(PropsValues.MODULE_FRAMEWORK_BASE_DIR,Indexer.TARGET_PLATFORM);
+    FileUtil.copyFile(indexFile,new File(targetPlatformDir,indexFile.getName()));
+  }
+ catch (  Exception e) {
+    if (e instanceof LPKGVerifyException) {
+      throw (LPKGVerifyException)e;
+    }
+    throw new LPKGVerifyException(e);
+  }
+ finally {
+    if (tmpDir != null) {
+      FileUtil.deltree(tmpDir);
+    }
+  }
   try (ZipFile zipFile=new ZipFile(lpkgFile)){
     ZipEntry zipEntry=zipFile.getEntry("liferay-marketplace.properties");
     if (zipEntry == null) {
