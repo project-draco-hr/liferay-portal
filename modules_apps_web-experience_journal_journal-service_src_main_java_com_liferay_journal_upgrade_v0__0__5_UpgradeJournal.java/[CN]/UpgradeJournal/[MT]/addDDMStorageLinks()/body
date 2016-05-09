@@ -1,0 +1,25 @@
+{
+  try (LoggingTimer loggingTimer=new LoggingTimer()){
+    long journalArticleClassNameId=PortalUtil.getClassNameId(JournalArticle.class.getName());
+    StringBundler sb=new StringBundler(8);
+    sb.append("select DDMStructure.structureId, JournalArticle.id_ ");
+    sb.append("from JournalArticle inner join DDMStructure on (");
+    sb.append("DDMStructure.groupId in (select distinct Group_.");
+    sb.append("groupId from Group_ where (Group_.groupId = ");
+    sb.append("JournalArticle.groupId) or (Group_.companyId = ");
+    sb.append("JournalArticle.companyId and Group_.friendlyURL = ?)) ");
+    sb.append("and DDMStructure.structureKey = JournalArticle.");
+    sb.append("ddmStructureKey and JournalArticle.classNameId != ?)");
+    try (PreparedStatement ps=connection.prepareStatement(sb.toString())){
+      ps.setString(1,GroupConstants.GLOBAL_FRIENDLY_URL);
+      ps.setLong(2,PortalUtil.getClassNameId(DDMStructure.class.getName()));
+      try (ResultSet rs=ps.executeQuery()){
+        while (rs.next()) {
+          long structureId=rs.getLong("structureId");
+          long id=rs.getLong("id_");
+          _ddmStorageLinkLocalService.addStorageLink(journalArticleClassNameId,id,structureId,new ServiceContext());
+        }
+      }
+     }
+   }
+ }
