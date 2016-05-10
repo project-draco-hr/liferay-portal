@@ -1,0 +1,86 @@
+{
+  Path tempFolder=Files.createTempDirectory(null);
+  _indexerConfig.put("root.url",tempFolder.toFile().getCanonicalPath());
+  _moduleFrameworkImpl.initFramework();
+  _moduleFrameworkImpl.startFramework();
+  Framework framework=_moduleFrameworkImpl.getFramework();
+  BundleContext bundleContext=framework.getBundleContext();
+  processBundle(bundleContext.getBundle(0));
+  Manifest manifest=new Manifest();
+  Attributes mainAttributes=manifest.getMainAttributes();
+  mainAttributes.putValue(Constants.BUNDLE_MANIFESTVERSION,"2");
+  mainAttributes.putValue(Constants.BUNDLE_SYMBOLICNAME,_bsn);
+  mainAttributes.putValue(Constants.BUNDLE_VERSION,_version);
+  String exportPackage=StringUtil.replace(_packages.toString(),"version:Version","version");
+  mainAttributes.putValue(Constants.EXPORT_PACKAGE,exportPackage);
+  StringBundler sb=new StringBundler();
+  for (  Parameters parameter : _provided) {
+    sb.append(parameter.toString());
+    sb.append(",");
+  }
+  sb.setIndex(sb.index() - 1);
+  String capabilities=sb.toString();
+  mainAttributes.putValue(Constants.PROVIDE_CAPABILITY,capabilities);
+  mainAttributes.putValue(Constants.BUNDLE_DESCRIPTION,ReleaseInfo.getReleaseInfo());
+  mainAttributes.putValue(Constants.BUNDLE_LICENSE,"http://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt");
+  mainAttributes.putValue(Constants.BUNDLE_COPYRIGHT,"Copyright (c) 2000-present All rights reserved.");
+  mainAttributes.putValue(Constants.BUNDLE_VENDOR,ReleaseInfo.getVendor());
+  Jar jar=new Jar("distro");
+  jar.setManifest(manifest);
+  try (Verifier verifier=new Verifier(jar)){
+    verifier.setProperty(Constants.FIXUPMESSAGES,"osgi.* namespace must not be specified with generic " + "capabilities");
+    verifier.verify();
+    verifier.getErrors();
+    if (!verifier.isOk()) {
+      List<String> errors=verifier.getErrors();
+      sb=new StringBundler((errors.size() * 4) + 3);
+      sb.append(_SHORT_NAME);
+      sb.append(" failed with {");
+      for (      String error : verifier.getErrors()) {
+        sb.append("[");
+        sb.append(error);
+        sb.append("]");
+        sb.append(",");
+      }
+      sb.setIndex(sb.index() - 1);
+      sb.append("}");
+      throw new Exception(sb.toString());
+    }
+    File outputJar=new File(tempFolder.toFile(),_bsn + "-" + _version+ ".jar");
+    jar.write(outputJar);
+    Set<File> fileList=new LinkedHashSet<>();
+    fileList.add(outputJar);
+    String baseDir=PropsValues.MODULE_FRAMEWORK_BASE_DIR + "/static/";
+    for (    String initialBundle : PropsValues.MODULE_FRAMEWORK_INITIAL_BUNDLES) {
+      addBundleToIndex(initialBundle,baseDir,tempFolder.toFile(),fileList);
+    }
+    String[] autoDeployDirs=ArrayUtil.append(new String[]{PropsValues.MODULE_FRAMEWORK_PORTAL_DIR},PropsValues.MODULE_FRAMEWORK_AUTO_DEPLOY_DIRS);
+    for (    String autoDeployDir : autoDeployDirs) {
+      File dir=new File(autoDeployDir);
+      if (!dir.isDirectory() || !dir.canRead()) {
+        continue;
+      }
+      File[] additionalBundles=dir.listFiles(new FilenameFilter(){
+        @Override public boolean accept(        File dir,        String name){
+          return name.endsWith(".jar");
+        }
+      }
+);
+      for (      File additionalBundle : additionalBundles) {
+        addBundleToIndex(additionalBundle,tempFolder.toFile(),fileList);
+      }
+    }
+    File tempIndexFile=new File(tempFolder.toFile(),_bsn + "-" + _version+ "-index.xml");
+    ResourceIndexer resourceIndexer=new RepoIndex();
+    try (FileOutputStream fos=new FileOutputStream(tempIndexFile)){
+      resourceIndexer.index(fileList,fos,_indexerConfig);
+    }
+     File indexFile=new File(output,tempIndexFile.getName());
+    Files.copy(tempIndexFile.toPath(),indexFile.toPath(),StandardCopyOption.COPY_ATTRIBUTES,StandardCopyOption.REPLACE_EXISTING);
+    return indexFile;
+  }
+  finally {
+    Util.deltree(tempFolder);
+    _moduleFrameworkImpl.stopFramework(0);
+  }
+}
