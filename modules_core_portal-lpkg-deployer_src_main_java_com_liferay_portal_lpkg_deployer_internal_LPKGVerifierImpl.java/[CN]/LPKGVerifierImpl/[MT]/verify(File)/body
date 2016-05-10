@@ -1,11 +1,11 @@
 {
-  File tmpDir=null;
+  Path tmpDir=null;
   try {
-    tmpDir=FileUtil.createTempFolder();
+    tmpDir=Files.createTempDirectory(null);
     LPKGIndexer lpkgIndexer=new LPKGIndexer(lpkgFile);
-    File indexFile=lpkgIndexer.index(tmpDir);
+    File tempIndexFile=lpkgIndexer.index(tmpDir.toFile());
     List<URI> uris=new ArrayList<>();
-    uris.add(indexFile.toURI());
+    uris.add(tempIndexFile.toURI());
     IndexValidator indexValidator=new IndexValidator();
     indexValidator.includeTargetPlatform(true);
     List<String> errors=indexValidator.validate(uris);
@@ -23,7 +23,8 @@
       throw new LPKGVerifyException(sb.toString());
     }
     File targetPlatformDir=new File(PropsValues.MODULE_FRAMEWORK_BASE_DIR,Indexer.TARGET_PLATFORM);
-    FileUtil.copyFile(indexFile,new File(targetPlatformDir,indexFile.getName()));
+    File indexFile=new File(targetPlatformDir,tempIndexFile.getName());
+    Files.copy(tempIndexFile.toPath(),indexFile.toPath());
   }
  catch (  Exception e) {
     if (e instanceof LPKGVerifyException) {
@@ -33,7 +34,22 @@
   }
  finally {
     if (tmpDir != null) {
-      FileUtil.deltree(tmpDir);
+      try {
+        Files.walkFileTree(tmpDir,new SimpleFileVisitor<Path>(){
+          @Override public FileVisitResult postVisitDirectory(          Path dir,          IOException exc) throws IOException {
+            Files.delete(dir);
+            return FileVisitResult.CONTINUE;
+          }
+          @Override public FileVisitResult visitFile(          Path file,          BasicFileAttributes attrs) throws IOException {
+            Files.delete(file);
+            return FileVisitResult.CONTINUE;
+          }
+        }
+);
+      }
+ catch (      IOException ioe) {
+        throw new LPKGVerifyException(ioe);
+      }
     }
   }
   try (ZipFile zipFile=new ZipFile(lpkgFile)){
