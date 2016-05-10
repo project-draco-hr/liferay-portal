@@ -1,0 +1,45 @@
+{
+  ServiceContext serviceContext=new ServiceContext();
+  serviceContext.setCompanyId(companyId);
+  long userId=_userLocalService.getDefaultUserId(companyId);
+  serviceContext.setUserId(userId);
+  Group group=_groupLocalService.getGroup(groupId);
+  if (group.isUser()) {
+    userId=group.getClassPK();
+    CalendarResource calendarResource=_calendarResourceLocalService.fetchCalendarResource(_classNameLocalService.getClassNameId(User.class),userId);
+    if (calendarResource != null) {
+      return calendarResource;
+    }
+    User user=_userLocalService.getUser(userId);
+    Group userGroup=null;
+    String userName=user.getFullName();
+    if (user.isDefaultUser()) {
+      userGroup=_groupLocalService.getGroup(serviceContext.getCompanyId(),GroupConstants.GUEST);
+      userName=GroupConstants.GUEST;
+    }
+ else {
+      userGroup=_groupLocalService.getUserGroup(serviceContext.getCompanyId(),userId);
+    }
+    Map<Locale,String> nameMap=new HashMap<>();
+    nameMap.put(LocaleUtil.getDefault(),userName);
+    Map<Locale,String> descriptionMap=new HashMap<>();
+    return _calendarResourceLocalService.addCalendarResource(userId,userGroup.getGroupId(),_classNameLocalService.getClassNameId(User.class),userId,null,null,nameMap,descriptionMap,true,serviceContext);
+  }
+ else {
+    CalendarResource calendarResource=_calendarResourceLocalService.fetchCalendarResource(_classNameLocalService.getClassNameId(Group.class),groupId);
+    if (calendarResource != null) {
+      return calendarResource;
+    }
+    userId=group.getCreatorUserId();
+    User user=_userLocalService.fetchUserById(userId);
+    if ((user == null) || user.isDefaultUser()) {
+      Role role=_roleLocalService.getRole(group.getCompanyId(),RoleConstants.ADMINISTRATOR);
+      long[] userIds=_userLocalService.getRoleUserIds(role.getRoleId());
+      userId=userIds[0];
+    }
+    Map<Locale,String> nameMap=new HashMap<>();
+    nameMap.put(LocaleUtil.getDefault(),group.getDescriptiveName());
+    Map<Locale,String> descriptionMap=new HashMap<>();
+    return _calendarResourceLocalService.addCalendarResource(userId,groupId,_classNameLocalService.getClassNameId(Group.class),groupId,null,null,nameMap,descriptionMap,true,serviceContext);
+  }
+}
