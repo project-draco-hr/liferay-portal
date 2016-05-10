@@ -1,0 +1,42 @@
+{
+  try (LoggingTimer loggingTimer=new LoggingTimer()){
+    StringBundler sb=new StringBundler(14);
+    sb.append("select rp1.resourcePermissionId from ");
+    sb.append("ResourcePermission rp1 inner join ");
+    sb.append("ResourcePermission rp2 on ");
+    sb.append("rp1.companyId = rp2.companyId and ");
+    sb.append("rp1.name = rp2.name and ");
+    sb.append("rp1.scope = rp2.scope and rp1.primKey = rp2.primKey ");
+    sb.append("inner join Layout on ");
+    sb.append("rp1.companyId = Layout.companyId and ");
+    sb.append("rp1.primKey like replace('[$PLID$]_LAYOUT_%', ");
+    sb.append("'[$PLID$]', cast_text(Layout.plid)) and ");
+    sb.append("Layout.type_ = '");
+    sb.append(LayoutConstants.TYPE_PORTLET);
+    sb.append(CharPool.APOSTROPHE);
+    sb.append(" inner join Group_ on Layout.groupId = Group_.groupId ");
+    sb.append("where rp1.companyId = ");
+    sb.append(companyId);
+    sb.append(" and rp1.roleId = ");
+    sb.append(powerUserRoleId);
+    sb.append(" and rp2.roleId = ");
+    sb.append(userRoleId);
+    sb.append(" and rp1.scope = ");
+    sb.append(ResourceConstants.SCOPE_INDIVIDUAL);
+    sb.append(" and (Group_.classNameId = ");
+    sb.append(userClassNameId);
+    sb.append(" or Group_.classNameId = ");
+    sb.append(userGroupClassNameId);
+    sb.append(")");
+    try (Statement ps1=connection.createStatement();PreparedStatement ps2=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"delete from ResourcePermission where " + "resourcePermissionId = ?")){
+      String sql=SQLTransformer.transform(sb.toString());
+      try (ResultSet rs=ps1.executeQuery(sql)){
+        while (rs.next()) {
+          ps2.setLong(1,rs.getLong(1));
+          ps2.addBatch();
+        }
+      }
+       ps2.executeBatch();
+    }
+   }
+ }
