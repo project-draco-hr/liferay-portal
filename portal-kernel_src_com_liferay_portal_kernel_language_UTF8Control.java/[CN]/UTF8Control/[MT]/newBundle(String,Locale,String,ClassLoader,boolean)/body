@@ -3,17 +3,20 @@
   if (url == null) {
     return null;
   }
-  if (!reload) {
-    ResourceBundle resourceBundle=_resourceBundles.get(url);
-    if (resourceBundle != null) {
-      return resourceBundle;
-    }
-  }
   URLConnection urlConnection=url.openConnection();
   urlConnection.setUseCaches(!reload);
+  if (!reload) {
+    CacheContent cacheContent=_resourceBundles.get(url);
+    if (cacheContent != null) {
+      if (urlConnection.getLastModified() <= cacheContent.getLastModified()) {
+        return cacheContent.getResourceBundle();
+      }
+    }
+  }
   try (InputStream inputStream=urlConnection.getInputStream()){
     ResourceBundle resourceBundle=new PropertyResourceBundle(new InputStreamReader(inputStream,StringPool.UTF8));
-    _resourceBundles.put(url,resourceBundle);
+    CacheContent cacheContent=new CacheContent(urlConnection.getLastModified(),resourceBundle);
+    _resourceBundles.put(url,cacheContent);
     return resourceBundle;
   }
  }
