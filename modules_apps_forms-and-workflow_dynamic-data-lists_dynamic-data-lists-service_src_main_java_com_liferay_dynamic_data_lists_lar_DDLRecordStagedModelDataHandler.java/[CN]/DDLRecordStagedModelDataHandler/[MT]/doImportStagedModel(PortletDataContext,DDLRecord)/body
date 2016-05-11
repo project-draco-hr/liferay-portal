@@ -1,23 +1,18 @@
 {
-  long userId=portletDataContext.getUserId(record.getUserUuid());
   Map<Long,Long> recordSetIds=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(DDLRecordSet.class);
   long recordSetId=MapUtil.getLong(recordSetIds,record.getRecordSetId(),record.getRecordSetId());
   Element recordElement=portletDataContext.getImportDataElement(record);
   DDMFormValues ddmFormValues=getImportDDMFormValues(portletDataContext,recordElement,recordSetId);
-  ServiceContext serviceContext=portletDataContext.createServiceContext(record);
-  DDLRecord importedRecord=null;
-  if (portletDataContext.isDataStrategyMirror()) {
-    DDLRecord existingRecord=fetchStagedModelByUuidAndGroupId(record.getUuid(),portletDataContext.getScopeGroupId());
-    if (existingRecord == null) {
-      serviceContext.setUuid(record.getUuid());
-      importedRecord=_ddlRecordLocalService.addRecord(userId,portletDataContext.getScopeGroupId(),recordSetId,record.getDisplayIndex(),ddmFormValues,serviceContext);
-    }
- else {
-      importedRecord=_ddlRecordLocalService.updateRecord(userId,existingRecord.getRecordId(),false,record.getDisplayIndex(),ddmFormValues,serviceContext);
-    }
+  DDLRecord importedRecord=(DDLRecord)record.clone();
+  importedRecord.setGroupId(portletDataContext.getScopeGroupId());
+  importedRecord.setRecordSetId(recordSetId);
+  DDLRecord existingRecord=_ddlRecordStagedModelRepository.fetchStagedModelByUuidAndGroupId(record.getUuid(),portletDataContext.getScopeGroupId());
+  if (!portletDataContext.isDataStrategyMirror() || (existingRecord == null)) {
+    importedRecord=_ddlRecordStagedModelRepository.addStagedModel(portletDataContext,importedRecord,ddmFormValues);
   }
  else {
-    importedRecord=_ddlRecordLocalService.addRecord(userId,portletDataContext.getScopeGroupId(),recordSetId,record.getDisplayIndex(),ddmFormValues,serviceContext);
+    importedRecord.setRecordId(existingRecord.getRecordId());
+    importedRecord=_ddlRecordStagedModelRepository.updateStagedModel(portletDataContext,importedRecord,ddmFormValues);
   }
   portletDataContext.importClassedModel(record,importedRecord);
 }
