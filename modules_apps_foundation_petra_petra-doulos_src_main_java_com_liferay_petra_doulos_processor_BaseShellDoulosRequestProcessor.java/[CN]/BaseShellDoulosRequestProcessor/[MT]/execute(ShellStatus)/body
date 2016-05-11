@@ -1,0 +1,36 @@
+{
+  shellStatus.status="executing";
+  List<String> shellCommandsList=getShellCommands(shellStatus);
+  shellCommandsList.add(0,"/bin/bash");
+  shellCommandsList.add(1,"-x");
+  shellCommandsList.add(2,"-c");
+  String[] shellCommands=shellCommandsList.toArray(new String[shellCommandsList.size()]);
+  shellStatus.shellCommands=StringUtils.join(shellCommands,"\n");
+  ProcessBuilder processBuilder=new ProcessBuilder(shellCommands);
+  processBuilder.redirectErrorStream(true);
+  Process process=processBuilder.start();
+  StringBuilder sb=new StringBuilder();
+  String line=null;
+  BufferedReader bufferedReader=new BufferedReader(new InputStreamReader(process.getInputStream()));
+  while ((line=bufferedReader.readLine()) != null) {
+    sb.append(line);
+    sb.append("\n");
+  }
+  bufferedReader.close();
+  try {
+    if (_log.isDebugEnabled()) {
+      _log.debug("Wait for process to finish");
+    }
+    process.waitFor();
+    shellStatus.exitValue=String.valueOf(process.exitValue());
+    shellStatus.output=sb.toString();
+    shellStatus.status="finished";
+  }
+ catch (  Exception e) {
+    Writer writer=new StringWriter();
+    PrintWriter printWriter=new PrintWriter(writer);
+    e.printStackTrace(printWriter);
+    shellStatus.exception=writer.toString();
+    shellStatus.status="exception";
+  }
+}
