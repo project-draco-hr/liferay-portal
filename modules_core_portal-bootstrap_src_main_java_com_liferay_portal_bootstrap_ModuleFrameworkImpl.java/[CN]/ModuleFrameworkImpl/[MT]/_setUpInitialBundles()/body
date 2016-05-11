@@ -2,11 +2,33 @@
   if (_log.isDebugEnabled()) {
     _log.debug("Starting initial bundles");
   }
+  List<Bundle> bundles=new ArrayList<>();
   for (  String initialBundle : PropsValues.MODULE_FRAMEWORK_INITIAL_BUNDLES) {
-    _installInitialBundle(initialBundle);
+    Bundle bundle=_installInitialBundle(initialBundle);
+    if (bundle != null) {
+      bundles.add(bundle);
+    }
   }
   FrameworkStartLevel frameworkStartLevel=_framework.adapt(FrameworkStartLevel.class);
   frameworkStartLevel.setStartLevel(PropsValues.MODULE_FRAMEWORK_BEGINNING_START_LEVEL);
+  for (  final Bundle bundle : bundles) {
+    if (_isFragmentBundle(bundle)) {
+      continue;
+    }
+    final CountDownLatch countDownLatch=new CountDownLatch(1);
+    BundleTracker<Void> bundleTracker=new BundleTracker<Void>(_framework.getBundleContext(),Bundle.ACTIVE,null){
+      @Override public Void addingBundle(      Bundle trackedBundle,      BundleEvent bundleEvent){
+        if (trackedBundle == bundle) {
+          countDownLatch.countDown();
+          close();
+        }
+        return null;
+      }
+    }
+;
+    bundleTracker.open();
+    countDownLatch.await();
+  }
   if (_log.isDebugEnabled()) {
     _log.debug("Started initial bundles");
   }
