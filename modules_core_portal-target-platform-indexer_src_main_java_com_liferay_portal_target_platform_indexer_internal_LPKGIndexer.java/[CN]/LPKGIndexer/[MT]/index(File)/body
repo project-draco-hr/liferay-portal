@@ -1,17 +1,19 @@
 {
-  Path tempFolder=Files.createTempDirectory(null);
-  _indexerConfig.put("root.url",tempFolder.toFile().getCanonicalPath());
+  Path tempPath=Files.createTempDirectory(null);
+  File tempDir=tempPath.toFile();
+  _config.put("root.url",tempDir.getCanonicalPath());
   String bsn=_lpkgFile.getName();
   String version="1.0.0";
   try (ZipFile zipFile=new ZipFile(_lpkgFile)){
-    Enumeration<? extends ZipEntry> entries=zipFile.entries();
-    Set<File> fileList=new LinkedHashSet<>();
-    while (entries.hasMoreElements()) {
-      ZipEntry entry=entries.nextElement();
-      String name=entry.getName();
+    ResourceIndexer resourceIndexer=new RepoIndex();
+    Enumeration<? extends ZipEntry> enumeration=zipFile.entries();
+    Set<File> files=new LinkedHashSet<>();
+    while (enumeration.hasMoreElements()) {
+      ZipEntry zipEntry=enumeration.nextElement();
+      String name=zipEntry.getName();
       if (name.endsWith("liferay-marketplace.properties")) {
         Properties properties=new Properties();
-        properties.load(zipFile.getInputStream(entry));
+        properties.load(zipFile.getInputStream(zipEntry));
         bsn=properties.getProperty("title");
         version=properties.getProperty("version");
         continue;
@@ -19,22 +21,21 @@
  else       if (!name.endsWith(".jar")) {
         continue;
       }
-      File tempFile=new File(tempFolder.toFile(),name);
-      Files.copy(zipFile.getInputStream(entry),tempFile.toPath());
-      fileList.add(tempFile);
+      File file=new File(tempDir,name);
+      Files.copy(zipFile.getInputStream(zipEntry),file.toPath());
+      files.add(file);
     }
-    File tempIndexFile=new File(tempFolder.toFile(),bsn + "-" + version+ "-index.xml");
-    ResourceIndexer resourceIndexer=new RepoIndex();
-    try (FileOutputStream fos=new FileOutputStream(tempIndexFile)){
-      resourceIndexer.index(fileList,fos,_indexerConfig);
+    File indexFile=new File(tempDir,bsn + "-" + version+ "-index.xml");
+    try (FileOutputStream fileOutputStream=new FileOutputStream(indexFile)){
+      resourceIndexer.index(files,fileOutputStream,_config);
     }
-     if (output.isDirectory()) {
-      output=new File(output,tempIndexFile.getName());
+     if (outputFile.isDirectory()) {
+      outputFile=new File(outputFile,indexFile.getName());
     }
-    Files.copy(tempIndexFile.toPath(),output.toPath(),StandardCopyOption.COPY_ATTRIBUTES,StandardCopyOption.REPLACE_EXISTING);
-    return output;
+    Files.copy(indexFile.toPath(),outputFile.toPath(),StandardCopyOption.COPY_ATTRIBUTES,StandardCopyOption.REPLACE_EXISTING);
+    return outputFile;
   }
   finally {
-    PathUtil.deltree(tempFolder);
+    PathUtil.deltree(tempPath);
   }
 }
