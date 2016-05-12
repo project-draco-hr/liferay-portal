@@ -1,0 +1,31 @@
+{
+  if (!isDeployed()) {
+    throw new OAuthPortletUndeployedException();
+  }
+  boolean oAuthEnabled=PrefsPropsUtil.getBoolean(companyId,SyncServiceConfigurationKeys.SYNC_OAUTH_ENABLED,SyncServiceConfigurationValues.SYNC_OAUTH_ENABLED);
+  if (!oAuthEnabled) {
+    return;
+  }
+  User user=_userLocalService.getDefaultUser(companyId);
+  serviceContext.setUserId(user.getUserId());
+  long oAuthApplicationId=PrefsPropsUtil.getLong(companyId,SyncServiceConfigurationKeys.SYNC_OAUTH_APPLICATION_ID,0);
+  OAuthApplication oAuthApplication=_oAuthApplicationLocalService.fetchOAuthApplication(oAuthApplicationId);
+  if (oAuthApplication != null) {
+    return;
+  }
+  oAuthApplication=_oAuthApplicationLocalService.addOAuthApplication(serviceContext.getUserId(),"Liferay Sync",StringPool.BLANK,OAuthApplicationConstants.ACCESS_WRITE,true,"http://liferay-sync","http://liferay-sync",serviceContext);
+  Class<?> clazz=SyncOAuthUtil.class;
+  ClassLoader classLoader=clazz.getClassLoader();
+  InputStream inputStream=classLoader.getResourceAsStream("images/logo.png");
+  _oAuthApplicationLocalService.updateLogo(oAuthApplication.getOAuthApplicationId(),inputStream);
+  PortletPreferences portletPreferences=PrefsPropsUtil.getPreferences(companyId);
+  try {
+    portletPreferences.setValue(SyncServiceConfigurationKeys.SYNC_OAUTH_APPLICATION_ID,String.valueOf(oAuthApplication.getOAuthApplicationId()));
+    portletPreferences.setValue(SyncServiceConfigurationKeys.SYNC_OAUTH_CONSUMER_KEY,oAuthApplication.getConsumerKey());
+    portletPreferences.setValue(SyncServiceConfigurationKeys.SYNC_OAUTH_CONSUMER_SECRET,oAuthApplication.getConsumerSecret());
+    portletPreferences.store();
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+}
