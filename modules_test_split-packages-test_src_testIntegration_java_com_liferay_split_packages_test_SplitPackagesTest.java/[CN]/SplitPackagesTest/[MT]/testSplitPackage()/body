@@ -1,0 +1,25 @@
+{
+  Bundle frameworkBundle=(Bundle)ModuleFrameworkUtilAdapter.getFramework();
+  BundleContext frameworkBundleContext=frameworkBundle.getBundleContext();
+  Bundle[] frameworkBundles=frameworkBundleContext.getBundles();
+  Map<Bundle,Map<String,Packages>> bundlesMap=new HashMap<>();
+  Map<String,Packages> suitableImportsMap=_createSuitableImportsMap();
+  for (  Bundle bundle : frameworkBundles) {
+    Dictionary<String,String> headers=bundle.getHeaders();
+    String exportPackages=headers.get("Export-Package");
+    if (exportPackages != null) {
+      exportPackages=exportPackages.replaceAll(";uses:=\"[^\"]*\"","");
+      String bundleName=headers.get("Bundle-Name");
+      Map<String,Packages> currentBundlePackages=_createCurrentBundlePackagesMap(bundleName,exportPackages);
+      for (      Map.Entry<Bundle,Map<String,Packages>> entry : bundlesMap.entrySet()) {
+        Map<String,Packages> mapBundlePackages=new HashMap<>(entry.getValue());
+        Set<String> keySet=mapBundlePackages.keySet();
+        keySet.retainAll(currentBundlePackages.keySet());
+        if (!mapBundlePackages.isEmpty()) {
+          _processDuplicatedPackages(entry.getKey(),mapBundlePackages.values(),currentBundlePackages,suitableImportsMap,bundleName);
+        }
+      }
+      bundlesMap.put(bundle,currentBundlePackages);
+    }
+  }
+}
