@@ -1,14 +1,30 @@
 {
-  if ("file".equals(artifact.getProtocol()) && ManifestUtil.isValidOSGiBundle(artifact.getPath())) {
-    return artifact;
+  String contextName=null;
+  if ("file".equals(artifact.getProtocol())) {
+    if (ManifestUtil.isValidOSGiBundle(artifact.getPath())) {
+      return artifact;
+    }
+    contextName=_readServletContextName(new File(artifact.getPath()));
   }
-  String path=artifact.getPath();
-  int x=path.lastIndexOf('/');
-  int y=path.lastIndexOf(".war");
-  String contextName=path.substring(x + 1,y);
-  Matcher matcher=_pattern.matcher(contextName);
-  if (matcher.matches()) {
-    contextName=matcher.group(1);
+ else {
+    Path tempFilePath=Files.createTempFile(null,null);
+    try (InputStream inputStream=artifact.openStream()){
+      Files.copy(inputStream,tempFilePath);
+      contextName=_readServletContextName(tempFilePath.toFile());
+    }
+  finally {
+      Files.delete(tempFilePath);
+    }
+  }
+  if (contextName == null) {
+    String path=artifact.getPath();
+    int x=path.lastIndexOf('/');
+    int y=path.lastIndexOf(".war");
+    contextName=path.substring(x + 1,y);
+    Matcher matcher=_pattern.matcher(contextName);
+    if (matcher.matches()) {
+      contextName=matcher.group(1);
+    }
   }
   String pathWithQueryString=artifact.getPath() + "?Web-ContextPath=/" + contextName;
   URL url=new URL("file",null,pathWithQueryString);
