@@ -8,13 +8,28 @@
   StagingAdvicesThreadLocal.setEnabled(false);
   WorkflowThreadLocal.setEnabled(false);
   try {
+    Release release=_releaseLocalService.fetchRelease(verifyProcessName);
+    if ((release != null) && release.isVerified()) {
+      return;
+    }
+    if (release == null) {
+      release=_releaseLocalService.createRelease(_counterLocalService.increment());
+      release.setServletContextName(verifyProcessName);
+      release.setVerified(false);
+    }
+    VerifyException verifyException=null;
     for (    VerifyProcess verifyProcess : verifyProcesses) {
       try {
         verifyProcess.verify();
       }
  catch (      VerifyException ve) {
         _log.error(ve,ve);
+        verifyException=ve;
       }
+    }
+    if (verifyException == null) {
+      release.setVerified(true);
+      _releaseLocalService.updateRelease(release);
     }
   }
   finally {
