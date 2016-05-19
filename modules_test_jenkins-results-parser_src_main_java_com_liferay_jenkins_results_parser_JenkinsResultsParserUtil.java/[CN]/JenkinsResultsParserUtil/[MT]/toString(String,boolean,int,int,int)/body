@@ -1,0 +1,43 @@
+{
+  url=fixURL(url);
+  String key=url.replace("//","/");
+  if (checkCache && _toStringCache.containsKey(key) && !url.startsWith("file:")) {
+    System.out.println("Loading " + url);
+    return _toStringCache.get(key);
+  }
+  int retryCount=0;
+  while (true) {
+    try {
+      System.out.println("Downloading " + url);
+      StringBuilder sb=new StringBuilder();
+      URL urlObject=new URL(url);
+      URLConnection urlConnection=urlObject.openConnection();
+      if (timeout != 0) {
+        urlConnection.setConnectTimeout(timeout);
+        urlConnection.setReadTimeout(timeout);
+      }
+      InputStreamReader inputStreamReader=new InputStreamReader(urlConnection.getInputStream());
+      BufferedReader bufferedReader=new BufferedReader(inputStreamReader);
+      String line=null;
+      while ((line=bufferedReader.readLine()) != null) {
+        sb.append(line);
+        sb.append("\n");
+      }
+      bufferedReader.close();
+      String string=sb.toString();
+      byte[] bytes=string.getBytes();
+      if (!url.startsWith("file:") && (bytes.length < (3 * 1024 * 1024))) {
+        _toStringCache.put(key,string);
+      }
+      return string;
+    }
+ catch (    FileNotFoundException fnfe) {
+      retryCount++;
+      if ((maxRetries >= 0) && (retryCount >= maxRetries)) {
+        throw fnfe;
+      }
+      System.out.println("Retry in " + retryPeriod + " seconds");
+      sleep(1000 * retryPeriod);
+    }
+  }
+}
