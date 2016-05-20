@@ -1,0 +1,35 @@
+{
+  Framework framework=null;
+  try (Jar jar=new Jar("system.bundle")){
+    ServiceLoader<FrameworkFactory> serviceLoader=ServiceLoader.load(FrameworkFactory.class);
+    FrameworkFactory frameworkFactory=serviceLoader.iterator().next();
+    Map<String,String> properties=new HashMap<>();
+    properties.put(org.osgi.framework.Constants.FRAMEWORK_STORAGE,tempDir.getAbsolutePath());
+    framework=frameworkFactory.newFramework(properties);
+    framework.init();
+    BundleContext bundleContext=framework.getBundleContext();
+    Bundle systemBundle=bundleContext.getBundle(0);
+    _processBundle(systemBundle);
+    Manifest manifest=new Manifest();
+    Attributes attributes=manifest.getMainAttributes();
+    attributes.putValue(Constants.BUNDLE_SYMBOLICNAME,systemBundle.getSymbolicName());
+    attributes.putValue(Constants.BUNDLE_VERSION,systemBundle.getVersion().toString());
+    String exportPackage=_packagesParamters.toString().replace("version:Version","version");
+    attributes.putValue(Constants.EXPORT_PACKAGE,exportPackage);
+    StringBuilder sb=new StringBuilder();
+    for (    Parameters parameter : _parametersList) {
+      sb.append(parameter.toString());
+      sb.append(",");
+    }
+    sb.setLength(sb.length() - 1);
+    String capabilities=sb.toString();
+    attributes.putValue(Constants.PROVIDE_CAPABILITY,capabilities);
+    jar.setManifest(manifest);
+    File jarFile=new File(tempDir,systemBundle.getSymbolicName() + "-" + systemBundle.getVersion()+ ".jar");
+    jar.write(jarFile);
+    jarFiles.add(jarFile);
+  }
+  finally {
+    framework.stop();
+  }
+}

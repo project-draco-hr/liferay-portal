@@ -1,62 +1,14 @@
 {
   Path tempPath=Files.createTempDirectory(null);
   File tempDir=tempPath.toFile();
-  _config.put("root.url",tempDir.getCanonicalPath());
-  _moduleFrameworkImpl.initFramework();
-  _moduleFrameworkImpl.startFramework();
-  Framework framework=_moduleFrameworkImpl.getFramework();
-  BundleContext bundleContext=framework.getBundleContext();
-  processBundle(bundleContext.getBundle(0));
-  Manifest manifest=new Manifest();
-  Attributes attributes=manifest.getMainAttributes();
-  attributes.putValue(Constants.BUNDLE_DESCRIPTION,ReleaseInfo.getReleaseInfo());
-  attributes.putValue(Constants.BUNDLE_COPYRIGHT,"Copyright (c) 2000-present All rights reserved.");
-  attributes.putValue(Constants.BUNDLE_LICENSE,"http://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt");
-  attributes.putValue(Constants.BUNDLE_MANIFESTVERSION,"2");
-  attributes.putValue(Constants.BUNDLE_SYMBOLICNAME,_bundleSymbolicName);
-  attributes.putValue(Constants.BUNDLE_VENDOR,ReleaseInfo.getVendor());
-  attributes.putValue(Constants.BUNDLE_VERSION,_bundleVersion);
-  String exportPackage=StringUtil.replace(_packagesParamters.toString(),"version:Version","version");
-  attributes.putValue(Constants.EXPORT_PACKAGE,exportPackage);
-  StringBundler sb=new StringBundler();
-  for (  Parameters parameter : _parametersList) {
-    sb.append(parameter.toString());
-    sb.append(",");
-  }
-  sb.setIndex(sb.index() - 1);
-  String capabilities=sb.toString();
-  attributes.putValue(Constants.PROVIDE_CAPABILITY,capabilities);
-  Jar jar=new Jar("distro");
-  jar.setManifest(manifest);
-  try (Verifier verifier=new Verifier(jar)){
-    verifier.setProperty(Constants.FIXUPMESSAGES,"osgi.* namespace must not be specified with generic " + "capabilities");
-    verifier.verify();
-    verifier.getErrors();
-    if (!verifier.isOk()) {
-      List<String> errors=verifier.getErrors();
-      sb=new StringBundler((errors.size() * 4) + 3);
-      sb.append(TargetPlatformMain.class.getName());
-      sb.append(" failed with {");
-      for (      String error : verifier.getErrors()) {
-        sb.append("[");
-        sb.append(error);
-        sb.append("]");
-        sb.append(",");
-      }
-      sb.setIndex(sb.index() - 1);
-      sb.append("}");
-      throw new Exception(sb.toString());
-    }
-    File jarFile=new File(tempPath.toFile(),_bundleSymbolicName + "-" + _bundleVersion+ ".jar");
-    jar.write(jarFile);
-    Set<File> jarFiles=new LinkedHashSet<>();
-    jarFiles.add(jarFile);
-    for (    String moduleFrameworkInitialBundle : PropsValues.MODULE_FRAMEWORK_INITIAL_BUNDLES) {
-      addBundle(jarFiles,moduleFrameworkInitialBundle,PropsValues.MODULE_FRAMEWORK_BASE_DIR + "/static/",tempPath.toFile());
-    }
-    String[] autoDeployDirs=ArrayUtil.append(new String[]{PropsValues.MODULE_FRAMEWORK_PORTAL_DIR},PropsValues.MODULE_FRAMEWORK_AUTO_DEPLOY_DIRS);
-    for (    String autoDeployDir : autoDeployDirs) {
-      File dir=new File(autoDeployDir);
+  _config.put("root.url",tempDir.getPath());
+  Set<File> jarFiles=new LinkedHashSet<>();
+  try {
+    _processSystemBundle(tempDir,jarFiles);
+    _processSystemPackagesExtra(tempDir,jarFiles);
+    String[] moduleDirs=new String[]{_moduleFrameworkBaseDir + "/static/",_moduleFrameworkModulesDir,_moduleFrameworkPortalDir};
+    for (    String moduleDir : moduleDirs) {
+      File dir=new File(moduleDir);
       if (!dir.isDirectory() || !dir.canRead()) {
         continue;
       }
@@ -67,11 +19,11 @@
       }
 );
       for (      File childFile : childFiles) {
-        addBundle(jarFiles,childFile,tempPath.toFile());
+        _addBundle(jarFiles,childFile,tempDir);
       }
     }
     ResourceIndexer resourceIndexer=new RepoIndex();
-    File tempIndexFile=new File(tempPath.toFile(),_bundleSymbolicName + "-" + _bundleVersion+ "-index.xml");
+    File tempIndexFile=new File(tempDir,"target.platform.index.xml");
     try (FileOutputStream fileOutputStream=new FileOutputStream(tempIndexFile)){
       resourceIndexer.index(jarFiles,fileOutputStream,_config);
     }
@@ -81,6 +33,5 @@
   }
   finally {
     PathUtil.deltree(tempPath);
-    _moduleFrameworkImpl.stopFramework(0);
   }
 }
