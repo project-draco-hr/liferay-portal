@@ -16,15 +16,38 @@
       }
     }
     enumeration=bundle.findEntries("/","*.war",false);
-    if (enumeration == null) {
-      return bundles;
+    if (enumeration != null) {
+      while (enumeration.hasMoreElements()) {
+        url=enumeration.nextElement();
+        Bundle newBundle=_bundleContext.installBundle(url.getPath(),_toWARWrapperBundle(bundle,url));
+        BundleStartLevel bundleStartLevel=newBundle.adapt(BundleStartLevel.class);
+        bundleStartLevel.setStartLevel(PropsValues.MODULE_FRAMEWORK_DYNAMIC_INSTALL_START_LEVEL);
+        bundles.add(newBundle);
+      }
     }
-    while (enumeration.hasMoreElements()) {
-      url=enumeration.nextElement();
-      Bundle newBundle=_bundleContext.installBundle(url.getPath(),_toWARWrapperBundle(bundle,url));
-      BundleStartLevel bundleStartLevel=newBundle.adapt(BundleStartLevel.class);
-      bundleStartLevel.setStartLevel(PropsValues.MODULE_FRAMEWORK_DYNAMIC_INSTALL_START_LEVEL);
-      bundles.add(newBundle);
+    enumeration=bundle.findEntries("/","*.xml",false);
+    if (enumeration != null) {
+      while (enumeration.hasMoreElements()) {
+        url=enumeration.nextElement();
+        File file=null;
+        try {
+          String tmpDir=SystemProperties.get(SystemProperties.TMP_DIR);
+          file=new File(tmpDir + "/license.xml");
+          FileUtil.write(file,url.openStream());
+          if (_licenseArtifactInstaller.canHandle(file)) {
+            _licenseArtifactInstaller.install(file);
+          }
+        }
+ catch (        Exception e) {
+          _log.error("Unable to register license");
+          throw e;
+        }
+ finally {
+          if ((file != null) && file.exists()) {
+            FileUtil.delete(file);
+          }
+        }
+      }
     }
   }
  catch (  Exception e) {
