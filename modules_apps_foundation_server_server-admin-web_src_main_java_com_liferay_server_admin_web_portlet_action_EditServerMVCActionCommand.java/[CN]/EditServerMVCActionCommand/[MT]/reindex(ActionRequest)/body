@@ -7,19 +7,12 @@
     return;
   }
   final String uuid=_portalUUID.generate();
-  taskContextMap.put("uuid",uuid);
   final CountDownLatch countDownLatch=new CountDownLatch(1);
   MessageListener messageListener=new MessageListener(){
     @Override public void receive(    Message message) throws MessageListenerException {
-      try {
-        BackgroundTask backgroundTask=_backgroundTaskManager.getBackgroundTask(message.getLong(BackgroundTaskConstants.BACKGROUND_TASK_ID));
-        Map<String,Serializable> taskContextMap=backgroundTask.getTaskContextMap();
-        if (!uuid.equals(taskContextMap.get("uuid"))) {
-          return;
-        }
-      }
- catch (      PortalException pe) {
-        throw new MessageListenerException(pe);
+      String name=message.getString("name");
+      if ((name == null) || !name.contains(uuid)) {
+        return;
       }
       int status=message.getInteger("status");
       if ((status == BackgroundTaskConstants.STATUS_CANCELLED) || (status == BackgroundTaskConstants.STATUS_FAILED) || (status == BackgroundTaskConstants.STATUS_SUCCESSFUL)) {
@@ -35,7 +28,7 @@
 ;
   _messageBus.registerMessageListener(DestinationNames.BACKGROUND_TASK_STATUS,messageListener);
   try {
-    _indexWriterHelper.reindex(themeDisplay.getUserId(),"reindex",PortalInstances.getCompanyIds(),className,taskContextMap);
+    _indexWriterHelper.reindex(themeDisplay.getUserId(),"reindex-".concat(uuid),PortalInstances.getCompanyIds(),className,taskContextMap);
     countDownLatch.await(ParamUtil.getLong(actionRequest,"timeout",Time.HOUR),TimeUnit.MILLISECONDS);
   }
   finally {
