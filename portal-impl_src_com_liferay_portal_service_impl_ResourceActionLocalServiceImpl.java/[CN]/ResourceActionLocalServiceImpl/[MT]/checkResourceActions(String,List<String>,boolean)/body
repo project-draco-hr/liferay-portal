@@ -1,5 +1,14 @@
 {
-  long lastBitwiseValue=-1;
+  List<ResourceAction> resourceActions=getResourceActions(name);
+  LinkedList<Long> availableBitwiseValues=new LinkedList<>();
+  long bitwiseValue=2;
+  for (int i=0; i < Long.SIZE - 1; i++) {
+    availableBitwiseValues.add(bitwiseValue);
+    bitwiseValue=bitwiseValue << 1;
+  }
+  for (  ResourceAction resourceAction : resourceActions) {
+    availableBitwiseValues.remove(resourceAction.getBitwiseValue());
+  }
   List<ResourceAction> newResourceActions=null;
   for (  String actionId : actionIds) {
     String key=encodeKey(name,actionId);
@@ -9,19 +18,14 @@
     }
     resourceAction=resourceActionPersistence.fetchByN_A(name,actionId);
     if (resourceAction == null) {
-      long bitwiseValue=1;
       if (!actionId.equals(ActionKeys.VIEW)) {
-        if (lastBitwiseValue < 0) {
-          ResourceAction lastResourceAction=resourceActionPersistence.fetchByName_First(name,new ResourceActionBitwiseValueComparator());
-          if (lastResourceAction != null) {
-            lastBitwiseValue=lastResourceAction.getBitwiseValue();
-          }
- else {
-            lastBitwiseValue=1;
-          }
+        if (availableBitwiseValues.isEmpty()) {
+          throw new SystemException("There are more than 64 actions for resource " + name);
         }
-        lastBitwiseValue=lastBitwiseValue << 1;
-        bitwiseValue=lastBitwiseValue;
+        bitwiseValue=availableBitwiseValues.pop();
+      }
+ else {
+        bitwiseValue=1;
       }
       try {
         resourceAction=resourceActionLocalService.addResourceAction(name,actionId,bitwiseValue);
