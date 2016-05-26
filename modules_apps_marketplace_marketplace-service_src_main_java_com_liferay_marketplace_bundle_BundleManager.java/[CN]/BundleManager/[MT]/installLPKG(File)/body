@@ -1,17 +1,18 @@
 {
   _lpkgVerifier.verify(file);
-  if (isRestartRequired(file)) {
-    AutoDeploymentContext autoDeploymentContext=new AutoDeploymentContext();
-    autoDeploymentContext.setFile(file);
-    DeployManagerUtil.deploy(autoDeploymentContext);
+  File installFile=new File(getInstallDirName(),file.getName());
+  boolean moved=FileUtil.move(file,installFile);
+  if (!moved) {
+    throw new AutoDeployException("Unable to move LPKG to install directory");
+  }
+  if (isRestartRequired(installFile)) {
+    ShutdownUtil.shutdown(0);
     return Collections.emptyList();
   }
- else {
-    List<Bundle> bundles=_lpkgDeployer.deploy(_bundleContext,file);
-    for (int i=1; i < bundles.size(); i++) {
-      Bundle bundle=bundles.get(i);
-      bundle.start();
-    }
-    return bundles;
+  List<Bundle> bundles=_lpkgDeployer.deploy(_bundleContext,installFile);
+  for (int i=1; i < bundles.size(); i++) {
+    Bundle bundle=bundles.get(i);
+    bundle.start();
   }
+  return bundles;
 }
