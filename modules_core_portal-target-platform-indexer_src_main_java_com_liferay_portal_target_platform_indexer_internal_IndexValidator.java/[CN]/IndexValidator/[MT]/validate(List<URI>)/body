@@ -1,34 +1,24 @@
 {
-  if (_includeTargetPlatform) {
-    indexURIs=new ArrayList<>(indexURIs);
-    File targetPlatformDir=new File(PropsValues.MODULE_FRAMEWORK_BASE_DIR,Indexer.DIR_NAME_TARGET_PLATFORM);
-    if (targetPlatformDir.exists() && targetPlatformDir.canRead()) {
-      File[] indexFiles=targetPlatformDir.listFiles(new FilenameFilter(){
-        @Override public boolean accept(        File dir,        String name){
-          if (name.endsWith(".xml") || name.endsWith(".xml.gz")) {
-            return true;
-          }
-          return false;
-        }
-      }
-);
-      for (      File indexFile : indexFiles) {
-        indexURIs.add(indexFile.toURI());
-      }
-    }
+  Set<String> identities=new HashSet<>();
+  for (  URI uri : indexURIs) {
+    String identity=_getRepositoryIdentity(uri.getPath(),Files.newInputStream(Paths.get(uri)));
+    identities.add(identity);
   }
   try (ResolverValidator resolverValidator=new ResolverValidator()){
-    List<String> messages=new ArrayList<>();
     ResourceBuilder resourceBuilder=new ResourceBuilder();
     resourceBuilder.addEE(EE.JavaSE_1_7);
     resourceBuilder.addManifest(OSGI_CORE.R6_0_0.getManifest());
+    _includeTargetPlatform(resourceBuilder,identities);
+    resolverValidator.setSystem(resourceBuilder.build());
     for (    URI indexURI : indexURIs) {
       resolverValidator.addRepository(indexURI);
     }
-    resolverValidator.setSystem(resourceBuilder.build());
+    List<String> messages=new ArrayList<>();
     List<Resolution> resolutions=resolverValidator.validate();
-    resolverValidator.check();
     for (    Resolution resolution : resolutions) {
+      if (resolution.succeeded) {
+        continue;
+      }
       String message=resolution.message;
       if (message == null) {
         continue;
