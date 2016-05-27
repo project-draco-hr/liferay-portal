@@ -1,6 +1,5 @@
 {
   long start=System.currentTimeMillis();
-  boolean readOnly=false;
   int retryCount=0;
   while (true) {
     String baseInvocationURL=properties.getProperty("base.invocation.url");
@@ -12,24 +11,11 @@
     if (hostNames.size() == 1) {
       return "http://" + hostNamePrefix + "-1";
     }
-    File sharedDir=new File(properties.getProperty("jenkins.shared.dir","NULL"));
-    if (!sharedDir.exists() || !sharedDir.isDirectory()) {
-      readOnly=true;
-      System.out.println("Load balancer will run in read only mode because of " + "missing shared directory " + sharedDir.getPath() + ".");
-    }
-    Map<String,Integer> recentJobMap=new HashMap<>();
-    if (!readOnly) {
-      File baseDir=new File(sharedDir,hostNamePrefix);
-      File semaphoreFile=new File(baseDir,hostNamePrefix + ".semaphore");
-      waitForTurn(semaphoreFile,hostNames.size());
-      JenkinsResultsParserUtil.write(semaphoreFile,_MY_HOST_NAME);
-      recentJobMap=getRecentJobCountMap(new File(baseDir,"recentJob"));
-    }
     int maxAvailableSlaveCount=Integer.MIN_VALUE;
     int x=-1;
     try {
       List<FutureTask<Integer>> futureTasks=new ArrayList<>(hostNames.size());
-      startParallelTasks(recentJobMap,hostNames,hostNamePrefix,properties,futureTasks);
+      startParallelTasks(hostNames,hostNamePrefix,properties,futureTasks);
       List<Integer> badIndices=new ArrayList<>(futureTasks.size());
       List<Integer> maxIndices=new ArrayList<>(futureTasks.size());
       StringBuilder sb=new StringBuilder();
@@ -87,35 +73,29 @@
       return "http://" + hostNames.get(x);
     }
   finally {
-      if (!readOnly) {
-        File baseDir=new File(sharedDir,hostNamePrefix);
-        File semaphoreFile=new File(baseDir,hostNamePrefix + ".semaphore");
-        long age=System.currentTimeMillis() - semaphoreFile.lastModified();
-        System.out.println("Semaphore " + semaphoreFile + " was last modified "+ (age / 1000F)+ " seconds ago.");
-        String content=JenkinsResultsParserUtil.read(semaphoreFile);
-        if (content.equals(_MY_HOST_NAME)) {
-          if (recentJobPeriod > 0) {
-            StringBuilder sb=new StringBuilder();
-            File recentJobFile=new File(baseDir,"recentJob/" + hostNames.get(x));
-            if (recentJobFile.exists()) {
-              sb.append(JenkinsResultsParserUtil.read(recentJobFile));
-              if (sb.length() > 0) {
-                sb.append("|");
-              }
-            }
-            String invokedJobBatchSize=properties.getProperty("invoked.job.batch.size");
-            if ((invokedJobBatchSize == null) || (invokedJobBatchSize.length() == 0)) {
-              invokedJobBatchSize="1";
-            }
-            sb.append(invokedJobBatchSize);
-            sb.append("-");
-            sb.append(System.currentTimeMillis());
-            JenkinsResultsParserUtil.write(recentJobFile,sb.toString());
-          }
-          JenkinsResultsParserUtil.write(semaphoreFile,"");
+      if (recentJobPeriod > 0) {
+        StringBuilder sb=new StringBuilder();
+        String recentJobs=_recentJobsMap.get(hostNames.get(x));
+        if (recentJobs == null) {
+          recentJobs="";
         }
- else {
-          System.out.println("Sempahore " + semaphoreFile + " was overwritten with: "+ content);
+        sb.append(recentJobs);
+        if (sb.length() > 0) {
+          sb.append("|");
+        }
+        int invokedJobBatchSize=0;
+        try {
+          invokedJobBatchSize=Integer.parseInt(properties.getProperty("invoked.job.batch.size"));
+        }
+ catch (        Exception e) {
+          invokedJobBatchSize=1;
+        }
+        if (invokedJobBatchSize != 0) {
+          sb.append(invokedJobBatchSize);
+          sb.append("-");
+          sb.append(System.currentTimeMillis());
+          System.out.println(sb);
+          _recentJobsMap.put(hostNames.get(x),sb.toString());
         }
       }
       System.out.println("Got most available master URL in " + ((System.currentTimeMillis() - start) / 1000F) + " seconds.");
