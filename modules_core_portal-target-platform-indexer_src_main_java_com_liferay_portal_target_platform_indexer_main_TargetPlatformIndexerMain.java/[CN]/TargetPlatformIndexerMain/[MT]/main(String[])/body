@@ -17,7 +17,23 @@
     System.err.printf("== Unable to create directory %s\n",targetPlatformDir);
     return;
   }
-  TargetPlatformIndexer targetPlatformIndexer=new TargetPlatformIndexer(moduleFrameworkBaseDirName,moduleFrameworkModulesDirName,moduleFrameworkPortalDirName);
-  File indexFile=targetPlatformIndexer.index(targetPlatformDir);
-  System.out.println("== Wrote index file " + indexFile);
+  Framework framework=null;
+  Path tempPath=Files.createTempDirectory(null);
+  try {
+    ServiceLoader<FrameworkFactory> serviceLoader=ServiceLoader.load(FrameworkFactory.class);
+    FrameworkFactory frameworkFactory=serviceLoader.iterator().next();
+    Map<String,String> properties=new HashMap<>();
+    properties.put(org.osgi.framework.Constants.FRAMEWORK_STORAGE,tempPath.toString());
+    framework=frameworkFactory.newFramework(properties);
+    framework.init();
+    BundleContext bundleContext=framework.getBundleContext();
+    Bundle systemBundle=bundleContext.getBundle(0);
+    TargetPlatformIndexer targetPlatformIndexer=new TargetPlatformIndexer(systemBundle,moduleFrameworkBaseDirName,moduleFrameworkModulesDirName,moduleFrameworkPortalDirName);
+    File indexFile=targetPlatformIndexer.index(targetPlatformDir);
+    System.out.println("== Wrote index file " + indexFile);
+  }
+  finally {
+    framework.stop();
+    PathUtil.deltree(tempPath);
+  }
 }
