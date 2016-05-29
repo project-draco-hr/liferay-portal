@@ -1,0 +1,24 @@
+{
+  Path tempPath=Files.createTempDirectory(null);
+  File tempDir=tempPath.toFile();
+  _config.put("root.url",tempDir.getPath());
+  try (ZipFile zipFile=new ZipFile(_lpkgFile)){
+    Set<File> files=new LinkedHashSet<>();
+    Enumeration<? extends ZipEntry> enumeration=zipFile.entries();
+    while (enumeration.hasMoreElements()) {
+      ZipEntry zipEntry=enumeration.nextElement();
+      String name=zipEntry.getName();
+      if (!name.endsWith(".jar")) {
+        continue;
+      }
+      File file=new File(tempDir,name);
+      Files.copy(zipFile.getInputStream(zipEntry),file.toPath(),StandardCopyOption.REPLACE_EXISTING);
+      files.add(file);
+    }
+    ResourceIndexer resourceIndexer=new RepoIndex();
+    resourceIndexer.index(files,outputStream,_config);
+  }
+  finally {
+    PathUtil.deltree(tempPath);
+  }
+}
