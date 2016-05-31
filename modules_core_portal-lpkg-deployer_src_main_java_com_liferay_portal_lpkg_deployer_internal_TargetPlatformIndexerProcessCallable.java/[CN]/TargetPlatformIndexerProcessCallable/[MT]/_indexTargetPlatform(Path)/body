@@ -1,0 +1,30 @@
+{
+  Framework framework=null;
+  try {
+    ServiceLoader<FrameworkFactory> serviceLoader=ServiceLoader.load(FrameworkFactory.class);
+    FrameworkFactory frameworkFactory=serviceLoader.iterator().next();
+    framework=frameworkFactory.newFramework(Collections.singletonMap(org.osgi.framework.Constants.FRAMEWORK_STORAGE,tempPath.toString()));
+    framework.init();
+    BundleContext bundleContext=framework.getBundleContext();
+    Bundle systemBundle=bundleContext.getBundle(0);
+    ClassLoader classLoader=TargetPlatformIndexerProcessCallable.class.getClassLoader();
+    Class<?> clazz=classLoader.loadClass("com.liferay.portal.target.platform.indexer.internal." + "TargetPlatformIndexer");
+    Constructor<?> constructor=clazz.getConstructor(Bundle.class,String[].class);
+    Object indexer=constructor.newInstance(systemBundle,_dirNames);
+    Method method=clazz.getMethod("index",OutputStream.class);
+    UnsyncByteArrayOutputStream unsyncByteArrayOutputStream=new UnsyncByteArrayOutputStream();
+    method.invoke(indexer,unsyncByteArrayOutputStream);
+    return unsyncByteArrayOutputStream.toByteArray();
+  }
+ catch (  Exception e) {
+    throw new ProcessException(e);
+  }
+ finally {
+    try {
+      framework.stop();
+    }
+ catch (    BundleException be) {
+      throw new ProcessException(be);
+    }
+  }
+}
