@@ -7,11 +7,37 @@
   Dictionary<String,Object> dictionary=new HashMapDictionary<>();
   dictionary.put("throwable.collector","initial.bundles");
   bundleContext.registerService(ThrowableCollector.class,throwableCollector,dictionary);
-  List<Bundle> bundles=new ArrayList<>();
-  for (  String initialBundle : PropsValues.MODULE_FRAMEWORK_INITIAL_BUNDLES) {
-    Bundle bundle=_installInitialBundle(initialBundle);
-    if (bundle != null) {
-      bundles.add(bundle);
+  final List<Bundle> bundles=new ArrayList<>();
+  Files.walkFileTree(Paths.get(PropsValues.MODULE_FRAMEWORK_BASE_DIR,"/static/"),new SimpleFileVisitor<Path>(){
+    @Override public FileVisitResult visitFile(    Path filePath,    BasicFileAttributes basicFileAttributes) throws IOException {
+      Path fileNamePath=filePath.getFileName();
+      String fileName=StringUtil.toLowerCase(fileNamePath.toString());
+      if (fileName.endsWith(".jar")) {
+        URI uri=filePath.toUri();
+        URL url=uri.toURL();
+        Bundle bundle=_installInitialBundle(url.toString(),url.openStream());
+        if (bundle != null) {
+          bundles.add(bundle);
+        }
+      }
+      return FileVisitResult.CONTINUE;
+    }
+  }
+);
+  File file=new File(bundleContext.getProperty("lpkg.deployer.dir") + StringPool.SLASH + "static.lpkg");
+  if (file.exists()) {
+    ZipFile zipFile=new ZipFile(file);
+    Enumeration<? extends ZipEntry> enumeration=zipFile.entries();
+    while (enumeration.hasMoreElements()) {
+      ZipEntry zipEntry=enumeration.nextElement();
+      String name=StringUtil.toLowerCase(zipEntry.getName());
+      if (!name.endsWith(".jar")) {
+        continue;
+      }
+      Bundle bundle=_installInitialBundle(StringPool.SLASH.concat(zipEntry.getName()),new BufferedInputStream(zipFile.getInputStream(zipEntry)));
+      if (bundle != null) {
+        bundles.add(bundle);
+      }
     }
   }
   FrameworkStartLevel frameworkStartLevel=_framework.adapt(FrameworkStartLevel.class);
