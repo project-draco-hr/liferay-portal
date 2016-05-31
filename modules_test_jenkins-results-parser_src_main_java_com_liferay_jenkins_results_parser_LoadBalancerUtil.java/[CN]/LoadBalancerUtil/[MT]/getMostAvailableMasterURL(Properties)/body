@@ -3,19 +3,19 @@
   int retryCount=0;
   while (true) {
     String baseInvocationURL=properties.getProperty("base.invocation.url");
-    String hostNamePrefix=getHostNamePrefix(baseInvocationURL);
-    if (hostNamePrefix.equals(baseInvocationURL)) {
+    String masterNamePrefix=getMasterNamePrefix(baseInvocationURL);
+    if (masterNamePrefix.equals(baseInvocationURL)) {
       return baseInvocationURL;
     }
-    List<String> hostNames=getHostNames(properties,hostNamePrefix);
-    if (hostNames.size() == 1) {
-      return "http://" + hostNamePrefix + "-1";
+    List<String> masters=getMasters(masterNamePrefix,properties);
+    if (masters.size() == 1) {
+      return "http://" + masterNamePrefix + "-1";
     }
     int maxAvailableSlaveCount=Integer.MIN_VALUE;
     int x=-1;
     try {
-      List<FutureTask<Integer>> futureTasks=new ArrayList<>(hostNames.size());
-      startParallelTasks(hostNames,hostNamePrefix,properties,futureTasks);
+      List<FutureTask<Integer>> futureTasks=new ArrayList<>(masters.size());
+      startParallelTasks(futureTasks,masters,masterNamePrefix,properties);
       List<Integer> badIndices=new ArrayList<>(futureTasks.size());
       List<Integer> maxIndices=new ArrayList<>(futureTasks.size());
       StringBuilder sb=new StringBuilder();
@@ -26,14 +26,14 @@
           availableSlaveCount=futureTask.get(15,TimeUnit.SECONDS);
         }
  catch (        TimeoutException te) {
-          System.out.println("Unable to assess master availability for " + hostNames.get(i) + ".");
+          System.out.println("Unable to assess master availability for " + masters.get(i) + ".");
           availableSlaveCount=null;
         }
         if (availableSlaveCount == null) {
           badIndices.add(i);
           continue;
         }
-        sb.append(hostNames.get(i));
+        sb.append(masters.get(i));
         sb.append(" : ");
         sb.append(availableSlaveCount);
         sb.append("\n");
@@ -57,7 +57,7 @@
       }
  else {
         while (true) {
-          x=getRandomValue(0,hostNames.size() - 1);
+          x=getRandomValue(0,masters.size() - 1);
           if (badIndices.contains(x)) {
             continue;
           }
@@ -65,19 +65,19 @@
         }
       }
       sb.append("\nMost available master ");
-      sb.append(hostNames.get(x));
+      sb.append(masters.get(x));
       sb.append(" has ");
       sb.append(maxAvailableSlaveCount);
       sb.append(" available slaves.");
       System.out.println(sb);
-      return "http://" + hostNames.get(x);
+      return "http://" + masters.get(x);
     }
   finally {
       if (recentBatchPeriod > 0) {
-        List<BatchSizeRecord> hostRecentBatchSizes=_recentBatchSizesMap.get(hostNames.get(x));
-        if (hostRecentBatchSizes == null) {
-          hostRecentBatchSizes=new ArrayList<>();
-          _recentBatchSizesMap.put(hostNames.get(x),hostRecentBatchSizes);
+        List<BatchSizeRecord> masterRecentBatchSizes=_recentBatchSizesMap.get(masters.get(x));
+        if (masterRecentBatchSizes == null) {
+          masterRecentBatchSizes=new ArrayList<>();
+          _recentBatchSizesMap.put(masters.get(x),masterRecentBatchSizes);
         }
         int invokedBatchSize=0;
         try {
@@ -87,7 +87,7 @@
           invokedBatchSize=1;
         }
         if (invokedBatchSize != 0) {
-          hostRecentBatchSizes.add(new BatchSizeRecord(invokedBatchSize,System.currentTimeMillis()));
+          masterRecentBatchSizes.add(new BatchSizeRecord(invokedBatchSize,System.currentTimeMillis()));
         }
       }
       System.out.println("Got most available master URL in " + ((System.currentTimeMillis() - start) / 1000F) + " seconds.");
