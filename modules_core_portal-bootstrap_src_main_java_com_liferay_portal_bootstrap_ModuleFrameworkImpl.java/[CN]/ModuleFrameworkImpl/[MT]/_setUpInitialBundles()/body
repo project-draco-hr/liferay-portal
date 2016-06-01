@@ -8,33 +8,49 @@
   dictionary.put("throwable.collector","initial.bundles");
   bundleContext.registerService(ThrowableCollector.class,throwableCollector,dictionary);
   final List<Bundle> bundles=new ArrayList<>();
+  final List<Path> lpkgPaths=new ArrayList<>();
   Files.walkFileTree(Paths.get(PropsValues.MODULE_FRAMEWORK_BASE_DIR,"/static/"),new SimpleFileVisitor<Path>(){
     @Override public FileVisitResult visitFile(    Path filePath,    BasicFileAttributes basicFileAttributes) throws IOException {
       Path fileNamePath=filePath.getFileName();
       String fileName=StringUtil.toLowerCase(fileNamePath.toString());
       if (fileName.endsWith(".jar")) {
-        try (InputStream inputStream=Files.newInputStream(filePath)){
-          filePath=filePath.toAbsolutePath();
-          Bundle bundle=_installInitialBundle(filePath.toString(),inputStream);
-          if (bundle != null) {
-            bundles.add(bundle);
-          }
-        }
-       }
+        lpkgPaths.add(filePath.toAbsolutePath());
+      }
       return FileVisitResult.CONTINUE;
     }
   }
 );
+  Collections.sort(lpkgPaths);
+  for (  Path lpkgPath : lpkgPaths) {
+    try (InputStream inputStream=Files.newInputStream(lpkgPath)){
+      Bundle bundle=_installInitialBundle(lpkgPath.toString(),inputStream);
+      if (bundle != null) {
+        bundles.add(bundle);
+      }
+    }
+   }
   File file=new File(bundleContext.getProperty("lpkg.deployer.dir") + StringPool.SLASH + "static.lpkg");
   if (file.exists()) {
     ZipFile zipFile=new ZipFile(file);
     Enumeration<? extends ZipEntry> enumeration=zipFile.entries();
+    List<ZipEntry> zipEntries=new ArrayList<>();
     while (enumeration.hasMoreElements()) {
       ZipEntry zipEntry=enumeration.nextElement();
       String name=StringUtil.toLowerCase(zipEntry.getName());
       if (!name.endsWith(".jar")) {
         continue;
       }
+      zipEntries.add(zipEntry);
+    }
+    Collections.sort(zipEntries,new Comparator<ZipEntry>(){
+      @Override public int compare(      ZipEntry zipEntry1,      ZipEntry zipEntry2){
+        String name1=zipEntry1.getName();
+        String name2=zipEntry2.getName();
+        return name1.compareTo(name2);
+      }
+    }
+);
+    for (    ZipEntry zipEntry : zipEntries) {
       try (InputStream inputStream=zipFile.getInputStream(zipEntry)){
         Bundle bundle=_installInitialBundle(StringPool.SLASH.concat(zipEntry.getName()),inputStream);
         if (bundle != null) {
