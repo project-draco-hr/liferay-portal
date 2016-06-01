@@ -1,17 +1,13 @@
 {
   Framework framework=null;
   Path tempPath=Files.createTempDirectory(null);
-  String systemPackagesExtra="";
-  URL url=_classLoader.getResource("META-INF/system.packages.extra.mf");
-  try (InputStream inputStream=url.openStream()){
+  ClassLoader classLoader=TargetPlatformMain.class.getClassLoader();
+  try (InputStream inputStream=classLoader.getResourceAsStream("META-INF/system.packages.extra.mf")){
+    Map<String,String> properties=new HashMap<>();
+    properties.put(Constants.FRAMEWORK_STORAGE,tempPath.toString());
     Manifest extraPackagesManifest=new Manifest(inputStream);
     Attributes attributes=extraPackagesManifest.getMainAttributes();
-    systemPackagesExtra=attributes.getValue("Export-Package");
-  }
-   Map<String,String> properties=new HashMap<>();
-  properties.put(Constants.FRAMEWORK_STORAGE,tempPath.toString());
-  properties.put(Constants.FRAMEWORK_SYSTEMPACKAGES_EXTRA,systemPackagesExtra);
-  try {
+    properties.put(Constants.FRAMEWORK_SYSTEMPACKAGES_EXTRA,attributes.getValue("Export-Package"));
     ServiceLoader<FrameworkFactory> serviceLoader=ServiceLoader.load(FrameworkFactory.class);
     FrameworkFactory frameworkFactory=serviceLoader.iterator().next();
     framework=frameworkFactory.newFramework(properties);
@@ -21,7 +17,7 @@
     TargetPlatformIndexer targetPlatformIndexer=new TargetPlatformIndexer(systemBundle,dirNames);
     ByteArrayOutputStream byteArrayOutputStream=new ByteArrayOutputStream();
     targetPlatformIndexer.index(byteArrayOutputStream);
-    url=BytesURLSupport.putBytes("liferay-target-platform",byteArrayOutputStream.toByteArray());
+    URL url=BytesURLSupport.putBytes("liferay-target-platform",byteArrayOutputStream.toByteArray());
     return url.toURI();
   }
   finally {
