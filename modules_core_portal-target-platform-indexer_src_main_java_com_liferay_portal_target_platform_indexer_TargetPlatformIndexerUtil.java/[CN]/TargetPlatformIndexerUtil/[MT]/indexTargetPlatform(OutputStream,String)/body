@@ -1,6 +1,7 @@
 {
   Framework framework=null;
-  ClassLoader classLoader=TargetPlatformIndexerProcessCallable.class.getClassLoader();
+  Path tempPath=Files.createTempDirectory(null);
+  ClassLoader classLoader=TargetPlatformIndexerUtil.class.getClassLoader();
   try (InputStream inputStream=classLoader.getResourceAsStream("META-INF/system.packages.extra.mf")){
     Map<String,String> properties=new HashMap<>();
     properties.put(Constants.FRAMEWORK_STORAGE,tempPath.toString());
@@ -13,23 +14,11 @@
     framework.init();
     BundleContext bundleContext=framework.getBundleContext();
     Bundle systemBundle=bundleContext.getBundle(0);
-    Class<?> clazz=classLoader.loadClass("com.liferay.portal.target.platform.indexer.internal." + "TargetPlatformIndexer");
-    Constructor<?> constructor=clazz.getConstructor(Bundle.class,String[].class);
-    Object indexer=constructor.newInstance(systemBundle,_dirNames);
-    Method method=clazz.getMethod("index",OutputStream.class);
-    UnsyncByteArrayOutputStream unsyncByteArrayOutputStream=new UnsyncByteArrayOutputStream();
-    method.invoke(indexer,unsyncByteArrayOutputStream);
-    return unsyncByteArrayOutputStream.toByteArray();
+    TargetPlatformIndexer targetPlatformIndexer=new TargetPlatformIndexer(systemBundle,dirNames);
+    targetPlatformIndexer.index(outputStream);
   }
- catch (  Exception e) {
-    throw new ProcessException(e);
-  }
- finally {
-    try {
-      framework.stop();
-    }
- catch (    BundleException be) {
-      throw new ProcessException(be);
-    }
+  finally {
+    framework.stop();
+    PathUtil.deltree(tempPath);
   }
 }
