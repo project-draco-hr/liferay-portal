@@ -18,13 +18,19 @@
   serviceContext.setScopeGroupId(article.getGroupId());
   updateStatus(userId,article,trashEntry.getStatus(),null,serviceContext,new HashMap<String,Serializable>());
   List<TrashVersion> trashVersions=trashVersionLocalService.getVersions(trashEntry.getEntryId());
+  boolean visible=false;
   for (  TrashVersion trashVersion : trashVersions) {
     JournalArticle trashArticleVersion=journalArticlePersistence.findByPrimaryKey(trashVersion.getClassPK());
     trashArticleVersion.setStatus(trashVersion.getStatus());
+    if (trashVersion.getStatus() == WorkflowConstants.STATUS_APPROVED) {
+      visible=true;
+    }
     journalArticlePersistence.update(trashArticleVersion);
   }
   trashEntryLocalService.deleteEntry(JournalArticle.class.getName(),article.getResourcePrimKey());
-  restoreVisibleIfThereIsAnApprovedVersion(article.getGroupId(),article.getArticleId());
+  if (visible) {
+    assetEntryLocalService.updateVisible(JournalArticle.class.getName(),article.getResourcePrimKey(),true);
+  }
   if (JournalServiceConfigurationValues.JOURNAL_ARTICLE_COMMENTS_ENABLED) {
     CommentManagerUtil.restoreDiscussionFromTrash(JournalArticle.class.getName(),article.getResourcePrimKey());
   }
