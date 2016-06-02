@@ -1,0 +1,51 @@
+{
+  Group group=_groupLocalService.fetchGroup(portletDataContext.getGroupId());
+  if (group.isStagingGroup()) {
+    group=group.getLiveGroup();
+  }
+  if (group.isStaged() && !group.isStagedRemotely() && !group.isStagedPortlet(JournalPortletKeys.JOURNAL)) {
+    return content;
+  }
+  StringBuilder sb=new StringBuilder(content);
+  int beginPos=0;
+  int endPos=0;
+  while (true) {
+    beginPos=sb.indexOf(_DDM_JOURNAL_ARTICLE_TYPE,endPos);
+    if (beginPos == -1) {
+      break;
+    }
+    endPos=beginPos;
+    while (true) {
+      beginPos=sb.indexOf(_CDATA_BEGIN,endPos);
+      if (beginPos == -1) {
+        break;
+      }
+      beginPos+=_CDATA_BEGIN.length();
+      endPos=sb.indexOf(_CDATA_END,beginPos);
+      String jsonData=sb.substring(beginPos,endPos);
+      JSONObject jsonObject=_jsonFactory.createJSONObject(jsonData);
+      long classPK=GetterUtil.getLong(jsonObject.get("classPK"));
+      JournalArticle journalArticle=_journalArticleLocalService.fetchLatestArticle(classPK);
+      if (journalArticle == null) {
+        if (_log.isInfoEnabled()) {
+          _log.info("Skipping JournalArticle with classPK = " + classPK + " not found; referenced by "+ stagedModel.getModelClassName()+ ":"+ stagedModel.getPrimaryKeyObj());
+        }
+        continue;
+      }
+      String jaReference="[$ja-reference=" + journalArticle.getPrimaryKey() + "$]";
+      if (_log.isDebugEnabled()) {
+        _log.debug("Replacing: " + jsonData + " with "+ jaReference);
+      }
+      sb.replace(beginPos,endPos,jaReference);
+      endPos=beginPos + jaReference.length();
+      if (exportReferencedContent) {
+        StagedModelDataHandlerUtil.exportReferenceStagedModel(portletDataContext,stagedModel,journalArticle,PortletDataContext.REFERENCE_TYPE_DEPENDENCY);
+      }
+ else {
+        Element entityElement=portletDataContext.getExportDataElement(stagedModel);
+        portletDataContext.addReferenceElement(stagedModel,entityElement,journalArticle,PortletDataContext.REFERENCE_TYPE_DEPENDENCY,true);
+      }
+    }
+  }
+  return sb.toString();
+}

@@ -1,0 +1,38 @@
+{
+  StringBuilder sb=new StringBuilder(content);
+  int beginPos=0;
+  int endPos=0;
+  List<Throwable> throwables=new ArrayList<>();
+  while (true) {
+    beginPos=sb.indexOf(_DDM_JOURNAL_ARTICLE_TYPE,endPos);
+    if (beginPos == -1) {
+      break;
+    }
+    endPos=beginPos;
+    while (true) {
+      beginPos=sb.indexOf(_CDATA_BEGIN,endPos);
+      if (beginPos == -1) {
+        break;
+      }
+      beginPos+=_CDATA_BEGIN.length();
+      endPos=sb.indexOf(_CDATA_END,beginPos);
+      String json=sb.substring(beginPos,endPos);
+      if (Validator.isNull(json)) {
+        if (_log.isDebugEnabled()) {
+          _log.debug("No reference specified.");
+        }
+        continue;
+      }
+      JSONObject jsonObject=_jsonFactory.createJSONObject(json);
+      long classPK=GetterUtil.getLong(jsonObject.get("classPK"));
+      JournalArticle journalArticle=_journalArticleLocalService.fetchLatestArticle(classPK);
+      if (journalArticle == null) {
+        Throwable throwable=new NoSuchArticleException("resourcePrimKey=" + classPK);
+        throwables.add(throwable);
+      }
+    }
+  }
+  if (!throwables.isEmpty()) {
+    throw new PortalException(new BulkException("Content validation failure",throwables));
+  }
+}

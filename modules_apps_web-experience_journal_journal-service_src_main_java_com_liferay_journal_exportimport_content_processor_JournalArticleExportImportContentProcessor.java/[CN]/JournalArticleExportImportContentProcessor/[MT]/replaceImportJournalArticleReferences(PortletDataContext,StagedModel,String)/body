@@ -1,0 +1,41 @@
+{
+  List<Element> referenceElements=portletDataContext.getReferenceElements(stagedModel,JournalArticle.class);
+  for (  Element referenceElement : referenceElements) {
+    long classPK=GetterUtil.getLong(referenceElement.attributeValue("class-pk"));
+    try {
+      StagedModelDataHandlerUtil.importReferenceStagedModel(portletDataContext,stagedModel,JournalArticle.class,classPK);
+    }
+ catch (    Exception e) {
+      if (_log.isDebugEnabled()) {
+        _log.debug(e,e);
+      }
+ else       if (_log.isWarnEnabled()) {
+        StringBundler sb=new StringBundler(6);
+        sb.append("Unable to process journal article ");
+        sb.append(classPK);
+        sb.append(" for ");
+        sb.append(stagedModel.getModelClassName());
+        sb.append(" with primary key ");
+        sb.append(stagedModel.getPrimaryKeyObj());
+        _log.warn(sb.toString());
+      }
+    }
+    Map<Long,Long> primaryKeys=(Map<Long,Long>)portletDataContext.getNewPrimaryKeysMap(JournalArticle.class + ".primaryKey");
+    long primaryKey=MapUtil.getLong(primaryKeys,classPK,classPK);
+    JournalArticle journalArticle=_journalArticleLocalService.fetchJournalArticle(primaryKey);
+    if (journalArticle == null) {
+      if (_log.isWarnEnabled()) {
+        _log.warn("Unable to fetch article with id: " + primaryKey);
+      }
+      throw new NoSuchArticleException("id = " + primaryKey);
+    }
+ else {
+      String journalArticleReference="[$ja-reference=" + classPK + "$]";
+      JSONObject jsonObject=_jsonFactory.createJSONObject();
+      jsonObject.put("className",JournalArticle.class.getName());
+      jsonObject.put("classPK",journalArticle.getResourcePrimKey());
+      content=StringUtil.replace(content,journalArticleReference,jsonObject.toString());
+    }
+  }
+  return content;
+}
