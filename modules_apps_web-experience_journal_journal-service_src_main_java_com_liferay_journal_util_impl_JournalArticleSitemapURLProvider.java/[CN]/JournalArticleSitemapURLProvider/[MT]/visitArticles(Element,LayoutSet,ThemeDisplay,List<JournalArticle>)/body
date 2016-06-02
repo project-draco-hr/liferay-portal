@@ -1,0 +1,35 @@
+{
+  if (journalArticles.isEmpty()) {
+    return;
+  }
+  Set<String> processedArticleIds=new HashSet<>();
+  String portalURL=PortalUtil.getPortalURL(layoutSet,themeDisplay);
+  for (  JournalArticle journalArticle : journalArticles) {
+    if (processedArticleIds.contains(journalArticle.getArticleId()) || (journalArticle.getStatus() != WorkflowConstants.STATUS_APPROVED) || !JournalUtil.isHead(journalArticle)) {
+      continue;
+    }
+    String groupFriendlyURL=PortalUtil.getGroupFriendlyURL(_layoutSetLocalService.getLayoutSet(journalArticle.getGroupId(),false),themeDisplay);
+    StringBundler sb=new StringBundler(4);
+    if (!groupFriendlyURL.startsWith(portalURL)) {
+      sb.append(portalURL);
+    }
+    sb.append(groupFriendlyURL);
+    sb.append(JournalArticleConstants.CANONICAL_URL_SEPARATOR);
+    sb.append(journalArticle.getUrlTitle());
+    Layout layout=_layoutLocalService.getLayoutByUuidAndGroupId(journalArticle.getLayoutUuid(),layoutSet.getGroupId(),layoutSet.getPrivateLayout());
+    String articleURL=PortalUtil.getCanonicalURL(sb.toString(),themeDisplay,layout);
+    Map<Locale,String> alternateURLs=SitemapUtil.getAlternateURLs(articleURL,themeDisplay,layout);
+    SitemapUtil.addURLElement(element,articleURL,null,journalArticle.getModifiedDate(),articleURL,alternateURLs);
+    if (alternateURLs.size() > 1) {
+      Locale defaultLocale=LocaleUtil.getSiteDefault();
+      for (      Map.Entry<Locale,String> entry : alternateURLs.entrySet()) {
+        Locale availableLocale=entry.getKey();
+        String alternateURL=entry.getValue();
+        if (!availableLocale.equals(defaultLocale)) {
+          SitemapUtil.addURLElement(element,alternateURL,null,journalArticle.getModifiedDate(),articleURL,alternateURLs);
+        }
+      }
+    }
+    processedArticleIds.add(journalArticle.getArticleId());
+  }
+}
