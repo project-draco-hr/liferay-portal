@@ -1,0 +1,33 @@
+{
+  Class clazz=getClass();
+  ClassLoader classLoader=clazz.getClassLoader();
+  StringBundler sb=new StringBundler(3);
+  sb.append(StringPool.SLASH);
+  sb.append(_JSP_PATH);
+  sb.append(_PRECOMPILE_JSP_CLASS);
+  File file=new File(_parentWorkDir.concat(sb.toString()));
+  File parentFile=file.getParentFile();
+  parentFile.mkdirs();
+  file.createNewFile();
+  String name=PrecompileTestServlet.class.getName();
+  try (InputStream inputStream=classLoader.getResourceAsStream(StringUtil.replace(name,CharPool.PERIOD,CharPool.SLASH).concat(".class"));OutputStream outputStream=new FileOutputStream(file)){
+    ClassReader classReader=new ClassReader(inputStream);
+    ClassNode classNode=new ClassNode();
+    classReader.accept(classNode,0);
+    classNode.name=_JSP_PATH.concat(_PRECOMPILE_JSP_CLASS.substring(0,_PRECOMPILE_JSP_CLASS.indexOf(StringPool.PERIOD)));
+    ClassWriter classWriter=new ClassWriter(0);
+    classNode.accept(classWriter);
+    outputStream.write(classWriter.toByteArray());
+  }
+   try (CaptureAppender captureAppender=Log4JLoggerTestUtil.configureLog4JLogger("com.liferay.portal.osgi.web.servlet.jsp.compiler." + "internal.JspCompiler",Level.DEBUG)){
+    _doJspTest(_PRECOMPILE_JSP);
+    List<LoggingEvent> loggingEvents=captureAppender.getLoggingEvents();
+    StringBundler message=new StringBundler(4);
+    message.append("Compiling JSP: ");
+    message.append(_JSP_PACKAGE);
+    message.append(StringUtil.replace(_PRECOMPILE_JSP,CharPool.PERIOD,CharPool.UNDERLINE));
+    if (_containsLog(loggingEvents,message.toString())) {
+      Assert.fail("JSP was compiled at runtime");
+    }
+  }
+ }
