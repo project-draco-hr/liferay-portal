@@ -1,0 +1,55 @@
+{
+  Session session=null;
+  try {
+    session=openSession();
+    StringBundler sb=new StringBundler(5);
+    sb.append("SELECT * FROM (");
+    String sql=CustomSQLUtil.get(getClass(),FIND_A_BY_G_P,queryDefinition);
+    if (inlineSQLHelper) {
+      sql=InlineSQLHelperUtil.replacePermissionCheck(sql,KBArticle.class.getName(),"KBArticle.kbArticleId",groupId);
+    }
+    sb.append(sql);
+    sb.append(" UNION ALL ");
+    sql=CustomSQLUtil.get(getClass(),FIND_F_BY_G_P,queryDefinition);
+    if (inlineSQLHelper) {
+      sql=InlineSQLHelperUtil.replacePermissionCheck(sql,KBFolder.class.getName(),"KBFolder.kbFolderId",groupId);
+    }
+    sb.append(sql);
+    sb.append(") TEMP_TABLE ");
+    sql=sb.toString();
+    sql=CustomSQLUtil.replaceOrderBy(sql,queryDefinition.getOrderByComparator());
+    SQLQuery q=session.createSynchronizedSQLQuery(sql);
+    q.addScalar("modelId",Type.LONG);
+    q.addScalar("modelFolder",Type.INTEGER);
+    q.addScalar("title",Type.STRING);
+    QueryPos qPos=QueryPos.getInstance(q);
+    qPos.add(groupId);
+    qPos.add(parentResourcePrimKey);
+    qPos.add(true);
+    qPos.add(queryDefinition.getStatus());
+    qPos.add(groupId);
+    qPos.add(parentResourcePrimKey);
+    List<Object> models=new ArrayList<>();
+    Iterator<Object[]> itr=(Iterator<Object[]>)QueryUtil.iterate(q,getDialect(),queryDefinition.getStart(),queryDefinition.getEnd());
+    while (itr.hasNext()) {
+      Object[] array=itr.next();
+      long modelId=(Long)array[0];
+      int modelFolder=(Integer)array[1];
+      Object obj=null;
+      if (modelFolder == 1) {
+        obj=KBFolderUtil.findByPrimaryKey(modelId);
+      }
+ else {
+        obj=KBArticleUtil.findByPrimaryKey(modelId);
+      }
+      models.add(obj);
+    }
+    return models;
+  }
+ catch (  Exception e) {
+    throw new SystemException(e);
+  }
+ finally {
+    closeSession(session);
+  }
+}
