@@ -6,9 +6,14 @@
   ReflectionTestUtil.setFieldValue(PropsValues.class,"MODULE_FRAMEWORK_INITIAL_BUNDLES",new String[0]);
   ReflectionTestUtil.setFieldValue(PropsValues.class,"SPRING_INFRASTRUCTURE_CONFIGS",new String[0]);
   _fileImpl.deltree(PropsValues.MODULE_FRAMEWORK_STATE_DIR);
-  Files.createDirectories(Paths.get(PropsValues.MODULE_FRAMEWORK_BASE_DIR,"static"));
-  try {
+  InitUtil.init();
+  ReflectionTestUtil.setFieldValue(InitUtil.class,"_initialized",false);
+  try (CaptureAppender captureAppender=Log4JLoggerTestUtil.configureLog4JLogger("com.liferay.portal.bootstrap.ModuleFrameworkImpl",Level.ERROR)){
     InitUtil.initWithSpring(Arrays.asList("META-INF/util-spring.xml"),true,true);
+    List<LoggingEvent> loggingEvents=captureAppender.getLoggingEvents();
+    Assert.assertEquals(1,loggingEvents.size());
+    LoggingEvent loggingEvent=loggingEvents.get(0);
+    Assert.assertEquals("Missing " + Paths.get(PropsValues.LIFERAY_LIB_PORTAL_DIR,"util-taglib.jar"),loggingEvent.getRenderedMessage());
   }
   finally {
     if (resourceActionsReadPortletResources == null) {
