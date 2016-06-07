@@ -1,25 +1,18 @@
 {
-  final Set<String> locations=new HashSet<>();
-  Files.walkFileTree(path,new SimpleFileVisitor<Path>(){
-    @Override public FileVisitResult visitFile(    Path filePath,    BasicFileAttributes basicFileAttributes) throws IOException {
-      Path fileNamePath=filePath.getFileName();
-      String fileName=StringUtil.toLowerCase(fileNamePath.toString());
-      if (!fileName.endsWith(".war")) {
-        return FileVisitResult.CONTINUE;
-      }
-      URI uri=filePath.toUri();
+  Set<String> locations=new HashSet<>();
+  try (DirectoryStream<Path> directoryStream=Files.newDirectoryStream(path,"*.war")){
+    for (    Path warPath : directoryStream) {
+      URI uri=warPath.toUri();
       try (ZipFile zipFile=new ZipFile(new File(uri));InputStream inputStream=zipFile.getInputStream(new ZipEntry("WEB-INF/liferay-plugin-package.properties"))){
         Properties properties=new Properties();
         properties.load(inputStream);
         if (!Boolean.valueOf(properties.getProperty("startup-required"))) {
-          return FileVisitResult.CONTINUE;
+          continue;
         }
         URL url=ArtifactURLUtil.transform(uri.toURL());
         locations.add(url.toString());
       }
-       return FileVisitResult.CONTINUE;
-    }
+     }
   }
-);
-  return locations;
+   return locations;
 }
