@@ -1,0 +1,41 @@
+{
+  String path=artifact.getPath();
+  int x=path.lastIndexOf('/');
+  int y=path.lastIndexOf(".war");
+  String symbolicName=path.substring(x + 1,y);
+  Matcher matcher=_pattern.matcher(symbolicName);
+  if (matcher.matches()) {
+    symbolicName=matcher.group(1);
+  }
+  String contextName=null;
+  if ("file".equals(artifact.getProtocol())) {
+    if (ManifestUtil.isValidOSGiBundle(artifact.getPath())) {
+      return artifact;
+    }
+    contextName=_readServletContextName(new File(URLCodec.decodeURL(artifact.getPath())));
+  }
+ else {
+    Path tempFilePath=Files.createTempFile(null,null);
+    try (InputStream inputStream=artifact.openStream()){
+      Files.copy(inputStream,tempFilePath);
+      contextName=_readServletContextName(tempFilePath.toFile());
+    }
+  finally {
+      Files.delete(tempFilePath);
+    }
+  }
+  if (contextName == null) {
+    contextName=symbolicName;
+  }
+  StringBundler sb=new StringBundler(7);
+  sb.append(artifact.getPath());
+  sb.append("?");
+  sb.append(Constants.BUNDLE_SYMBOLICNAME);
+  sb.append("=");
+  sb.append(symbolicName);
+  sb.append("&Web-ContextPath=/");
+  sb.append(contextName);
+  URL url=new URL("file",null,sb.toString());
+  url=new URL("webbundle",null,url.toString());
+  return url;
+}
