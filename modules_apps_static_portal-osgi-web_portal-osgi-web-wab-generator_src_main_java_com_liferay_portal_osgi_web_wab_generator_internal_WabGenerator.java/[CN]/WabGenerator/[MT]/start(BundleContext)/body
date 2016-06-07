@@ -1,4 +1,22 @@
 {
   registerURLStreamHandlerService(bundleContext);
+  final Set<String> requiredLocations=_scanForRequiredWars(Paths.get(PropsValues.LIFERAY_HOME,"osgi/war"));
   registerArtifactUrlTransformer(bundleContext);
+  final CountDownLatch countDownLatch=new CountDownLatch(1);
+  BundleTracker<Void> bundleTracker=new BundleTracker<Void>(bundleContext,Bundle.ACTIVE,null){
+    @Override public Void addingBundle(    Bundle bundle,    BundleEvent event){
+      String location=bundle.getLocation();
+      if (requiredLocations.contains(location)) {
+        requiredLocations.remove(location);
+        if (requiredLocations.isEmpty()) {
+          countDownLatch.countDown();
+        }
+      }
+      return null;
+    }
+  }
+;
+  bundleTracker.open();
+  countDownLatch.await();
+  bundleTracker.close();
 }
