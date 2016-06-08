@@ -1,0 +1,34 @@
+{
+  String[] fileNames=SyncServiceConfigurationValues.SYNC_MAC_PACKAGE_METADATA_FILE_NAMES;
+  StringBundler sb=new StringBundler((fileNames.length * 4) + 5);
+  sb.append("select DLFolder.folderId, DLFolder.name from DLFolder, ");
+  sb.append("DLFileEntry where DLFolder.repositoryId = ");
+  sb.append(groupId);
+  sb.append(" and DLFileEntry.folderId = DLFolder.folderId and ");
+  sb.append("DLFileEntry.title in (");
+  for (int i=0; i < fileNames.length; i++) {
+    sb.append(StringPool.APOSTROPHE);
+    sb.append(fileNames[i]);
+    sb.append(StringPool.APOSTROPHE);
+    if (i != (fileNames.length - 1)) {
+      sb.append(CharPool.COMMA);
+    }
+  }
+  sb.append(")");
+  try (PreparedStatement ps1=connection.prepareStatement(sb.toString());PreparedStatement ps2=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"update SyncDLObject set extraSettings = ? where " + "typePK = ?");ResultSet rs=ps1.executeQuery()){
+    while (rs.next()) {
+      long folderId=rs.getLong("folderId");
+      String name=rs.getString("name");
+      String extension=FileUtil.getExtension(name);
+      if (!ArrayUtil.contains(SyncServiceConfigurationValues.SYNC_MAC_PACKAGE_FOLDER_EXTENSIONS,extension)) {
+        continue;
+      }
+      JSONObject extraSettingsJSONObject=JSONFactoryUtil.createJSONObject();
+      extraSettingsJSONObject.put("macPackage",true);
+      ps2.setString(1,extraSettingsJSONObject.toString());
+      ps2.setLong(2,folderId);
+      ps2.addBatch();
+    }
+    ps2.executeBatch();
+  }
+ }

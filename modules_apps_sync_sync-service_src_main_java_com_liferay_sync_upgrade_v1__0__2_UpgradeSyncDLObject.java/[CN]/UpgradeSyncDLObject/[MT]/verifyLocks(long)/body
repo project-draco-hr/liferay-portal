@@ -1,0 +1,18 @@
+{
+  StringBundler sb=new StringBundler(5);
+  sb.append("select Lock_.expirationDate, Lock_.userId, ");
+  sb.append("Lock_.userName, DLFileVersion.fileEntryId from ");
+  sb.append("DLFileVersion, Lock_ where DLFileVersion.version = '");
+  sb.append(DLFileEntryConstants.PRIVATE_WORKING_COPY_VERSION);
+  sb.append("' and DLFileVersion.fileEntryId = Lock_.key_");
+  try (PreparedStatement ps1=connection.prepareStatement(sb.toString());PreparedStatement ps2=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"update SyncDLObject set lockExpirationDate = ?, " + "lockUserId = ?, lockUserName = ? where typePK = ? " + "and repositoryId = "+ groupId);ResultSet rs=ps1.executeQuery()){
+    while (rs.next()) {
+      ps2.setTimestamp(1,rs.getTimestamp("expirationDate"));
+      ps2.setLong(2,rs.getLong("userId"));
+      ps2.setString(3,rs.getString("userName"));
+      ps2.setLong(4,rs.getLong("fileEntryId"));
+      ps2.addBatch();
+    }
+    ps2.executeBatch();
+  }
+ }
