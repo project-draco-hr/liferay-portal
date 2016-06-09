@@ -1,0 +1,35 @@
+{
+  if (files.isEmpty()) {
+    return false;
+  }
+  File rootDir=null;
+  File firstFile=files.first();
+  if (files.size() == 1) {
+    rootDir=firstFile.getParentFile();
+  }
+ else {
+    String dirName=StringUtil.getCommonPrefix('/',_getCanonicalPath(firstFile),_getCanonicalPath(files.last()));
+    if (Validator.isNotNull(dirName)) {
+      rootDir=new File(dirName);
+    }
+  }
+  if (rootDir == null) {
+    if (_logger.isWarnEnabled()) {
+      _logger.warn("Unable to remove ignored files, common parent directory " + "cannot be found");
+    }
+    return false;
+  }
+  String result=_getGitResult(project,rootDir,"ls-files","--cached","--deleted","--exclude-standard","--modified","--others","-z");
+  if (Validator.isNull(result)) {
+    if (_logger.isWarnEnabled()) {
+      _logger.warn("Unable to remove ignored files, Git returned an empty " + "result");
+    }
+    return false;
+  }
+  String[] committedFileNames=result.split("\\000");
+  Set<File> committedFiles=new HashSet<>();
+  for (  String fileName : committedFileNames) {
+    committedFiles.add(new File(rootDir,fileName));
+  }
+  return files.retainAll(committedFiles);
+}
