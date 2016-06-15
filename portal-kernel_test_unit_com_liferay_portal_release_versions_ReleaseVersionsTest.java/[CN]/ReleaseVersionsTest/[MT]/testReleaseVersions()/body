@@ -1,0 +1,36 @@
+{
+  final Path portalPath=Paths.get(System.getProperty("user.dir"));
+  String otherDirName=System.getProperty("release.versions.other.dir");
+  Assert.assertTrue("Please set the property ${release.versions.other.dir}",Validator.isNotNull(otherDirName));
+  final Path otherPath=Paths.get(otherDirName);
+  Assert.assertTrue(otherPath + " is not a valid Git repository",Files.exists(otherPath.resolve(".git")));
+  final boolean otherRelease=_isRelease(otherPath);
+  boolean differentTypes=false;
+  if (otherRelease != _isRelease(portalPath)) {
+    differentTypes=true;
+  }
+  Assert.assertTrue(portalPath + " and " + otherPath+ " must be different types",differentTypes);
+  final Set<Path> ignorePaths=new HashSet<>(Arrays.asList(portalPath.resolve("modules/third-party")));
+  Files.walkFileTree(portalPath,new SimpleFileVisitor<Path>(){
+    @Override public FileVisitResult preVisitDirectory(    Path dirPath,    BasicFileAttributes basicFileAttributes) throws IOException {
+      if (ignorePaths.contains(dirPath)) {
+        return FileVisitResult.SKIP_SUBTREE;
+      }
+      Path bndBndPath=dirPath.resolve("bnd.bnd");
+      if (Files.notExists(bndBndPath)) {
+        return FileVisitResult.CONTINUE;
+      }
+      Path bndBndRelativePath=portalPath.relativize(bndBndPath);
+      Path otherBndBndPath=otherPath.resolve(bndBndRelativePath);
+      if (Files.notExists(otherBndBndPath)) {
+        if (_log.isInfoEnabled()) {
+          _log.info("Ignoring " + bndBndRelativePath + " as it does not exist in "+ otherPath);
+        }
+        return FileVisitResult.SKIP_SUBTREE;
+      }
+      _checkReleaseVersion(bndBndPath,otherBndBndPath,otherRelease,portalPath.relativize(dirPath));
+      return FileVisitResult.SKIP_SUBTREE;
+    }
+  }
+);
+}
