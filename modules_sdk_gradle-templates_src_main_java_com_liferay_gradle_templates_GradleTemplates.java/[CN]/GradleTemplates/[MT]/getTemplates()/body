@@ -1,0 +1,45 @@
+{
+  ClassLoader classLoader=GradleTemplates.class.getClassLoader();
+  URL url=classLoader.getResource(_TEMPLATES_ROOT_DIR);
+  if (url == null) {
+    throw new IOException("Unable to get templates");
+  }
+  final List<String> templates=new ArrayList<>();
+  String protocol=url.getProtocol();
+  if (protocol.equals("file")) {
+    Path dirPath=Paths.get(url.toURI());
+    try (DirectoryStream<Path> directoryStream=Files.newDirectoryStream(dirPath,_directoriesOnlyFilter)){
+      for (      Path path : directoryStream) {
+        Path fileNamePath=path.getFileName();
+        templates.add(fileNamePath.toString());
+      }
+    }
+   }
+ else   if (protocol.equals("jar")) {
+    String path=url.getPath();
+    int pos=path.indexOf('!');
+    if (pos == -1) {
+      throw new IOException("Unable to get templates from " + url);
+    }
+    URI jarFileURI=new URI(path.substring(0,pos));
+    try (JarFile jarFile=new JarFile(new File(jarFileURI))){
+      Enumeration<JarEntry> enumeration=jarFile.entries();
+      while (enumeration.hasMoreElements()) {
+        JarEntry jarEntry=enumeration.nextElement();
+        if (!jarEntry.isDirectory()) {
+          continue;
+        }
+        String name=jarEntry.getName();
+        if (name.startsWith(_TEMPLATES_ROOT_DIR + "/") && (name.indexOf('/',_TEMPLATES_ROOT_DIR.length() + 1) == (name.length() - 1))) {
+          String template=name.substring(_TEMPLATES_ROOT_DIR.length() + 1,name.length() - 1);
+          templates.add(template);
+        }
+      }
+    }
+   }
+ else {
+    throw new IOException("Unable to get templates from " + url);
+  }
+  Collections.sort(templates);
+  return templates.toArray(new String[templates.size()]);
+}
