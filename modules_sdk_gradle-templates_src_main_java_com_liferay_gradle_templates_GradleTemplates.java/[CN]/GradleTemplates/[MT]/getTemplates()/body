@@ -1,28 +1,17 @@
 {
-  ClassLoader classLoader=GradleTemplates.class.getClassLoader();
-  URL url=classLoader.getResource(_TEMPLATES_ROOT_DIR);
-  if (url == null) {
-    throw new IOException("Unable to get templates");
-  }
   final List<String> templates=new ArrayList<>();
-  String protocol=url.getProtocol();
-  if (protocol.equals("file")) {
-    Path dirPath=Paths.get(url.toURI());
-    try (DirectoryStream<Path> directoryStream=Files.newDirectoryStream(dirPath,_directoriesOnlyFilter)){
+  File file=_getJarFile();
+  if (file.isDirectory()) {
+    Path jarDirPath=file.toPath();
+    try (DirectoryStream<Path> directoryStream=Files.newDirectoryStream(jarDirPath.resolve(TEMPLATES_STANDALONE_DIR),FileUtil.directoriesOnlyFilter)){
       for (      Path path : directoryStream) {
         Path fileNamePath=path.getFileName();
         templates.add(fileNamePath.toString());
       }
     }
    }
- else   if (protocol.equals("jar")) {
-    String path=url.getPath();
-    int pos=path.indexOf('!');
-    if (pos == -1) {
-      throw new IOException("Unable to get templates from " + url);
-    }
-    URI jarFileURI=new URI(path.substring(0,pos));
-    try (JarFile jarFile=new JarFile(new File(jarFileURI))){
+ else {
+    try (JarFile jarFile=new JarFile(file)){
       Enumeration<JarEntry> enumeration=jarFile.entries();
       while (enumeration.hasMoreElements()) {
         JarEntry jarEntry=enumeration.nextElement();
@@ -30,16 +19,13 @@
           continue;
         }
         String name=jarEntry.getName();
-        if (name.startsWith(_TEMPLATES_ROOT_DIR + "/") && (name.indexOf('/',_TEMPLATES_ROOT_DIR.length() + 1) == (name.length() - 1))) {
-          String template=name.substring(_TEMPLATES_ROOT_DIR.length() + 1,name.length() - 1);
+        if (name.startsWith(TEMPLATES_STANDALONE_DIR + "/") && (name.indexOf('/',TEMPLATES_STANDALONE_DIR.length() + 1) == (name.length() - 1))) {
+          String template=name.substring(TEMPLATES_STANDALONE_DIR.length() + 1,name.length() - 1);
           templates.add(template);
         }
       }
     }
    }
- else {
-    throw new IOException("Unable to get templates from " + url);
-  }
   Collections.sort(templates);
   return templates.toArray(new String[templates.size()]);
 }
