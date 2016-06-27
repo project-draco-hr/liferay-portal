@@ -7,7 +7,11 @@
     if (line.equals(indent + StringPool.CLOSE_CURLY_BRACE)) {
       return content;
     }
-    if ((StringUtil.count(line,CharPool.TAB) == indent.length()) && !line.startsWith(indent + StringPool.CLOSE_PARENTHESIS)) {
+    int tabCount=StringUtil.count(line,CharPool.TAB);
+    if ((tabCount < indent.length()) && Validator.isNull(annotation)) {
+      continue;
+    }
+    if ((tabCount < indent.length()) || ((tabCount == indent.length()) && !line.startsWith(indent + StringPool.CLOSE_PARENTHESIS))) {
       if (Validator.isNotNull(annotation) && annotation.contains(StringPool.OPEN_PARENTHESIS)) {
         Matcher matcher=_annotationPattern.matcher(annotation);
         if (matcher.find()) {
@@ -22,14 +26,18 @@
         newContent=checkAnnotationMetaTypeProperties(newContent,annotation);
         newContent=checkAnnotationLineBreaks(newContent,annotation);
         if (!newContent.equals(content)) {
-          return formatAnnotations(fileName,javaTermName,newContent,indent);
+          return formatAnnotations(fileName,javaTermName,newContent,indent,sortAnnotations);
+        }
+        String newAnnotation=formatAnnotations(fileName,javaTermName,annotation,indent + "\t\t",false);
+        if (!newAnnotation.equals(annotation)) {
+          return StringUtil.replace(content,annotation,newAnnotation);
         }
         checkAnnotationParameters(fileName,javaTermName,annotation);
       }
-      if (Validator.isNotNull(previousAnnotation) && (previousAnnotation.compareToIgnoreCase(annotation) > 0)) {
+      if (sortAnnotations && Validator.isNotNull(previousAnnotation) && (previousAnnotation.compareToIgnoreCase(annotation) > 0)) {
         content=StringUtil.replaceFirst(content,previousAnnotation,annotation);
         content=StringUtil.replaceLast(content,annotation,previousAnnotation);
-        return formatAnnotations(fileName,javaTermName,content,indent);
+        return formatAnnotations(fileName,javaTermName,content,indent,sortAnnotations);
       }
       if (line.startsWith(indent + StringPool.AT)) {
         if (Validator.isNotNull(annotation)) {
