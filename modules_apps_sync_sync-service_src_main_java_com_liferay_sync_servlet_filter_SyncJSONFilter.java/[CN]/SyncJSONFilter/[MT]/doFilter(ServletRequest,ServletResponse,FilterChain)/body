@@ -1,13 +1,20 @@
 {
-  String uri=(String)servletRequest.getAttribute(WebKeys.INVOKER_FILTER_URI);
+  SyncDevice syncDevice=null;
   HttpServletRequest httpServletRequest=(HttpServletRequest)servletRequest;
   String uuid=httpServletRequest.getHeader("Sync-UUID");
   if (uuid != null) {
-    SyncDevice syncDevice=SyncDeviceLocalServiceUtil.fetchSyncDeviceByUuidAndCompanyId(uuid,PortalUtil.getCompanyId(httpServletRequest));
-    SyncDeviceThreadLocal.setSyncDevice(syncDevice);
+    syncDevice=SyncDeviceLocalServiceUtil.fetchSyncDeviceByUuidAndCompanyId(uuid,PortalUtil.getCompanyId(httpServletRequest));
+  }
+  if (syncDevice == null) {
+    syncDevice=SyncDeviceLocalServiceUtil.createSyncDevice(0);
+  }
+  syncDevice.setHostName(servletRequest.getRemoteAddr());
+  SyncDeviceThreadLocal.setSyncDevice(syncDevice);
+  if (uuid != null) {
     filterChain.doFilter(servletRequest,servletResponse);
     return;
   }
+  String uri=(String)servletRequest.getAttribute(WebKeys.INVOKER_FILTER_URI);
   if (uri.equals("/api/jsonws/invoke")) {
     String contentType=httpServletRequest.getHeader(HttpHeaders.CONTENT_TYPE);
     if ((contentType == null) || !contentType.startsWith(ContentTypes.MULTIPART_FORM_DATA)) {
@@ -34,19 +41,19 @@
   if (PrefsPropsUtil.getBoolean(PortalUtil.getCompanyId(httpServletRequest),SyncServiceConfigurationKeys.SYNC_SERVICES_ENABLED,SyncServiceConfigurationValues.SYNC_SERVICES_ENABLED)) {
     int absoluteSyncClientMinBuild=0;
     int syncClientMinBuild=0;
-    String syncDevice=httpServletRequest.getHeader("Sync-Device");
-    if (syncDevice == null) {
+    String syncDeviceType=httpServletRequest.getHeader("Sync-Device");
+    if (syncDeviceType == null) {
       throwable=new SyncDeviceHeaderException();
     }
- else     if (syncDevice.startsWith("desktop")) {
+ else     if (syncDeviceType.startsWith("desktop")) {
       absoluteSyncClientMinBuild=_ABSOLUTE_SYNC_CLIENT_MIN_BUILD_DESKTOP;
       syncClientMinBuild=PrefsPropsUtil.getInteger(PortalUtil.getCompanyId(httpServletRequest),SyncServiceConfigurationKeys.SYNC_CLIENT_MIN_BUILD_DESKTOP,SyncServiceConfigurationValues.SYNC_CLIENT_MIN_BUILD_DESKTOP);
     }
- else     if (syncDevice.equals("mobile-android")) {
+ else     if (syncDeviceType.equals("mobile-android")) {
       absoluteSyncClientMinBuild=_ABSOLUTE_SYNC_CLIENT_MIN_BUILD_ANDROID;
       syncClientMinBuild=PrefsPropsUtil.getInteger(PortalUtil.getCompanyId(httpServletRequest),SyncServiceConfigurationKeys.SYNC_CLIENT_MIN_BUILD_ANDROID,SyncServiceConfigurationValues.SYNC_CLIENT_MIN_BUILD_ANDROID);
     }
- else     if (syncDevice.equals("mobile-ios")) {
+ else     if (syncDeviceType.equals("mobile-ios")) {
       absoluteSyncClientMinBuild=_ABSOLUTE_SYNC_CLIENT_MIN_BUILD_IOS;
       syncClientMinBuild=PrefsPropsUtil.getInteger(PortalUtil.getCompanyId(httpServletRequest),SyncServiceConfigurationKeys.SYNC_CLIENT_MIN_BUILD_IOS,SyncServiceConfigurationValues.SYNC_CLIENT_MIN_BUILD_IOS);
     }
