@@ -1,19 +1,32 @@
 {
   ServiceContext serviceContext=ServiceContextTestUtil.getServiceContext(group.getGroupId());
-  int initialArticleImagesCount=JournalArticleImageLocalServiceUtil.getArticleImagesCount(group.getGroupId());
   Class<?> clazz=getClass();
   ClassLoader classLoader=clazz.getClassLoader();
   String definition=StringUtil.read(classLoader,"com/liferay/journal/dependencies" + "/test-ddm-structure-image-field.xml");
   DDMForm ddmForm=_ddmFormXSDDeserializer.deserialize(definition);
   DDMStructure ddmStructure=DDMStructureTestUtil.addStructure(serviceContext.getScopeGroupId(),JournalArticle.class.getName(),ddmForm);
   DDMTemplate ddmTemplate=DDMTemplateTestUtil.addTemplate(serviceContext.getScopeGroupId(),ddmStructure.getStructureId(),PortalUtil.getClassNameId(JournalArticle.class));
+  InputStream inputStream=classLoader.getResourceAsStream("/com/liferay/journal/dependencies/liferay.png");
+  FileEntry tempFileEntry=TempFileEntryUtil.addTempFileEntry(group.getGroupId(),TestPropsValues.getUserId(),JournalArticle.class.getName(),"liferay.png",inputStream,ContentTypes.IMAGE_PNG);
   String content=StringUtil.read(classLoader,"com/liferay/journal/dependencies" + "/test-journal-content-image-field.xml");
-  Map<String,byte[]> images=new HashMap<>();
-  images.put("uewn_image_1_en_US",FileUtil.getBytes(clazz,"/com/liferay/journal/dependencies/liferay.png"));
-  baseModel=JournalTestUtil.addArticleWithXMLContent(JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID,content,ddmStructure.getStructureKey(),ddmTemplate.getTemplateKey(),images,serviceContext);
-  Assert.assertEquals(initialArticleImagesCount + 1,JournalArticleImageLocalServiceUtil.getArticleImagesCount(group.getGroupId()));
+  Document document=SAXReaderUtil.read(content);
+  Element dynamicContent=(Element)document.selectSingleNode("//dynamic-content");
+  JSONObject jsonObject=JSONFactoryUtil.createJSONObject();
+  jsonObject.put("groupId",group.getGroupId());
+  jsonObject.put("name","liferay.png");
+  jsonObject.put("tempFile",Boolean.TRUE.toString());
+  jsonObject.put("title","liferay.png");
+  jsonObject.put("type","journal");
+  jsonObject.put("uuid",tempFileEntry.getUuid());
+  dynamicContent.setText(jsonObject.toString());
+  baseModel=JournalTestUtil.addArticleWithXMLContent(JournalFolderConstants.DEFAULT_PARENT_FOLDER_ID,document.asXML(),ddmStructure.getStructureKey(),ddmTemplate.getTemplateKey(),serviceContext);
+  JournalArticle article=(JournalArticle)baseModel;
+  long folderId=article.getImagesFolderId();
+  Assert.assertEquals(1,PortletFileRepositoryUtil.getPortletFileEntriesCount(group.getGroupId(),folderId));
   moveBaseModelToTrash((Long)baseModel.getPrimaryKeyObj());
+  Assert.assertEquals(0,PortletFileRepositoryUtil.getPortletFileEntriesCount(group.getGroupId(),folderId,WorkflowConstants.STATUS_APPROVED));
+  Assert.assertEquals(1,PortletFileRepositoryUtil.getPortletFileEntriesCount(group.getGroupId(),folderId,WorkflowConstants.STATUS_IN_TRASH));
   TrashHandler trashHandler=TrashHandlerRegistryUtil.getTrashHandler(getBaseModelClassName());
   trashHandler.deleteTrashEntry(getTrashEntryClassPK(baseModel));
-  Assert.assertEquals(initialArticleImagesCount,JournalArticleImageLocalServiceUtil.getArticleImagesCount(group.getGroupId()));
+  Assert.assertEquals(0,PortletFileRepositoryUtil.getPortletFileEntriesCount(group.getGroupId(),folderId));
 }
