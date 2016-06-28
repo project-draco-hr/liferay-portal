@@ -4,24 +4,38 @@
   File file=null;
   InputStream inputStream=null;
   try {
-    String zipFileName=getZipFileName(folderId,themeDisplay);
-    ZipWriter zipWriter=ZipWriterFactoryUtil.getZipWriter();
     List<FileEntry> fileEntries=ActionUtil.getFileEntries(resourceRequest);
-    for (    FileEntry fileEntry : fileEntries) {
-      zipFileEntry(fileEntry,StringPool.SLASH,zipWriter);
-    }
     List<FileShortcut> fileShortcuts=ActionUtil.getFileShortcuts(resourceRequest);
-    for (    FileShortcut fileShortcut : fileShortcuts) {
-      FileEntry fileEntry=_dlAppService.getFileEntry(fileShortcut.getToFileEntryId());
-      zipFileEntry(fileEntry,StringPool.SLASH,zipWriter);
-    }
     List<Folder> folders=ActionUtil.getFolders(resourceRequest);
-    for (    Folder folder : folders) {
-      zipFolder(folder.getRepositoryId(),folder.getFolderId(),StringPool.SLASH.concat(folder.getName()),zipWriter);
+    if (fileEntries.isEmpty() && fileShortcuts.isEmpty() && folders.isEmpty()) {
+      return;
     }
-    file=zipWriter.getFile();
-    inputStream=new FileInputStream(file);
-    PortletResponseUtil.sendFile(resourceRequest,resourceResponse,zipFileName,inputStream,ContentTypes.APPLICATION_ZIP);
+ else     if ((fileEntries.size() == 1) && fileShortcuts.isEmpty() && folders.isEmpty()) {
+      FileEntry fileEntry=fileEntries.get(0);
+      sendFileEntry(resourceRequest,resourceResponse,fileEntry);
+    }
+ else     if ((fileShortcuts.size() == 1) && fileEntries.isEmpty() && folders.isEmpty()) {
+      FileShortcut fileShortcut=fileShortcuts.get(0);
+      FileEntry fileEntry=_dlAppService.getFileEntry(fileShortcut.getToFileEntryId());
+      sendFileEntry(resourceRequest,resourceResponse,fileEntry);
+    }
+ else {
+      String zipFileName=getZipFileName(folderId,themeDisplay);
+      ZipWriter zipWriter=ZipWriterFactoryUtil.getZipWriter();
+      for (      FileEntry fileEntry : fileEntries) {
+        zipFileEntry(fileEntry,StringPool.SLASH,zipWriter);
+      }
+      for (      FileShortcut fileShortcut : fileShortcuts) {
+        FileEntry fileEntry=_dlAppService.getFileEntry(fileShortcut.getToFileEntryId());
+        zipFileEntry(fileEntry,StringPool.SLASH,zipWriter);
+      }
+      for (      Folder folder : folders) {
+        zipFolder(folder.getRepositoryId(),folder.getFolderId(),StringPool.SLASH.concat(folder.getName()),zipWriter);
+      }
+      file=zipWriter.getFile();
+      inputStream=new FileInputStream(file);
+      PortletResponseUtil.sendFile(resourceRequest,resourceResponse,zipFileName,inputStream,ContentTypes.APPLICATION_ZIP);
+    }
   }
   finally {
     StreamUtil.cleanUp(inputStream);
