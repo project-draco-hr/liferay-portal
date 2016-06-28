@@ -1,0 +1,36 @@
+{
+  ThemeDisplay themeDisplay=(ThemeDisplay)resourceRequest.getAttribute(WebKeys.THEME_DISPLAY);
+  long folderId=ParamUtil.getLong(resourceRequest,"folderId");
+  File file=null;
+  InputStream inputStream=null;
+  try {
+    String zipFileName=LanguageUtil.get(themeDisplay.getLocale(),"documents-and-media");
+    if (folderId != DLFolderConstants.DEFAULT_PARENT_FOLDER_ID) {
+      Folder folder=_dlAppService.getFolder(folderId);
+      zipFileName=folder.getName();
+    }
+    ZipWriter zipWriter=ZipWriterFactoryUtil.getZipWriter();
+    List<FileEntry> fileEntries=ActionUtil.getFileEntries(resourceRequest);
+    for (    FileEntry fileEntry : fileEntries) {
+      zipFileEntry(fileEntry,StringPool.SLASH,zipWriter);
+    }
+    List<FileShortcut> fileShortcuts=ActionUtil.getFileShortcuts(resourceRequest);
+    for (    FileShortcut fileShortcut : fileShortcuts) {
+      FileEntry fileEntry=_dlAppService.getFileEntry(fileShortcut.getToFileEntryId());
+      zipFileEntry(fileEntry,StringPool.SLASH,zipWriter);
+    }
+    List<Folder> folders=ActionUtil.getFolders(resourceRequest);
+    for (    Folder folder : folders) {
+      zipFolder(folder.getRepositoryId(),folder.getFolderId(),StringPool.SLASH,zipWriter);
+    }
+    file=zipWriter.getFile();
+    inputStream=new FileInputStream(file);
+    PortletResponseUtil.sendFile(resourceRequest,resourceResponse,zipFileName,inputStream,ContentTypes.APPLICATION_ZIP);
+  }
+  finally {
+    StreamUtil.cleanUp(inputStream);
+    if (file != null) {
+      file.delete();
+    }
+  }
+}
