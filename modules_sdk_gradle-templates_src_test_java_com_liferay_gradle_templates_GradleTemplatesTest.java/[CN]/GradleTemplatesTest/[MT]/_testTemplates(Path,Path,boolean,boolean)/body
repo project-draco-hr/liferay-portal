@@ -1,5 +1,6 @@
 {
   try (DirectoryStream<Path> directoryStream=Files.newDirectoryStream(rootDirPath)){
+    final AtomicReference<String> previousGradlewDistributionUrl=new AtomicReference<>(null);
     for (    Path path : directoryStream) {
       if (!Files.isDirectory(path)) {
         continue;
@@ -15,6 +16,18 @@
       }
  else {
         Assert.assertTrue("Missing " + gitIgnorePath,Files.exists(gitIgnorePath));
+      }
+      boolean gradlewExists=Files.exists(path.resolve("gradlew"));
+      if (gradlewForbidden) {
+        Assert.assertFalse("Forbidden Gradle wrapper in " + path,gradlewExists);
+      }
+ else {
+        Assert.assertTrue("Missing Gradle wrapper in " + path,gradlewExists);
+        String gradlewDistributionUrl=_readProperty(path.resolve("gradle/wrapper/gradle-wrapper.properties"),"distributionUrl");
+        boolean first=previousGradlewDistributionUrl.compareAndSet(null,gradlewDistributionUrl);
+        if (!first) {
+          Assert.assertEquals("Wrong Gradle wrapper distribution URL in " + path,previousGradlewDistributionUrl.get(),gradlewDistributionUrl);
+        }
       }
     }
   }
