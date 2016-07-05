@@ -1,0 +1,38 @@
+{
+  T dummyService=newDummyInstance(serviceClass);
+  try {
+    Field field=declaringClass.getDeclaredField(fieldName);
+    if (!Modifier.isStatic(field.getModifiers())) {
+      throw new IllegalArgumentException(field + " is not static");
+    }
+    field.setAccessible(true);
+    field.set(null,dummyService);
+    ServiceTracker<?,?> serviceTracker=null;
+    String serviceName=serviceClass.getName();
+    Registry registry=RegistryUtil.getRegistry();
+    if (Validator.isNull(filterString)) {
+      serviceTracker=registry.trackServices(serviceName,new ServiceTrackerFieldUpdaterCustomizer<>(field,null,dummyService));
+    }
+ else {
+      StringBundler sb=new StringBundler(7);
+      sb.append("(&(objectClass=");
+      sb.append(serviceName);
+      sb.append(StringPool.CLOSE_PARENTHESIS);
+      if (!filterString.startsWith(StringPool.OPEN_PARENTHESIS)) {
+        sb.append(StringPool.OPEN_PARENTHESIS);
+      }
+      sb.append(filterString);
+      if (!filterString.endsWith(StringPool.CLOSE_PARENTHESIS)) {
+        sb.append(StringPool.CLOSE_PARENTHESIS);
+      }
+      sb.append(StringPool.CLOSE_PARENTHESIS);
+      Filter filter=registry.getFilter(sb.toString());
+      serviceTracker=registry.trackServices(filter,new ServiceTrackerFieldUpdaterCustomizer<>(field,null,dummyService));
+    }
+    serviceTracker.open();
+    return (T)field.get(null);
+  }
+ catch (  ReflectiveOperationException roe) {
+    return ReflectionUtil.throwException(roe);
+  }
+}
