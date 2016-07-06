@@ -1,0 +1,90 @@
+{
+  String portletId=PortletProviderUtil.getPortletId(JournalArticle.class.getName(),PortletProvider.Action.EDIT);
+  String articleURL=PortalUtil.getControlPanelFullURL(article.getGroupId(),portletId,null);
+  if (!article.isApproved() || Validator.isNull(articleURL)) {
+    return;
+  }
+  JournalGroupServiceConfiguration journalGroupServiceConfiguration=getJournalGroupServiceConfiguration(article.getGroupId());
+  String articleTitle=article.getTitle(serviceContext.getLanguageId());
+  articleURL=buildArticleURL(articleURL,article.getGroupId(),article.getFolderId(),article.getArticleId());
+  if (action.equals("add") && journalGroupServiceConfiguration.emailArticleAddedEnabled()) {
+  }
+ else   if (action.equals("move_to") && journalGroupServiceConfiguration.emailArticleMovedToFolderEnabled()) {
+  }
+ else   if (action.equals("move_from") && journalGroupServiceConfiguration.emailArticleMovedFromFolderEnabled()) {
+  }
+ else   if (action.equals("update") && journalGroupServiceConfiguration.emailArticleUpdatedEnabled()) {
+  }
+ else {
+    return;
+  }
+  String fromName=journalGroupServiceConfiguration.emailFromName();
+  String fromAddress=journalGroupServiceConfiguration.emailFromAddress();
+  Map<Locale,String> localizedSubjectMap=null;
+  Map<Locale,String> localizedBodyMap=null;
+  int notificationType=UserNotificationDefinition.NOTIFICATION_TYPE_ADD_ENTRY;
+  if (action.equals("add")) {
+    localizedSubjectMap=LocalizationUtil.getMap(journalGroupServiceConfiguration.emailArticleAddedSubject());
+    localizedBodyMap=LocalizationUtil.getMap(journalGroupServiceConfiguration.emailArticleAddedBody());
+  }
+ else   if (action.equals("move_to")) {
+    localizedSubjectMap=LocalizationUtil.getMap(journalGroupServiceConfiguration.emailArticleMovedToFolderSubject());
+    localizedBodyMap=LocalizationUtil.getMap(journalGroupServiceConfiguration.emailArticleMovedToFolderBody());
+    notificationType=JournalArticleConstants.NOTIFICATION_TYPE_MOVE_ENTRY_TO_FOLDER;
+  }
+ else   if (action.equals("move_from")) {
+    localizedSubjectMap=LocalizationUtil.getMap(journalGroupServiceConfiguration.emailArticleMovedFromFolderSubject());
+    localizedBodyMap=LocalizationUtil.getMap(journalGroupServiceConfiguration.emailArticleMovedFromFolderBody());
+    notificationType=JournalArticleConstants.NOTIFICATION_TYPE_MOVE_ENTRY_FROM_FOLDER;
+  }
+ else   if (action.equals("update")) {
+    localizedSubjectMap=LocalizationUtil.getMap(journalGroupServiceConfiguration.emailArticleUpdatedSubject());
+    localizedBodyMap=LocalizationUtil.getMap(journalGroupServiceConfiguration.emailArticleUpdatedBody());
+    notificationType=JournalArticleConstants.NOTIFICATION_TYPE_UPDATE_ENTRY;
+  }
+  String articleContent=StringPool.BLANK;
+  String articleDiffs=StringPool.BLANK;
+  JournalArticle previousApprovedArticle=getPreviousApprovedArticle(article);
+  try {
+    PortletRequestModel portletRequestModel=new PortletRequestModel(serviceContext.getLiferayPortletRequest(),serviceContext.getLiferayPortletResponse());
+    JournalArticleDisplay articleDisplay=getArticleDisplay(article,null,Constants.VIEW,LocaleUtil.toLanguageId(LocaleUtil.getSiteDefault()),1,portletRequestModel,serviceContext.getThemeDisplay());
+    articleContent=articleDisplay.getContent();
+    articleDiffs=JournalUtil.diffHtml(article.getGroupId(),article.getArticleId(),previousApprovedArticle.getVersion(),article.getVersion(),LocaleUtil.toLanguageId(LocaleUtil.getSiteDefault()),portletRequestModel,serviceContext.getThemeDisplay());
+  }
+ catch (  Exception e) {
+  }
+  SubscriptionSender subscriptionSender=new GroupSubscriptionCheckSubscriptionSender(JournalPermission.RESOURCE_NAME);
+  subscriptionSender.setClassName(article.getModelClassName());
+  subscriptionSender.setClassPK(article.getId());
+  subscriptionSender.setCompanyId(article.getCompanyId());
+  subscriptionSender.setContextAttribute("[$ARTICLE_CONTENT$]",articleContent,false);
+  subscriptionSender.setContextAttribute("[$ARTICLE_DIFFS$]",DiffHtmlUtil.replaceStyles(articleDiffs),false);
+  JournalFolder folder=article.getFolder();
+  subscriptionSender.setContextAttributes("[$ARTICLE_ID$]",article.getArticleId(),"[$ARTICLE_TITLE$]",articleTitle,"[$ARTICLE_URL$]",articleURL,"[$ARTICLE_VERSION$]",article.getVersion(),"[$FOLDER_NAME$]",folder.getName());
+  subscriptionSender.setContextCreatorUserPrefix("ARTICLE");
+  subscriptionSender.setCreatorUserId(article.getUserId());
+  subscriptionSender.setCurrentUserId(userId);
+  subscriptionSender.setEntryTitle(articleTitle);
+  subscriptionSender.setEntryURL(articleURL);
+  subscriptionSender.setFrom(fromAddress,fromName);
+  subscriptionSender.setHtmlFormat(true);
+  subscriptionSender.setLocalizedBodyMap(localizedBodyMap);
+  subscriptionSender.setLocalizedSubjectMap(localizedSubjectMap);
+  subscriptionSender.setMailId("journal_article",article.getId());
+  subscriptionSender.setNotificationType(notificationType);
+  subscriptionSender.setPortletId(portletId);
+  subscriptionSender.setReplyToAddress(fromAddress);
+  subscriptionSender.setScopeGroupId(article.getGroupId());
+  subscriptionSender.setServiceContext(serviceContext);
+  subscriptionSender.addPersistedSubscribers(JournalFolder.class.getName(),article.getGroupId());
+  if (folder != null) {
+    subscriptionSender.addPersistedSubscribers(JournalFolder.class.getName(),folder.getFolderId());
+    for (    Long ancestorFolderId : folder.getAncestorFolderIds()) {
+      subscriptionSender.addPersistedSubscribers(JournalFolder.class.getName(),ancestorFolderId);
+    }
+  }
+  DDMStructure ddmStructure=ddmStructureLocalService.getStructure(article.getGroupId(),classNameLocalService.getClassNameId(JournalArticle.class),article.getDDMStructureKey(),true);
+  subscriptionSender.addPersistedSubscribers(DDMStructure.class.getName(),ddmStructure.getStructureId());
+  subscriptionSender.addPersistedSubscribers(JournalArticle.class.getName(),article.getResourcePrimKey());
+  subscriptionSender.flushNotificationsAsync();
+}
