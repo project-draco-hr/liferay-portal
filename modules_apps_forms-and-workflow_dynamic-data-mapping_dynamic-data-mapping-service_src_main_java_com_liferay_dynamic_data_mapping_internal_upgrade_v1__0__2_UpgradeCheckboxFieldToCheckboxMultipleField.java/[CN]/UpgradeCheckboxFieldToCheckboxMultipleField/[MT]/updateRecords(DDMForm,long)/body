@@ -1,0 +1,23 @@
+{
+  StringBundler sb=new StringBundler(7);
+  sb.append("select DDLRecordVersion.ddmStorageId, DDMContent.data_ ");
+  sb.append("from DDLRecordVersion inner join DDLRecordSet on ");
+  sb.append("DDLRecordVersion.recordSetId = DDLRecordSet.recordSetId ");
+  sb.append("inner join DDMContent on DDLRecordVersion.DDMStorageId = ");
+  sb.append("DDMContent.contentId where DDLRecordSet.recordSetId = ? ");
+  try (PreparedStatement ps1=connection.prepareStatement(sb.toString());PreparedStatement ps2=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"update DDMContent set data_= ? " + "where contentId = ? ")){
+    ps1.setLong(1,recordSetId);
+    try (ResultSet rs=ps1.executeQuery()){
+      while (rs.next()) {
+        long contentId=rs.getLong("ddmStorageId");
+        String data_=rs.getString("data_");
+        DDMFormValues ddmFormValues=_ddmFormValuesJSONDeserializer.deserialize(ddmForm,data_);
+        transformCheckboxDDMFormFieldValues(ddmFormValues);
+        ps2.setString(1,_ddmFormValuesJSONSerializer.serialize(ddmFormValues));
+        ps2.setLong(2,contentId);
+        ps2.addBatch();
+      }
+      ps2.executeBatch();
+    }
+   }
+ }

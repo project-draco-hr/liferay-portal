@@ -1,0 +1,26 @@
+{
+  StringBundler sb=new StringBundler(5);
+  sb.append("select DDMStructure.definition, DDLRecordSet.recordSetId, ");
+  sb.append("DDMStructure.structureId from DDLRecordSet inner join ");
+  sb.append("DDMStructure on DDLRecordSet.DDMStructureId = ");
+  sb.append("DDMStructure.structureId where DDLRecordSet.scope = ? and ");
+  sb.append("DDMStructure.definition like ?");
+  try (PreparedStatement ps=connection.prepareStatement(sb.toString());PreparedStatement ps2=AutoBatchPreparedStatementUtil.concurrentAutoBatch(connection,"update DDMStructure set definition = ? " + " where structureId = ?")){
+    ps.setInt(1,_SCOPE_FORMS);
+    ps.setString(2,"%checkbox%");
+    try (ResultSet rs=ps.executeQuery()){
+      while (rs.next()) {
+        String definition=rs.getString(1);
+        long recordSetId=rs.getLong(2);
+        long structureId=rs.getLong(3);
+        String newDefinition=upgradeRecordSetStructureDefinition(definition);
+        ps2.setString(1,newDefinition);
+        ps2.setLong(2,structureId);
+        ps2.addBatch();
+        DDMForm ddmForm=_ddmFormJSONDeserializer.deserialize(definition);
+        updateRecords(ddmForm,recordSetId);
+      }
+      ps2.executeBatch();
+    }
+   }
+ }
