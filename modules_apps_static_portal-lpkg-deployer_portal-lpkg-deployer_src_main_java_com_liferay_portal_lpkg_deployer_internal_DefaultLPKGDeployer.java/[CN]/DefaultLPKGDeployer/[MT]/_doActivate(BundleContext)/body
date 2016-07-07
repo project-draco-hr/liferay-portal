@@ -2,50 +2,24 @@
   Dictionary<String,Object> properties=new HashMapDictionary<>();
   properties.put(URLConstants.URL_HANDLER_PROTOCOL,new String[]{"lpkg"});
   bundleContext.registerService(URLStreamHandlerService.class.getName(),new LPKGURLStreamHandlerService(_urls),properties);
-  _lpkgBundleTracker=new BundleTracker<>(bundleContext,~Bundle.UNINSTALLED,new LPKGBundleTrackerCustomizer(bundleContext,_urls));
+  _deploymentDirPath=_getDeploymentDirPath(bundleContext);
+  Path overwrittenDirPath=_deploymentDirPath.resolve("overwritten");
+  List<File> jarFiles=_scanFiles(overwrittenDirPath,".jar");
+  _uninstallOrphanOverwrittenJars(bundleContext,jarFiles);
+  List<File> warFiles=_scanFiles(overwrittenDirPath,".war");
+  _uninstallOrphanOverwrittenWars(bundleContext,warFiles);
+  _lpkgBundleTracker=new BundleTracker<>(bundleContext,~Bundle.UNINSTALLED,new LPKGBundleTrackerCustomizer(bundleContext,_urls,_toFileNames(jarFiles,warFiles)));
   _lpkgBundleTracker.open();
-  String deploymentDir=GetterUtil.getString(bundleContext.getProperty("lpkg.deployer.dir"),PropsValues.MODULE_FRAMEWORK_BASE_DIR + "/marketplace");
-  _deploymentDirPath=Paths.get(deploymentDir);
-  Files.createDirectories(_deploymentDirPath);
-  final List<File> lpkgFiles=new ArrayList<>();
-  Files.walkFileTree(_deploymentDirPath,new SimpleFileVisitor<Path>(){
-    @Override public FileVisitResult visitFile(    Path filePath,    BasicFileAttributes basicFileAttributes){
-      Path fileNamePath=filePath.getFileName();
-      String fileName=StringUtil.toLowerCase(fileNamePath.toString());
-      if (!fileName.endsWith(".lpkg")) {
-        return FileVisitResult.CONTINUE;
-      }
-      lpkgFiles.add(filePath.toFile());
-      return FileVisitResult.CONTINUE;
-    }
-  }
-);
+  List<File> lpkgFiles=_scanFiles(_deploymentDirPath,".lpkg");
   _lpkgIndexValidator.setLPKGDeployer(this);
+  _lpkgIndexValidator.setJarFiles(jarFiles);
   boolean updateIntegrityProperties=_lpkgIndexValidator.validate(lpkgFiles);
   boolean enabled=LPKGIndexValidatorThreadLocal.isEnabled();
   LPKGIndexValidatorThreadLocal.setEnabled(false);
   try {
-    for (    File lpkgFile : lpkgFiles) {
-      try {
-        List<Bundle> bundles=deploy(bundleContext,lpkgFile);
-        for (        Bundle bundle : bundles) {
-          Dictionary<String,String> headers=bundle.getHeaders();
-          String fragmentHost=headers.get(Constants.FRAGMENT_HOST);
-          if (fragmentHost != null) {
-            continue;
-          }
-          try {
-            bundle.start();
-          }
- catch (          BundleException be) {
-            _log.error("Unable to start " + bundle + " for "+ lpkgFile,be);
-          }
-        }
-      }
- catch (      Exception e) {
-        _log.error("Unable to deploy LPKG file " + lpkgFile,e);
-      }
-    }
+    _instalLPKGs(bundleContext,lpkgFiles);
+    _installOverwrittenJars(bundleContext,jarFiles);
+    _installOverwrittenWars(bundleContext,warFiles);
     if (updateIntegrityProperties) {
       _lpkgIndexValidator.updateIntegrityProperties();
     }
