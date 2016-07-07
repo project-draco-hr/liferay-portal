@@ -1,26 +1,30 @@
 {
-  try (FileSystem fileSystem=FileSystems.newFileSystem(_lpkgFile.toPath(),null)){
-    Path indexPath=fileSystem.getPath("index.xml");
-    if (Files.exists(indexPath)) {
-      Files.copy(indexPath,outputStream);
-      return;
-    }
+  if (_excludedJarFileNames.isEmpty() && _readCachedIndex(outputStream)) {
+    return;
   }
-   Path tempPath=Files.createTempDirectory(null);
+  Path tempPath=Files.createTempDirectory(null);
   File tempDir=tempPath.toFile();
   _config.put("root.url",tempDir.getPath());
   try (ZipFile zipFile=new ZipFile(_lpkgFile)){
     Set<File> files=new LinkedHashSet<>();
     Enumeration<? extends ZipEntry> enumeration=zipFile.entries();
+    boolean hasExcludedJarFile=false;
     while (enumeration.hasMoreElements()) {
       ZipEntry zipEntry=enumeration.nextElement();
       String name=zipEntry.getName();
       if (!name.endsWith(".jar")) {
         continue;
       }
+      if (_excludedJarFileNames.contains(_toExcludedJarFileName(name))) {
+        hasExcludedJarFile=true;
+        continue;
+      }
       File file=new File(tempDir,name);
       Files.copy(zipFile.getInputStream(zipEntry),file.toPath(),StandardCopyOption.REPLACE_EXISTING);
       files.add(file);
+    }
+    if (!hasExcludedJarFile && _readCachedIndex(outputStream)) {
+      return;
     }
     ResourceIndexer resourceIndexer=new RepoIndex();
     resourceIndexer.index(files,outputStream,_config);
