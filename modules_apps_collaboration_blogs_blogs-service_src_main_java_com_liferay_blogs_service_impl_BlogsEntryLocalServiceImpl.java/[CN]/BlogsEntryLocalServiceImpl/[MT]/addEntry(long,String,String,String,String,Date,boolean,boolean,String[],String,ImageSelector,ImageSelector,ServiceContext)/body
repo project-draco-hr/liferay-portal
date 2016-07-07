@@ -1,0 +1,64 @@
+{
+  User user=userPersistence.findByPrimaryKey(userId);
+  long groupId=serviceContext.getScopeGroupId();
+  long entryId=counterLocalService.increment();
+  validate(title,content);
+  BlogsEntry entry=blogsEntryPersistence.create(entryId);
+  entry.setUuid(serviceContext.getUuid());
+  entry.setGroupId(groupId);
+  entry.setCompanyId(user.getCompanyId());
+  entry.setUserId(user.getUserId());
+  entry.setUserName(user.getFullName());
+  entry.setTitle(title);
+  entry.setSubtitle(subtitle);
+  entry.setDescription(description);
+  entry.setContent(content);
+  entry.setDisplayDate(displayDate);
+  entry.setAllowPingbacks(allowPingbacks);
+  entry.setAllowTrackbacks(allowTrackbacks);
+  entry.setStatus(WorkflowConstants.STATUS_DRAFT);
+  entry.setStatusByUserId(userId);
+  entry.setStatusDate(serviceContext.getModifiedDate(null));
+  entry.setExpandoBridgeAttributes(serviceContext);
+  blogsEntryPersistence.update(entry);
+  if (serviceContext.isAddGroupPermissions() || serviceContext.isAddGuestPermissions()) {
+    addEntryResources(entry,serviceContext.isAddGroupPermissions(),serviceContext.isAddGuestPermissions());
+  }
+ else {
+    addEntryResources(entry,serviceContext.getModelPermissions());
+  }
+  updateAsset(userId,entry,serviceContext.getAssetCategoryIds(),serviceContext.getAssetTagNames(),serviceContext.getAssetLinkEntryIds(),serviceContext.getAssetPriority());
+  long coverImageFileEntryId=0;
+  String coverImageURL=null;
+  if (coverImageImageSelector != null) {
+    coverImageURL=coverImageImageSelector.getImageURL();
+    if (coverImageImageSelector.getImageBytes() != null) {
+      coverImageFileEntryId=addCoverImageFileEntry(userId,groupId,entryId,coverImageImageSelector);
+    }
+  }
+  long smallImageFileEntryId=0;
+  String smallImageURL=null;
+  if (smallImageImageSelector != null) {
+    smallImageURL=smallImageImageSelector.getImageURL();
+    if (smallImageImageSelector.getImageBytes() != null) {
+      smallImageFileEntryId=addSmallImageFileEntry(userId,groupId,entryId,smallImageImageSelector);
+    }
+  }
+  validate(smallImageFileEntryId);
+  entry.setCoverImageCaption(coverImageCaption);
+  entry.setCoverImageFileEntryId(coverImageFileEntryId);
+  entry.setCoverImageURL(coverImageURL);
+  if ((smallImageFileEntryId != 0) || Validator.isNotNull(smallImageURL)) {
+    entry.setSmallImage(true);
+  }
+  entry.setSmallImageFileEntryId(smallImageFileEntryId);
+  entry.setSmallImageURL(smallImageURL);
+  blogsEntryPersistence.update(entry);
+  if (ArrayUtil.isNotEmpty(trackbacks)) {
+    serviceContext.setAttribute("trackbacks",trackbacks);
+  }
+ else {
+    serviceContext.setAttribute("trackbacks",null);
+  }
+  return startWorkflowInstance(userId,entry,serviceContext);
+}

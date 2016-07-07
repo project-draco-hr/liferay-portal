@@ -1,0 +1,56 @@
+{
+  if (!PropsValues.BLOGS_TRACKBACK_ENABLED || !entry.isAllowTrackbacks() || !entry.isApproved()) {
+    return;
+  }
+  HttpServletRequest request=serviceContext.getRequest();
+  if (request == null) {
+    return;
+  }
+  ThemeDisplay themeDisplay=(ThemeDisplay)request.getAttribute(WebKeys.THEME_DISPLAY);
+  String layoutFullURL=PortalUtil.getLayoutFullURL(themeDisplay);
+  if (Validator.isNull(layoutFullURL)) {
+    return;
+  }
+  Map<String,String> parts=new HashMap<>();
+  String excerpt=StringUtil.shorten(HtmlUtil.extractText(entry.getContent()),PropsValues.BLOGS_LINKBACK_EXCERPT_LENGTH);
+  String url=layoutFullURL + Portal.FRIENDLY_URL_SEPARATOR + "blogs/"+ entry.getUrlTitle();
+  parts.put("title",entry.getTitle());
+  parts.put("excerpt",excerpt);
+  parts.put("url",url);
+  parts.put("blog_name",entry.getUserName());
+  Set<String> trackbacksSet=null;
+  if (ArrayUtil.isNotEmpty(trackbacks)) {
+    trackbacksSet=SetUtil.fromArray(trackbacks);
+  }
+ else {
+    trackbacksSet=new HashSet<>();
+  }
+  if (pingOldTrackbacks) {
+    trackbacksSet.addAll(SetUtil.fromArray(StringUtil.split(entry.getTrackbacks())));
+    entry.setTrackbacks(StringPool.BLANK);
+    blogsEntryPersistence.update(entry);
+  }
+  Set<String> oldTrackbacks=SetUtil.fromArray(StringUtil.split(entry.getTrackbacks()));
+  Set<String> validTrackbacks=new HashSet<>();
+  for (  String trackback : trackbacksSet) {
+    if (oldTrackbacks.contains(trackback)) {
+      continue;
+    }
+    try {
+      if (LinkbackProducerUtil.sendTrackback(trackback,parts)) {
+        validTrackbacks.add(trackback);
+      }
+    }
+ catch (    Exception e) {
+      _log.error("Error while sending trackback at " + trackback,e);
+    }
+  }
+  if (!validTrackbacks.isEmpty()) {
+    String newTrackbacks=StringUtil.merge(validTrackbacks);
+    if (Validator.isNotNull(entry.getTrackbacks())) {
+      newTrackbacks+=StringPool.COMMA + entry.getTrackbacks();
+    }
+    entry.setTrackbacks(newTrackbacks);
+    blogsEntryPersistence.update(entry);
+  }
+}

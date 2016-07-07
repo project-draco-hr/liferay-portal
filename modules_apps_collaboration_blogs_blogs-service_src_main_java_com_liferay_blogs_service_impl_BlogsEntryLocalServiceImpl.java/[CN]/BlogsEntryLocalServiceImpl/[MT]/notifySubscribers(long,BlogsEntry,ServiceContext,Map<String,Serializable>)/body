@@ -1,0 +1,62 @@
+{
+  String entryURL=(String)workflowContext.get(WorkflowConstants.CONTEXT_URL);
+  if (!entry.isApproved() || Validator.isNull(entryURL)) {
+    return;
+  }
+  BlogsGroupServiceSettings blogsGroupServiceSettings=BlogsGroupServiceSettings.getInstance(entry.getGroupId());
+  boolean sendEmailEntryUpdated=GetterUtil.getBoolean(serviceContext.getAttribute("sendEmailEntryUpdated"));
+  if (serviceContext.isCommandAdd() && blogsGroupServiceSettings.isEmailEntryAddedEnabled()) {
+  }
+ else   if (sendEmailEntryUpdated && serviceContext.isCommandUpdate() && blogsGroupServiceSettings.isEmailEntryUpdatedEnabled()) {
+  }
+ else {
+    return;
+  }
+  Group group=groupPersistence.findByPrimaryKey(entry.getGroupId());
+  String entryTitle=entry.getTitle();
+  String fromName=blogsGroupServiceSettings.getEmailFromName();
+  String fromAddress=blogsGroupServiceSettings.getEmailFromAddress();
+  LocalizedValuesMap subjectLocalizedValuesMap=null;
+  LocalizedValuesMap bodyLocalizedValuesMap=null;
+  if (serviceContext.isCommandUpdate()) {
+    subjectLocalizedValuesMap=blogsGroupServiceSettings.getEmailEntryUpdatedSubject();
+    bodyLocalizedValuesMap=blogsGroupServiceSettings.getEmailEntryUpdatedBody();
+  }
+ else {
+    subjectLocalizedValuesMap=blogsGroupServiceSettings.getEmailEntryAddedSubject();
+    bodyLocalizedValuesMap=blogsGroupServiceSettings.getEmailEntryAddedBody();
+  }
+  SubscriptionSender subscriptionSender=new GroupSubscriptionCheckSubscriptionSender(BlogsPermission.RESOURCE_NAME);
+  subscriptionSender.setClassPK(entry.getEntryId());
+  subscriptionSender.setClassName(entry.getModelClassName());
+  subscriptionSender.setCompanyId(entry.getCompanyId());
+  subscriptionSender.setContextAttribute("[$BLOGS_ENTRY_CONTENT$]",StringUtil.shorten(HtmlUtil.stripHtml(entry.getContent()),500),false);
+  subscriptionSender.setContextAttributes("[$BLOGS_ENTRY_CREATE_DATE$]",Time.getSimpleDate(entry.getCreateDate(),"yyyy/MM/dd"),"[$BLOGS_ENTRY_DESCRIPTION$]",entry.getDescription(),"[$BLOGS_ENTRY_SITE_NAME$]",group.getDescriptiveName(serviceContext.getLocale()),"[$BLOGS_ENTRY_STATUS_BY_USER_NAME$]",entry.getStatusByUserName(),"[$BLOGS_ENTRY_TITLE$]",entryTitle,"[$BLOGS_ENTRY_UPDATE_COMMENT$]",HtmlUtil.replaceNewLine(GetterUtil.getString(serviceContext.getAttribute("emailEntryUpdatedComment"))),"[$BLOGS_ENTRY_URL$]",entryURL,"[$BLOGS_ENTRY_USER_PORTRAIT_URL$]",workflowContext.get(WorkflowConstants.CONTEXT_USER_PORTRAIT_URL),"[$BLOGS_ENTRY_USER_URL$]",workflowContext.get(WorkflowConstants.CONTEXT_USER_URL));
+  subscriptionSender.setContextCreatorUserPrefix("BLOGS_ENTRY");
+  subscriptionSender.setCreatorUserId(entry.getUserId());
+  subscriptionSender.setCurrentUserId(userId);
+  subscriptionSender.setEntryTitle(entryTitle);
+  subscriptionSender.setEntryURL(entryURL);
+  subscriptionSender.setFrom(fromAddress,fromName);
+  subscriptionSender.setHtmlFormat(true);
+  if (bodyLocalizedValuesMap != null) {
+    subscriptionSender.setLocalizedBodyMap(LocalizationUtil.getMap(bodyLocalizedValuesMap));
+  }
+  if (subjectLocalizedValuesMap != null) {
+    subscriptionSender.setLocalizedSubjectMap(LocalizationUtil.getMap(subjectLocalizedValuesMap));
+  }
+  subscriptionSender.setMailId("blogs_entry",entry.getEntryId());
+  int notificationType=UserNotificationDefinition.NOTIFICATION_TYPE_ADD_ENTRY;
+  if (serviceContext.isCommandUpdate()) {
+    notificationType=UserNotificationDefinition.NOTIFICATION_TYPE_UPDATE_ENTRY;
+  }
+  subscriptionSender.setNotificationType(notificationType);
+  String portletId=PortletProviderUtil.getPortletId(BlogsEntry.class.getName(),PortletProvider.Action.VIEW);
+  subscriptionSender.setPortletId(portletId);
+  subscriptionSender.setReplyToAddress(fromAddress);
+  subscriptionSender.setScopeGroupId(entry.getGroupId());
+  subscriptionSender.setServiceContext(serviceContext);
+  subscriptionSender.addPersistedSubscribers(BlogsEntry.class.getName(),entry.getGroupId());
+  subscriptionSender.addPersistedSubscribers(BlogsEntry.class.getName(),entry.getEntryId());
+  subscriptionSender.flushNotificationsAsync();
+}
