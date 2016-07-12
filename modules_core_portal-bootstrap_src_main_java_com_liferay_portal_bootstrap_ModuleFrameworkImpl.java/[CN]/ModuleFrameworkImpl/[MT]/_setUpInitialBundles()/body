@@ -28,11 +28,14 @@
     _log.error("Missing " + utilTaglibFile);
   }
   Collections.sort(jarPaths);
+  Set<String> overwrittenFileNames=new HashSet<>();
   for (  Path jarPath : jarPaths) {
     try (InputStream inputStream=Files.newInputStream(jarPath)){
-      Bundle bundle=_installInitialBundle(jarPath.toString(),inputStream);
+      String path=jarPath.toString();
+      Bundle bundle=_installInitialBundle(path,inputStream);
       if (bundle != null) {
         bundles.add(bundle);
+        overwrittenFileNames.add(path.substring(path.lastIndexOf(StringPool.SLASH) + 1));
       }
     }
    }
@@ -59,7 +62,18 @@
 );
       for (      ZipEntry zipEntry : zipEntries) {
         try (InputStream inputStream=zipFile.getInputStream(zipEntry)){
-          Bundle bundle=_installInitialBundle(StringPool.SLASH.concat(zipEntry.getName()),inputStream);
+          String zipEntryName=zipEntry.getName();
+          Matcher matcher=_pattern.matcher(zipEntryName);
+          if (matcher.matches()) {
+            String fileName=matcher.group(1) + matcher.group(3);
+            if (overwrittenFileNames.contains(fileName)) {
+              if (_log.isInfoEnabled()) {
+                _log.info("Disabled " + zipFile + ":"+ zipEntry+ " due to "+ fileName+ " in "+ PropsValues.MODULE_FRAMEWORK_BASE_DIR+ "/static");
+              }
+              continue;
+            }
+          }
+          Bundle bundle=_installInitialBundle(StringPool.SLASH.concat(zipEntryName),inputStream);
           if (bundle != null) {
             bundles.add(bundle);
           }
