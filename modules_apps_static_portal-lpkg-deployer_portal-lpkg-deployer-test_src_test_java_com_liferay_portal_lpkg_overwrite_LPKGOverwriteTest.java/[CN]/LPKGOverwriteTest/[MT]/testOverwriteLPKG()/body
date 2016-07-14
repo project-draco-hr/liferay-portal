@@ -1,0 +1,82 @@
+{
+  String liferayHome=System.getProperty("liferay.home");
+  Assert.assertNotNull("Missing system property \"liferay.home\"",liferayHome);
+  File file=new File(liferayHome,"/osgi/marketplace/overwritten");
+  if (file.exists()) {
+    String[] files=file.list();
+    for (    String childPath : files) {
+      File childFile=new File(file.getPath(),childPath);
+      childFile.delete();
+    }
+  }
+ else {
+    file.mkdir();
+  }
+  Map<String,String> overwrites=new HashMap<>();
+  try (DirectoryStream<Path> directoryStream=Files.newDirectoryStream(Paths.get(liferayHome,"/osgi/marketplace"))){
+    for (    Path lpkgPath : directoryStream) {
+      String lpkgPathString=lpkgPath.toString();
+      if (lpkgPathString.endsWith("overwritten")) {
+        continue;
+      }
+      try (ZipFile zipFile=new ZipFile(lpkgPath.toFile())){
+        Enumeration<? extends ZipEntry> zipEntries=zipFile.entries();
+        while (zipEntries.hasMoreElements()) {
+          ZipEntry zipEntry=zipEntries.nextElement();
+          String name=zipEntry.getName();
+          if ((name.startsWith("com.liferay") && name.endsWith(".jar")) || name.endsWith(".war")) {
+            Matcher matcher=_pattern.matcher(name);
+            if (matcher.matches()) {
+              name=matcher.group(1) + matcher.group(4);
+            }
+            if (lpkgPathString.contains("Static")) {
+              Files.copy(zipFile.getInputStream(zipEntry),Paths.get(liferayHome,"/osgi/static/",name),StandardCopyOption.REPLACE_EXISTING);
+              overwrites.put("static.".concat(name.substring(0,name.length() - 4)),null);
+            }
+ else {
+              Files.copy(zipFile.getInputStream(zipEntry),Paths.get(file.toString(),name),StandardCopyOption.REPLACE_EXISTING);
+            }
+          }
+        }
+      }
+     }
+  }
+   try (DirectoryStream<Path> directoryStream=Files.newDirectoryStream(Paths.get(file.toURI()))){
+    for (    Path overwritePath : directoryStream) {
+      String overwriteString=overwritePath.toString();
+      if (overwriteString.endsWith(".war")) {
+        Path fileName=overwritePath.getFileName();
+        String fileNameString=fileName.toString();
+        overwrites.put("war.".concat(fileNameString.substring(0,fileNameString.length() - 4)),null);
+        continue;
+      }
+      if (!overwriteString.endsWith(".jar")) {
+        continue;
+      }
+      try (FileSystem fileSystem=FileSystems.newFileSystem(overwritePath,null)){
+        Path path=fileSystem.getPath("META-INF/MANIFEST.MF");
+        try (InputStream inputStream=Files.newInputStream(path);UnsyncByteArrayOutputStream outputStream=new UnsyncByteArrayOutputStream()){
+          Manifest manifest=new Manifest(inputStream);
+          Attributes attributes=manifest.getMainAttributes();
+          String versionString=(String)attributes.getValue("Bundle-Version");
+          Version version=new Version(versionString);
+          version=new Version(version.getMajor(),version.getMinor(),version.getMicro() + 1,version.getQualifier());
+          versionString=version.toString();
+          attributes.putValue("Bundle-Version",versionString);
+          overwrites.put(attributes.getValue("Bundle-SymbolicName"),versionString);
+          manifest.write(outputStream);
+          Files.write(path,outputStream.toByteArray(),StandardOpenOption.TRUNCATE_EXISTING,StandardOpenOption.WRITE);
+        }
+       }
+     }
+    StringBundler sb=new StringBundler(overwrites.size() * 4);
+    for (    Entry<String,String> entry : overwrites.entrySet()) {
+      sb.append(entry.getKey());
+      sb.append(StringPool.COLON);
+      sb.append(entry.getValue());
+      sb.append(StringPool.NEW_LINE);
+    }
+    sb.setIndex(sb.index() - 1);
+    Files.write(Paths.get(liferayHome,"/overwrites"),Arrays.asList(sb.toString()),StandardCharsets.UTF_8,StandardOpenOption.CREATE,StandardOpenOption.TRUNCATE_EXISTING,StandardOpenOption.WRITE);
+  }
+ }
