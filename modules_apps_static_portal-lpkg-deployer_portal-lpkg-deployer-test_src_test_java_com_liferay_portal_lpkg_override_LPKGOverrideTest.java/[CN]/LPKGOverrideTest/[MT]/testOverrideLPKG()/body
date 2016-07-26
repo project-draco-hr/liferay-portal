@@ -1,7 +1,7 @@
 {
   String liferayHome=System.getProperty("liferay.home");
   Assert.assertNotNull("Missing system property \"liferay.home\"",liferayHome);
-  File file=new File(liferayHome,"/osgi/marketplace/overwritten");
+  File file=new File(liferayHome,"/osgi/marketplace/override");
   if (file.exists()) {
     String[] files=file.list();
     for (    String childPath : files) {
@@ -12,11 +12,11 @@
  else {
     file.mkdir();
   }
-  Map<String,String> overwrites=new HashMap<>();
+  Map<String,String> overrides=new HashMap<>();
   try (DirectoryStream<Path> directoryStream=Files.newDirectoryStream(Paths.get(liferayHome,"/osgi/marketplace"))){
     for (    Path lpkgPath : directoryStream) {
       String lpkgPathString=lpkgPath.toString();
-      if (lpkgPathString.endsWith("overwritten")) {
+      if (lpkgPathString.endsWith("override")) {
         continue;
       }
       try (ZipFile zipFile=new ZipFile(lpkgPath.toFile())){
@@ -31,7 +31,7 @@
             }
             if (lpkgPathString.contains("Static")) {
               Files.copy(zipFile.getInputStream(zipEntry),Paths.get(liferayHome,"/osgi/static/",name),StandardCopyOption.REPLACE_EXISTING);
-              overwrites.put("static.".concat(name.substring(0,name.length() - 4)),null);
+              overrides.put("static.".concat(name.substring(0,name.length() - 4)),null);
             }
  else {
               Files.copy(zipFile.getInputStream(zipEntry),Paths.get(file.toString(),name),StandardCopyOption.REPLACE_EXISTING);
@@ -42,18 +42,18 @@
      }
   }
    try (DirectoryStream<Path> directoryStream=Files.newDirectoryStream(Paths.get(file.toURI()))){
-    for (    Path overwritePath : directoryStream) {
-      String overwriteString=overwritePath.toString();
-      if (overwriteString.endsWith(".war")) {
-        Path fileName=overwritePath.getFileName();
+    for (    Path overridePath : directoryStream) {
+      String overrideString=overridePath.toString();
+      if (overrideString.endsWith(".war")) {
+        Path fileName=overridePath.getFileName();
         String fileNameString=fileName.toString();
-        overwrites.put("war.".concat(fileNameString.substring(0,fileNameString.length() - 4)),null);
+        overrides.put("war.".concat(fileNameString.substring(0,fileNameString.length() - 4)),null);
         continue;
       }
-      if (!overwriteString.endsWith(".jar")) {
+      if (!overrideString.endsWith(".jar")) {
         continue;
       }
-      try (FileSystem fileSystem=FileSystems.newFileSystem(overwritePath,null)){
+      try (FileSystem fileSystem=FileSystems.newFileSystem(overridePath,null)){
         Path path=fileSystem.getPath("META-INF/MANIFEST.MF");
         try (InputStream inputStream=Files.newInputStream(path);UnsyncByteArrayOutputStream outputStream=new UnsyncByteArrayOutputStream()){
           Manifest manifest=new Manifest(inputStream);
@@ -63,20 +63,20 @@
           version=new Version(version.getMajor(),version.getMinor(),version.getMicro() + 1,version.getQualifier());
           versionString=version.toString();
           attributes.putValue("Bundle-Version",versionString);
-          overwrites.put(attributes.getValue("Bundle-SymbolicName"),versionString);
+          overrides.put(attributes.getValue("Bundle-SymbolicName"),versionString);
           manifest.write(outputStream);
           Files.write(path,outputStream.toByteArray(),StandardOpenOption.TRUNCATE_EXISTING,StandardOpenOption.WRITE);
         }
        }
      }
-    StringBundler sb=new StringBundler(overwrites.size() * 4);
-    for (    Entry<String,String> entry : overwrites.entrySet()) {
+    StringBundler sb=new StringBundler(overrides.size() * 4);
+    for (    Entry<String,String> entry : overrides.entrySet()) {
       sb.append(entry.getKey());
       sb.append(StringPool.COLON);
       sb.append(entry.getValue());
       sb.append(StringPool.NEW_LINE);
     }
     sb.setIndex(sb.index() - 1);
-    Files.write(Paths.get(liferayHome,"/overwrites"),Arrays.asList(sb.toString()),StandardCharsets.UTF_8,StandardOpenOption.CREATE,StandardOpenOption.TRUNCATE_EXISTING,StandardOpenOption.WRITE);
+    Files.write(Paths.get(liferayHome,"/overrides"),Arrays.asList(sb.toString()),StandardCharsets.UTF_8,StandardOpenOption.CREATE,StandardOpenOption.TRUNCATE_EXISTING,StandardOpenOption.WRITE);
   }
  }
