@@ -6,16 +6,36 @@
   if ((cookies == null) || (cookies.length == 0)) {
     throw new IllegalStateException("Cookie is null");
   }
-  HttpClient httpClient=new HttpClient();
-  PostMethod postMethod=new PostMethod(url);
-  for (  String cookie : cookies) {
-    postMethod.addRequestHeader(new Header("Cookie",cookie));
+  CloseableHttpClient httpClient=null;
+  CloseableHttpResponse httpResponse=null;
+  try {
+    HttpClientBuilder httpClientBuilder=HttpClientBuilder.create();
+    httpClient=httpClientBuilder.build();
+    RequestBuilder requestBuilder=RequestBuilder.post(url);
+    for (    String cookie : cookies) {
+      requestBuilder.addHeader(new BasicHeader("Cookie",cookie));
+    }
+    byte[] bytes=FileUtil.getBytes(mockMultipartHttpServletRequest.getInputStream());
+    MultipartEntityBuilder multipartEntityBuilder=MultipartEntityBuilder.create();
+    ByteArrayBody byteArrayBody=new ByteArrayBody(bytes,ContentType.DEFAULT_BINARY,fileNameParameter);
+    multipartEntityBuilder.addPart(fileNameParameter,byteArrayBody);
+    requestBuilder.setEntity(multipartEntityBuilder.build());
+    URI uri=requestBuilder.getUri();
+    httpResponse=httpClient.execute(new HttpHost(uri.getHost(),uri.getPort()),requestBuilder.build());
+    StatusLine statusLine=httpResponse.getStatusLine();
+    HttpEntity httpEntity=httpResponse.getEntity();
+    StringWriter stringWriter=new StringWriter();
+    WriterOutputStream writerOutputStream=new WriterOutputStream(stringWriter);
+    httpEntity.writeTo(writerOutputStream);
+    stringWriter.close();
+    return new Response(statusLine.getStatusCode(),stringWriter.toString(),null);
   }
-  byte[] bytes=FileUtil.getBytes(mockMultipartHttpServletRequest.getInputStream());
-  Part[] parts={new FilePart(fileNameParameter,new ByteArrayPartSource(fileNameParameter,bytes))};
-  MultipartRequestEntity multipartRequestEntity=new MultipartRequestEntity(parts,postMethod.getParams());
-  postMethod.setRequestEntity(multipartRequestEntity);
-  httpClient.executeMethod(postMethod);
-  StatusLine statusLine=postMethod.getStatusLine();
-  return new Response(statusLine.getStatusCode(),postMethod.getResponseBodyAsString(),null);
+  finally {
+    if (httpResponse != null) {
+      httpResponse.close();
+    }
+    if (httpClient != null) {
+      httpClient.close();
+    }
+  }
 }
