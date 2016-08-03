@@ -1,0 +1,147 @@
+{
+  URI uri=null;
+  try {
+    uri=new URI(location);
+  }
+ catch (  URISyntaxException e) {
+    throw new IOException("Invalid URI: " + location,e);
+  }
+  BasicCookieStore cookieStore=null;
+  try {
+    _cookies.set(null);
+    if (location == null) {
+      return null;
+    }
+ else     if (!location.startsWith(Http.HTTP_WITH_SLASH) && !location.startsWith(Http.HTTPS_WITH_SLASH)) {
+      location=Http.HTTP_WITH_SLASH + location;
+    }
+    HttpHost targetHost=new HttpHost(uri.getHost(),uri.getPort());
+    RequestConfig.Builder requestConfigBuilder=getRequestConfigBuilder(uri,timeout);
+    RequestConfig requestConfig=requestConfigBuilder.build();
+    CloseableHttpClient httpClient=getClient(requestConfig.getProxy());
+    HttpClientContext httpClientContext=HttpClientContext.create();
+    RequestBuilder requestBuilder=null;
+    if (method.equals(Http.Method.POST) || method.equals(Http.Method.PUT)) {
+      if (method.equals(Http.Method.POST)) {
+        requestBuilder=RequestBuilder.post(location);
+      }
+ else {
+        requestBuilder=RequestBuilder.put(location);
+      }
+      if (body != null) {
+        StringEntity stringEntity=new StringEntity(body.getContent(),body.getCharset());
+        stringEntity.setContentType(body.getContentType());
+        requestBuilder.setEntity(stringEntity);
+      }
+ else       if (method.equals(Http.Method.POST)) {
+        if (!hasRequestHeader(requestBuilder,HttpHeaders.CONTENT_TYPE)) {
+          ConnectionConfig.Builder connectionConfigBuilder=ConnectionConfig.custom();
+          connectionConfigBuilder.setCharset(Charset.forName(StringPool.UTF8));
+          _poolingHttpClientConnectionManager.setConnectionConfig(targetHost,connectionConfigBuilder.build());
+        }
+        processPostMethod(requestBuilder,fileParts,parts);
+      }
+    }
+ else     if (method.equals(Http.Method.DELETE)) {
+      requestBuilder=RequestBuilder.delete(location);
+    }
+ else     if (method.equals(Http.Method.HEAD)) {
+      requestBuilder=RequestBuilder.head(location);
+    }
+ else {
+      requestBuilder=RequestBuilder.get(location);
+    }
+    if (headers != null) {
+      for (      Map.Entry<String,String> header : headers.entrySet()) {
+        requestBuilder.addHeader(header.getKey(),header.getValue());
+      }
+    }
+    if ((method.equals(Http.Method.POST) || method.equals(Http.Method.PUT)) && ((body != null) || ((fileParts != null) && !fileParts.isEmpty()) || ((parts != null) && !parts.isEmpty())) && !hasRequestHeader(requestBuilder,HttpHeaders.CONTENT_TYPE)) {
+      requestBuilder.addHeader(HttpHeaders.CONTENT_TYPE,ContentTypes.APPLICATION_X_WWW_FORM_URLENCODED_UTF8);
+    }
+    if (!hasRequestHeader(requestBuilder,HttpHeaders.USER_AGENT)) {
+      requestBuilder.addHeader(HttpHeaders.USER_AGENT,_DEFAULT_USER_AGENT);
+    }
+    if (ArrayUtil.isNotEmpty(cookies)) {
+      cookieStore=new BasicCookieStore();
+      org.apache.http.cookie.Cookie[] httpCookies=toHttpCookies(cookies);
+      cookieStore.addCookies(httpCookies);
+      httpClientContext.setCookieStore(cookieStore);
+      requestConfigBuilder.setCookieSpec(CookieSpecs.DEFAULT);
+    }
+    if (auth != null) {
+      requestConfigBuilder.setAuthenticationEnabled(true);
+      CredentialsProvider credentialProvider=new BasicCredentialsProvider();
+      httpClientContext.setCredentialsProvider(credentialProvider);
+      credentialProvider.setCredentials(new AuthScope(auth.getHost(),auth.getPort(),auth.getRealm()),new UsernamePasswordCredentials(auth.getUsername(),auth.getPassword()));
+    }
+    addProxyCredentials(uri,httpClientContext);
+    requestBuilder.setConfig(requestConfigBuilder.build());
+    CloseableHttpResponse httpResponse=httpClient.execute(targetHost,requestBuilder.build(),httpClientContext);
+    response.setResponseCode(httpResponse.getStatusLine().getStatusCode());
+    Header locationHeader=httpResponse.getFirstHeader("location");
+    if ((locationHeader != null) && !locationHeader.equals(location)) {
+      String redirect=locationHeader.getValue();
+      if (followRedirects) {
+        httpResponse.close();
+        return URLtoInputStream(redirect,Http.Method.GET,headers,cookies,auth,body,fileParts,parts,response,followRedirects,timeout);
+      }
+ else {
+        response.setRedirect(redirect);
+      }
+    }
+    long contentLengthLong=0;
+    Header contentLengthHeader=httpResponse.getFirstHeader(HttpHeaders.CONTENT_LENGTH);
+    if (contentLengthHeader != null) {
+      contentLengthLong=GetterUtil.getLong(contentLengthHeader.getValue());
+      response.setContentLengthLong(contentLengthLong);
+      if (contentLengthLong > _MAX_BYTE_ARRAY_LENGTH) {
+        response.setContentLength(-1);
+      }
+ else {
+        int contentLength=(int)contentLengthLong;
+        response.setContentLength(contentLength);
+      }
+    }
+    Header contentType=httpResponse.getFirstHeader(HttpHeaders.CONTENT_TYPE);
+    if (contentType != null) {
+      response.setContentType(contentType.getValue());
+    }
+    for (    Header header : httpResponse.getAllHeaders()) {
+      response.addHeader(header.getName(),header.getValue());
+    }
+    InputStream inputStream=httpResponse.getEntity().getContent();
+    final CloseableHttpResponse referenceHttpResponse=httpResponse;
+    final Reference<InputStream> reference=FinalizeManager.register(inputStream,new FinalizeAction(){
+      @Override public void doFinalize(      Reference<?> reference){
+        try {
+          referenceHttpResponse.close();
+        }
+ catch (        IOException ioe) {
+          if (_log.isDebugEnabled()) {
+            _log.debug("Error closing response",ioe);
+          }
+        }
+      }
+    }
+,FinalizeManager.WEAK_REFERENCE_FACTORY);
+    return new UnsyncFilterInputStream(inputStream){
+      @Override public void close() throws IOException {
+        super.close();
+        referenceHttpResponse.close();
+        reference.clear();
+      }
+    }
+;
+  }
+  finally {
+    try {
+      if (cookieStore != null) {
+        _cookies.set(toServletCookies(cookieStore.getCookies()));
+      }
+    }
+ catch (    Exception e) {
+      _log.error(e,e);
+    }
+  }
+}
