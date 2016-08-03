@@ -1,0 +1,27 @@
+{
+  TaskContainer taskContainer=subproject.getTasks();
+  Javadoc subprojectJavadoc=(Javadoc)taskContainer.findByName(JavaPlugin.JAVADOC_TASK_NAME);
+  if (subprojectJavadoc == null) {
+    return;
+  }
+  javadoc.dependsOn(subprojectJavadoc);
+  FileCollection classpath=javadoc.getClasspath();
+  javadoc.setClasspath(classpath.plus(subprojectJavadoc.getClasspath()));
+  FileTree subprojectSource=subprojectJavadoc.getSource();
+  javadoc.source(subprojectSource);
+  StandardJavadocDocletOptions standardJavadocDocletOptions=(StandardJavadocDocletOptions)javadoc.getOptions();
+  if (appJavadocBuilderExtension.isCopyTags()) {
+    StandardJavadocDocletOptions subprojectStandardJavadocDocletOptions=(StandardJavadocDocletOptions)subprojectJavadoc.getOptions();
+    standardJavadocDocletOptions.tags(subprojectStandardJavadocDocletOptions.getTags());
+  }
+  if (appJavadocBuilderExtension.isGroupPackages()) {
+    SourceSet sourceSet=GradleUtil.getSourceSet(subproject,SourceSet.MAIN_SOURCE_SET_NAME);
+    SourceDirectorySet sourceDirectorySet=sourceSet.getAllJava();
+    Closure<String> closure=appJavadocBuilderExtension.getGroupNameClosure();
+    String groupName=closure.call(subproject);
+    Set<String> packageNames=getPackageNames(subprojectSource,sourceDirectorySet.getSrcDirs());
+    if (Validator.isNotNull(groupName) && !packageNames.isEmpty()) {
+      standardJavadocDocletOptions.group(groupName,packageNames.toArray(new String[packageNames.size()]));
+    }
+  }
+}
