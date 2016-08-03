@@ -1,6 +1,12 @@
 {
-  HttpMethod httpMethod=null;
-  HttpState httpState=null;
+  URI uri=null;
+  try {
+    uri=new URI(location);
+  }
+ catch (  URISyntaxException e) {
+    throw new IOException("Invalid URI: " + location,e);
+  }
+  BasicCookieStore cookieStore=null;
   try {
     _cookies.set(null);
     if (location == null) {
@@ -9,68 +15,75 @@
  else     if (!location.startsWith(Http.HTTP_WITH_SLASH) && !location.startsWith(Http.HTTPS_WITH_SLASH)) {
       location=Http.HTTP_WITH_SLASH + location;
     }
-    HostConfiguration hostConfiguration=getHostConfiguration(location);
-    HttpClient httpClient=getClient(hostConfiguration);
+    HttpHost targetHost=new HttpHost(uri.getHost(),uri.getPort());
+    RequestConfig.Builder requestConfigBuilder=getRequestConfigBuilder(uri);
+    RequestConfig requestConfig=requestConfigBuilder.build();
+    CloseableHttpClient httpClient=getClient(requestConfig.getProxy());
+    HttpClientContext httpClientContext=HttpClientContext.create();
+    RequestBuilder requestBuilder=null;
     if (method.equals(Http.Method.POST) || method.equals(Http.Method.PUT)) {
       if (method.equals(Http.Method.POST)) {
-        httpMethod=new PostMethod(location);
+        requestBuilder=RequestBuilder.post(location);
       }
  else {
-        httpMethod=new PutMethod(location);
+        requestBuilder=RequestBuilder.put(location);
       }
       if (body != null) {
-        RequestEntity requestEntity=new StringRequestEntity(body.getContent(),body.getContentType(),body.getCharset());
-        EntityEnclosingMethod entityEnclosingMethod=(EntityEnclosingMethod)httpMethod;
-        entityEnclosingMethod.setRequestEntity(requestEntity);
+        StringEntity stringEntity=new StringEntity(body.getContent(),body.getCharset());
+        stringEntity.setContentType(body.getContentType());
+        requestBuilder.setEntity(stringEntity);
       }
  else       if (method.equals(Http.Method.POST)) {
-        PostMethod postMethod=(PostMethod)httpMethod;
-        if (!hasRequestHeader(postMethod,HttpHeaders.CONTENT_TYPE)) {
-          HttpClientParams httpClientParams=httpClient.getParams();
-          httpClientParams.setParameter(HttpMethodParams.HTTP_CONTENT_CHARSET,StringPool.UTF8);
+        if (!hasRequestHeader(requestBuilder,HttpHeaders.CONTENT_TYPE)) {
+          ConnectionConfig.Builder connectionConfigBuilder=ConnectionConfig.custom();
+          connectionConfigBuilder.setCharset(Charset.forName(StringPool.UTF8));
+          _poolingHttpClientConnectionManager.setConnectionConfig(targetHost,connectionConfigBuilder.build());
         }
-        processPostMethod(postMethod,fileParts,parts);
+        processPostMethod(requestBuilder,fileParts,parts);
       }
     }
  else     if (method.equals(Http.Method.DELETE)) {
-      httpMethod=new DeleteMethod(location);
+      requestBuilder=RequestBuilder.delete(location);
     }
  else     if (method.equals(Http.Method.HEAD)) {
-      httpMethod=new HeadMethod(location);
+      requestBuilder=RequestBuilder.head(location);
     }
  else {
-      httpMethod=new GetMethod(location);
+      requestBuilder=RequestBuilder.get(location);
     }
     if (headers != null) {
       for (      Map.Entry<String,String> header : headers.entrySet()) {
-        httpMethod.addRequestHeader(header.getKey(),header.getValue());
+        requestBuilder.addHeader(header.getKey(),header.getValue());
       }
     }
-    if ((method.equals(Http.Method.POST) || method.equals(Http.Method.PUT)) && ((body != null) || ((fileParts != null) && !fileParts.isEmpty()) || ((parts != null) && !parts.isEmpty())) && !hasRequestHeader(httpMethod,HttpHeaders.CONTENT_TYPE)) {
-      httpMethod.addRequestHeader(HttpHeaders.CONTENT_TYPE,ContentTypes.APPLICATION_X_WWW_FORM_URLENCODED_UTF8);
+    if ((method.equals(Http.Method.POST) || method.equals(Http.Method.PUT)) && ((body != null) || ((fileParts != null) && !fileParts.isEmpty()) || ((parts != null) && !parts.isEmpty())) && !hasRequestHeader(requestBuilder,HttpHeaders.CONTENT_TYPE)) {
+      requestBuilder.addHeader(HttpHeaders.CONTENT_TYPE,ContentTypes.APPLICATION_X_WWW_FORM_URLENCODED_UTF8);
     }
-    if (!hasRequestHeader(httpMethod,HttpHeaders.USER_AGENT)) {
-      httpMethod.addRequestHeader(HttpHeaders.USER_AGENT,_DEFAULT_USER_AGENT);
+    if (!hasRequestHeader(requestBuilder,HttpHeaders.USER_AGENT)) {
+      requestBuilder.addHeader(HttpHeaders.USER_AGENT,_DEFAULT_USER_AGENT);
     }
-    httpState=new HttpState();
     if (ArrayUtil.isNotEmpty(cookies)) {
-      org.apache.commons.httpclient.Cookie[] commonsCookies=toCommonsCookies(cookies);
-      httpState.addCookies(commonsCookies);
-      HttpMethodParams httpMethodParams=httpMethod.getParams();
-      httpMethodParams.setCookiePolicy(CookiePolicy.BROWSER_COMPATIBILITY);
+      cookieStore=new BasicCookieStore();
+      org.apache.http.cookie.Cookie[] httpCookies=toHttpCookies(cookies);
+      cookieStore.addCookies(httpCookies);
+      httpClientContext.setCookieStore(cookieStore);
+      requestConfigBuilder.setCookieSpec(CookieSpecs.DEFAULT);
     }
     if (auth != null) {
-      httpMethod.setDoAuthentication(true);
-      httpState.setCredentials(new AuthScope(auth.getHost(),auth.getPort(),auth.getRealm()),new UsernamePasswordCredentials(auth.getUsername(),auth.getPassword()));
+      requestConfigBuilder.setAuthenticationEnabled(true);
+      CredentialsProvider credentialProvider=new BasicCredentialsProvider();
+      httpClientContext.setCredentialsProvider(credentialProvider);
+      credentialProvider.setCredentials(new AuthScope(auth.getHost(),auth.getPort(),auth.getRealm()),new UsernamePasswordCredentials(auth.getUsername(),auth.getPassword()));
     }
-    proxifyState(httpState,hostConfiguration);
-    int responseCode=httpClient.executeMethod(hostConfiguration,httpMethod,httpState);
-    response.setResponseCode(responseCode);
-    Header locationHeader=httpMethod.getResponseHeader("location");
+    addProxyCredentials(uri,httpClientContext);
+    requestBuilder.setConfig(requestConfigBuilder.build());
+    CloseableHttpResponse httpResponse=httpClient.execute(targetHost,requestBuilder.build(),httpClientContext);
+    response.setResponseCode(httpResponse.getStatusLine().getStatusCode());
+    Header locationHeader=httpResponse.getFirstHeader("location");
     if ((locationHeader != null) && !locationHeader.equals(location)) {
       String redirect=locationHeader.getValue();
       if (followRedirects) {
-        httpMethod.releaseConnection();
+        httpResponse.close();
         return URLtoInputStream(redirect,Http.Method.GET,headers,cookies,auth,body,fileParts,parts,response,followRedirects);
       }
  else {
@@ -78,7 +91,7 @@
       }
     }
     long contentLengthLong=0;
-    Header contentLengthHeader=httpMethod.getResponseHeader(HttpHeaders.CONTENT_LENGTH);
+    Header contentLengthHeader=httpResponse.getFirstHeader(HttpHeaders.CONTENT_LENGTH);
     if (contentLengthHeader != null) {
       contentLengthLong=GetterUtil.getLong(contentLengthHeader.getValue());
       response.setContentLengthLong(contentLengthLong);
@@ -90,25 +103,32 @@
         response.setContentLength(contentLength);
       }
     }
-    Header contentType=httpMethod.getResponseHeader(HttpHeaders.CONTENT_TYPE);
+    Header contentType=httpResponse.getFirstHeader(HttpHeaders.CONTENT_TYPE);
     if (contentType != null) {
       response.setContentType(contentType.getValue());
     }
-    for (    Header header : httpMethod.getResponseHeaders()) {
+    for (    Header header : httpResponse.getAllHeaders()) {
       response.addHeader(header.getName(),header.getValue());
     }
-    InputStream inputStream=httpMethod.getResponseBodyAsStream();
-    final HttpMethod referenceHttpMethod=httpMethod;
+    InputStream inputStream=httpResponse.getEntity().getContent();
+    final CloseableHttpResponse referenceHttpResponse=httpResponse;
     final Reference<InputStream> reference=FinalizeManager.register(inputStream,new FinalizeAction(){
       @Override public void doFinalize(      Reference<?> reference){
-        referenceHttpMethod.releaseConnection();
+        try {
+          referenceHttpResponse.close();
+        }
+ catch (        IOException ioe) {
+          if (_log.isDebugEnabled()) {
+            _log.debug("Error closing response",ioe);
+          }
+        }
       }
     }
 ,FinalizeManager.WEAK_REFERENCE_FACTORY);
     return new UnsyncFilterInputStream(inputStream){
       @Override public void close() throws IOException {
         super.close();
-        referenceHttpMethod.releaseConnection();
+        referenceHttpResponse.close();
         reference.clear();
       }
     }
@@ -116,8 +136,8 @@
   }
   finally {
     try {
-      if (httpState != null) {
-        _cookies.set(toServletCookies(httpState.getCookies()));
+      if (cookieStore != null) {
+        _cookies.set(toServletCookies(cookieStore.getCookies()));
       }
     }
  catch (    Exception e) {

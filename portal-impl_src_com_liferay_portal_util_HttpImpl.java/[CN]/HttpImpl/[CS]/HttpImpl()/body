@@ -1,6 +1,4 @@
 {
-  Protocol protocol=new Protocol("http",new FastProtocolSocketFactory(),80);
-  Protocol.registerProtocol("http",protocol);
   if (Validator.isNotNull(_NON_PROXY_HOSTS)) {
     String nonProxyHostsRegEx=_NON_PROXY_HOSTS;
     nonProxyHostsRegEx=nonProxyHostsRegEx.replaceAll("\\.","\\\\.");
@@ -12,34 +10,40 @@
  else {
     _nonProxyHostsPattern=null;
   }
-  MultiThreadedHttpConnectionManager httpConnectionManager=new MultiThreadedHttpConnectionManager();
-  HttpConnectionManagerParams httpConnectionManagerParams=httpConnectionManager.getParams();
-  httpConnectionManagerParams.setConnectionTimeout(_TIMEOUT);
-  httpConnectionManagerParams.setDefaultMaxConnectionsPerHost(Integer.valueOf(_MAX_CONNECTIONS_PER_HOST));
-  httpConnectionManagerParams.setMaxTotalConnections(Integer.valueOf(_MAX_TOTAL_CONNECTIONS));
-  httpConnectionManagerParams.setSoTimeout(_TIMEOUT);
-  _httpClient.setHttpConnectionManager(httpConnectionManager);
-  _proxyHttpClient.setHttpConnectionManager(httpConnectionManager);
+  _poolingHttpClientConnectionManager=new PoolingHttpClientConnectionManager();
+  _poolingHttpClientConnectionManager.setDefaultMaxPerRoute(_MAX_CONNECTIONS_PER_HOST);
+  _poolingHttpClientConnectionManager.setMaxTotal(_MAX_TOTAL_CONNECTIONS);
+  RequestConfig.Builder requestConfigBuilder=RequestConfig.custom();
+  requestConfigBuilder=requestConfigBuilder.setConnectTimeout(_TIMEOUT);
+  requestConfigBuilder=requestConfigBuilder.setConnectionRequestTimeout(_TIMEOUT);
+  RequestConfig requestConfig=requestConfigBuilder.build();
+  HttpClientBuilder httpClientBuilder=HttpClientBuilder.create();
+  httpClientBuilder.setConnectionManager(_poolingHttpClientConnectionManager);
+  httpClientBuilder.setDefaultRequestConfig(requestConfig);
+  _httpClient=httpClientBuilder.build();
   if (!hasProxyConfig() || Validator.isNull(_PROXY_USERNAME)) {
     _proxyCredentials=null;
+    _proxyHttpClient=_httpClient;
     return;
   }
-  List<String> authPrefs=new ArrayList<>();
+  _proxyAuthPrefs.add(AuthSchemes.BASIC);
+  _proxyAuthPrefs.add(AuthSchemes.DIGEST);
   if (_PROXY_AUTH_TYPE.equals("username-password")) {
     _proxyCredentials=new UsernamePasswordCredentials(_PROXY_USERNAME,_PROXY_PASSWORD);
-    authPrefs.add(AuthPolicy.BASIC);
-    authPrefs.add(AuthPolicy.DIGEST);
-    authPrefs.add(AuthPolicy.NTLM);
+    _proxyAuthPrefs.add(AuthSchemes.NTLM);
   }
  else   if (_PROXY_AUTH_TYPE.equals("ntlm")) {
     _proxyCredentials=new NTCredentials(_PROXY_USERNAME,_PROXY_PASSWORD,_PROXY_NTLM_HOST,_PROXY_NTLM_DOMAIN);
-    authPrefs.add(AuthPolicy.NTLM);
-    authPrefs.add(AuthPolicy.BASIC);
-    authPrefs.add(AuthPolicy.DIGEST);
+    _proxyAuthPrefs.add(0,AuthSchemes.NTLM);
   }
  else {
     _proxyCredentials=null;
   }
-  HttpClientParams httpClientParams=_proxyHttpClient.getParams();
-  httpClientParams.setParameter(AuthPolicy.AUTH_SCHEME_PRIORITY,authPrefs);
+  HttpClientBuilder proxyHttpClientBuilder=HttpClientBuilder.create();
+  proxyHttpClientBuilder.setConnectionManager(_poolingHttpClientConnectionManager);
+  requestConfigBuilder.setProxy(new HttpHost(_PROXY_HOST,_PROXY_PORT));
+  requestConfigBuilder.setProxyPreferredAuthSchemes(_proxyAuthPrefs);
+  RequestConfig proxyRequestConfig=requestConfigBuilder.build();
+  proxyHttpClientBuilder.setDefaultRequestConfig(proxyRequestConfig);
+  _proxyHttpClient=proxyHttpClientBuilder.build();
 }
