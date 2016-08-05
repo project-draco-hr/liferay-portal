@@ -1,33 +1,16 @@
 {
   final Project project=getProject();
-  final File temporaryDir=getTemporaryDir();
-  project.delete(temporaryDir);
-  temporaryDir.mkdir();
-  project.copy(new Action<CopySpec>(){
-    @Override public void execute(    CopySpec copySpec){
-      String originalLibSrcDirName=getOriginalLibSrcDirName();
-      if (!originalLibSrcDirName.equals(".")) {
-        Map<Object,Object> leadingPathReplacementsMap=new HashMap<>();
-        leadingPathReplacementsMap.put(originalLibSrcDirName,"");
-        copySpec.eachFile(new ReplaceLeadingPathAction(leadingPathReplacementsMap));
-      }
-      copySpec.filter(FixCrLfFilter.class);
-      copySpec.from(project.zipTree(getOriginalLibSrcFile()));
-      copySpec.include(getFileNames());
-      copySpec.into(temporaryDir);
-      copySpec.setIncludeEmptyDirs(false);
-    }
-  }
-);
-  for (  final File patchFile : getSortedPatchFiles()) {
+  File patchesTemporaryDir=fixPatchFiles();
+  final File srcTemporaryDir=fixSrcFiles();
+  for (  final File patchFile : getSortedFiles(patchesTemporaryDir)) {
     final ByteArrayOutputStream byteArrayOutputStream=new ByteArrayOutputStream();
     ExecResult execResult=project.exec(new Action<ExecSpec>(){
       @Override public void execute(      ExecSpec execSpec){
         execSpec.setExecutable("patch");
         execSpec.setIgnoreExitValue(true);
-        execSpec.setWorkingDir(temporaryDir);
+        execSpec.setWorkingDir(srcTemporaryDir);
         execSpec.args(getArgs());
-        execSpec.args("--input=" + FileUtil.relativize(patchFile,temporaryDir));
+        execSpec.args("--input=" + FileUtil.relativize(patchFile,srcTemporaryDir));
         execSpec.setStandardOutput(byteArrayOutputStream);
       }
     }
@@ -36,14 +19,14 @@
     execResult.rethrowFailure();
     execResult.assertNormalExitValue();
   }
-  FileTree fileTree=project.fileTree(temporaryDir);
+  FileTree fileTree=project.fileTree(srcTemporaryDir);
   for (  File file : fileTree) {
     File patchedSrcDir=getPatchedSrcDir(file.getName());
     if (patchedSrcDir == null) {
       continue;
     }
     Path patchedSrcDirPath=patchedSrcDir.toPath();
-    String relativePath=FileUtil.relativize(file,temporaryDir);
+    String relativePath=FileUtil.relativize(file,srcTemporaryDir);
     patchedSrcDirPath=patchedSrcDirPath.resolve(relativePath);
     Files.createDirectories(patchedSrcDirPath.getParent());
     Files.move(file.toPath(),patchedSrcDirPath,StandardCopyOption.REPLACE_EXISTING);
