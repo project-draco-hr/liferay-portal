@@ -6,7 +6,7 @@
  catch (  URISyntaxException urise) {
     throw new IOException("Invalid URI: " + location,urise);
   }
-  BasicCookieStore cookieStore=null;
+  BasicCookieStore basicCookieStore=null;
   try {
     _cookies.set(null);
     if (location == null) {
@@ -15,10 +15,10 @@
  else     if (!location.startsWith(Http.HTTP_WITH_SLASH) && !location.startsWith(Http.HTTPS_WITH_SLASH)) {
       location=Http.HTTP_WITH_SLASH + location;
     }
-    HttpHost targetHost=new HttpHost(uri.getHost(),uri.getPort());
+    HttpHost targetHttpHost=new HttpHost(uri.getHost(),uri.getPort());
     RequestConfig.Builder requestConfigBuilder=getRequestConfigBuilder(uri,timeout);
     RequestConfig requestConfig=requestConfigBuilder.build();
-    CloseableHttpClient httpClient=getClient(requestConfig.getProxy());
+    CloseableHttpClient httpClient=getCloseableHttpClient(requestConfig.getProxy());
     HttpClientContext httpClientContext=HttpClientContext.create();
     RequestBuilder requestBuilder=null;
     if (method.equals(Http.Method.POST) || method.equals(Http.Method.PUT)) {
@@ -37,7 +37,7 @@
         if (!hasRequestHeader(requestBuilder,HttpHeaders.CONTENT_TYPE)) {
           ConnectionConfig.Builder connectionConfigBuilder=ConnectionConfig.custom();
           connectionConfigBuilder.setCharset(Charset.forName(StringPool.UTF8));
-          _poolingHttpClientConnectionManager.setConnectionConfig(targetHost,connectionConfigBuilder.build());
+          _poolingHttpClientConnectionManager.setConnectionConfig(targetHttpHost,connectionConfigBuilder.build());
         }
         processPostMethod(requestBuilder,fileParts,parts);
       }
@@ -63,10 +63,10 @@
       requestBuilder.addHeader(HttpHeaders.USER_AGENT,_DEFAULT_USER_AGENT);
     }
     if (ArrayUtil.isNotEmpty(cookies)) {
-      cookieStore=new BasicCookieStore();
+      basicCookieStore=new BasicCookieStore();
       org.apache.http.cookie.Cookie[] httpCookies=toHttpCookies(cookies);
-      cookieStore.addCookies(httpCookies);
-      httpClientContext.setCookieStore(cookieStore);
+      basicCookieStore.addCookies(httpCookies);
+      httpClientContext.setCookieStore(basicCookieStore);
       requestConfigBuilder.setCookieSpec(CookieSpecs.DEFAULT);
     }
     if (auth != null) {
@@ -77,13 +77,13 @@
     }
     addProxyCredentials(uri,httpClientContext);
     requestBuilder.setConfig(requestConfigBuilder.build());
-    CloseableHttpResponse httpResponse=httpClient.execute(targetHost,requestBuilder.build(),httpClientContext);
-    response.setResponseCode(httpResponse.getStatusLine().getStatusCode());
-    Header locationHeader=httpResponse.getFirstHeader("location");
+    CloseableHttpResponse closeableHttpResponse=httpClient.execute(targetHttpHost,requestBuilder.build(),httpClientContext);
+    response.setResponseCode(closeableHttpResponse.getStatusLine().getStatusCode());
+    Header locationHeader=closeableHttpResponse.getFirstHeader("location");
     if ((locationHeader != null) && !locationHeader.equals(location)) {
       String redirect=locationHeader.getValue();
       if (followRedirects) {
-        httpResponse.close();
+        closeableHttpResponse.close();
         return URLtoInputStream(redirect,Http.Method.GET,headers,cookies,auth,body,fileParts,parts,response,followRedirects,timeout);
       }
  else {
@@ -91,7 +91,7 @@
       }
     }
     long contentLengthLong=0;
-    Header contentLengthHeader=httpResponse.getFirstHeader(HttpHeaders.CONTENT_LENGTH);
+    Header contentLengthHeader=closeableHttpResponse.getFirstHeader(HttpHeaders.CONTENT_LENGTH);
     if (contentLengthHeader != null) {
       contentLengthLong=GetterUtil.getLong(contentLengthHeader.getValue());
       response.setContentLengthLong(contentLengthLong);
@@ -103,23 +103,24 @@
         response.setContentLength(contentLength);
       }
     }
-    Header contentType=httpResponse.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-    if (contentType != null) {
-      response.setContentType(contentType.getValue());
+    Header contentTypeHeader=closeableHttpResponse.getFirstHeader(HttpHeaders.CONTENT_TYPE);
+    if (contentTypeHeader != null) {
+      response.setContentType(contentTypeHeader.getValue());
     }
-    for (    Header header : httpResponse.getAllHeaders()) {
+    for (    Header header : closeableHttpResponse.getAllHeaders()) {
       response.addHeader(header.getName(),header.getValue());
     }
-    InputStream inputStream=httpResponse.getEntity().getContent();
-    final CloseableHttpResponse referenceHttpResponse=httpResponse;
+    HttpEntity httpEntity=closeableHttpResponse.getEntity();
+    InputStream inputStream=httpEntity.getContent();
+    final CloseableHttpResponse referenceCloseableHttpResponse=closeableHttpResponse;
     final Reference<InputStream> reference=FinalizeManager.register(inputStream,new FinalizeAction(){
       @Override public void doFinalize(      Reference<?> reference){
         try {
-          referenceHttpResponse.close();
+          referenceCloseableHttpResponse.close();
         }
  catch (        IOException ioe) {
           if (_log.isDebugEnabled()) {
-            _log.debug("Error closing response",ioe);
+            _log.debug("Unable to close response",ioe);
           }
         }
       }
@@ -128,7 +129,7 @@
     return new UnsyncFilterInputStream(inputStream){
       @Override public void close() throws IOException {
         super.close();
-        referenceHttpResponse.close();
+        referenceCloseableHttpResponse.close();
         reference.clear();
       }
     }
@@ -136,8 +137,8 @@
   }
   finally {
     try {
-      if (cookieStore != null) {
-        _cookies.set(toServletCookies(cookieStore.getCookies()));
+      if (basicCookieStore != null) {
+        _cookies.set(toServletCookies(basicCookieStore.getCookies()));
       }
     }
  catch (    Exception e) {
