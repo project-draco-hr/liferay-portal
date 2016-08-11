@@ -1,0 +1,24 @@
+{
+  String layoutsImportMode=MapUtil.getString(portletDataContext.getParameterMap(),PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE,PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_MERGE_BY_LAYOUT_UUID);
+  if (!layoutsImportMode.equals(PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_CREATED_FROM_PROTOTYPE)) {
+    return;
+  }
+  Map<Long,Layout> layouts=(Map<Long,Layout>)portletDataContext.getNewPrimaryKeysMap(Layout.class + ".layout");
+  long lastMergeTime=System.currentTimeMillis();
+  for (  Layout layout : layouts.values()) {
+    layout=_layoutLocalService.getLayout(layout.getPlid());
+    if (modifiedLayouts.contains(layout)) {
+      continue;
+    }
+    UnicodeProperties typeSettingsProperties=layout.getTypeSettingsProperties();
+    typeSettingsProperties.setProperty(Sites.LAST_MERGE_TIME,String.valueOf(lastMergeTime));
+    LayoutUtil.update(layout);
+  }
+  LayoutSet layoutSet=_layoutSetLocalService.getLayoutSet(portletDataContext.getGroupId(),portletDataContext.isPrivateLayout());
+  UnicodeProperties settingsProperties=layoutSet.getSettingsProperties();
+  String mergeFailFriendlyURLLayouts=settingsProperties.getProperty(Sites.MERGE_FAIL_FRIENDLY_URL_LAYOUTS);
+  if (Validator.isNull(mergeFailFriendlyURLLayouts) && modifiedLayouts.isEmpty()) {
+    settingsProperties.setProperty(Sites.LAST_MERGE_TIME,String.valueOf(lastMergeTime));
+    _layoutSetLocalService.updateLayoutSet(layoutSet);
+  }
+}

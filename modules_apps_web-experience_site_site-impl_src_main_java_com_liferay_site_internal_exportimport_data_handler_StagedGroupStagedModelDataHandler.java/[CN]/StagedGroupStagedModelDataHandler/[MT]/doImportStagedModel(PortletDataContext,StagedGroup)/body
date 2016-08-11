@@ -1,137 +1,32 @@
 {
-  Map<String,String[]> parameterMap=portletDataContext.getParameterMap();
-  boolean layoutSetPrototypeLinkEnabled=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.LAYOUT_SET_PROTOTYPE_LINK_ENABLED);
-  Group group=_groupLocalService.getGroup(portletDataContext.getGroupId());
-  if (group.isLayoutSetPrototype()) {
-    layoutSetPrototypeLinkEnabled=false;
-  }
-  boolean deleteMissingLayouts=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.DELETE_MISSING_LAYOUTS,Boolean.TRUE.booleanValue());
-  LayoutSet layoutSet=_layoutSetLocalService.getLayoutSet(portletDataContext.getGroupId(),portletDataContext.isPrivateLayout());
   Element rootElement=portletDataContext.getImportDataRootElement();
-  Element headerElement=rootElement.element("header");
-  String larType=headerElement.attributeValue("type");
-  if (group.isLayoutPrototype() && larType.equals("layout-prototype")) {
-    deleteMissingLayouts=false;
-  }
-  String layoutsImportMode=MapUtil.getString(parameterMap,PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE,PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_MERGE_BY_LAYOUT_UUID);
-  boolean permissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PERMISSIONS);
-  Set<Layout> modifiedLayouts=new HashSet<>();
-  List<Layout> previousLayouts=LayoutUtil.findByG_P(portletDataContext.getGroupId(),portletDataContext.isPrivateLayout());
-  ServiceContext serviceContext=ServiceContextThreadLocal.getServiceContext();
-  String layoutSetPrototypeUuid=headerElement.attributeValue("layout-set-prototype-uuid");
-  if (larType.equals("layout-set-prototype")) {
-    layoutSetPrototypeUuid=GetterUtil.getString(headerElement.attributeValue("type-uuid"));
-  }
-  if (Validator.isNotNull(layoutSetPrototypeUuid) && layoutSetPrototypeLinkEnabled) {
-    LayoutSetPrototype layoutSetPrototype=_layoutSetPrototypeLocalService.getLayoutSetPrototypeByUuidAndCompanyId(layoutSetPrototypeUuid,portletDataContext.getCompanyId());
-    for (    Layout layout : previousLayouts) {
-      String sourcePrototypeLayoutUuid=layout.getSourcePrototypeLayoutUuid();
-      if (Validator.isNull(layout.getSourcePrototypeLayoutUuid())) {
+  Element sitePortletsElement=rootElement.element("site-portlets");
+  List<Element> sitePortletElements=sitePortletsElement.elements();
+  if (BackgroundTaskThreadLocal.hasBackgroundTask()) {
+    List<String> portletIds=new ArrayList<>();
+    for (    Element portletElement : sitePortletElements) {
+      String portletId=portletElement.attributeValue("portlet-id");
+      Portlet portlet=_portletLocalService.getPortletById(portletDataContext.getCompanyId(),portletId);
+      if (!portlet.isActive() || portlet.isUndeployedPortlet()) {
         continue;
       }
-      if (SitesUtil.isLayoutModifiedSinceLastMerge(layout)) {
-        modifiedLayouts.add(layout);
-        continue;
-      }
-      Layout sourcePrototypeLayout=LayoutUtil.fetchByUUID_G_P(sourcePrototypeLayoutUuid,layoutSetPrototype.getGroupId(),true);
-      if (sourcePrototypeLayout == null) {
-        _layoutLocalService.deleteLayout(layout,false,serviceContext);
-      }
+      portletIds.add(portletId);
     }
+    PortletDataHandlerStatusMessageSenderUtil.sendStatusMessage("layout",ArrayUtil.toStringArray(portletIds),portletDataContext.getManifestSummary());
   }
-  Element layoutsElement=portletDataContext.getImportDataGroupElement(Layout.class);
-  List<Element> layoutElements=layoutsElement.elements();
-  if (_log.isDebugEnabled()) {
-    if (!layoutElements.isEmpty()) {
-      _log.debug("Importing layouts");
-    }
+  if (_log.isDebugEnabled() && !sitePortletElements.isEmpty()) {
+    _log.debug("Importing portlets");
   }
-  List<String> sourceLayoutsUuids=new ArrayList<>();
-  for (  Element layoutElement : layoutElements) {
-    importLayout(portletDataContext,sourceLayoutsUuids,layoutElement);
+  importSitePortlets(portletDataContext,sitePortletElements);
+  Element siteServicesElement=rootElement.element("site-services");
+  List<Element> siteServiceElements=siteServicesElement.elements("service");
+  if (_log.isDebugEnabled() && !siteServiceElements.isEmpty()) {
+    _log.debug("Importing services");
   }
-  Element portletsElement=rootElement.element("portlets");
-  List<Element> portletElements=portletsElement.elements("portlet");
-  if (_log.isDebugEnabled()) {
-    if (!portletElements.isEmpty()) {
-      _log.debug("Importing portlets");
-    }
-  }
-  Map<Long,Layout> layouts=(Map<Long,Layout>)portletDataContext.getNewPrimaryKeysMap(Layout.class + ".layout");
-  LayoutCache layoutCache=new LayoutCache();
-  for (  Element portletElement : portletElements) {
-    String portletPath=portletElement.attributeValue("path");
-    String portletId=portletElement.attributeValue("portlet-id");
-    long layoutId=GetterUtil.getLong(portletElement.attributeValue("layout-id"));
-    long oldPlid=GetterUtil.getLong(portletElement.attributeValue("old-plid"));
-    Portlet portlet=_portletLocalService.getPortletById(portletDataContext.getCompanyId(),portletId);
-    if (!portlet.isActive() || portlet.isUndeployedPortlet()) {
-      continue;
-    }
-    Layout layout=layouts.get(layoutId);
-    long plid=LayoutConstants.DEFAULT_PLID;
-    if (layout != null) {
-      plid=layout.getPlid();
-      if (modifiedLayouts.contains(layout)) {
-        continue;
-      }
-    }
-    portletDataContext.setPlid(plid);
-    portletDataContext.setOldPlid(oldPlid);
-    portletDataContext.setPortletId(portletId);
-    if (BackgroundTaskThreadLocal.hasBackgroundTask()) {
-      PortletDataHandlerStatusMessageSenderUtil.sendStatusMessage("portlet",portletId,portletDataContext.getManifestSummary());
-    }
-    Document portletDocument=SAXReaderUtil.read(portletDataContext.getZipEntryAsString(portletPath));
-    portletElement=portletDocument.getRootElement();
-    setPortletScope(portletDataContext,portletElement);
-    long portletPreferencesGroupId=portletDataContext.getGroupId();
-    Element portletDataElement=portletElement.element("portlet-data");
-    Map<String,Boolean> importPortletControlsMap=ExportImportHelperUtil.getImportPortletControlsMap(portletDataContext.getCompanyId(),portletId,portletDataContext.getParameterMap(),portletDataElement,portletDataContext.getManifestSummary());
-    if (layout != null) {
-      portletPreferencesGroupId=layout.getGroupId();
-    }
-    try {
-      _exportImportLifecycleManager.fireExportImportLifecycleEvent(EVENT_PORTLET_IMPORT_STARTED,getProcessFlag(),PortletDataContextFactoryUtil.clonePortletDataContext(portletDataContext));
-      _portletImportController.importPortletPreferences(portletDataContext,layoutSet.getCompanyId(),portletPreferencesGroupId,layout,portletElement,false,importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_ARCHIVED_SETUPS),importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_DATA),importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_SETUP),importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_USER_PREFERENCES));
-      if (importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_DATA)) {
-        _portletImportController.importPortletData(portletDataContext,portletDataElement);
-      }
-      _exportImportLifecycleManager.fireExportImportLifecycleEvent(EVENT_PORTLET_IMPORT_SUCCEEDED,getProcessFlag(),PortletDataContextFactoryUtil.clonePortletDataContext(portletDataContext));
-    }
- catch (    Throwable t) {
-      _exportImportLifecycleManager.fireExportImportLifecycleEvent(EVENT_PORTLET_IMPORT_FAILED,getProcessFlag(),PortletDataContextFactoryUtil.clonePortletDataContext(portletDataContext),t);
-      throw t;
-    }
- finally {
-      _portletImportController.resetPortletScope(portletDataContext,portletPreferencesGroupId);
-    }
-    if (permissions) {
-      _permissionImporter.importPortletPermissions(layoutCache,portletDataContext.getCompanyId(),portletDataContext.getGroupId(),serviceContext.getUserId(),layout,portletElement,portletId);
-    }
-    _portletImportController.importPortletPreferences(portletDataContext,portletDataContext.getCompanyId(),portletDataContext.getGroupId(),null,portletElement,false,importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_ARCHIVED_SETUPS),importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_DATA),importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_SETUP),importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_USER_PREFERENCES));
-  }
-  if (deleteMissingLayouts) {
-    deleteMissingLayouts(portletDataContext,sourceLayoutsUuids,previousLayouts,serviceContext);
-  }
-  updateLayoutPriorities(portletDataContext,layoutElements,portletDataContext.isPrivateLayout());
-  if (layoutsImportMode.equals(PortletDataHandlerKeys.LAYOUTS_IMPORT_MODE_CREATED_FROM_PROTOTYPE)) {
-    long lastMergeTime=System.currentTimeMillis();
-    for (    Layout layout : layouts.values()) {
-      layout=_layoutLocalService.getLayout(layout.getPlid());
-      if (modifiedLayouts.contains(layout)) {
-        continue;
-      }
-      UnicodeProperties typeSettingsProperties=layout.getTypeSettingsProperties();
-      typeSettingsProperties.setProperty(Sites.LAST_MERGE_TIME,String.valueOf(lastMergeTime));
-      LayoutUtil.update(layout);
-    }
-    layoutSet=_layoutSetLocalService.getLayoutSet(layoutSet.getLayoutSetId());
-    UnicodeProperties settingsProperties=layoutSet.getSettingsProperties();
-    String mergeFailFriendlyURLLayouts=settingsProperties.getProperty(Sites.MERGE_FAIL_FRIENDLY_URL_LAYOUTS);
-    if (Validator.isNull(mergeFailFriendlyURLLayouts) && modifiedLayouts.isEmpty()) {
-      settingsProperties.setProperty(Sites.LAST_MERGE_TIME,String.valueOf(lastMergeTime));
-      _layoutSetLocalService.updateLayoutSet(layoutSet);
-    }
+  importSiteServices(portletDataContext,siteServiceElements);
+  portletDataContext.setImportDataRootElement(rootElement);
+  Element layoutSetElement=portletDataContext.getImportDataGroupElement(StagedLayoutSet.class);
+  for (  Element groupElement : layoutSetElement.elements()) {
+    StagedModelDataHandlerUtil.importStagedModel(portletDataContext,groupElement);
   }
 }
