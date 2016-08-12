@@ -7,6 +7,8 @@
     throw new IOException("Invalid URI: " + location,urise);
   }
   BasicCookieStore basicCookieStore=null;
+  CloseableHttpResponse closeableHttpResponse=null;
+  HttpEntity httpEntity=null;
   try {
     _cookies.set(null);
     if (location == null) {
@@ -77,17 +79,21 @@
     }
     addProxyCredentials(uri,httpClientContext);
     requestBuilder.setConfig(requestConfigBuilder.build());
-    CloseableHttpResponse closeableHttpResponse=httpClient.execute(targetHttpHost,requestBuilder.build(),httpClientContext);
+    closeableHttpResponse=httpClient.execute(targetHttpHost,requestBuilder.build(),httpClientContext);
+    httpEntity=closeableHttpResponse.getEntity();
     response.setResponseCode(closeableHttpResponse.getStatusLine().getStatusCode());
     Header locationHeader=closeableHttpResponse.getFirstHeader("location");
-    String locationHeaderValue=locationHeader.getValue();
-    if ((locationHeader != null) && !locationHeaderValue.equals(location)) {
-      if (followRedirects) {
-        closeableHttpResponse.close();
-        return URLtoInputStream(locationHeaderValue,Http.Method.GET,headers,cookies,auth,body,fileParts,parts,response,followRedirects,timeout);
-      }
+    if (locationHeader != null) {
+      String locationHeaderValue=locationHeader.getValue();
+      if (!locationHeaderValue.equals(location)) {
+        if (followRedirects) {
+          EntityUtils.consumeQuietly(httpEntity);
+          closeableHttpResponse.close();
+          return URLtoInputStream(locationHeaderValue,Http.Method.GET,headers,cookies,auth,body,fileParts,parts,response,followRedirects,timeout);
+        }
  else {
-        response.setRedirect(locationHeaderValue);
+          response.setRedirect(locationHeaderValue);
+        }
       }
     }
     long contentLengthLong=0;
@@ -110,7 +116,6 @@
     for (    Header header : closeableHttpResponse.getAllHeaders()) {
       response.addHeader(header.getName(),header.getValue());
     }
-    HttpEntity httpEntity=closeableHttpResponse.getEntity();
     InputStream inputStream=httpEntity.getContent();
     final CloseableHttpResponse referenceCloseableHttpResponse=closeableHttpResponse;
     final Reference<InputStream> reference=FinalizeManager.register(inputStream,new FinalizeAction(){
@@ -135,7 +140,23 @@
     }
 ;
   }
-  finally {
+ catch (  Exception e) {
+    if (httpEntity != null) {
+      EntityUtils.consumeQuietly(httpEntity);
+    }
+    if (closeableHttpResponse != null) {
+      try {
+        closeableHttpResponse.close();
+      }
+ catch (      IOException ioe) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Error closing response",e);
+        }
+      }
+    }
+    throw new IOException(e);
+  }
+ finally {
     try {
       if (basicCookieStore != null) {
         _cookies.set(toServletCookies(basicCookieStore.getCookies()));
