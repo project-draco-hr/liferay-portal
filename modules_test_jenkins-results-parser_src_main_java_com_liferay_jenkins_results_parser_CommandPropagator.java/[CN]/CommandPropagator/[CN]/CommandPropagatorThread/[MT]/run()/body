@@ -1,16 +1,27 @@
 {
+  List<String> busySlaves=_commandPropagator._busySlaves;
+  busySlaves.add(_targetSlave);
   long start=System.currentTimeMillis();
-  _duration=System.currentTimeMillis() - start;
-synchronized (_commandPropagator) {
-    _commandPropagator._busySlaves.remove(_mirrorSlave);
-    _commandPropagator._busySlaves.remove(_targetSlave);
-    _commandPropagator._mirrorSlaves.add(_mirrorSlave);
-    _commandPropagator._threadsCompletedCount++;
-    _commandPropagator._threadsDurationTotal+=_duration;
-    if (!_successful) {
-      _commandPropagator._errorSlaves.add(_targetSlave);
-      return;
+  try {
+    int returnCode=_executeBashCommands();
+    _duration=System.currentTimeMillis() - start;
+    if (returnCode == 0) {
+      _successful=true;
+      List<String> finishedSlaves=_commandPropagator._finishedSlaves;
+      finishedSlaves.add(_targetSlave);
     }
-    _commandPropagator._mirrorSlaves.add(_targetSlave);
+ else {
+      _handleError(null);
+    }
+  }
+ catch (  Exception ioe) {
+    _handleError(ioe.getMessage());
+  }
+ finally {
+    busySlaves.remove(_targetSlave);
+synchronized (_commandPropagator) {
+      _commandPropagator._threadsCompletedCount++;
+      _commandPropagator._threadsDurationTotal+=_duration;
+    }
   }
 }
