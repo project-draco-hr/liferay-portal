@@ -1,0 +1,43 @@
+{
+  _copyFromSource();
+  ExecutorService executorService=Executors.newFixedThreadPool(threadCount);
+  System.out.println("File propagation starting with " + threadCount + " threads.");
+  try {
+    long start=System.currentTimeMillis();
+    while (!_targetSlaves.isEmpty() || !_busySlaves.isEmpty()) {
+synchronized (this) {
+        for (        String mirrorSlave : _mirrorSlaves) {
+          if (_targetSlaves.isEmpty()) {
+            break;
+          }
+          String targetSlave=_targetSlaves.remove(0);
+          executorService.execute(new FilePropagatorThread(this,mirrorSlave,targetSlave));
+          _busySlaves.add(mirrorSlave);
+          _busySlaves.add(targetSlave);
+        }
+        _mirrorSlaves.removeAll(_busySlaves);
+      }
+      StringBuffer sb=new StringBuffer();
+      sb.append("Average thread duration: ");
+      sb.append(getAverageThreadDuration());
+      sb.append("ms\nBusy slaves:");
+      sb.append(_busySlaves.size());
+      sb.append("\nMirror slaves:");
+      sb.append(_mirrorSlaves.size());
+      sb.append("\nTarget slaves:");
+      sb.append(_targetSlaves.size());
+      sb.append("\nTotal duration: ");
+      sb.append(System.currentTimeMillis() - start);
+      sb.append("\n");
+      System.out.println(sb.toString());
+      JenkinsResultsParserUtil.sleep(5000);
+    }
+    System.out.println("File propagation completed in " + (System.currentTimeMillis() - start) + "ms.");
+    if (!_errorSlaves.isEmpty()) {
+      System.out.println(_errorSlaves.size() + " slaves failed to respond:\n" + _errorSlaves);
+    }
+  }
+  finally {
+    executorService.shutdown();
+  }
+}
