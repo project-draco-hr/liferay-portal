@@ -8,8 +8,9 @@
     sb.append("PortletPreferences.plid = Layout.plid where ");
     sb.append("preferences like '%<portlet-preferences />%' or ");
     sb.append("preferences like '' or preferences is null");
-    String sql=sb.toString();
-    try (PreparedStatement ps=connection.prepareStatement(sql);ResultSet rs=ps.executeQuery()){
+    String selectSQL=sb.toString();
+    String deleteSQL="delete from PortletPreferences where portletPreferencesId = ?";
+    try (PreparedStatement ps1=connection.prepareStatement(selectSQL);ResultSet rs=ps1.executeQuery();PreparedStatement ps2=AutoBatchPreparedStatementUtil.autoBatch(connection.prepareStatement(deleteSQL))){
       while (rs.next()) {
         long portletPreferencesId=rs.getLong("portletPreferencesId");
         String portletId=GetterUtil.getString(rs.getString("portletId"));
@@ -17,8 +18,13 @@
         if (typeSettings.contains(portletId)) {
           continue;
         }
-        deletePortletPreferences(portletPreferencesId);
+        if (_log.isDebugEnabled()) {
+          _log.debug("Deleting portlet preferences " + portletPreferencesId);
+        }
+        ps2.setLong(1,portletPreferencesId);
+        ps2.addBatch();
       }
+      ps2.executeBatch();
     }
    }
  }
