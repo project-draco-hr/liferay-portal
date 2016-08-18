@@ -1,0 +1,26 @@
+{
+  try (LoggingTimer loggingTimer=new LoggingTimer();PreparedStatement ps1=connection.prepareStatement("select articleId, articleImageId, groupId from " + "JournalArticleImage");ResultSet rs1=ps1.executeQuery()){
+    while (rs1.next()) {
+      String articleId=rs1.getString(1);
+      long articleImageId=rs1.getLong(2);
+      long groupId=rs1.getLong(3);
+      try (PreparedStatement ps2=connection.prepareStatement("select resourcePrimKey, userId from JournalArticle " + "where groupId = ? and articleId = ?")){
+        ps2.setLong(1,groupId);
+        ps2.setString(2,articleId);
+        ResultSet rs2=ps2.executeQuery();
+        if (!rs2.next()) {
+          continue;
+        }
+        long resourcePrimKey=rs2.getLong(1);
+        long userId=rs2.getLong(2);
+        long folderId=getFolderId(userId,groupId,resourcePrimKey);
+        FileEntry fileEntry=getFileEntry(groupId,folderId,String.valueOf(articleImageId));
+        if (fileEntry != null) {
+          continue;
+        }
+        Image image=_imageLocalService.getImage(articleImageId);
+        PortletFileRepositoryUtil.addPortletFileEntry(groupId,userId,JournalArticle.class.getName(),resourcePrimKey,JournalConstants.SERVICE_NAME,folderId,image.getTextObj(),String.valueOf(articleImageId),image.getType(),false);
+      }
+     }
+  }
+ }
