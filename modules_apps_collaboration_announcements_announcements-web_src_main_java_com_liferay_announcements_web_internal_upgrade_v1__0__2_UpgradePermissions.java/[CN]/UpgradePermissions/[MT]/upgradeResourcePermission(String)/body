@@ -1,0 +1,49 @@
+{
+  StringBundler sb1=new StringBundler(4);
+  sb1.append("select resourceActionId, bitwiseValue from ");
+  sb1.append("ResourceAction where actionId = 'ADD_ENTRY' and name = '");
+  sb1.append(name);
+  sb1.append("'");
+  StringBundler sb2=new StringBundler(5);
+  sb2.append("select resourcePermissionId, companyId, scope, primKey, ");
+  sb2.append("primKeyId, roleId, actionIds from ");
+  sb2.append("ResourcePermission where name = '");
+  sb2.append(name);
+  sb2.append("'");
+  try (PreparedStatement ps1=connection.prepareStatement(sb1.toString());ResultSet rs1=ps1.executeQuery()){
+    if (!rs1.next()) {
+      _log.error("Unable to upgrade ADD_ENTRY action, ResourceAction for " + name + " is not initialized");
+      return;
+    }
+    long resourceActionId=rs1.getLong("resourceActionId");
+    long bitwiseValue=rs1.getLong("bitwiseValue");
+    try (PreparedStatement ps2=connection.prepareStatement(sb2.toString());ResultSet rs=ps2.executeQuery()){
+      while (rs.next()) {
+        long resourcePermissionId=rs.getLong("resourcePermissionId");
+        long companyId=rs.getLong("companyId");
+        int scope=rs.getInt("scope");
+        String primKey=rs.getString("primKey");
+        long primKeyId=rs.getLong("primKeyId");
+        long roleId=rs.getLong("roleId");
+        long actionIds=rs.getLong("actionIds");
+        if ((bitwiseValue & actionIds) == 0) {
+          continue;
+        }
+        updateResourcePermission(resourcePermissionId,(actionIds - bitwiseValue));
+        if (scope == ResourceConstants.SCOPE_INDIVIDUAL) {
+          if (primKey.contains("_LAYOUT_")) {
+            long groupId=getLayoutGroupId(primKey);
+            primKey=String.valueOf(groupId);
+            primKeyId=groupId;
+            scope=ResourceConstants.SCOPE_GROUP;
+          }
+ else {
+            continue;
+          }
+        }
+        addAnnouncementsAdminViewResourcePermission(companyId,scope,primKey,primKeyId,roleId);
+      }
+    }
+     deleteResourceAction(resourceActionId);
+  }
+ }
