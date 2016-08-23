@@ -1,0 +1,24 @@
+{
+  DependencyHandler dependencyHandler=project.getDependencies();
+  Map<String,Object> dependencyNotation=new HashMap<>();
+  dependencyNotation.put("group",project.getGroup());
+  dependencyNotation.put("name",GradleUtil.getArchivesBaseName(project));
+  dependencyNotation.put("version","latest.integration");
+  Dependency dependency=dependencyHandler.create(dependencyNotation);
+  ConfigurationContainer configurationContainer=project.getConfigurations();
+  Configuration configuration=configurationContainer.detachedConfiguration(dependency);
+  _configureConfigurationNoCache(configuration);
+  File file=CollectionUtils.single(configuration.resolve());
+  if (GradleUtil.isFromMavenLocal(project,file)) {
+    throw new GradleException("Please delete " + file.getParent() + " and try again");
+  }
+  try (JarFile jarFile=new JarFile(file)){
+    Manifest manifest=jarFile.getManifest();
+    Attributes attributes=manifest.getMainAttributes();
+    String lastModified=attributes.getValue(Constants.BND_LASTMODIFIED);
+    return Long.valueOf(lastModified);
+  }
+ catch (  IOException ioe) {
+    throw new UncheckedIOException(ioe);
+  }
+}
