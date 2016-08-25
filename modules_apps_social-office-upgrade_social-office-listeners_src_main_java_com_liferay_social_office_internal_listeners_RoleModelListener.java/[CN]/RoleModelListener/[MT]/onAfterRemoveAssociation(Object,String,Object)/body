@@ -1,0 +1,44 @@
+{
+  try {
+    Role role=roleLocalService.getRole((Long)classPK);
+    String name=role.getName();
+    if (!name.equals(RoleConstants.SOCIAL_OFFICE_USER)) {
+      return;
+    }
+    if (!associationClassName.equals(Group.class.getName())) {
+      return;
+    }
+    Group group=groupLocalService.getGroup((Long)associationClassPK);
+    List<User> users=null;
+    String className=group.getClassName();
+    if (className.equals(UserGroup.class.getName())) {
+      users=userLocalService.getUserGroupUsers(group.getClassPK());
+    }
+ else     if (className.equals(Organization.class.getName())) {
+      users=userLocalService.getOrganizationUsers(group.getClassPK());
+    }
+ else     if (className.equals(Group.class.getName())) {
+      users=userLocalService.getGroupUsers(group.getClassPK());
+    }
+    if (users == null) {
+      return;
+    }
+    for (    User user : users) {
+      Group userGroup=user.getGroup();
+      if (socialOfficeUtil.isSocialOfficeGroup(userGroup.getGroupId())) {
+        continue;
+      }
+      FinderCacheUtil.clearCache(_MAPPING_TABLE_USERS_ROLES_NAME_LEFT_TO_RIGHT);
+      FinderCacheUtil.clearCache(_MAPPING_TABLE_USERS_ROLES_NAME_RIGHT_TO_LEFT);
+      if (userLocalService.hasRoleUser(user.getCompanyId(),RoleConstants.SOCIAL_OFFICE_USER,user.getUserId(),true)) {
+        continue;
+      }
+      layoutSetPrototypeUtil.removeLayoutSetPrototype(userGroup,false,SocialOfficeConstants.LAYOUT_SET_PROTOTYPE_KEY_USER_PUBLIC);
+      layoutSetPrototypeUtil.removeLayoutSetPrototype(userGroup,true,SocialOfficeConstants.LAYOUT_SET_PROTOTYPE_KEY_USER_PRIVATE);
+      socialOfficeUtil.disableSocialOffice(userGroup);
+    }
+  }
+ catch (  Exception e) {
+    throw new ModelListenerException(e);
+  }
+}
