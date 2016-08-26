@@ -3,17 +3,31 @@
   ServiceContext serviceContext=new ServiceContext();
   serviceContext.setCompanyId(portletDataContext.getCompanyId());
   serviceContext.setScopeGroupId(portletDataContext.getScopeGroupId());
-  InputStream inputStream=null;
   for (  Element dlFileEntryElement : dlFileEntryElements) {
+    String path=dlFileEntryElement.attributeValue("path");
+    FileEntry fileEntry=(FileEntry)portletDataContext.getZipEntryAsObject(path);
+    InputStream inputStream=null;
     try {
-      byte[] bytes=portletDataContext.getZipEntryAsByteArray(dlFileEntryElement.attributeValue("path"));
-      inputStream=new UnsyncByteArrayInputStream(bytes);
-      String fileName=dlFileEntryElement.attributeValue("file-name");
-      String mimeType=KnowledgeBaseUtil.getMimeType(bytes,fileName);
-      _portletFileRepository.addPortletFileEntry(portletDataContext.getScopeGroupId(),portletDataContext.getUserId(importedKBArticle.getUserUuid()),KBArticle.class.getName(),importedKBArticle.getClassPK(),KBPortletKeys.KNOWLEDGE_BASE_ADMIN,importedKBArticle.getAttachmentsFolderId(),inputStream,fileName,mimeType,true);
+      String binPath=dlFileEntryElement.attributeValue("bin-path");
+      if (Validator.isNotNull(binPath) && portletDataContext.isPerformDirectBinaryImport()) {
+        try {
+          inputStream=FileEntryUtil.getContentStream(fileEntry);
+        }
+ catch (        NoSuchFileException nsfe) {
+        }
+      }
+ else {
+        inputStream=portletDataContext.getZipEntryAsInputStream(binPath);
+      }
+      if (inputStream == null) {
+        if (_log.isWarnEnabled()) {
+          _log.warn("Unable to import attachment for file entry " + fileEntry.getFileEntryId());
+        }
+        continue;
+      }
+      _portletFileRepository.addPortletFileEntry(portletDataContext.getScopeGroupId(),portletDataContext.getUserId(importedKBArticle.getUserUuid()),KBArticle.class.getName(),importedKBArticle.getClassPK(),KBPortletKeys.KNOWLEDGE_BASE_ADMIN,importedKBArticle.getAttachmentsFolderId(),inputStream,fileEntry.getFileName(),fileEntry.getMimeType(),true);
     }
- catch (    DuplicateFileException dfe) {
-      continue;
+ catch (    DuplicateFileEntryException dfee) {
     }
  finally {
       StreamUtil.cleanUp(inputStream);
