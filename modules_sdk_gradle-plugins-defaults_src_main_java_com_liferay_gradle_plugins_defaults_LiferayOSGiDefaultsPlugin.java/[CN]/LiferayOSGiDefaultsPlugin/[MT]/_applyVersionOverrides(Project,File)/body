@@ -1,0 +1,30 @@
+{
+  if ((versionOverridesFile == null) || !versionOverridesFile.exists()) {
+    return;
+  }
+  final Properties versionOverrides=GUtil.loadProperties(versionOverridesFile);
+  String bundleVersion=versionOverrides.getProperty(Constants.BUNDLE_VERSION);
+  if (Validator.isNotNull(bundleVersion)) {
+    Map<String,String> bundleInstructions=getBundleInstructions(project);
+    bundleInstructions.put(Constants.BUNDLE_VERSION,bundleVersion);
+    project.setVersion(bundleVersion);
+  }
+  final Copy copy=(Copy)GradleUtil.getTask(project,JavaPlugin.PROCESS_RESOURCES_TASK_NAME);
+  copy.filesMatching("**/packageinfo",new Action<FileCopyDetails>(){
+    @Override public void execute(    final FileCopyDetails fileCopyDetails){
+      fileCopyDetails.filter(new Closure<Void>(copy){
+        @SuppressWarnings("unused") public String doCall(        String line){
+          if (Validator.isNull(line)) {
+            return line;
+          }
+          String packagePath=fileCopyDetails.getPath();
+          packagePath=packagePath.substring(0,packagePath.lastIndexOf('/'));
+          packagePath=packagePath.replace('/','.');
+          return _getPackageInfoOverride(packagePath,line,versionOverrides);
+        }
+      }
+);
+    }
+  }
+);
+}
