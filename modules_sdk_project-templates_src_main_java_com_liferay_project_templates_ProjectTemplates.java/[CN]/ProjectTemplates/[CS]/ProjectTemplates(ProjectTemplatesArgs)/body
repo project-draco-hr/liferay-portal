@@ -1,22 +1,23 @@
 {
   _checkArgs(projectTemplatesArgs);
   File destinationDir=projectTemplatesArgs.getDestinationDir();
-  String name=projectTemplatesArgs.getName();
-  File dir=new File(destinationDir,name);
   Archetyper archetyper=new Archetyper();
   ArchetypeGenerationResult result=archetyper.generateProject(projectTemplatesArgs,destinationDir.getPath());
   if ((result != null) && (result.getCause() != null)) {
     result.getCause().printStackTrace();
     System.exit(1);
   }
-  _extractDirectory(TEMPLATES_GRADLEWRAPPER_DIR,dir);
-  new File(dir,"gradlew").setExecutable(true);
-  if (projectTemplatesArgs.getWorkspaceDir() != null) {
-    File settingsGradleFile=new File(dir,"settings.gradle");
-    settingsGradleFile.delete();
+  Path templateDirPath=destinationDir.toPath();
+  templateDirPath=templateDirPath.resolve(projectTemplatesArgs.getName());
+  _extractDirectory("gradle-wrapper",templateDirPath);
+  try {
+    Files.setPosixFilePermissions(templateDirPath.resolve("gradlew"),PosixFilePermissions.fromString("rwxrwxr--"));
   }
-  new File(dir,"pom.xml").delete();
-  File gitIgnoreFile=new File(dir,"gitignore");
-  File dogGitIgnoreFile=new File(dir,".gitignore");
-  gitIgnoreFile.renameTo(dogGitIgnoreFile);
+ catch (  UnsupportedOperationException uoe) {
+  }
+  if (projectTemplatesArgs.getWorkspaceDir() != null) {
+    Files.deleteIfExists(templateDirPath.resolve("settings.gradle"));
+  }
+  Files.delete(templateDirPath.resolve("pom.xml"));
+  Files.move(templateDirPath.resolve("gitignore"),templateDirPath.resolve(".gitignore"));
 }
