@@ -1,0 +1,41 @@
+{
+  final Properties versions=new Properties();
+  if (versionOverrides != null) {
+    versions.putAll(versionOverrides);
+  }
+  String bundleVersion=versions.getProperty(Constants.BUNDLE_VERSION);
+  if (Validator.isNull(bundleVersion)) {
+    Properties bundleProperties=GUtil.loadProperties(new File(projectDir,"bnd.bnd"));
+    bundleVersion=bundleProperties.getProperty(Constants.BUNDLE_VERSION);
+    if (Validator.isNotNull(bundleVersion)) {
+      versions.setProperty(Constants.BUNDLE_VERSION,bundleVersion);
+    }
+  }
+  File packageInfoRootDir=new File(projectDir,"src/main/resources");
+  final Path packageInfoRootDirPath=packageInfoRootDir.toPath();
+  if (Files.notExists(packageInfoRootDirPath)) {
+    return versions;
+  }
+  Files.walkFileTree(packageInfoRootDirPath,new SimpleFileVisitor<Path>(){
+    @Override public FileVisitResult preVisitDirectory(    Path dirPath,    BasicFileAttributes basicFileAttributes) throws IOException {
+      Path packageInfoPath=dirPath.resolve("packageinfo");
+      if (Files.notExists(packageInfoPath)) {
+        return FileVisitResult.CONTINUE;
+      }
+      Path relativePath=packageInfoRootDirPath.relativize(dirPath);
+      String packagePath=relativePath.toString();
+      packagePath=packagePath.replace(File.separatorChar,'.');
+      String packageVersion=versions.getProperty(packagePath);
+      if (Validator.isNotNull(packageVersion)) {
+        return FileVisitResult.CONTINUE;
+      }
+      packageVersion=new String(Files.readAllBytes(packageInfoPath),StandardCharsets.UTF_8);
+      packageVersion=packageVersion.trim();
+      packageVersion=packageVersion.substring(8);
+      versions.setProperty(packagePath,packageVersion);
+      return FileVisitResult.CONTINUE;
+    }
+  }
+);
+  return versions;
+}

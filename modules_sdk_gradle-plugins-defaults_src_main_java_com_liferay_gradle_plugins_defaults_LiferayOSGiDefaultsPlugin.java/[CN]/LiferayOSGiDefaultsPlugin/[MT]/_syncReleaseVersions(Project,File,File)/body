@@ -1,0 +1,53 @@
+{
+  boolean syncRelease=false;
+  if (project.hasProperty(SYNC_RELEASE_PROPERTY_NAME)) {
+    syncRelease=GradleUtil.getProperty(project,SYNC_RELEASE_PROPERTY_NAME,true);
+  }
+  if ((portalRootDir == null) || !syncRelease || !GradleUtil.hasStartParameterTask(project,BASELINE_TASK_NAME)) {
+    return false;
+  }
+  File releasePortalRootDir=GradleUtil.getProperty(project,_RELEASE_PORTAL_ROOT_DIR_PROPERTY_NAME,(File)null);
+  if (releasePortalRootDir == null) {
+    throw new GradleException("Please set the property \"" + _RELEASE_PORTAL_ROOT_DIR_PROPERTY_NAME + "\".");
+  }
+  Logger logger=project.getLogger();
+  String relativePath=FileUtil.relativize(project.getProjectDir(),portalRootDir);
+  File releaseProjectDir=new File(releasePortalRootDir,relativePath);
+  if (!releaseProjectDir.exists()) {
+    if (logger.isInfoEnabled()) {
+      logger.info("Unable to synchronize release versions of {}, {} does " + "not exist",project,releaseProjectDir);
+    }
+    return false;
+  }
+  if (logger.isLifecycleEnabled()) {
+    logger.lifecycle("Synchronizing release versions of {} with {}",project,releaseProjectDir);
+  }
+  Properties releaseVersions=null;
+  Properties versions=null;
+  if ((versionOverridesFile != null) && versionOverridesFile.exists()) {
+    versions=GUtil.loadProperties(versionOverridesFile);
+  }
+  try {
+    releaseVersions=_getVersions(releaseProjectDir,null);
+    versions=_getVersions(project.getProjectDir(),versions);
+    for (    String key : releaseVersions.stringPropertyNames()) {
+      if (!versions.containsKey(key)) {
+        continue;
+      }
+      Version releaseVersion=Version.parseVersion(releaseVersions.getProperty(key));
+      Version version=Version.parseVersion(versions.getProperty(key));
+      if (releaseVersion.compareTo(version) > 0) {
+        versions.setProperty(key,releaseVersion.toString());
+      }
+    }
+    _saveVersions(project.getProjectDir(),versions,versionOverridesFile);
+  }
+ catch (  IOException ioe) {
+    throw new UncheckedIOException(ioe);
+  }
+  String bundleVersion=versions.getProperty(Constants.BUNDLE_VERSION);
+  if (Validator.isNotNull(bundleVersion)) {
+    project.setVersion(bundleVersion);
+  }
+  return true;
+}
