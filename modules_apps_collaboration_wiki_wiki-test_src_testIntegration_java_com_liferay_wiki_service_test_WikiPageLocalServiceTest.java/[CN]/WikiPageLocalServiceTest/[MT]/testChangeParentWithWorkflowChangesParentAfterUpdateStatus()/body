@@ -1,0 +1,26 @@
+{
+  WikiTestUtil.addPage(TestPropsValues.getUserId(),_group.getGroupId(),_node.getNodeId(),"ParentPage1",true);
+  WikiTestUtil.addPage(TestPropsValues.getUserId(),_group.getGroupId(),_node.getNodeId(),"ParentPage2",true);
+  ServiceContext serviceContext=ServiceContextTestUtil.getServiceContext(_group.getGroupId());
+  WikiPage childPage=WikiTestUtil.addPage(TestPropsValues.getUserId(),_node.getNodeId(),"ChildPage",RandomTestUtil.randomString(),"ParentPage1",true,serviceContext);
+  boolean workflowEnabled=WorkflowThreadLocal.isEnabled();
+  try {
+    WorkflowThreadLocal.setEnabled(true);
+    serviceContext=(ServiceContext)serviceContext.clone();
+    serviceContext.setWorkflowAction(WorkflowConstants.ACTION_SAVE_DRAFT);
+    WikiPage pendingChildPage=WikiPageLocalServiceUtil.changeParent(TestPropsValues.getUserId(),_node.getNodeId(),childPage.getTitle(),"ParentPage2",serviceContext);
+    childPage=WikiPageLocalServiceUtil.getPage(_node.getNodeId(),childPage.getTitle(),true);
+    Assert.assertEquals("ParentPage1",childPage.getParentTitle());
+    Map<String,Serializable> workflowContext=new HashMap<>();
+    workflowContext.put(WorkflowConstants.CONTEXT_COMMAND,serviceContext.getCommand());
+    WikiPageLocalServiceUtil.updateStatus(TestPropsValues.getUserId(),pendingChildPage,WorkflowConstants.STATUS_APPROVED,serviceContext,workflowContext);
+    List<WikiPage> pages=WikiPageLocalServiceUtil.getPages(childPage.getNodeId(),childPage.getTitle(),QueryUtil.ALL_POS,QueryUtil.ALL_POS);
+    Assert.assertEquals(2,pages.size());
+    for (    WikiPage curWikiPage : pages) {
+      Assert.assertEquals("ParentPage2",curWikiPage.getParentTitle());
+    }
+  }
+  finally {
+    WorkflowThreadLocal.setEnabled(workflowEnabled);
+  }
+}
