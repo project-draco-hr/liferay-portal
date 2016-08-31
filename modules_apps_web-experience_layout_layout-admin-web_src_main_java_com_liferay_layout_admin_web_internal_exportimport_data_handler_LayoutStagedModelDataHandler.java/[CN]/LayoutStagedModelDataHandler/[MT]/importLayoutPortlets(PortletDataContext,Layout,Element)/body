@@ -1,0 +1,54 @@
+{
+  boolean layoutSetPrototypeLinkEnabled=MapUtil.getBoolean(portletDataContext.getParameterMap(),PortletDataHandlerKeys.LAYOUT_SET_PROTOTYPE_LINK_ENABLED);
+  if (layoutSetPrototypeLinkEnabled && Validator.isNotNull(portletDataContext.getLayoutSetPrototypeUuid()) && SitesUtil.isLayoutModifiedSinceLastMerge(layout)) {
+    return;
+  }
+  Map<String,String[]> parameterMap=portletDataContext.getParameterMap();
+  boolean permissions=MapUtil.getBoolean(parameterMap,PortletDataHandlerKeys.PERMISSIONS);
+  ServiceContext serviceContext=ServiceContextThreadLocal.getServiceContext();
+  LayoutCache layoutCache=new LayoutCache();
+  Element portletsElement=layoutElement.element("portlets");
+  for (  Element portletElement : portletsElement.elements()) {
+    String portletPath=portletElement.attributeValue("path");
+    String portletId=portletElement.attributeValue("portlet-id");
+    long oldPlid=GetterUtil.getLong(portletElement.attributeValue("old-plid"));
+    Portlet portlet=_portletLocalService.getPortletById(portletDataContext.getCompanyId(),portletId);
+    if (!portlet.isActive() || portlet.isUndeployedPortlet()) {
+      continue;
+    }
+    portletDataContext.setPlid(layout.getPlid());
+    portletDataContext.setOldPlid(oldPlid);
+    portletDataContext.setPortletId(portletId);
+    if (BackgroundTaskThreadLocal.hasBackgroundTask()) {
+      PortletDataHandlerStatusMessageSenderUtil.sendStatusMessage("portlet",portletId,portletDataContext.getManifestSummary());
+    }
+    Document portletDocument=SAXReaderUtil.read(portletDataContext.getZipEntryAsString(portletPath));
+    portletElement=portletDocument.getRootElement();
+    setPortletScope(portletDataContext,portletElement);
+    long portletPreferencesGroupId=portletDataContext.getGroupId();
+    Element portletDataElement=portletElement.element("portlet-data");
+    Map<String,Boolean> importPortletControlsMap=ExportImportHelperUtil.getImportPortletControlsMap(portletDataContext.getCompanyId(),portletId,parameterMap,portletDataElement,portletDataContext.getManifestSummary());
+    if (layout != null) {
+      portletPreferencesGroupId=layout.getGroupId();
+    }
+    try {
+      _exportImportLifecycleManager.fireExportImportLifecycleEvent(EVENT_PORTLET_IMPORT_STARTED,getProcessFlag(),PortletDataContextFactoryUtil.clonePortletDataContext(portletDataContext));
+      _portletImportController.importPortletPreferences(portletDataContext,portletDataContext.getCompanyId(),portletPreferencesGroupId,layout,portletElement,false,importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_ARCHIVED_SETUPS),importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_DATA),importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_SETUP),importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_USER_PREFERENCES));
+      if (importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_DATA)) {
+        _portletImportController.importPortletData(portletDataContext,portletDataElement);
+      }
+      _exportImportLifecycleManager.fireExportImportLifecycleEvent(EVENT_PORTLET_IMPORT_SUCCEEDED,getProcessFlag(),PortletDataContextFactoryUtil.clonePortletDataContext(portletDataContext));
+    }
+ catch (    Throwable t) {
+      _exportImportLifecycleManager.fireExportImportLifecycleEvent(EVENT_PORTLET_IMPORT_FAILED,getProcessFlag(),PortletDataContextFactoryUtil.clonePortletDataContext(portletDataContext),t);
+      throw t;
+    }
+ finally {
+      _portletImportController.resetPortletScope(portletDataContext,portletPreferencesGroupId);
+    }
+    if (permissions) {
+      _permissionImporter.importPortletPermissions(layoutCache,portletDataContext.getCompanyId(),portletDataContext.getGroupId(),serviceContext.getUserId(),layout,portletElement,portletId);
+    }
+    _portletImportController.importPortletPreferences(portletDataContext,portletDataContext.getCompanyId(),portletDataContext.getGroupId(),null,portletElement,false,importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_ARCHIVED_SETUPS),importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_DATA),importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_SETUP),importPortletControlsMap.get(PortletDataHandlerKeys.PORTLET_USER_PREFERENCES));
+  }
+}
