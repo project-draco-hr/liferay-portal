@@ -1,0 +1,30 @@
+{
+  MarkerOutputStream markerOutputStream=new MarkerOutputStream();
+  OutputStreamWriter outputStreamWriter=new OutputStreamWriter(markerOutputStream);
+  final AtomicInteger flushCounter=new AtomicInteger();
+  ReflectionTestUtil.setFieldValue(outputStreamWriter,"_charsetEncoder",new CharsetEncoderWrapper(ReflectionTestUtil.getFieldValue(outputStreamWriter,"_charsetEncoder")){
+    @Override protected CoderResult implFlush(    ByteBuffer out){
+      int count=flushCounter.getAndIncrement();
+      if (count == 0) {
+        return CoderResult.OVERFLOW;
+      }
+      return super.implFlush(out);
+    }
+  }
+);
+  outputStreamWriter.close();
+  Assert.assertEquals(2,flushCounter.get());
+  outputStreamWriter=new OutputStreamWriter(markerOutputStream);
+  ReflectionTestUtil.setFieldValue(outputStreamWriter,"_charsetEncoder",new CharsetEncoderWrapper(ReflectionTestUtil.getFieldValue(outputStreamWriter,"_charsetEncoder")){
+    @Override protected CoderResult implFlush(    ByteBuffer out){
+      return CoderResult.malformedForLength(1);
+    }
+  }
+);
+  try {
+    outputStreamWriter.close();
+  }
+ catch (  MalformedInputException mie) {
+    Assert.assertEquals(1,mie.getInputLength());
+  }
+}
