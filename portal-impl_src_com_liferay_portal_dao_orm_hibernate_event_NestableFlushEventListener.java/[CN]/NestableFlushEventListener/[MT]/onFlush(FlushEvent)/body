@@ -1,0 +1,32 @@
+{
+  EventSource eventSource=event.getSession();
+  PersistenceContext persistenceContext=eventSource.getPersistenceContext();
+  Map<?,?> entityEntries=persistenceContext.getEntityEntries();
+  if (entityEntries.isEmpty()) {
+    Map<?,?> collectionEntries=persistenceContext.getCollectionEntries();
+    if (collectionEntries.isEmpty()) {
+      return;
+    }
+  }
+  boolean flushing=persistenceContext.isFlushing();
+  try {
+    flushEverythingToExecutions(event);
+  }
+  finally {
+    persistenceContext.setFlushing(flushing);
+  }
+  persistenceContext.setFlushing(true);
+  try {
+    performExecutions(eventSource);
+    postFlush(eventSource);
+  }
+  finally {
+    persistenceContext.setFlushing(flushing);
+  }
+  SessionFactoryImplementor sessionFactoryImplementor=eventSource.getFactory();
+  Statistics statistics=sessionFactoryImplementor.getStatistics();
+  if (statistics.isStatisticsEnabled()) {
+    StatisticsImplementor statisticsImplementor=sessionFactoryImplementor.getStatisticsImplementor();
+    statisticsImplementor.flush();
+  }
+}
