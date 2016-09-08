@@ -1,0 +1,27 @@
+{
+  File deps=new File("build/mavenEmbedderDeps.txt");
+  String[] lines=FileUtil.readFile(deps);
+  URL[] urls=new URL[lines.length];
+  for (int i=0; i < lines.length; i++) {
+    File file=new File(lines[i]);
+    URI uri=file.toURI();
+    urls[i]=uri.toURL();
+  }
+  try (URLClassLoader classLoader=new URLClassLoader(urls,null)){
+    Class<?> mavenCLIClazz=classLoader.loadClass("org.apache.maven.cli.MavenCli");
+    Object mavenCli=mavenCLIClazz.newInstance();
+    ByteArrayOutputStream output=new ByteArrayOutputStream();
+    ByteArrayOutputStream errorOutput=new ByteArrayOutputStream();
+    Method doMain=mavenCLIClazz.getMethod("doMain",String[].class,String.class,PrintStream.class,PrintStream.class);
+    Thread currentThread=Thread.currentThread();
+    ClassLoader contextClassLoader=currentThread.getContextClassLoader();
+    currentThread.setContextClassLoader(classLoader);
+    try {
+      Integer retcode=(Integer)doMain.invoke(mavenCli,args,projectDir.getAbsolutePath(),new PrintStream(output),new PrintStream(errorOutput));
+      Assert.assertEquals(new String(errorOutput.toByteArray()),0,retcode.intValue());
+    }
+  finally {
+      currentThread.setContextClassLoader(contextClassLoader);
+    }
+  }
+ }
