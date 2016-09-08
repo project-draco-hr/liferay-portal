@@ -1,0 +1,53 @@
+{
+  String status=getStatus();
+  if (status.equals("completed")) {
+    return;
+  }
+  try {
+    if (status.equals("missing") || status.equals("queued") || status.equals("starting")) {
+      JSONObject runningBuildJSONObject=getRunningBuildJSONObject();
+      if (runningBuildJSONObject != null) {
+        setBuildNumber(runningBuildJSONObject.getInt("number"));
+        setStatus("running");
+        System.out.println(getBuildMessage());
+      }
+ else {
+        JSONObject queueItemJSONObject=getQueueItemJSONObject();
+        if (status.equals("starting") && (queueItemJSONObject != null)) {
+          setStatus("queued");
+        }
+ else         if (status.equals("queued") && (queueItemJSONObject == null)) {
+          setStatus("missing");
+          System.out.println(getBuildMessage());
+        }
+      }
+    }
+    status=getStatus();
+    JSONObject buildJSONObject=getBuildJSONObject("result");
+    if (downstreamBuilds != null) {
+      for (      Build downstreamBuild : downstreamBuilds) {
+        downstreamBuild.update();
+      }
+      String result=buildJSONObject.optString("result");
+      if ((downstreamBuilds.size() == getDownstreamBuildCount("completed")) && result.length() > 0) {
+        setStatus("completed");
+        return;
+      }
+      if (getDownstreamBuildCount("missing") > 0) {
+        System.out.println("missing: " + getDownstreamBuildCount("missing"));
+        setStatus("missing");
+        return;
+      }
+      if (getDownstreamBuildCount("starting") > 0) {
+        System.out.println("starting: " + getDownstreamBuildCount("starting"));
+        setStatus("starting");
+        return;
+      }
+    }
+  }
+ catch (  Exception e) {
+    throw new RuntimeException(e);
+  }
+  findDownstreamBuilds();
+  setStatus("running");
+}
