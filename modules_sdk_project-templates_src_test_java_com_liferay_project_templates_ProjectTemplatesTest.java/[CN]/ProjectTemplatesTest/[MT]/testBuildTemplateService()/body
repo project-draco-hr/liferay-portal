@@ -2,22 +2,14 @@
   File projectDir=_buildTemplateWithGradle("service","servicepreaction","--class-name","FooAction","--service","com.liferay.portal.kernel.events.LifecycleAction");
   _testExists(projectDir,"bnd.bnd");
   _testContains(projectDir,"build.gradle","apply plugin: \"com.liferay.plugin\"");
-  String importLine="import com.liferay.portal.kernel.events.LifecycleAction;";
-  String classLine="public class FooAction implements LifecycleAction {";
-  File actionJavaFile=_testContains(projectDir,"src/main/java/servicepreaction/FooAction.java","package servicepreaction;",importLine,"service = LifecycleAction.class",classLine);
-  Path actionJavaPath=actionJavaFile.toPath();
-  List<String> lines=Files.readAllLines(actionJavaPath,StandardCharsets.UTF_8);
-  try (BufferedWriter bufferedWriter=Files.newBufferedWriter(actionJavaPath,StandardCharsets.UTF_8)){
-    for (    String line : lines) {
-      _write(bufferedWriter,line);
-      if (line.equals(classLine)) {
-        _write(bufferedWriter,"@Override","public void processLifecycleEvent(","LifecycleEvent lifecycleEvent)","throws ActionException {","System.out.println(","\"login.event.pre=\" + lifecycleEvent);","}");
-      }
- else       if (line.equals(importLine)) {
-        _write(bufferedWriter,"import com.liferay.portal.kernel.events." + "LifecycleEvent;","import com.liferay.portal.kernel.events." + "ActionException;");
-      }
-    }
-  }
-   _executeGradle(projectDir,_TASK_PATH_BUILD);
+  _writeServiceClass(projectDir);
+  _executeGradle(projectDir,_TASK_PATH_BUILD);
   _testExists(projectDir,"build/libs/servicepreaction-1.0.0.jar");
+  File gradleBundleFile=new File(projectDir,"build/libs/servicepreaction-1.0.0.jar");
+  File mavenProjectDir=_buildTemplateWithMaven("service","servicepreaction","-Dpackage=servicepreaction","-DclassName=FooAction","-DserviceClass=com.liferay.portal.kernel.events.LifecycleAction");
+  _writeServiceClass(mavenProjectDir);
+  _executeMaven(mavenProjectDir,new String[]{_TASK_PATH_PACKAGE});
+  _testExists(mavenProjectDir,"target/servicepreaction-1.0.0.jar");
+  File mavenBundleFile=new File(mavenProjectDir,"target/servicepreaction-1.0.0.jar");
+  _executeBndDiff(gradleBundleFile,mavenBundleFile);
 }
