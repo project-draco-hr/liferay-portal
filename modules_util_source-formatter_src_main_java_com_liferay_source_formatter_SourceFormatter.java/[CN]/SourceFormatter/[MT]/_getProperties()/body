@@ -16,7 +16,7 @@
     }
     return new Properties();
   }
-  String[] excludes=new String[0];
+  Set<String> excludes=new HashSet<>(_defaultExcludes);
   List<Properties> propertiesList=new ArrayList<>();
   File propertiesFile=sourceFormatterHelper.getFile(_sourceFormatterArgs.getBaseDirName(),"portal-impl/src/" + fileName,ToolsUtil.PORTAL_MAX_DIR_LEVEL);
   if (propertiesFile != null) {
@@ -26,7 +26,7 @@
     propertiesList.add(properties);
     String excludesValue=properties.getProperty("source.formatter.excludes");
     List<String> excludesList=ListUtil.fromString(GetterUtil.getString(excludesValue),StringPool.COMMA);
-    excludes=excludesList.toArray(new String[excludesList.size()]);
+    excludes.addAll(excludesList);
   }
   String parentDirName=_sourceFormatterArgs.getBaseDirName() + "../";
   for (int i=0; i < ToolsUtil.PORTAL_MAX_DIR_LEVEL - 1; i++) {
@@ -40,20 +40,18 @@
     }
     parentDirName+="../";
   }
-  List<String> modulePropertiesFileNames=sourceFormatterHelper.getFileNames(_sourceFormatterArgs.getBaseDirName(),null,excludes,new String[]{"**/modules/**/" + fileName},_sourceFormatterArgs.isIncludeSubrepositories());
+  List<String> modulePropertiesFileNames=sourceFormatterHelper.getFileNames(_sourceFormatterArgs.getBaseDirName(),null,excludes.toArray(new String[excludes.size()]),new String[]{"**/modules/**/" + fileName},_sourceFormatterArgs.isIncludeSubrepositories());
   for (  String modulePropertiesFileName : modulePropertiesFileNames) {
     InputStream inputStream=new FileInputStream(modulePropertiesFileName);
     Properties properties=new Properties();
     properties.load(inputStream);
     propertiesList.add(properties);
   }
-  if (propertiesList.isEmpty()) {
-    return new Properties();
-  }
-  if (propertiesList.size() == 1) {
-    return propertiesList.get(0);
-  }
   Properties properties=new Properties();
+  properties.setProperty("source.formatter.excludes",StringUtil.merge(excludes));
+  if (propertiesList.isEmpty()) {
+    return properties;
+  }
   for (int i=0; i < propertiesList.size(); i++) {
     Properties props=propertiesList.get(i);
     Enumeration<String> enu=(Enumeration<String>)props.propertyNames();
