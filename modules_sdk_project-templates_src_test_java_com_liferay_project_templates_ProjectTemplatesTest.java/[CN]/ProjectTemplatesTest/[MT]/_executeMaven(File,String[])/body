@@ -1,5 +1,5 @@
 {
-  File deps=new File("build/mavenEmbedderDeps.txt");
+  File deps=new File("build/maven-embedder-dependencies.txt");
   String[] lines=FileTestUtil.readLines(deps);
   URL[] urls=new URL[lines.length];
   for (int i=0; i < lines.length; i++) {
@@ -8,17 +8,17 @@
     urls[i]=uri.toURL();
   }
   try (URLClassLoader classLoader=new URLClassLoader(urls,null)){
-    Class<?> mavenCLIClazz=classLoader.loadClass("org.apache.maven.cli.MavenCli");
-    Object mavenCli=mavenCLIClazz.newInstance();
-    ByteArrayOutputStream output=new ByteArrayOutputStream();
-    ByteArrayOutputStream errorOutput=new ByteArrayOutputStream();
-    Method doMain=mavenCLIClazz.getMethod("doMain",String[].class,String.class,PrintStream.class,PrintStream.class);
+    Class<?> mavenCliClass=classLoader.loadClass("org.apache.maven.cli.MavenCli");
+    Object mavenCli=mavenCliClass.newInstance();
+    ByteArrayOutputStream outputStream=new ByteArrayOutputStream();
+    ByteArrayOutputStream errorStream=new ByteArrayOutputStream();
+    Method doMainMethod=mavenCliClass.getMethod("doMain",String[].class,String.class,PrintStream.class,PrintStream.class);
     Thread currentThread=Thread.currentThread();
     ClassLoader contextClassLoader=currentThread.getContextClassLoader();
     currentThread.setContextClassLoader(classLoader);
     try {
-      PrintStream out=new PrintStream(output);
-      PrintStream err=new PrintStream(errorOutput);
+      PrintStream outputPrintStream=new PrintStream(outputStream);
+      PrintStream errorPrintStream=new PrintStream(errorStream);
       String[] arguments=null;
       if (Validator.isNotNull(_httpProxyHost) && Validator.isNotNull(_httpProxyPort)) {
         arguments=new String[args.length + 2];
@@ -29,8 +29,8 @@
  else {
         arguments=args;
       }
-      Integer retcode=(Integer)doMain.invoke(mavenCli,arguments,gradleProjectDir.getAbsolutePath(),out,err);
-      Assert.assertEquals(new String(errorOutput.toByteArray()),0,retcode.intValue());
+      Integer exitCode=(Integer)doMainMethod.invoke(mavenCli,arguments,projectDir.getAbsolutePath(),outputPrintStream,errorPrintStream);
+      Assert.assertEquals(new String(errorStream.toByteArray()),0,exitCode.intValue());
     }
   finally {
       currentThread.setContextClassLoader(contextClassLoader);
