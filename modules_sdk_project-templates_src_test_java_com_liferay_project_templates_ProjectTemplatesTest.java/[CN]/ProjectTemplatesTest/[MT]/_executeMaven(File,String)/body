@@ -1,0 +1,26 @@
+{
+  List<String> completeArgs=new ArrayList<>();
+  completeArgs.add("--update-snapshots");
+  if (Validator.isNotNull(_httpProxyHost) && Validator.isNotNull(_httpProxyPort)) {
+    completeArgs.add("-Dhttp.proxyHost=" + _httpProxyHost);
+    completeArgs.add("-Dhttp.proxyPort=" + _httpProxyPort);
+  }
+  for (  String arg : args) {
+    completeArgs.add(arg);
+  }
+  Thread currentThread=Thread.currentThread();
+  ClassLoader contextClassLoader=currentThread.getContextClassLoader();
+  try (URLClassLoader urlClassLoader=new URLClassLoader(_mavenEmbedderDependencyURLs,null)){
+    currentThread.setContextClassLoader(urlClassLoader);
+    Class<?> mavenCliClass=urlClassLoader.loadClass("org.apache.maven.cli.MavenCli");
+    Method doMainMethod=mavenCliClass.getMethod("doMain",String[].class,String.class,PrintStream.class,PrintStream.class);
+    Object mavenCli=mavenCliClass.newInstance();
+    ByteArrayOutputStream outputStream=new ByteArrayOutputStream();
+    ByteArrayOutputStream errorStream=new ByteArrayOutputStream();
+    Integer exitCode=(Integer)doMainMethod.invoke(mavenCli,completeArgs.toArray(new String[completeArgs.size()]),projectDir.getAbsolutePath(),new PrintStream(outputStream,true),new PrintStream(errorStream,true));
+    Assert.assertEquals(errorStream.toString(),0,exitCode.intValue());
+  }
+  finally {
+    currentThread.setContextClassLoader(contextClassLoader);
+  }
+}
