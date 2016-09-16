@@ -5,7 +5,7 @@
   System.setProperty(propertyKey,String.valueOf(threadLocalBufferLimit));
   try {
     Assert.assertEquals(Integer.valueOf(threadLocalBufferLimit),ReflectionTestUtil.getFieldValue(StringBundler.class,"_THREAD_LOCAL_BUFFER_LIMIT"));
-    ThreadLocal<StringBuilder> threadLocal=ReflectionTestUtil.getFieldValue(StringBundler.class,"_stringBuilderThreadLocal");
+    ThreadLocal<Object> threadLocal=ReflectionTestUtil.getFieldValue(StringBundler.class,"_unsafeStringBuilderThreadLocal");
     Assert.assertNotNull(threadLocal);
     threadLocal.remove();
     StringBundler sb=new StringBundler();
@@ -14,17 +14,18 @@
     sb.append("3");
     sb.append("4");
     Assert.assertEquals("1234",sb.toString());
-    StringBuilder stringBuilder=threadLocal.get();
-    Assert.assertNotNull(stringBuilder);
-    Assert.assertEquals(4,stringBuilder.capacity());
+    Object unsafeStringBuilder=threadLocal.get();
+    Field countField=ReflectionTestUtil.getField(unsafeStringBuilder.getClass(),"_count");
+    Assert.assertNotNull(unsafeStringBuilder);
+    Assert.assertEquals(4,countField.get(unsafeStringBuilder));
     sb.append("5");
     Assert.assertEquals("12345",sb.toString());
-    Assert.assertSame(stringBuilder,threadLocal.get());
-    Assert.assertEquals(10,stringBuilder.capacity());
+    Assert.assertSame(unsafeStringBuilder,threadLocal.get());
+    Assert.assertEquals(5,countField.get(unsafeStringBuilder));
     sb.append("6");
     Assert.assertEquals("123456",sb.toString());
-    Assert.assertSame(stringBuilder,threadLocal.get());
-    Assert.assertEquals(10,stringBuilder.capacity());
+    Assert.assertSame(unsafeStringBuilder,threadLocal.get());
+    Assert.assertEquals(6,countField.get(unsafeStringBuilder));
   }
   finally {
     if (propertyValue == null) {
