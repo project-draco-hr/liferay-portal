@@ -1,0 +1,60 @@
+{
+  String baseResult=super.getResult();
+  if (baseResult == null) {
+    return null;
+  }
+  if (baseResult.equals("FAILURE")) {
+    StringBuilder sb=new StringBuilder();
+    sb.append("tests/");
+    sb.append(getJobName());
+    String jenkinsJobVariant=getParameterValue("JENKINS_JOB_VARIANT");
+    if (jenkinsJobVariant != null) {
+      sb.append("/");
+      sb.append(jenkinsJobVariant);
+    }
+    sb.append("/report.html");
+    File file=new File(sb.toString());
+    if (file.exists()) {
+      try {
+        String content=JenkinsResultsParserUtil.read(file);
+        Element rootElement=getElementFromString(content);
+        List<String> expectedCommentTokens=getCommentTokens(rootElement);
+        sb=new StringBuilder();
+        sb.append("https://api.github.com/repos/");
+        sb.append(getParameterValue("GITHUB_RECEIVER_USERNAME"));
+        sb.append("/");
+        sb.append("liferay-portal-ee");
+        sb.append("/issues/comments/");
+        sb.append(System.getProperty("TOP_LEVEL_GITHUB_COMMENT_ID"));
+        JSONObject jsonObject=getJSONObjectFromURL(sb.toString());
+        String commentBody=jsonObject.getString("body");
+        rootElement=getElementFromString(commentBody);
+        List<String> actualCommentTokens=getCommentTokens(rootElement);
+        boolean matchesTemplate=true;
+        for (int i=0; i < expectedCommentTokens.size(); i++) {
+          System.out.println();
+          System.out.println("Test " + i);
+          Pattern pattern=Pattern.compile(expectedCommentTokens.get(i));
+          Matcher matcher=pattern.matcher(actualCommentTokens.get(i));
+          System.out.println(expectedCommentTokens.get(i));
+          System.out.println(actualCommentTokens.get(i));
+          if (matcher.find()) {
+            System.out.println("Tokens matched.");
+          }
+ else {
+            System.out.println("Tokens mismatched.");
+            matchesTemplate=false;
+            break;
+          }
+        }
+        if (matchesTemplate) {
+          return "SUCCESS";
+        }
+      }
+ catch (      Exception e) {
+        throw new RuntimeException("An exception occurred while trying to match the " + "output with the expected output",e);
+      }
+    }
+  }
+  return baseResult;
+}
