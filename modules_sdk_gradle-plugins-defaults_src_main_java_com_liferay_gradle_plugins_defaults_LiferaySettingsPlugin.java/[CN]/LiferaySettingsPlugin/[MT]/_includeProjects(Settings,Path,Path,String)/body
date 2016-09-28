@@ -1,6 +1,6 @@
 {
   final Set<Path> excludedDirPaths=getDirPaths("build.exclude.dirs",rootDirPath);
-  final boolean modulesOnlyBuild=Boolean.getBoolean("modules.only.build");
+  final Set<ProjectDirType> excludedProjectDirTypes=_getFlags("build.exclude.",ProjectDirType.class);
   final boolean portalBuild=Boolean.getBoolean("portal.build");
   final boolean portalPreBuild=Boolean.getBoolean("portal.pre.build");
   Files.walkFileTree(rootDirPath,new SimpleFileVisitor<Path>(){
@@ -11,18 +11,12 @@
       if (excludedDirPaths.contains(dirPath)) {
         return FileVisitResult.SKIP_SUBTREE;
       }
-      boolean moduleProjectDir=false;
-      boolean otherProjectDir=false;
-      if (Files.exists(dirPath.resolve("bnd.bnd"))) {
-        moduleProjectDir=true;
-      }
- else {
-        if (Files.exists(dirPath.resolve("build.xml")) || Files.exists(dirPath.resolve("gulpfile.js"))) {
-          otherProjectDir=true;
-        }
-      }
-      if (!moduleProjectDir && !otherProjectDir) {
+      ProjectDirType projectDirType=_getProjectDirType(dirPath);
+      if (projectDirType == ProjectDirType.UNKNOWN) {
         return FileVisitResult.CONTINUE;
+      }
+      if (excludedProjectDirTypes.contains(projectDirType)) {
+        return FileVisitResult.SKIP_SUBTREE;
       }
       if (portalBuild && Files.notExists(dirPath.resolve(".lfrbuild-portal"))) {
         return FileVisitResult.SKIP_SUBTREE;
@@ -30,9 +24,7 @@
       if (portalPreBuild && Files.notExists(dirPath.resolve(".lfrbuild-portal-pre"))) {
         return FileVisitResult.SKIP_SUBTREE;
       }
-      if (moduleProjectDir || !modulesOnlyBuild) {
-        _includeProject(settings,dirPath,projectPathRootDirPath,projectPathPrefix);
-      }
+      _includeProject(settings,dirPath,projectPathRootDirPath,projectPathPrefix);
       return FileVisitResult.SKIP_SUBTREE;
     }
   }
