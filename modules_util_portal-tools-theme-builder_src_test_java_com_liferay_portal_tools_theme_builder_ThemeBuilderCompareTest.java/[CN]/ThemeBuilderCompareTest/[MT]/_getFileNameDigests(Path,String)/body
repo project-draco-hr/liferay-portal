@@ -1,0 +1,30 @@
+{
+  final Map<String,byte[]> fileNameDigests=new HashMap<>();
+  final MessageDigest messageDigest=MessageDigest.getInstance("MD5");
+  final List<PathMatcher> excludePathMatchers=new ArrayList<>(excludePatterns.length);
+  FileSystem fileSystem=dirPath.getFileSystem();
+  String dirName=dirPath.toString();
+  if (File.separatorChar != '/') {
+    dirName=dirName.replace(File.separatorChar,'/');
+  }
+  for (  String pattern : excludePatterns) {
+    PathMatcher pathMatcher=fileSystem.getPathMatcher("glob:" + dirName + "/"+ pattern);
+    excludePathMatchers.add(pathMatcher);
+  }
+  Files.walkFileTree(dirPath,new SimpleFileVisitor<Path>(){
+    @Override public FileVisitResult visitFile(    Path path,    BasicFileAttributes basicFileAttributes) throws IOException {
+      for (      PathMatcher pathMatcher : excludePathMatchers) {
+        if (pathMatcher.matches(path)) {
+          return FileVisitResult.CONTINUE;
+        }
+      }
+      Path relativePath=dirPath.relativize(path);
+      messageDigest.reset();
+      messageDigest.update(Files.readAllBytes(path));
+      fileNameDigests.put(relativePath.toString(),messageDigest.digest());
+      return FileVisitResult.CONTINUE;
+    }
+  }
+);
+  return fileNameDigests;
+}
