@@ -1,23 +1,23 @@
 {
   String baseResult=super.getResult();
-  if (baseResult == null) {
-    return null;
+  if ((baseResult == null) || baseResult.equals("SUCCESS")) {
+    return baseResult;
   }
   if (baseResult.equals("FAILURE")) {
-    StringBuilder sb=new StringBuilder();
-    sb.append("tests/");
-    sb.append(getJobName());
-    String jenkinsJobVariant=getParameterValue("JENKINS_JOB_VARIANT");
-    if (jenkinsJobVariant != null) {
-      sb.append("/");
-      sb.append(jenkinsJobVariant);
-    }
-    sb.append("/report.html");
-    File file=new File(sb.toString());
-    if (file.exists()) {
+    Map<String,String> stopProperties=getStopProperties();
+    if (stopProperties.containsKey("TOP_LEVEL_GITHUB_COMMENT_ID")) {
+      StringBuilder sb=new StringBuilder();
+      sb.append("http://mirrors-no-cache.lax.liferay.com/");
+      sb.append("github.com/liferay/liferay-jenkins-ee/tests/");
+      sb.append(getJobName());
+      String jenkinsJobVariant=getParameterValue("JENKINS_JOB_VARIANT");
+      if (jenkinsJobVariant != null) {
+        sb.append("/");
+        sb.append(jenkinsJobVariant);
+      }
+      sb.append("/report.html");
       try {
-        String content=JenkinsResultsParserUtil.read(file);
-        Element rootElement=getElementFromString(content);
+        Element rootElement=getElementFromString(JenkinsResultsParserUtil.toString(sb.toString()));
         List<String> expectedCommentTokens=getCommentTokens(rootElement);
         sb=new StringBuilder();
         sb.append("https://api.github.com/repos/");
@@ -25,8 +25,7 @@
         sb.append("/");
         sb.append("liferay-portal-ee");
         sb.append("/issues/comments/");
-        Map<String,String> startProperties=getStartProperties();
-        sb.append(startProperties.get("TOP_LEVEL_GITHUB_COMMENT_ID"));
+        sb.append(stopProperties.get("TOP_LEVEL_GITHUB_COMMENT_ID"));
         JSONObject jsonObject=getJSONObjectFromURL(sb.toString());
         String commentBody=jsonObject.getString("body");
         rootElement=getElementFromString(commentBody);
@@ -49,13 +48,16 @@
           }
         }
         if (matchesTemplate) {
-          return "SUCCESS";
+          result="SUCCESS";
+          return result;
         }
       }
  catch (      Exception e) {
         throw new RuntimeException("An exception occurred while trying to match the " + "output with the expected output",e);
       }
     }
+    result=null;
+    return result;
   }
   return baseResult;
 }
