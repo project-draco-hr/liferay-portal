@@ -2,12 +2,18 @@
   if (detailAST.getChildCount() != 2) {
     return;
   }
-  String literalString1=_getLiteralString(detailAST.getFirstChild());
+  DetailAST firstChild=detailAST.getFirstChild();
+  String literalString1=_getLiteralString(firstChild);
   if (literalString1 == null) {
     return;
   }
-  String literalString2=_getLiteralString(detailAST.getLastChild());
+  DetailAST lastChild=detailAST.getLastChild();
+  String literalString2=_getLiteralString(lastChild);
   if (literalString2 == null) {
+    return;
+  }
+  if (firstChild.getLineNo() == lastChild.getLineNo()) {
+    log(firstChild.getLineNo(),MSG_COMBINE_LITERAL_STRINGS,literalString1,literalString2);
     return;
   }
   if (_isRegexPattern(detailAST)) {
@@ -17,6 +23,26 @@
     log(detailAST.getLineNo(),MSG_INVALID_END_CHARACTER,literalString1.charAt(literalString1.length() - 1));
   }
   if (literalString2.startsWith(StringPool.SPACE) || (!literalString1.endsWith(StringPool.SPACE) && literalString2.matches("^[-:;.].*"))) {
-    log(detailAST.getLineNo() + 1,MSG_INVALID_START_CHARACTER,literalString2.charAt(0));
+    log(lastChild.getLineNo(),MSG_INVALID_START_CHARACTER,literalString2.charAt(0));
+    return;
+  }
+  String[] lines=getLines();
+  String line1=lines[lastChild.getLineNo() - 2];
+  String line2=lines[lastChild.getLineNo() - 1];
+  int tabCount1=_getLeadingTabCount(line1);
+  int tabCount2=_getLeadingTabCount(line2);
+  if (tabCount1 == tabCount2) {
+    return;
+  }
+  int lineLength1=CommonUtils.lengthExpandedTabs(line1,line1.length(),getTabWidth());
+  String trimmedLine2=StringUtil.trim(line2);
+  if ((lineLength1 + trimmedLine2.length() - 4) <= _maxLineLength) {
+    log(lastChild.getLineNo(),MSG_COMBINE_LITERAL_STRINGS,literalString1,literalString2);
+    return;
+  }
+  DetailAST parentAST=detailAST.getParent();
+  if ((parentAST.getType() == TokenTypes.PLUS) && ((lineLength1 + literalString2.length()) <= _maxLineLength)) {
+    log(detailAST.getLineNo(),MSG_COMBINE_LITERAL_STRINGS,literalString1,literalString2);
+    return;
   }
 }
